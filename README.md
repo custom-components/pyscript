@@ -158,8 +158,8 @@ the behavior you prefer. Here's the improved example:
 @time_active("range(sunset - 20min, sunrise + 20min)")
 def motion_light_rear():
     """Turn on rear light for 5 minutes when there is motion and it's dark"""
-    log.info(f"motion_light_rear triggered; turning on the light")
     task.unique("motion_light_rear")
+    log.info(f"motion_light_rear triggered; turning on the light")
     light.turn_on(entity_id="light.outside_rear", brightness=255)
     task.sleep(300)
     light.turn_off(entity_id="light.outside_rear")
@@ -184,8 +184,8 @@ don't have to turn it on again, by checking the relevant state variable:
 @time_active("range(sunset - 20min, sunrise + 20min)")
 def motion_light_rear():
     """Turn on rear light for 5 minutes when there is motion and it's dark"""
-    log.info(f"motion_light_rear triggered; turning on the light")
     task.unique("motion_light_rear")
+    log.info(f"motion_light_rear triggered; turning on the light")
     if light.outside_rear != "on":
         light.turn_on(entity_id="light.outside_rear", brightness=255)
     task.sleep(300)
@@ -524,7 +524,7 @@ set the attributes, which you can't do if you are directly assigning to the vari
 `state.set(name, value, attr=None)` sets the state variable to the given value, with the optional attributes.
 
 Note that in Hass, all state variable values are coerced into strings.  For example, if a state variable
-has a numberic value, you will have to convert it to a numeric type (eg, using `int()` or `float()`).
+has a numeric value, you might want to convert it to a numeric type (eg, using `int()` or `float()`).
 
 #### Service Calls
 
