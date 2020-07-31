@@ -438,8 +438,8 @@ If it evaluates to `False` (or zero), the trigger is ignored and the trigger fun
 
 `@time_active` takes one or more strings that specify time-based ranges. When any trigger
 occurs (whether time, state or event), each time range specification is checked. If the
-current time doesn't fall within every range specified, the trigger is ignored and the trigger
-function is not called.
+current time doesn't fall within any range specified, the trigger is ignored and the
+trigger function is not called.
 
 Each string specification can take two forms:
 - `"range(datetime_start, datetime_end)"` is satisfied if the current time is in the indicated
@@ -514,9 +514,17 @@ includes a period. This is one aspect where the interpreter behaves differently 
 
 #### Accessing state variables
 
+State variables can be used and set just by using them as normal Python variables. However, there could
+be cases where you want to dynamically generate the variable name (eg, in a loop). These functions
+allow you to get and set a variable using its string name. The set function also allows you to optionally
+set the attributes, which you can't do if you are directly assigning to the variable:
+
 `state.get(name)` returns the value of the state variable, or `None` if it doesn't exist
 
 `state.set(name, value, attr=None)` sets the state variable to the given value, with the optional attributes.
+
+Note that in Hass, all state variable values are coerced into strings.  For example, if a state variable
+has a numberic value, you will have to convert it to a numeric type (eg, using `int()` or `float()`).
 
 #### Service Calls
 

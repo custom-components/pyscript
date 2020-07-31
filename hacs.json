@@ -3,5 +3,5 @@
     "content_in_root": false,
     "domains": ["automation", "script", "timer"],
     "zip_release": true,
-    "file_name": "hass-custom-pyscript.zip"
+    "filename": "hass-custom-pyscript.zip"
 }
