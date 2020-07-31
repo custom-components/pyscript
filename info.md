@@ -28,6 +28,6 @@ See the documentation if you want to install manually or install the latest unre
 
 ## Useful Links
 
-* [Documentation](https://github.com/custom-components/pyscript/blob/0.10/README.md)
+* [Documentation](https://github.com/custom-components/pyscript)
 * [Issues tracker](https://github.com/custom-components/pyscript/issues)
 * [GitHub repository](https://github.com/custom-components/pyscript) (please add a star if you like `pyscript`!)
