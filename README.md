@@ -29,15 +29,17 @@ Pyscript implements a Python interpreter using the ast parser output, in a fully
 allows several of the "magic" features to be implemented in a seamless Pythonesque manner, such as
 binding of variables to states and functions to services. Pyscript supports imports, although the
 valid import list is restricted for security reasons. Pyscript does not (yet) support some language
-features like declaring new objects, try/except, eval, generators and some syntax like "with"
-and "yield". Pyscript provides a handful of additional built-in functions that connect to Hass
+features like declaring new objects, `try/except`, `eval`, generators and some syntax like `with`
+and `yield`. Pyscript provides a handful of additional built-in functions that connect to HASS
 features, like logging, accessing state variables as strings (if you need to compute their names
 dynamically), sleeping and waiting for triggers.
 
 Pyscript provides functionality that complements the existing automations, templates and
 triggers. It presents a simplified and more integrated binding for Python scripting than
-[Python Scripts](https://www.home-assistant.io/integrations/python_script), which provides
-direct access to Home Assistant internals.
+[Python Scripts](https://www.home-assistant.io/integrations/python_script), which requires
+a lot more expertise and scaffolding using direct access to Home Assistant internals.
+Pyscript is most similar to AppDeamon, and some similarities and differences are
+[described below](#comparing-pyscript-to-appdaemon).
 
 ## Installation
 
@@ -69,6 +71,7 @@ cp -pr pyscript/custom_components/pyscript YOUR_HASS_CONFIG_DIRECTORY/custom_com
 * Add `pyscript:` to `<config>/configuration.yaml`; pyscript doesn't have any configuration settings
 * Create the folder `<config>/pyscript`
 * Add files with a suffix of `.py` in the folder `<config>/pyscript`.
+* Restart HASS.
 * Whenever you change a script file, make a `reload` service call to `pyscript`.
 * Watch the HASS log for `pyscript` errors and logger output from your scripts.
 
@@ -296,7 +299,7 @@ are essentially equivalent (note the use of single quotes inside the outer doubl
 @state_trigger("domain.light_level == '255' or domain.light2_level == '0'")
 ```
 ```python
-@state_trigger("int(domain.light_level) == 255 or int(domain.light2_level) ==0")
+@state_trigger("int(domain.light_level) == 255 or int(domain.light2_level) == 0")
 ```
 although the second will give an exception if the variable string doesn't represent a valid integer.
 If you want numerical inequalities you should use the second form, since string lexicographic
@@ -477,7 +480,7 @@ state and event triggers specified by other decorators.
 The function is called with keyword parameters set to the service call parameters, plus `trigger_type`
 is set to `"service"`.
 
-The `doc_string` (the comment right after the function declaration) is used as the service description
+The `doc_string` (the string immediately after the function declaration) is used as the service description
 that appears is in the Services tab of the Developer Tools page. The function argument names are
 used as the service parameter names, but there is no description.
 
@@ -523,7 +526,7 @@ set the attributes, which you can't do if you are directly assigning to the vari
 
 `state.set(name, value, attr=None)` sets the state variable to the given value, with the optional attributes.
 
-Note that in Hass, all state variable values are coerced into strings.  For example, if a state variable
+Note that in HASS, all state variable values are coerced into strings.  For example, if a state variable
 has a numeric value, you might want to convert it to a numeric type (eg, using `int()` or `float()`).
 
 #### Service Calls
@@ -614,6 +617,27 @@ In the special case that `state_check_now=True` and `task.wait_until()` returns 
 other return variables that capture the variable name and value that just caused the trigger are
 not included in the `dict` - it will just contain `trigger_type="state"`.
 
+Here's an example.  Whenever a door is opened, we want to do something if the door closes within
+30 seconds.  If a timeout of more than 30 seconds elapses (ie, the door is still open), we want
+to do some other action.  We use a decorator trigger when the door is opened, and we use
+`task.wait_until` to wait for either the door to close, or a timeout of 30 seconds to elapse.
+The return value tells which of the two events happened:
+```python
+@state_trigger("security.rear_door == 'open'")
+def rear_door_open_too_long():
+    """send alert if door is open for more than 30 seconds"""
+    trig_info = task.wait_until(
+                    state_trigger="security.rear_door == 'closed'",
+                    timeout=30
+                )
+    if trig_info["trigger_type"] == "timeout":
+        # 30 seconds elapsed without the door closing; do some actions
+        pass
+    else:
+        # the door closed within 30 seconds; do some other actions
+        pass
+```
+
 `task.wait_until()` is logically equivalent to using the corresponding decorators, with some
 important differences. Consider these two alternatives, which each run some code whenever
 there is an event `test_event3` with parameters `args == 20` and `arg2 == 30`:
@@ -650,9 +674,65 @@ a while before calling `task.wait_until()` again (e.g., `task.sleep()` or any co
 there is no other code in the `while` loop, some events or state changes of interest will be
 potentially missed.
 
-Summary: use decorators whenever you can. Be especially cautious using `task.wait_until()` to
-wait for events; you must make sure you logic is robust to missing events that happen before or
+Summary: use trigger decorators whenever you can. Be especially cautious using `task.wait_until()`
+to wait for events; you must make sure your logic is robust to missing events that happen before or
 after `task.wait_until()` runs.
+
+## Comparing Pyscript to AppDaemon
+
+Overall the goals of pyscript and AppDaemon are similar - allowing users to implement powerful
+Python-based automation, triggers, logic and actions with much less scaffolding, overhead and
+expertise than HASS internals or Python Scripts require, and with a lot more flexibility and
+richness than the builtin `yaml` automations, triggers and templates.
+
+Broadly, pyscript has a higher-level of abstraction than AppDaemon, meaning it has less details the
+user has to code or worry about.  There will be many cases where pyscript and AppDaemon are
+relatively similar in terms of user implementation complexity.  There will be cases where pyscript
+is simpler and easier.  There will be cases where AppDaemon can do things that pyscript cannot (at
+least not yet).  Please tell me about those latter cases since I'm happy to implement new features.
+
+Here are a few more specific differences:
+
+* Pyscript allows state triggers to be full Python expressions involving multiple state variables;
+AppDaemon allows callbacks to be attached to each state change event, so it can implement a trigger
+expression involving multiple variables, but it requires a couple more steps - attach a callback to
+each state variable and put the trigger logic inside the callback.
+* An automation with multiple steps (eg, do something, wait a while for something to happen, then do
+something else) can usually be implemented as a single function in pyscript, which can sleep or wait
+for new triggers in the middle of any Python code without needing to split things up using
+callbacks.  In AppDaemon, each step typically will need a callback to wait for some time or another
+event like a state change.  It's usually more difficult to split up logic across multiple callbacks,
+especially when some callbacks can involve two outcomes (eg: handle either outcome of waiting for a
+state change within a timeout) versus just an `if` statement based on the return value of
+`task.wait_until()`.
+* Pyscript allows HASS state variables to be directly used as Python variables, versus the helper
+functions (`get_state()` and `set_state()`) in AppDaemon.  That's not much difference.  Plus
+pyscript provides helper functions too in case you need to set attributes or dynamically compute the
+state variable name.
+* Pyscript is fully async based and runs inside HASS, without the user having to use `await` or even
+know what async is.  AppDaemon uses a thread per app, although it supports async tasks too.
+* Since async tasks are much more lightweight than threads, pyscript should easily be able to
+support hundreds or thousands of functions/apps.  AppDaemon uses more resources with one thread per
+app, but it can also support async tasks without one thread per app.  However, as its docs say, the
+user needs more manual control and expertise to use async correctly.
+* Pyscript has some richer time triggers, like `cron`.
+* AppDaemon supports random duration time triggers, which I plan to add to pyscript.
+* Pyscript interprets the Python code, which is how it hides almost all the scaffolding and
+complexity, but long pieces of user code will run slower because it's an interpreter (all imports
+are native, so they run at the same speed as real Python).  AppDaemon uses native Python code, so it
+will run faster.  Offsetting that is that pyscript runs inside HASS, but AppDaemon is a separate
+process, so all events and state changes have some IPC and context switch overheads.
+* Pyscript's interpreter doesn't implement all of Python - it doesn't (yet) support classes,
+`try/except`, `eval`, `with`, `yield` and generators.  AppDaemon is native Python, so the whole
+language is available.
+* Any pyscript functions you designate can be called as services from HASS.  @apop mentioned that
+AppDaemon doesn't support apps to be exposed inside HASS as a service.
+* AppDaemon has some clever testing features like accelerated time to debug your time trigger logic.
+I need to think about how to make pyscript script testing easier.
+* AppDaemon has some other interesting features like log message triggers.
+
+Please tell me about any corrections or omissions, or if you think this isn't balanced or fair, and
+I'll edit the list.
 
 ## Useful Links
 
