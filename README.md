@@ -34,12 +34,13 @@ and `yield`. Pyscript provides a handful of additional built-in functions that c
 features, like logging, accessing state variables as strings (if you need to compute their names
 dynamically), sleeping and waiting for triggers.
 
-Pyscript provides functionality that complements the existing automations, templates and
-triggers. It presents a simplified and more integrated binding for Python scripting than
+Pyscript provides functionality that complements the existing automations, templates and triggers.
+Pyscript is most similar to [AppDaemon](https://appdaemon.readthedocs.io/en/latest/), and
+some similarities and differences are discussed in this
+[Wiki page](https://github.com/custom-components/pyscript/wiki/Comparing-Pyscript-to-AppDaemon).
+Pyscripts presents a simplified and more integrated binding for Python scripting than
 [Python Scripts](https://www.home-assistant.io/integrations/python_script), which requires
 a lot more expertise and scaffolding using direct access to Home Assistant internals.
-Pyscript is most similar to AppDeamon, and some similarities and differences are
-[described below](#comparing-pyscript-to-appdaemon).
 
 ## Installation
 
@@ -216,8 +217,10 @@ can use triggers or use service calls to invoke other functions, or state variab
 
 Reloading the `.py` files is accomplished by calling the `pyscript.reload` service, which is the one
 built-in service (so you can't create your own service with that name). All function definitions,
-services and triggers are re-created on `reload`. Any currently running functions are not stopped
-by `reload` - they continue to run until they finish (return).
+services and triggers are re-created on `reload`. Any currently running functions (ie, functions
+that have been triggered and are actively executing Python code or waiting inside `task.sleep()`
+or `task.wait_until()`) are not stopped by `reload` - they continue to run until they finish
+(return).
 
 ## Accessing state variables
 
@@ -678,66 +681,16 @@ Summary: use trigger decorators whenever you can. Be especially cautious using `
 to wait for events; you must make sure your logic is robust to missing events that happen before or
 after `task.wait_until()` runs.
 
-## Comparing Pyscript to AppDaemon
+## Contributing
 
-Overall the goals of pyscript and AppDaemon are similar - allowing users to implement powerful
-Python-based automation, triggers, logic and actions with much less scaffolding, overhead and
-expertise than HASS internals or Python Scripts require, and with a lot more flexibility and
-richness than the builtin `yaml` automations, triggers and templates.
-
-Broadly, pyscript has a higher-level of abstraction than AppDaemon, meaning it has less details the
-user has to code or worry about.  There will be many cases where pyscript and AppDaemon are
-relatively similar in terms of user implementation complexity.  There will be cases where pyscript
-is simpler and easier.  There will be cases where AppDaemon can do things that pyscript cannot (at
-least not yet).  Please tell me about those latter cases since I'm happy to implement new features.
-
-Here are a few more specific differences:
-
-* Pyscript allows state triggers to be full Python expressions involving multiple state variables;
-AppDaemon allows callbacks to be attached to each state change event, so it can implement a trigger
-expression involving multiple variables, but it requires a couple more steps - attach a callback to
-each state variable and put the trigger logic inside the callback.
-* An automation with multiple steps (eg, do something, wait a while for something to happen, then do
-something else) can usually be implemented as a single function in pyscript, which can sleep or wait
-for new triggers in the middle of any Python code without needing to split things up using
-callbacks.  In AppDaemon, each step typically will need a callback to wait for some time or another
-event like a state change.  It's usually more difficult to split up logic across multiple callbacks,
-especially when some callbacks can involve two outcomes (eg: handle either outcome of waiting for a
-state change within a timeout) versus just an `if` statement based on the return value of
-`task.wait_until()`.
-* Pyscript allows HASS state variables to be directly used as Python variables, versus the helper
-functions (`get_state()` and `set_state()`) in AppDaemon.  That's not much difference.  Plus
-pyscript provides helper functions too in case you need to set attributes or dynamically compute the
-state variable name.
-* Pyscript is fully async based and runs inside HASS, without the user having to use `await` or even
-know what async is.  AppDaemon uses a thread per app, although it supports async tasks too.
-* Since async tasks are much more lightweight than threads, pyscript should easily be able to
-support hundreds or thousands of functions/apps.  AppDaemon uses more resources with one thread per
-app, but it can also support async tasks without one thread per app.  However, as its docs say, the
-user needs more manual control and expertise to use async correctly.
-* Pyscript has some richer time triggers, like `cron`.
-* AppDaemon supports random duration time triggers, which I plan to add to pyscript.
-* Pyscript interprets the Python code, which is how it hides almost all the scaffolding and
-complexity, but long pieces of user code will run slower because it's an interpreter (all imports
-are native, so they run at the same speed as real Python).  AppDaemon uses native Python code, so it
-will run faster.  Offsetting that is that pyscript runs inside HASS, but AppDaemon is a separate
-process, so all events and state changes have some IPC and context switch overheads.
-* Pyscript's interpreter doesn't implement all of Python - it doesn't (yet) support classes,
-`try/except`, `eval`, `with`, `yield` and generators.  AppDaemon is native Python, so the whole
-language is available.
-* Any pyscript functions you designate can be called as services from HASS.  @apop mentioned that
-AppDaemon doesn't support apps to be exposed inside HASS as a service.
-* AppDaemon has some clever testing features like accelerated time to debug your time trigger logic.
-I need to think about how to make pyscript script testing easier.
-* AppDaemon has some other interesting features like log message triggers.
-
-Please tell me about any corrections or omissions, or if you think this isn't balanced or fair, and
-I'll edit the list.
+You are encouraged to submit PRs, bug reports, feature requests or add to the Wiki with examples
+and tutorials.
 
 ## Useful Links
 
 * [Documentation](https://github.com/custom-components/pyscript/blob/master/README.md)
-* [Issues tracker](https://github.com/custom-components/pyscript/issues)
+* [Issues](https://github.com/custom-components/pyscript/issues)
+* [Wiki](https://github.com/custom-components/pyscript/wiki)
 * [GitHub repository](https://github.com/custom-components/pyscript) (please add a star if you like `pyscript`!)
 
 ## Copyright
