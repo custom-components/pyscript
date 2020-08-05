@@ -453,14 +453,13 @@ range, including the end points. As in `@time_trigger`, the year or date can be 
 specify daily ranges. If the end is prior to the start, the range is satisfied if the current
 time is either greater than or equal to the start or less than or equal to the end. That allows
 a range like:
-```python
-@time_active("range(sunset - 20min, sunrise + 15min)")
-```
-to mean at least 20 minutes before sunset, or at least 15 minutes after sunrise (note: at
-latitudes close to the polar circles, there can be cases where the sunset time is after
-midnight, so it is before the sunrise time, so this might not work correctly; at even
-greater latitudes sunset and sunrise will not be defined at all since there might not
-be daily sunrises or sunsets).
+    ```python
+    @time_active("range(sunset - 20min, sunrise + 15min)")
+    ```
+    to mean at least 20 minutes before sunset, or at least 15 minutes after sunrise (note: at
+latitudes close to the polar circles, there can be cases where the sunset time is after midnight, so
+it is before the sunrise time, so this might not work correctly; at even greater latitudes sunset
+and sunrise will not be defined at all since there might not be daily sunrises or sunsets).
 - `"cron(min hr dom mon dow)"` is satisfied if the current time matches the range specified by
 the `cron` parameters. For example, if `hr` is `6-10` that means hours between 6 and 10
 inclusive. If additionally `min` is `*` (i.e., any), then that would mean a time interval
