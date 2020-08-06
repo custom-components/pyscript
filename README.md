@@ -128,7 +128,7 @@ Here's another example:
 @time_active("range(sunset - 20min, sunrise + 15min)")
 def motion_light_rear():
     """Turn on rear light for 5 minutes when there is motion and it's dark"""
-    log.info(f"motion_light_rear triggered; turning on the light")
+    log.info(f"triggered; turning on the light")
     light.turn_on(entity_id="light.outside_rear", brightness=255)
     task.sleep(300)
     light.turn_off(entity_id="light.outside_rear")
@@ -163,7 +163,7 @@ the behavior you prefer. Here's the improved example:
 def motion_light_rear():
     """Turn on rear light for 5 minutes when there is motion and it's dark"""
     task.unique("motion_light_rear")
-    log.info(f"motion_light_rear triggered; turning on the light")
+    log.info(f"triggered; turning on the light")
     light.turn_on(entity_id="light.outside_rear", brightness=255)
     task.sleep(300)
     light.turn_off(entity_id="light.outside_rear")
@@ -189,7 +189,7 @@ don't have to turn it on again, by checking the relevant state variable:
 def motion_light_rear():
     """Turn on rear light for 5 minutes when there is motion and it's dark"""
     task.unique("motion_light_rear")
-    log.info(f"motion_light_rear triggered; turning on the light")
+    log.info(f"triggered; turning on the light")
     if light.outside_rear != "on":
         light.turn_on(entity_id="light.outside_rear", brightness=255)
     task.sleep(300)
@@ -349,7 +349,7 @@ use the keyword catch-all declaration instead:
 ```python
 @state_trigger("domain.light_level == '255' or domain.light2_level == '0'")
 def light_turned_on(**kwargs)
-    pass
+    log.info(f"got arguments {kwargs}")
 ```
 and all those values will simply get passed in into kwargs as a `dict`. That's the most useful
 form to use if you have multiple decorators, since each one passes different variables into
@@ -434,6 +434,34 @@ You can access the names of those events by importing from `homeassistant.const`
 ```python
 from homeassistant.const import EVENT_CALL_SERVICE
 ````
+
+To figure out what parameters are sent with an event and what objects (eg: `list`, `dict`)
+are used to represent them, you can look at the HASS source code, or initially use the
+`**kwargs` argument to capture all the parameters and log them.  For example, you might
+want to trigger on certain service calls (not ones directed to pyscript), but you are
+unsure which one and what parameters it has.  So initially you trigger on all service
+calls just to see them:
+```python
+from homeassistant.const import EVENT_CALL_SERVICE
+
+@event_trigger(EVENT_CALL_SERVICE)
+def monitor_service_calls(**kwargs):
+    log.info(f"got EVENT_CALL_SERVICE with kwargs={kwargs}")
+```
+After running that, you see that you are interested in the service call `lights.turn_on`,
+and you see that the `EVENT_CALL_SERVICE` event has parameters `domain` set to `lights`
+and `service` set to `turn_on`, and the service parameters are passed as a `dict`
+in `service_data`.  So then you can narrow down the event trigger to that particular
+service call:
+```python
+from homeassistant.const import EVENT_CALL_SERVICE
+
+@event_trigger(EVENT_CALL_SERVICE, "domain == 'lights' and service == 'turn_on'")
+def monitor_light_turn_on_service(service_data=None):
+    log.info(f"lights.turn_on service called with service_data={service_data}")
+```
+This [wiki page](https://github.com/custom-components/pyscript/wiki/Event-based-triggers)
+gives more examples of built-in and user events and how to create triggers for them.
 
 #### `@state_active(str_expr)`
 
