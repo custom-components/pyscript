@@ -137,6 +137,21 @@ evalTests = [
         "z = [0, 1, 2, 3, 4, 5, 6, 7, 8]; z[::] = [10, 11, 12, 13, 14, 15, 16, 17]; z",
         [10, 11, 12, 13, 14, 15, 16, 17],
     ],
+    ["eval('1+2')", 3],
+    ["x = 5; eval('2 * x')", 10],
+    ["x = 5; exec('x = 2 * x'); x", 10],
+    ["eval('xyz', {'xyz': 10})", 10],
+    ["g = {'xyz': 10}; eval('xyz', g, {})", 10],
+    ["g = {'xyz': 10}; eval('xyz', {}, g)", 10],
+    ["g = {'xyz': 10}; exec('xyz = 20', {}, g); g", {"xyz": 20}],
+    [
+        "g = {'xyz': 10}; xyz = 'abc'; exec('xyz = 20', g, {}); [g['xyz'], xyz]",
+        [10, "abc"],
+    ],
+    ["g = {'xyz': 10}; exec('xyz = 20', {}, g); g", {"xyz": 20}],
+    ["x = 18; locals()['x']", 18],
+    ["import math; globals()['math'].sqrt(1024)", 32],
+    ["import math; exec('xyz = math.floor(5.6)'); xyz", 5],
     ["import random as rand, math as m\n[rand.uniform(10,10), m.sqrt(1024)]", [10, 32]],
     ["import cmath\ncmath.sqrt(complex(3, 4))", 2 + 1j],
     ["from math import sqrt as sqroot\nsqroot(1024)", 32],
@@ -145,7 +160,7 @@ evalTests = [
 bar = 100
 def foo(bar=6):
     bar += 2
-    return bar
+    return eval('bar')
     bar += 5
     return 1000
 [foo(), foo(5), bar]
@@ -158,7 +173,7 @@ bar = 100
 def foo(bar=6):
     bar += 2
     del bar
-    return bar
+    return eval('bar')
     bar += 5
     return 1000
 [foo(), foo(5), bar]
@@ -184,20 +199,69 @@ def foo(arg=6):
     ],
     [
         """
-bar = 100
-bar2 = 1000
-bar3 = 100
-def foo(arg=6):
-    nonlocal bar, bar2, bar3
-    bar += arg
-    bar2 = 1001
-    del bar3
-    return bar
-    bar += arg
-    return 1000
-[foo(), foo(5), bar, bar2]
+def foo0(arg=6):
+    bar = 100
+    bar2 = 1000
+    bar3 = 100
+    def foo1(arg=6):
+        nonlocal bar, bar2, bar3
+        bar += arg
+        bar2 = 1001
+        del bar3
+        return bar
+        bar += arg
+        return 1000
+    return [foo1(arg), bar, bar2]
+[foo0(), foo0(5)]
 """,
-        [106, 111, 111, 1001],
+        [[106, 106, 1001], [105, 105, 1001]],
+    ],
+    [
+        """
+bar = 50
+bar2 = 500
+bar3 = 50
+def foo0(arg=6):
+    bar = 100
+    bar2 = 1000
+    bar3 = 100
+    def foo1(arg=6):
+        nonlocal bar, bar2, bar3
+        bar += arg
+        bar2 = 1001
+        del bar3
+        return eval('bar')
+        bar += arg
+        return 1000
+    return [foo1(arg), bar, eval('bar2')]
+[foo0(), foo0(5)]
+""",
+        [[106, 106, 1001], [105, 105, 1001]],
+    ],
+    [
+        """
+bar = 50
+bar2 = 500
+bar3 = 50
+def foo0(arg=6):
+    bar = 100
+    bar2 = 1000
+    bar3 = 100
+    def foo1(arg=6):
+        nonlocal bar, bar2, bar3
+        bar += arg
+        bar2 = 1001
+        del bar3
+        return eval('bar')
+        bar += arg
+        return 1000
+    # on real python, eval('[foo1(arg), bar, bar2]') doesn't yield
+    # the same result as our code; if we eval each entry then they
+    # get the same result
+    return [eval('foo1(arg)'), eval('bar'), eval('bar2')]
+[foo0(), foo0(5), eval('bar'), eval('bar2')]
+""",
+        [[106, 106, 1001], [105, 105, 1001], 50, 500],
     ],
     [
         """
@@ -387,13 +451,10 @@ evalTestsExceptions = [
     ["1+", "syntax error invalid syntax (<unknown>, line 1)"],
     [
         "1+'x'",
-        "Exception in <unknown> line 1 column 0: unsupported operand type(s) for +: 'int' and 'str'",
+        "Exception in <unknown> line 1 column 2: unsupported operand type(s) for +: 'int' and 'str'",
     ],
     ["xx", "Exception in <unknown> line 1 column 0: name 'xx' is not defined"],
-    [
-        "xx.yy",
-        "Exception in <unknown> line 1 column 0: 'EvalName' object has no attribute 'yy'",
-    ],
+    ["xx.yy", "Exception in <unknown> line 1 column 0: 'xx' has no attribute 'yy'"],
     [
         "del xx",
         "Exception in <unknown> line 1 column 0: name 'xx' is not defined in del",
@@ -403,24 +464,25 @@ evalTestsExceptions = [
         "Exception in <unknown> line 1 column 0: test: not implemented ast ast_with",
     ],
     [
-        "func1(1)",
-        "Exception in <unknown> line 1 column 0: function 'func1' is not callable (got None)",
+        "import cmath; exec('xyz = cmath.sqrt(complex(3, 4))', {})",
+        "Exception in exec() line 1 column 6: 'cmath' has no attribute 'sqrt' (in <unknown> line 1 column 54)",
     ],
+    ["func1(1)", "Exception in <unknown> line 1 column 0: name 'func1' is not defined"],
     [
         "def func(a):\n    pass\nfunc()",
         "Exception in <unknown> line 3 column 0: func() missing 1 required positional arguments",
     ],
     [
         "def func(a):\n    pass\nfunc(1, 2)",
-        "Exception in <unknown> line 3 column 0: func() called with too many positional arguments",
+        "Exception in <unknown> line 3 column 8: func() called with too many positional arguments",
     ],
     [
         "def func(a=1):\n    pass\nfunc(1, a=3)",
-        "Exception in <unknown> line 3 column 0: func() got multiple values for argument 'a'",
+        "Exception in <unknown> line 3 column 5: func() got multiple values for argument 'a'",
     ],
     [
         "def func(*a, b):\n    pass\nfunc(1, 2)",
-        "Exception in <unknown> line 3 column 0: func() missing required keyword-only arguments",
+        "Exception in <unknown> line 3 column 8: func() missing required keyword-only arguments",
     ],
     [
         "import asyncio",
@@ -446,7 +508,7 @@ def func():
     x += 1
 func()
 """,
-        "Exception in func(), <unknown> line 4 column 4: can't find nonlocal 'x' for assignment",
+        "Exception in func(), <unknown> line 4 column 4: nonlocal name 'x' is not defined",
     ],
     [
         """
@@ -456,6 +518,15 @@ def func():
 func()
 """,
         "Exception in func(), <unknown> line 4 column 11: global name 'x' is not defined",
+    ],
+    [
+        """
+def func():
+    x = 1
+    eval('1 + y')
+func()
+""",
+        "Exception in func(), eval() line 1 column 4: name 'y' is not defined (in <unknown> line 4 column 9)",
     ],
 ]
 
