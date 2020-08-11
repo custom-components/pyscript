@@ -29,8 +29,8 @@ Pyscript implements a Python interpreter using the ast parser output, in a fully
 allows several of the "magic" features to be implemented in a seamless Pythonesque manner, such as
 binding of variables to states and functions to services. Pyscript supports imports, although the
 valid import list is restricted for security reasons. Pyscript does not (yet) support some language
-features like declaring new objects, `try/except`, `eval`, generators and some syntax like `with`
-and `yield`. Pyscript provides a handful of additional built-in functions that connect to HASS
+features like declaring new objects, `try/except`, generators and some syntax like `with` and
+`yield`. Pyscript provides a handful of additional built-in functions that connect to HASS
 features, like logging, accessing state variables as strings (if you need to compute their names
 dynamically), sleeping and waiting for triggers.
 
