@@ -42,6 +42,14 @@ Pyscripts presents a simplified and more integrated binding for Python scripting
 [Python Scripts](https://www.home-assistant.io/integrations/python_script), which requires
 a lot more expertise and scaffolding using direct access to Home Assistant internals.
 
+## Roadmap
+
+Currently I'm working on adding a kernel that will allow you to use Jupyter (notebook, console etc)
+as an interactive front-end for pyscript.  That will allow you to develop and test pyscript code
+interactively, which will be much easier than the edit / reload cycle currently needed.  Plus you
+can interact with much of HASS by looking at state variables, calling services etc, in a similar
+way to [HASS CLI](https://github.com/home-assistant-ecosystem/home-assistant-cli).
+
 ## Installation
 
 ### Option 1: HACS
