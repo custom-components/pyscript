@@ -2,6 +2,7 @@
 import asyncio
 
 from config.custom_components.pyscript.eval import AstEval
+from config.custom_components.pyscript.global_ctx import GlobalContext
 import config.custom_components.pyscript.handler as handler
 import config.custom_components.pyscript.state as state
 
@@ -427,7 +428,16 @@ def foo(arg1=None, **kwargs):
 async def run_one_test(test_data, state_func, handler_func):
     """Run one interpreter test."""
     source, expect = test_data
-    ast = AstEval("test", state_func=state_func, handler_func=handler_func)
+    global_ctx = GlobalContext(
+        "test",
+        None,
+        global_sym_table={},
+        state_func=state_func,
+        handler_func=handler_func,
+    )
+    ast = AstEval(
+        "test", global_ctx=global_ctx, state_func=state_func, handler_func=handler_func
+    )
     ast.parse(source)
     if ast.get_exception() is not None:
         print(f"Parsing {source} failed: {ast.get_exception()}")
@@ -448,49 +458,49 @@ def test_eval(hass):
 
 evalTestsExceptions = [
     [None, "parsing error compile() arg 1 must be a string, bytes or AST object"],
-    ["1+", "syntax error invalid syntax (<unknown>, line 1)"],
+    ["1+", "syntax error invalid syntax (test, line 1)"],
     [
         "1+'x'",
-        "Exception in <unknown> line 1 column 2: unsupported operand type(s) for +: 'int' and 'str'",
+        "Exception in test line 1 column 2: unsupported operand type(s) for +: 'int' and 'str'",
     ],
-    ["xx", "Exception in <unknown> line 1 column 0: name 'xx' is not defined"],
-    ["xx.yy", "Exception in <unknown> line 1 column 0: 'xx' has no attribute 'yy'"],
+    ["xx", "Exception in test line 1 column 0: name 'xx' is not defined"],
     [
-        "del xx",
-        "Exception in <unknown> line 1 column 0: name 'xx' is not defined in del",
+        "import math; math.sinXYZ",
+        "Exception in test line 1 column 13: module 'math' has no attribute 'sinXYZ'",
     ],
+    ["del xx", "Exception in test line 1 column 0: name 'xx' is not defined in del"],
     [
         "with None:\n    pass\n",
-        "Exception in <unknown> line 1 column 0: test: not implemented ast ast_with",
+        "Exception in test line 1 column 0: test: not implemented ast ast_with",
     ],
     [
         "import cmath; exec('xyz = cmath.sqrt(complex(3, 4))', {})",
-        "Exception in exec() line 1 column 6: 'cmath' has no attribute 'sqrt' (in <unknown> line 1 column 54)",
+        "Exception in test line 1 column 54: Exception in exec() line 1 column 28: function 'sqrt' is not callable (got None)",
     ],
-    ["func1(1)", "Exception in <unknown> line 1 column 0: name 'func1' is not defined"],
+    ["func1(1)", "Exception in test line 1 column 0: name 'func1' is not defined"],
     [
         "def func(a):\n    pass\nfunc()",
-        "Exception in <unknown> line 3 column 0: func() missing 1 required positional arguments",
+        "Exception in test line 3 column 0: func() missing 1 required positional arguments",
     ],
     [
         "def func(a):\n    pass\nfunc(1, 2)",
-        "Exception in <unknown> line 3 column 8: func() called with too many positional arguments",
+        "Exception in test line 3 column 8: func() called with too many positional arguments",
     ],
     [
         "def func(a=1):\n    pass\nfunc(1, a=3)",
-        "Exception in <unknown> line 3 column 5: func() got multiple values for argument 'a'",
+        "Exception in test line 3 column 5: func() got multiple values for argument 'a'",
     ],
     [
         "def func(*a, b):\n    pass\nfunc(1, 2)",
-        "Exception in <unknown> line 3 column 8: func() missing required keyword-only arguments",
+        "Exception in test line 3 column 8: func() missing required keyword-only arguments",
     ],
     [
         "import asyncio",
-        "Exception in <unknown> line 1 column 0: import of asyncio not allowed",
+        "Exception in test line 1 column 0: import of asyncio not allowed",
     ],
     [
         "from asyncio import xyz",
-        "Exception in <unknown> line 1 column 0: import from asyncio not allowed",
+        "Exception in test line 1 column 0: import from asyncio not allowed",
     ],
     [
         """
@@ -499,7 +509,7 @@ def func():
     x = 1
 func()
 """,
-        "Exception in func(), <unknown> line 4 column 4: can't find nonlocal 'x' for assignment",
+        "Exception in func(), test line 4 column 4: can't find nonlocal 'x' for assignment",
     ],
     [
         """
@@ -508,7 +518,7 @@ def func():
     x += 1
 func()
 """,
-        "Exception in func(), <unknown> line 4 column 4: nonlocal name 'x' is not defined",
+        "Exception in func(), test line 4 column 4: nonlocal name 'x' is not defined",
     ],
     [
         """
@@ -517,7 +527,7 @@ def func():
     return x
 func()
 """,
-        "Exception in func(), <unknown> line 4 column 11: global name 'x' is not defined",
+        "Exception in func(), test line 4 column 11: global name 'x' is not defined",
     ],
     [
         """
@@ -526,7 +536,7 @@ def func():
     eval('1 + y')
 func()
 """,
-        "Exception in func(), eval() line 1 column 4: name 'y' is not defined (in <unknown> line 4 column 9)",
+        "Exception in test line 4 column 9: Exception in func(), eval() line 1 column 4: name 'y' is not defined",
     ],
 ]
 
@@ -534,7 +544,16 @@ func()
 async def run_one_test_exception(test_data, state_func, handler_func):
     """Run one interpreter test that generates an exception."""
     source, expect = test_data
-    ast = AstEval("test", state_func=state_func, handler_func=handler_func)
+    global_ctx = GlobalContext(
+        "test",
+        None,
+        global_sym_table={},
+        state_func=state_func,
+        handler_func=handler_func,
+    )
+    ast = AstEval(
+        "test", global_ctx=global_ctx, state_func=state_func, handler_func=handler_func
+    )
     ast.parse(source)
     exc = ast.get_exception()
     if exc is not None:

@@ -305,7 +305,7 @@ def func4(trigger_type=None, event_type=None, **kwargs):
         hass.bus.async_fire("test_event4b", {"arg1": 15, "arg2": 25})
         hass.bus.async_fire("test_event4b", {"arg1": 20, "arg2": 25})
         hass.bus.async_fire("test_event4b", {"arg1": 25, "arg2": 35})
-        await asyncio.sleep(1e-3)
+        await asyncio.sleep(2e-3)
     trig = {
         "trigger_type": "event",
         "event_type": "test_event4b",

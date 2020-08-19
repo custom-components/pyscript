@@ -26,7 +26,7 @@ of week, days of month and months). An event trigger specifies the event type, a
 Python trigger test based on the event data that runs the Python function if true.
 
 Pyscript implements a Python interpreter using the ast parser output, in a fully async manner. That
-allows several of the "magic" features to be implemented in a seamless Pythonesque manner, such as
+allows several of the "magic" features to be implemented in a seamless Pythonic manner, such as
 binding of variables to states and functions to services. Pyscript supports imports, although the
 valid import list is restricted for security reasons. Pyscript does not (yet) support some language
 features like declaring new objects, `try/except`, generators and some syntax like `with` and
@@ -34,21 +34,24 @@ features like declaring new objects, `try/except`, generators and some syntax li
 features, like logging, accessing state variables as strings (if you need to compute their names
 dynamically), sleeping and waiting for triggers.
 
+Pyscript also provides a kernel that interfaces with the Jupyter front-ends (eg, notebook, console
+and lab). That allows you to develop and test pyscript code interactively. Plus you can interact
+with much of HASS by looking at state variables, calling services etc, in a similar way to [HASS
+CLI](https://github.com/home-assistant-ecosystem/home-assistant-cli), althought the CLI provides
+status on many other parts of HASS.
+
+For more information about the Jupyter kernel, see this [README](https://github.com/custom-components/pyscript/jupyter).
+There is also a [Jupyter notebook tutorial](https://github.com/custom-components/pyscript/jupyter/blob/master/pyscript_tutorial.ipynb),
+which can be downlaoded and run interactively in Jupyter notebook connected to your live HASS with pyscript.
+
 Pyscript provides functionality that complements the existing automations, templates and triggers.
 Pyscript is most similar to [AppDaemon](https://appdaemon.readthedocs.io/en/latest/), and
 some similarities and differences are discussed in this
 [Wiki page](https://github.com/custom-components/pyscript/wiki/Comparing-Pyscript-to-AppDaemon).
-Pyscripts presents a simplified and more integrated binding for Python scripting than
+Pyscript with Jupyter makes it extremely easy to learn, use and debug. Pyscripts presents
+a simplified and more integrated binding for Python scripting than
 [Python Scripts](https://www.home-assistant.io/integrations/python_script), which requires
 a lot more expertise and scaffolding using direct access to Home Assistant internals.
-
-## Roadmap
-
-Currently I'm working on adding a kernel that will allow you to use Jupyter (notebook, console etc)
-as an interactive front-end for pyscript.  That will allow you to develop and test pyscript code
-interactively, which will be much easier than the edit / reload cycle currently needed.  Plus you
-can interact with much of HASS by looking at state variables, calling services etc, in a similar
-way to [HASS CLI](https://github.com/home-assistant-ecosystem/home-assistant-cli).
 
 ## Installation
 
@@ -58,7 +61,7 @@ Under HACS -> Integrations, select "+", search for `pyscript` and install it.
 
 ### Option 2: Manual
 
-Fetch the [latest release](https://github.com/custom-components/pyscript/releases) zip file `hass-custom-pyscript.zip`
+From the [latest release](https://github.com/custom-components/pyscript/releases) download the zip file `hass-custom-pyscript.zip`
 ```bash
 cd YOUR_HASS_CONFIG_DIRECTORY    # same place as configuration.yaml
 mkdir -p custom_components/pyscript
@@ -74,6 +77,11 @@ git clone https://github.com/custom-components/pyscript.git
 mkdir -p YOUR_HASS_CONFIG_DIRECTORY/custom_components
 cp -pr pyscript/custom_components/pyscript YOUR_HASS_CONFIG_DIRECTORY/custom_components
 ```
+
+### Install Jupyter Kerne
+
+Installing the pyscript Jupyter kernel is optional.  The steps to install and use it are in
+this [README](https://github.com/custom-components/pyscript/jupyter).
 
 ## Configuration
 
@@ -218,17 +226,24 @@ as many `.py` script files as you like. Each `.py` file can contain as many func
 The file names themselves can be anything, so long as they have a `.py` extension. You might like
 to group related functions in one file.
 
-Like regular Python, functions within a file can call each other, and can share global variables (if
-necessary), but just within that one file. There is currently no way to directly call functions or
-access regular variables in another source file: they are isolated from each other, although they
-can use triggers or use service calls to invoke other functions, or state variables to share state.
+Like regular Python, functions within each script file can call each other, and can share global
+variables (if necessary), but just within that one file. Each file has its own separate global
+context. Each Jupyter session also has its own separate global context, so functions, triggers,
+variables and services defined in each interactive session are isolated from the script files and
+other Jupyter sessions. Pyscript provides some utility functions to switch global contexts, which
+allows an interactive Jupyter session to interact directly with functions and global variables
+created by a script file, or even another Jupyter session.
+
+Even if you can't directly call one function from another script file, HASS state variables are
+global and services can be called from any script file.
 
 Reloading the `.py` files is accomplished by calling the `pyscript.reload` service, which is the one
 built-in service (so you can't create your own service with that name). All function definitions,
 services and triggers are re-created on `reload`. Any currently running functions (ie, functions
 that have been triggered and are actively executing Python code or waiting inside `task.sleep()`
 or `task.wait_until()`) are not stopped by `reload` - they continue to run until they finish
-(return).
+(return). You can terminate these running functions too on `reload` if you prefer by using
+`task.unique()` in both the script file preamble and inside those functions.
 
 ## Accessing state variables
 
@@ -569,14 +584,14 @@ has a numeric value, you might want to convert it to a numeric type (eg, using `
 
 #### Service Calls
 
-`service.call(domain, name, **kwargs={})` calls the service `domain.name` with the given keyword arguments as
+`service.call(domain, name, **kwargs)` calls the service `domain.name` with the given keyword arguments as
 parameters.
 
 `service.has_service(domain, name)` returns whether the service `domain.name` exists.
 
 #### Event Firing
 
-`event.fire(event_type, **kwarg={})` sends an event with the given `event_type` string and the keyword
+`event.fire(event_type, **kwargs)` sends an event with the given `event_type` string and the keyword
 parameters as the event data.
 
 #### Logging functions
@@ -591,21 +606,22 @@ The [Logger](/integrations/logger/) component can be used to specify the logging
 below the configured level will not appear in the log. Each log message function uses a log name of
 the form:
 ```python
-homeassistant.components.pyscript.func.FUNCNAME
+homeassistant.components.pyscript.file.FILENAME.FUNCNAME
 ```
 where `FUNCNAME` is the name of the top-level Python function (e.g., the one called by a trigger or
-service). That allows you to set the log level for each Python top-level function separately if
-necessary. That setting also applies to any other Python functions that the top-level Python
-function calls. For example, these settings:
+service), defined in the script file `FILENAME.py`. That allows you to set the log level for each
+Python top-level function separately if necessary. That setting also applies to any other Python
+functions that the top-level Python function calls. For example, these settings:
 ```yaml
 logger:
   default: info
   logs:
-    homeassistant.components.pyscript.func: info
-    homeassistant.components.pyscript.func.my_function: debug
+    homeassistant.components.pyscript.file: info
+    homeassistant.components.pyscript.file.my_scripts.my_function: debug
 ```
 will log all messages at `info` or higher (ie: `log.info()`, `log.warning()` and `log.error()`), and
-inside `my_function` (and any other functions it calls) will log all messages at `debug` or higher.
+inside `my_function` defined in the script file `my_scripts.py` (and any other functions it calls)
+will log all messages at `debug` or higher.
 
 #### Sleep
 
@@ -618,6 +634,11 @@ import `time` and use `time.sleep()` - that will block lots of other activity.
 with the same `task_name`. The name can be any string. If `kill_me` is `True` then the current
 task is killed if another task that is running previously called `task.unique` with the same
 `task_name`.
+
+Note that `task.unique` applies across all global contexts. It's up to you to use a convention
+for `task_name` that avoids accidential collisions. For example, you could use a prefix of the
+script file name, so that all `task_unique` calls in `FILENAME.py` use a `task_name` that
+starts with `"FILENAME."`.
 
 #### Waiting for events
 
@@ -716,10 +737,35 @@ Summary: use trigger decorators whenever you can. Be especially cautious using `
 to wait for events; you must make sure your logic is robust to missing events that happen before or
 after `task.wait_until()` runs.
 
+#### Global Context functions
+
+Each pyscript script file runs inside its own global context, which means their global variables and
+functions are isolated from other script files. Each Jupyter session also runs in its own global
+context.  For a script file called `FILENAME.py`, its global context is `file.FILENAME`. Each
+Jupyter global context name is `jupyter_NNN` where `NNN` is a unique integer starting at 0.
+
+In normal use you don't need to worry about global contexts. But for interactive debugging and
+development, you might want your Jupyter session to access variables and functions defined in
+a script file. Three functions are provided for getting, setting and listing the global
+contexts. That allows you to interactively change the global context during a Jupyter
+session. You could also use these functions in your script files, but that is strongly
+discouraged.  Here are the functions:
+- `pyscript.get_global_ctx()` returns the current global context name.
+- `pyscript.list_global_ctx()` lists all the global contexts, with the current global context listed first.
+- `pyscript.set_global_ctx(new_ctx_name)` sets the current global context to the given name.
+
+When you exit a Jupyter session, its global context is deleted, which means any triggers, functions,
+services and variables you created are deleted (HASS state variables survive). If you switch to
+a script file's context, then any triggers, functions, services or variables you interactively
+create there will persist after you exit the Jupyter session.  However, if you don't update the
+corresponding script file, then upon the next pyscript reload or HASS restart, those interactive
+changes will be lost.
+
 ## Contributing
 
-You are encouraged to submit PRs, bug reports, feature requests or add to the Wiki with examples
-and tutorials.
+Contributions are welcome! You are encouraged to submit PRs, bug reports, feature requests or
+add to the Wiki with examples and tutorials. It would be fun to hear about unique and clever
+applications you develop.
 
 ## Useful Links
 
@@ -727,6 +773,7 @@ and tutorials.
 * [Issues](https://github.com/custom-components/pyscript/issues)
 * [Wiki](https://github.com/custom-components/pyscript/wiki)
 * [GitHub repository](https://github.com/custom-components/pyscript) (please add a star if you like `pyscript`!)
+* [Jupyter notebook tutorial](https://github.com/custom-components/pyscript/jupyter/blob/master/pyscript_tutorial.ipynb)
 
 ## Copyright
 

@@ -4,7 +4,11 @@ import asyncio
 import logging
 import traceback
 
-_LOGGER = logging.getLogger("homeassistant.components.pyscript.handler")
+from homeassistant.helpers.service import async_get_all_descriptions
+
+from .const import LOGGER_PATH
+
+_LOGGER = logging.getLogger(LOGGER_PATH + ".handler")
 
 
 def current_task():
@@ -21,10 +25,11 @@ class Handler:
     """Define function handler functions."""
 
     def __init__(self, hass):
-        """Initialize State."""
+        """Initialize Handler."""
         self.hass = hass
         self.unique_task2name = {}
         self.unique_name2task = {}
+        self.our_tasks = set()
 
         #
         # initial list of available functions
@@ -67,19 +72,35 @@ class Handler:
 
     async def task_unique(self, name, kill_me=False):
         """Implement task.unique()."""
-        task = current_task()
         if name in self.unique_name2task:
-            if not kill_me:
+            if kill_me:
+                task = current_task()
+
+                # it seems we need to use another task to cancel ourselves
+                # I'm sure there is a better way to cancel ourselves...
+                async def cancel_self():
+                    try:
+                        task.cancel()
+                        await task
+                    except asyncio.CancelledError:
+                        pass
+
+                asyncio.create_task(cancel_self())
+                # ugh - wait to be canceled
+                await asyncio.sleep(10000)
+            else:
                 task = self.unique_name2task[name]
-            try:
-                task.cancel()
-                await task
-            except asyncio.CancelledError:
-                pass
-            self.unique_task2name.pop(self.unique_name2task[name], None)
-            self.unique_name2task.pop(name, None)
-        self.unique_name2task[name] = task
-        self.unique_name2task[task] = name
+                if task in self.our_tasks:
+                    # only cancel tasks if they are ones we started
+                    try:
+                        task.cancel()
+                        await task
+                    except asyncio.CancelledError:
+                        pass
+        task = current_task()
+        if task in self.our_tasks:
+            self.unique_name2task[name] = task
+            self.unique_task2name[task] = name
 
     def service_has_service(self, domain, name):
         """Implement service.has_service()."""
@@ -89,17 +110,43 @@ class Handler:
         """Implement service.call()."""
         await self.hass.services.async_call(domain, name, kwargs)
 
+    async def service_completions(self, root):
+        """Return possible completions of HASS services."""
+        words = set()
+        services = await async_get_all_descriptions(self.hass)
+        num_period = root.count(".")
+        if num_period == 1:
+            domain, srv_root = root.split(".")
+            if domain in services:
+                for srv in services[domain].keys():
+                    if srv.lower().startswith(srv_root):
+                        words.add(f"{domain}.{srv}")
+        elif num_period == 0:
+            for domain in services.keys():
+                if domain.lower().startswith(root):
+                    words.add(domain)
+        return words
+
+    async def func_completions(self, root):
+        """Return possible completions of functions."""
+        words = set()
+        funcs = self.functions.copy()
+        funcs.update(self.ast_functions)
+        for name in funcs.keys():
+            if name.lower().startswith(root):
+                words.add(name)
+        return words
+
     def get_logger(self, ast_ctx, log_type, *arg, **kw):
         """Return a logger function tied to the execution context of a function."""
 
-        if ast_ctx.name not in self.loggers:
+        name = ast_ctx.get_logger_name()
+        if name not in self.loggers:
             #
-            # Maintain a cache for efficiency.  Remove last name (handlers)
-            # and replace with "func.{name}".
+            # Maintain a cache for efficiency.
             #
-            name = f"homeassistant.components.pyscript.func.{ast_ctx.name}"
-            self.loggers[ast_ctx.name] = logging.getLogger(name)
-        return getattr(self.loggers[ast_ctx.name], log_type)
+            self.loggers[name] = ast_ctx.get_logger()
+        return getattr(self.loggers[name], log_type)
 
     def get_logger_debug(self, ast_ctx, *arg, **kw):
         """Implement log.debug()."""
@@ -154,20 +201,25 @@ class Handler:
 
     async def run_coro(self, coro):
         """Run coroutine task and update unique task on start and exit."""
+        #
+        # Add a placeholder for the new task so we know it's one we started
+        #
+        task = current_task()
+        self.our_tasks.add(task)
         try:
             await coro
         except asyncio.CancelledError:
-            task = current_task()
             if task in self.unique_task2name:
                 self.unique_name2task.pop(self.unique_task2name[task], None)
                 self.unique_task2name.pop(task, None)
+            self.our_tasks.discard(task)
             raise
         except Exception:  # pylint: disable=broad-except
             _LOGGER.error("run_coro: %s", traceback.format_exc(-1))
-        task = current_task()
         if task in self.unique_task2name:
             self.unique_name2task.pop(self.unique_task2name[task], None)
             self.unique_task2name.pop(task, None)
+        self.our_tasks.discard(task)
 
     def create_task(self, coro):
         """Create a new task that runs a coroutine."""

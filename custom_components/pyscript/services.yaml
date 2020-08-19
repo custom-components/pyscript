@@ -2,3 +2,37 @@
 
 reload:
   description: Reload all available pyscripts and restart triggers
+
+jupyter_kernel_start:
+  description: Start a jupyter kernel for interactive use; called by Jupyter front end
+  fields:
+    shell_port:
+      description: shell port number
+      example: 63599
+    iopub_port:
+      description: iopub port number
+      example: 63598
+    stdin_port:
+      description: stdin port number
+      example: 63597
+    control_port:
+      description: control port number
+      example: 63596
+    hb_port:
+      description: heartbeat port number
+      example: 63595
+    ip:
+      description: ip address to connect to jupyter front end
+      example: 127.0.0.1
+    key:
+      description: security key for signing
+      example: 012345678-9abcdef023456789abcdef
+    transport:
+      description: type of transport
+      example: tcp
+    signature_scheme:
+      description: signing algorithm
+      example: hmac-sha256
+    kernel_name:
+      description: name of kernel
+      example: pyscript

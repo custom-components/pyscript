@@ -2,7 +2,9 @@
 
 import logging
 
-_LOGGER = logging.getLogger("homeassistant.components.pyscript.event")
+from .const import LOGGER_PATH
+
+_LOGGER = logging.getLogger(LOGGER_PATH + ".event")
 
 
 class Event:
@@ -49,6 +51,7 @@ class Event:
         if len(self.notify[event_type]) == 0:
             self.notify_remove[event_type]()
             _LOGGER.debug("event.notify_del(%s) -> removing event listener", event_type)
+            del self.notify[event_type]
             del self.notify_remove[event_type]
 
     async def update(self, event_type, func_args):

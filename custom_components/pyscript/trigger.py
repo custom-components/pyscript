@@ -12,9 +12,10 @@ from homeassistant.const import SUN_EVENT_SUNRISE, SUN_EVENT_SUNSET
 import homeassistant.helpers.sun as sun
 from homeassistant.util import dt as dt_util
 
+from .const import LOGGER_PATH
 from .eval import AstEval
 
-_LOGGER = logging.getLogger("homeassistant.components.pyscript.trigger")
+_LOGGER = logging.getLogger(LOGGER_PATH + ".trigger")
 
 
 def dt_now():
@@ -138,23 +139,32 @@ class TrigTime:
         state_trig_ident = None
         state_trig_expr = None
         event_trig_expr = None
+        exc = None
         notify_q = asyncio.Queue(0)
         if state_trigger is not None:
             state_trig_expr = AstEval(
-                f"{ast_ctx.name} wait_until state_trigger",
-                ast_ctx.global_sym_table,
+                f"{ast_ctx.name} state_trigger",
+                ast_ctx.get_global_ctx(),
                 state_func=ast_ctx.state,
                 event_func=ast_ctx.event,
                 handler_func=ast_ctx.handler,
+                logger_name=ast_ctx.get_logger_name(),
             )
             ast_ctx.handler.install_ast_funcs(state_trig_expr)
             state_trig_expr.parse(state_trigger)
+            exc = state_trig_expr.get_exception_obj()
+            if exc is not None:
+                raise exc  # pylint: disable=raising-bad-type
             #
             # check straight away to see if the condition is met (to avoid race conditions)
             #
-            if await state_trig_expr.eval():
+            state_trig_ok = await state_trig_expr.eval()
+            exc = state_trig_expr.get_exception_obj()
+            if exc is not None:
+                raise exc  # pylint: disable=raising-bad-type
+            if state_trig_ok:
                 return {"trigger_type": "state"}
-            state_trig_ident = state_trig_expr.ast_get_names()
+            state_trig_ident = await state_trig_expr.ast_get_names()
             _LOGGER.debug(
                 "trigger %s wait_until: watching vars %s",
                 ast_ctx.name,
@@ -165,18 +175,25 @@ class TrigTime:
         if event_trigger is not None:
             if isinstance(event_trigger, str):
                 event_trigger = [event_trigger]
-            ast_ctx.event.notify_add(event_trigger[0], notify_q)
             if len(event_trigger) > 1:
                 event_trig_expr = AstEval(
-                    f"trigger {ast_ctx.name} wait_until event_trigger",
-                    ast_ctx.global_sym_table,
+                    f"{ast_ctx.name} event_trigger",
+                    ast_ctx.get_global_ctx(),
                     state_func=ast_ctx.state,
                     event_func=ast_ctx.event,
                     handler_func=ast_ctx.handler,
+                    logger_name=ast_ctx.get_logger_name(),
                 )
                 ast_ctx.handler.install_ast_funcs(event_trig_expr)
                 event_trig_expr.parse(event_trigger[1])
+                exc = event_trig_expr.get_exception_obj()
+                if exc is not None:
+                    if len(state_trig_ident) > 0:
+                        ast_ctx.state.notify_del(state_trig_ident, notify_q)
+                    raise exc
+            ast_ctx.event.notify_add(event_trigger[0], notify_q)
         time0 = time.monotonic()
+        ret = None
         while 1:
             this_timeout = None
             if time_trigger is not None:
@@ -203,7 +220,8 @@ class TrigTime:
                         "trigger %s wait_until no next time - returning with none",
                         ast_ctx.name,
                     )
-                    return {"trigger_type": "none"}
+                    ret = {"trigger_type": "none"}
+                    break
                 _LOGGER.debug("trigger %s wait_until no timeout", ast_ctx.name)
                 notify_type, notify_info = await notify_q.get()
             else:
@@ -218,12 +236,26 @@ class TrigTime:
                     ret = {"trigger_type": "time"}
                     break
             if notify_type == "state":
+                if state_trig_expr is None:
+                    ret = notify_info[1] if notify_info else None
+                    break
                 new_vars = notify_info[0] if notify_info else None
-                if state_trig_expr is None or await state_trig_expr.eval(new_vars):
+                state_trig_ok = await state_trig_expr.eval(new_vars)
+                exc = state_trig_expr.get_exception_obj()
+                if exc is not None:
+                    break
+                if state_trig_ok:
                     ret = notify_info[1] if notify_info else None
                     break
             elif notify_type == "event":
-                if event_trig_expr is None or await event_trig_expr.eval(notify_info):
+                if event_trig_expr is None:
+                    ret = notify_info
+                    break
+                event_trig_ok = await event_trig_expr.eval(notify_info)
+                exc = event_trig_expr.get_exception_obj()
+                if exc is not None:
+                    break
+                if event_trig_ok:
                     ret = notify_info
                     break
             else:
@@ -234,10 +266,11 @@ class TrigTime:
                 )
 
         if state_trig_ident:
-            for name in state_trig_ident:
-                ast_ctx.state.notify_del(name, notify_q)
+            ast_ctx.state.notify_del(state_trig_ident, notify_q)
         if event_trigger is not None:
             ast_ctx.event.notify_del(event_trigger[0], notify_q)
+        if exc:
+            raise exc
         _LOGGER.debug("trigger %s wait_until returning %s", ast_ctx.name, ret)
         return ret
 
@@ -594,10 +627,12 @@ class TrigInfo:
         state_func=None,
         handler_func=None,
         trig_time=None,
+        global_ctx=None,
     ):
         """Create a new TrigInfo."""
         self.name = name
         self.task = None
+        self.global_ctx = global_ctx
         self.trig_cfg = trig_cfg
         self.state_trigger = trig_cfg.get("state_trigger", None)
         self.time_trigger = trig_cfg.get("time_trigger", None)
@@ -617,57 +652,66 @@ class TrigInfo:
         self.state = state_func
         self.handler = handler_func
         self.trig_time = trig_time
+        self.setup_ok = False
 
         _LOGGER.debug("trigger %s event_trigger = %s", self.name, self.event_trigger)
 
         if self.state_active is not None:
             self.active_expr = AstEval(
-                f"trigger {self.name} state_active",
-                self.global_sym_table,
+                f"{self.name} @state_active()",
+                self.global_ctx,
                 state_func=self.state,
                 event_func=self.event,
                 handler_func=self.handler,
+                logger_name=self.name,
             )
             self.handler.install_ast_funcs(self.active_expr)
             self.active_expr.parse(self.state_active)
+            exc = self.active_expr.get_exception_long()
+            if exc is not None:
+                self.active_expr.get_logger().error(exc)
+                return
 
         if self.time_trigger is not None:
             self.have_trigger = True
 
         if self.state_trigger is not None:
             self.state_trig_expr = AstEval(
-                f"trigger {self.name} state_trigger",
-                self.global_sym_table,
+                f"{self.name} @state_trigger()",
+                self.global_ctx,
                 state_func=self.state,
                 event_func=self.event,
                 handler_func=self.handler,
+                logger_name=self.name,
             )
             self.handler.install_ast_funcs(self.state_trig_expr)
             self.state_trig_expr.parse(self.state_trigger)
-            self.state_trig_ident = self.state_trig_expr.ast_get_names()
-            _LOGGER.debug(
-                "trigger %s: watching vars %s", self.name, self.state_trig_ident
-            )
-            if len(self.state_trig_ident) > 0:
-                self.state.notify_add(self.state_trig_ident, self.notify_q)
+            exc = self.state_trig_expr.get_exception_long()
+            if exc is not None:
+                self.state_trig_expr.get_logger().error(exc)
+                return
+
             self.have_trigger = True
 
         if self.event_trigger is not None:
-            _LOGGER.debug(
-                "trigger %s adding event_trigger %s", self.name, self.event_trigger[0]
-            )
-            self.event.notify_add(self.event_trigger[0], self.notify_q)
             if len(self.event_trigger) == 2:
                 self.event_trig_expr = AstEval(
-                    f"trigger {self.name} event_trigger",
-                    self.global_sym_table,
+                    f"{self.name} @event_trigger()",
+                    self.global_ctx,
                     state_func=self.state,
                     event_func=self.event,
                     handler_func=self.handler,
+                    logger_name=self.name,
                 )
                 self.handler.install_ast_funcs(self.event_trig_expr)
                 self.event_trig_expr.parse(self.event_trigger[1])
+                exc = self.event_trig_expr.get_exception_long()
+                if exc is not None:
+                    self.event_trig_expr.get_logger().error(exc)
+                    return
             self.have_trigger = True
+
+        self.setup_ok = True
 
     async def stop(self):
         """Stop this trigger task."""
@@ -684,15 +728,35 @@ class TrigInfo:
                 except asyncio.CancelledError:
                     pass
             self.task = None
-        _LOGGER.debug("trigger %s is stopped", self.name)
+            _LOGGER.debug("trigger %s is stopped", self.name)
 
     def start(self):
         """Start this trigger task."""
-        self.task = self.handler.create_task(self.trigger_watch())
-        _LOGGER.debug("trigger %s is active", self.name)
+        if not self.task and self.setup_ok:
+            self.task = self.handler.create_task(self.trigger_watch())
+            _LOGGER.debug("trigger %s is active", self.name)
 
     async def trigger_watch(self):
         """Task that runs for each trigger, waiting for the next trigger and calling the function."""
+
+        async def do_func_call(func, ast_ctx, kwargs=None):
+            await func.call(ast_ctx, kwargs=kwargs)
+            if ast_ctx.get_exception_obj():
+                ast_ctx.get_logger().error(ast_ctx.get_exception_long())
+
+        if self.state_trigger is not None:
+            self.state_trig_ident = await self.state_trig_expr.ast_get_names()
+            _LOGGER.debug(
+                "trigger %s: watching vars %s", self.name, self.state_trig_ident
+            )
+            if len(self.state_trig_ident) > 0:
+                self.state.notify_add(self.state_trig_ident, self.notify_q)
+
+        if self.event_trigger is not None:
+            _LOGGER.debug(
+                "trigger %s adding event_trigger %s", self.name, self.event_trigger[0]
+            )
+            self.event.notify_add(self.event_trigger[0], self.notify_q)
 
         while 1:
             try:
@@ -724,8 +788,15 @@ class TrigInfo:
                         )
                     except asyncio.TimeoutError:
                         notify_info = {"trigger_type": "time"}
+                        active_expr_ok = True
+                        if self.active_expr:
+                            active_expr_ok = await self.active_expr.eval()
+                            exc = self.active_expr.get_exception_long()
+                            if exc is not None:
+                                self.active_expr.get_logger().error(exc)
+                                active_expr_ok = False
                         if (
-                            (not self.active_expr or await self.active_expr.eval())
+                            active_expr_ok
                             and (
                                 not self.time_active
                                 or self.trig_time.timer_active_check(
@@ -738,8 +809,8 @@ class TrigInfo:
                                 "trigger %s got time_trigger, running action", self.name
                             )
                             self.handler.create_task(
-                                self.action.call(
-                                    self.action_ast_ctx, kwargs=notify_info
+                                do_func_call(
+                                    self.action, self.action_ast_ctx, kwargs=notify_info
                                 )
                             )
                         else:
@@ -752,38 +823,33 @@ class TrigInfo:
                         new_vars, func_args = notify_info
                     else:
                         new_vars, func_args = {}, {}
-                    if (
-                        (
-                            self.state_trig_expr is None
-                            or await self.state_trig_expr.eval(new_vars)
+                    trig_ok = True
+                    if self.state_trig_expr and trig_ok:
+                        trig_ok = await self.state_trig_expr.eval(new_vars)
+                        exc = self.state_trig_expr.get_exception_long()
+                        if exc is not None:
+                            self.state_trig_expr.get_logger().error(exc)
+                            trig_ok = False
+                    if self.active_expr and trig_ok:
+                        trig_ok = await self.active_expr.eval()
+                        exc = self.active_expr.get_exception_long()
+                        if exc is not None:
+                            self.active_expr.get_logger().error(exc)
+                            trig_ok = False
+                    if self.time_active and trig_ok:
+                        trig_ok = self.trig_time.timer_active_check(
+                            self.time_active, dt_now()
                         )
-                        and (
-                            self.active_expr is None
-                            or await self.active_expr.eval(new_vars)
-                        )
-                        and (
-                            self.time_active is None
-                            or self.trig_time.timer_active_check(
-                                self.time_active, dt_now()
-                            )
-                        )
-                        and self.action
-                    ):
-                        _LOGGER.debug(
-                            "trigger %s state_trig_expr = %s based on %s",
-                            self.name,
-                            await self.state_trig_expr.eval(new_vars)
-                            if self.state_trig_expr
-                            else None,
-                            new_vars,
-                        )
+                    if trig_ok:
                         _LOGGER.debug(
                             "trigger %s got state_trig_expr, running action (kwargs = %s)",
                             self.name,
                             func_args,
                         )
                         self.handler.create_task(
-                            self.action.call(self.action_ast_ctx, kwargs=func_args)
+                            do_func_call(
+                                self.action, self.action_ast_ctx, kwargs=func_args
+                            )
                         )
                     else:
                         _LOGGER.debug(
@@ -816,7 +882,9 @@ class TrigInfo:
                             notify_info,
                         )
                         self.handler.create_task(
-                            self.action.call(self.action_ast_ctx, kwargs=notify_info)
+                            do_func_call(
+                                self.action, self.action_ast_ctx, kwargs=notify_info
+                            )
                         )
                     else:
                         _LOGGER.debug(

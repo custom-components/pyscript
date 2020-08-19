@@ -125,15 +125,15 @@ def func5():
     assert hass.services.has_service("pyscript", "reload")
     assert not hass.services.has_service("pyscript", "func2")
     assert (
-        "function 'reload' in /some/config/dir/pyscript/hello.py conflicts with reload service; ignoring (please rename)"
+        "function 'reload' in file.hello with @service conflicts with builtin service; ignoring (please rename function)"
         in caplog.text
     )
     assert (
-        "func4 defined in /some/config/dir/pyscript/hello.py decorator @state_active got 2 arguments, expected 1; ignored"
+        "func4 defined in file.hello: decorator @state_active got 2 arguments, expected 1; ignored"
         in caplog.text
     )
     assert (
-        "func5 defined in /some/config/dir/pyscript/hello.py: decorator @service takes no arguments; ignored"
+        "func5 defined in file.hello: decorator @service takes no arguments; ignored"
         in caplog.text
     )
 

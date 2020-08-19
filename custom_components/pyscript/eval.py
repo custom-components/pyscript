@@ -5,9 +5,10 @@ import asyncio
 import importlib
 import logging
 import sys
-import traceback
 
-_LOGGER = logging.getLogger("homeassistant.components.pyscript.eval")
+from .const import LOGGER_PATH
+
+_LOGGER = logging.getLogger(LOGGER_PATH + ".eval")
 
 #
 # Built-in functions available.  Certain functions are excluded
@@ -69,15 +70,18 @@ def ast_eval_exec_factory(ast_ctx, str_type):
 
     async def eval_func(arg_str, eval_globals=None, eval_locals=None):
         eval_ast = AstEval(
-            f"eval {ast_ctx.name}",
-            eval_globals if eval_globals is not None else ast_ctx.global_sym_table,
+            ast_ctx.name,
+            global_ctx=ast_ctx.global_ctx,
             state_func=ast_ctx.state,
             event_func=ast_ctx.event,
             handler_func=ast_ctx.handler,
         )
         eval_ast.parse(arg_str, f"{str_type}()")
+        if eval_ast.exception_obj:
+            raise eval_ast.exception_obj  # pylint: disable=raising-bad-type
         eval_ast.local_sym_table = ast_ctx.local_sym_table
         if eval_globals is not None:
+            eval_ast.global_sym_table = eval_globals
             if eval_locals is not None:
                 eval_ast.sym_table_stack = [eval_globals]
                 eval_ast.sym_table = eval_locals
@@ -90,9 +94,14 @@ def ast_eval_exec_factory(ast_ctx, str_type):
         eval_ast.curr_func = ast_ctx.curr_func
         try:
             eval_result = await eval_ast.aeval(eval_ast.ast)
-        except Exception:
-            ast_ctx.exception = f"{eval_ast.exception} (in {ast_ctx.filename} line {ast_ctx.lineno} column {ast_ctx.col_offset})"
-            ast_ctx.exception_long = f"{eval_ast.exception_long} (in {ast_ctx.filename} line {ast_ctx.lineno} column {ast_ctx.col_offset})"
+        except Exception as err:
+            ast_ctx.exception_obj = err
+            ast_ctx.exception = f"Exception in {ast_ctx.filename} line {ast_ctx.lineno} column {ast_ctx.col_offset}: {eval_ast.exception}"
+            ast_ctx.exception_long = (
+                ast_ctx.format_exc(err, ast_ctx.lineno, ast_ctx.col_offset, short=True)
+                + "\n"
+                + eval_ast.exception_long
+            )
             raise
         ast_ctx.curr_func = eval_ast.curr_func
         return eval_result
@@ -185,11 +194,15 @@ class EvalName:
         """Initialize identifier to name."""
         self.name = name
 
+    def __getattr__(self, attr):
+        """Get attribute for EvalName."""
+        raise NameError(f"name '{self.name}.{attr}' is not defined")
+
 
 class EvalFunc:
     """Class for a callable pyscript function."""
 
-    def __init__(self, func_def):
+    def __init__(self, func_def, code_list, code_str):
         """Initialize a function calling context."""
         self.func_def = func_def
         self.name = func_def.name
@@ -200,6 +213,11 @@ class EvalFunc:
         self.nonlocal_names = set()
         self.doc_string = ast.get_docstring(func_def)
         self.num_posn_arg = len(self.func_def.args.args) - len(self.defaults)
+        self.code_list = code_list
+        self.code_str = code_str
+        self.exception = None
+        self.exception_obj = None
+        self.exception_long = None
 
     def get_name(self):
         """Return the function name."""
@@ -220,6 +238,8 @@ class EvalFunc:
     async def eval_decorators(self, ast_ctx):
         """Evaluate the function decorators arguments."""
         self.decorators = []
+        ast_ctx.code_str = self.code_str
+        ast_ctx.code_list = self.code_list
         for dec in self.func_def.decorator_list:
             if isinstance(dec, ast.Call) and isinstance(dec.func, ast.Name):
                 args = []
@@ -247,6 +267,18 @@ class EvalFunc:
         for arg in self.func_def.args.args:
             args.append(arg.arg)
         return args
+
+    async def try_aeval(self, ast_ctx, arg):
+        """Call self.aeval and capture exceptions."""
+        try:
+            return await ast_ctx.aeval(arg)
+        except asyncio.CancelledError:  # pylint: disable=try-except-raise
+            raise
+        except Exception as err:  # pylint: disable=broad-except
+            if ast_ctx.exception_long is None:
+                ast_ctx.exception_long = ast_ctx.format_exc(
+                    err, arg.lineno, arg.col_offset
+                )
 
     async def call(self, ast_ctx, args=None, kwargs=None):
         """Call the function with the given context and arguments."""
@@ -298,15 +330,22 @@ class EvalFunc:
             raise TypeError(f"{self.name}() called with too many positional arguments")
         ast_ctx.sym_table_stack.append(ast_ctx.sym_table)
         ast_ctx.sym_table = sym_table
+        ast_ctx.code_str = self.code_str
+        ast_ctx.code_list = self.code_list
+        self.exception = None
+        self.exception_obj = None
+        self.exception_long = None
         prev_func = ast_ctx.curr_func
         ast_ctx.curr_func = self
         for arg1 in self.func_def.body:
-            val = await ast_ctx.aeval(arg1)
+            val = await self.try_aeval(ast_ctx, arg1)
             if isinstance(val, EvalReturn):
                 val = val.value
                 break
             # return None at end if there isn't a return
             val = None
+            if ast_ctx.get_exception_obj():
+                break
         ast_ctx.sym_table = ast_ctx.sym_table_stack.pop()
         ast_ctx.curr_func = prev_func
         return val
@@ -318,28 +357,36 @@ class AstEval:
     def __init__(
         self,
         name,
-        global_sym_table=None,
+        global_ctx=None,
         state_func=None,
         event_func=None,
         handler_func=None,
+        logger_name=None,
     ):
-        """Initialize a interpreter execution context."""
+        """Initialize an interpreter execution context."""
         self.name = name
         self.str = None
         self.ast = None
-        self.global_sym_table = global_sym_table if global_sym_table is not None else {}
+        self.global_ctx = global_ctx
+        self.global_sym_table = global_ctx.get_global_sym_table() if global_ctx else {}
         self.sym_table_stack = []
         self.sym_table = self.global_sym_table
         self.local_sym_table = {}
         self.curr_func = None
-        self.filename = ""
+        self.filename = name
+        self.code_str = None
+        self.code_list = None
         self.exception = None
+        self.exception_obj = None
         self.exception_long = None
         self.state = state_func
         self.handler = handler_func
         self.event = event_func
         self.lineno = 1
         self.col_offset = 0
+        self.logger_handlers = set()
+        self.logger = None
+        self.set_logger_name(logger_name if logger_name is not None else self.name)
 
     async def ast_not_implemented(self, arg, *args):
         """Raise NotImplementedError exception for unimplemented AST types."""
@@ -360,9 +407,9 @@ class AstEval:
         except Exception as err:  # pylint: disable=broad-except
             if self.exception is None:
                 func_name = self.curr_func.get_name() + "(), " if self.curr_func else ""
+                self.exception_obj = err
                 self.exception = f"Exception in {func_name}{self.filename} line {self.lineno} column {self.col_offset}: {err}"
-                # self.exception_long = f"Exception in {func_name}{self.filename} line {self.lineno} column {self.col_offset}: {traceback.format_exc()}"
-                self.exception_long = self.exception
+                self.exception_long = self.format_exc(err, self.lineno, self.col_offset)
             raise
 
     # Statements return NONE, EvalBreak, EvalContinue, EvalReturn
@@ -576,6 +623,8 @@ class AstEval:
             elif isinstance(arg1, ast.Name):
                 if self.curr_func and arg1.id in self.curr_func.global_names:
                     if arg1.id in self.global_sym_table:
+                        if isinstance(self.global_sym_table[arg1.id], EvalFunc):
+                            await self.global_ctx.stop(arg1.id)
                         del self.global_sym_table[arg1.id]
                 elif self.curr_func and arg1.id in self.curr_func.nonlocal_names:
                     for sym_table in reversed(self.sym_table_stack[1:]):
@@ -583,13 +632,15 @@ class AstEval:
                             del sym_table[arg1.id]
                             break
                 elif arg1.id in self.sym_table:
+                    if isinstance(self.sym_table[arg1.id], EvalFunc):
+                        await self.global_ctx.stop(arg1.id)
                     del self.sym_table[arg1.id]
                 else:
                     raise NameError(f"name '{arg1.id}' is not defined in del")
             else:
                 raise NotImplementedError(f"unknown target type {arg1} in del")
 
-    def ast_attribute2_name(self, arg):  # pylint: disable=no-self-use
+    async def ast_attribute_collapse(self, arg):  # pylint: disable=no-self-use
         """Combine dotted attributes to allow variable names to have dots."""
         # collapse dotted names, eg:
         #   Attribute(value=Attribute(value=Name(id='i', ctx=Load()), attr='j', ctx=Load()), attr='k', ctx=Store())
@@ -600,30 +651,25 @@ class AstEval:
             val = val.value
         if isinstance(val, ast.Name):
             name = val.id + "." + name
-        else:
-            return None
-        return name
+            if isinstance(arg.ctx, ast.Load):
+                # ensure the first portion of name is undefined
+                val = await self.ast_name(ast.Name(id=val.id, ctx=arg.ctx))
+                if not isinstance(val, EvalName):
+                    return None
+            return name
+        return None
 
     async def ast_attribute(self, arg):
-        """Assemble or apply attributes."""
-        full_name = self.ast_attribute2_name(arg)
+        """Apply attributes."""
+        full_name = await self.ast_attribute_collapse(arg)
         if full_name is not None:
+            if isinstance(arg.ctx, ast.Store):
+                return full_name
             val = await self.ast_name(ast.Name(id=full_name, ctx=arg.ctx))
-        else:
-            val = await self.aeval(arg.value, undefined_check=False)
-            if isinstance(val, EvalName):
-                return await self.ast_name(
-                    ast.Name(id=f"{val.name}.{arg.attr}", ctx=arg.ctx)
-                )
-            return getattr(val, arg.attr, None)
-        if isinstance(val, EvalName):
-            parts = full_name.rsplit(".", 1)
-            if len(parts) == 2:
-                val = await self.ast_name(ast.Name(id=parts[0], ctx=arg.ctx))
-                if hasattr(val, parts[1]):
-                    return getattr(val, parts[1])
-                raise AttributeError(f"'{val.name}' has no attribute '{parts[1]}'")
-        return val
+            if not isinstance(val, EvalName):
+                return val
+        val = await self.aeval(arg.value)
+        return getattr(val, arg.attr)
 
     async def ast_name(self, arg):
         """Look up value of identifier on load, or returns name on set."""
@@ -655,7 +701,16 @@ class AstEval:
                 return BUILTIN_AST_FUNCS_FACTORY[arg.id](self)
             if self.handler.get(arg.id):
                 return self.handler.get(arg.id)
-            if self.state.exist(arg.id):
+            num_dots = arg.id.count(".")
+            #
+            # any single-dot name could be a state variable
+            # a two-dot name for state.attr needs to exist
+            #
+            if num_dots == 2:
+                _LOGGER.debug(
+                    "ast_name: arg = {arg.id}, exist = {self.state.exist(arg.id)}"
+                )
+            if num_dots == 1 or (num_dots == 2 and self.state.exist(arg.id)):
                 return self.state.get(arg.id)
             #
             # Couldn't find it, so return just the name wrapped in EvalName to
@@ -904,10 +959,13 @@ class AstEval:
 
     async def ast_functiondef(self, arg):
         """Evaluate function definition."""
-        func = EvalFunc(arg)
+        func = EvalFunc(arg, self.code_list, self.code_str)
         await func.eval_defaults(self)
         await func.eval_decorators(self)
         self.sym_table[func.get_name()] = func
+        if self.sym_table == self.global_sym_table:
+            # set up any triggers if this function is in the global context
+            await self.global_ctx.trigger_init(func)
         return None
 
     async def ast_ifexp(self, arg):
@@ -950,65 +1008,179 @@ class AstEval:
             return f"{val:{fmt}}"
         return f"{val}"
 
-    def ast_get_names2_dict(self, arg, names):
+    async def ast_get_names2_dict(self, arg, names):
         """Recursively find all the names mentioned in the AST tree."""
         if isinstance(arg, ast.Attribute):
-            names[self.ast_attribute2_name(arg)] = 1
+            full_name = await self.ast_attribute_collapse(arg)
+            if full_name is not None:
+                names[full_name] = 1
         elif isinstance(arg, ast.Name):
             names[arg.id] = 1
         else:
             for child in ast.iter_child_nodes(arg):
-                self.ast_get_names2_dict(child, names)
+                await self.ast_get_names2_dict(child, names)
 
-    def ast_get_names(self):
+    async def ast_get_names(self):
         """Return list of all the names mentioned in our AST tree."""
         names = {}
         if self.ast:
-            self.ast_get_names2_dict(self.ast, names)
+            await self.ast_get_names2_dict(self.ast, names)
         return [*names]
 
-    def parse(self, code_str, filename="<unknown>"):
+    def parse(self, code_str, filename=None):
         """Parse the code_str source code into an AST tree."""
+        self.exception = None
+        self.exception_obj = None
+        self.exception_long = None
         self.ast = None
-        self.filename = filename
+        if filename is not None:
+            self.filename = filename
         try:
             if isinstance(code_str, list):
-                code_str = "\n".join(code_str)
-            self.str = code_str
-            self.ast = ast.parse(code_str, filename=self.filename)
+                self.code_list = code_str
+                self.code_str = "\n".join(code_str)
+            elif isinstance(code_str, str):
+                self.code_str = code_str
+                self.code_list = code_str.split("\n")
+            else:
+                self.code_str = code_str
+                self.code_list = []
+            self.ast = ast.parse(self.code_str, filename=self.filename)
             return True
         except SyntaxError as err:
+            self.exception_obj = err
+            self.lineno = err.lineno
+            self.col_offset = err.offset - 1
             self.exception = f"syntax error {err}"
-            self.exception_long = traceback.format_exc(0)
-            _LOGGER.error(
-                "syntax error file %s: %s", self.filename, traceback.format_exc(0)
-            )
+            self.exception_long = self.format_exc(err, self.lineno, self.col_offset)
             return False
         except asyncio.CancelledError:  # pylint: disable=try-except-raise
             raise
         except Exception as err:  # pylint: disable=broad-except
+            self.exception_obj = err
+            self.lineno = 1
+            self.col_offset = 0
             self.exception = f"parsing error {err}"
-            self.exception_long = traceback.format_exc(0)
-            _LOGGER.error(
-                "parsing error file %s: %s", self.filename, traceback.format_exc(0)
-            )
+            self.exception_long = self.format_exc(err)
             return False
 
+    def format_exc(self, exc, lineno=None, col_offset=None, short=False):
+        """Format an multi-line exception message using lineno if available."""
+        if lineno is not None:
+            if short:
+                mesg = f"In <{self.filename}> line {lineno}:\n"
+                mesg += "    " + self.code_list[lineno - 1]
+            else:
+                mesg = f"Exception in <{self.filename}> line {lineno}:\n"
+                mesg += "    " + self.code_list[lineno - 1] + "\n"
+                if col_offset is not None:
+                    mesg += "    " + " " * col_offset + "^\n"
+                mesg += f"{type(exc).__name__}: {exc}"
+        else:
+            mesg = f"Exception in <{self.filename}>:\n"
+            mesg += f"{type(exc).__name__}: {exc}"
+        return mesg
+
     def get_exception(self):
-        """Return the last exception."""
+        """Return the last exception str."""
         return self.exception
 
+    def get_exception_obj(self):
+        """Return the last exception object."""
+        return self.exception_obj
+
     def get_exception_long(self):
-        """Return the last exception in a longer form."""
+        """Return the last exception in a longer str form."""
         return self.exception_long
 
     def set_local_sym_table(self, sym_table):
         """Set the local symbol table."""
         self.local_sym_table = sym_table
 
+    def set_global_ctx(self, global_ctx):
+        """Set the global context."""
+        self.global_ctx = global_ctx
+        if self.sym_table == self.global_sym_table:
+            self.global_sym_table = global_ctx.get_global_sym_table()
+            self.sym_table = self.global_sym_table
+        else:
+            self.global_sym_table = global_ctx.get_global_sym_table()
+        if len(self.sym_table_stack) > 0:
+            self.sym_table_stack[0] = self.global_sym_table
+
+    def get_global_ctx(self):
+        """Return the global context."""
+        return self.global_ctx
+
+    def get_global_ctx_name(self):
+        """Return the global context name."""
+        return self.global_ctx.get_name()
+
+    def set_logger_name(self, name):
+        """Set the context's logger name."""
+        if self.logger:
+            for handler in self.logger_handlers:
+                self.logger.removeHandler(handler)
+        self.logger_name = name
+        self.logger = logging.getLogger(LOGGER_PATH + "." + name)
+        for handler in self.logger_handlers:
+            self.logger.addHandler(handler)
+
+    def get_logger_name(self):
+        """Get the context's logger name."""
+        return self.logger_name
+
+    def get_logger(self):
+        """Get the context's logger."""
+        return self.logger
+
+    def add_logger_handler(self, handler):
+        """Add logger handler to this context."""
+        self.logger.addHandler(handler)
+        self.logger_handlers.add(handler)
+
+    def remove_logger_handler(self, handler):
+        """Remove logger handler to this context."""
+        self.logger.removeHandler(handler)
+        self.logger_handlers.discard(handler)
+
+    def completions(self, root):
+        """Return potential variable, function or attribute matches."""
+        words = set()
+        num_period = root.count(".")
+        if num_period >= 1:  # pylint: disable=too-many-nested-blocks
+            last_period = root.rfind(".")
+            name = root[0:last_period]
+            attr_root = root[last_period + 1 :]
+            if name in self.global_sym_table:
+                var = self.global_sym_table[name]
+                try:
+                    for attr in var.__dir__():
+                        if attr.lower().startswith(attr_root) and (
+                            attr_root != "" or attr[0:1] != "_"
+                        ):
+                            value = getattr(var, attr, None)
+                            if callable(value) or isinstance(value, EvalFunc):
+                                words.add(f"{name}.{attr}")
+                            else:
+                                words.add(f"{name}.{attr}")
+                except Exception:  # pylint: disable=broad-except
+                    pass
+        sym_table = BUILTIN_AST_FUNCS_FACTORY.copy()
+        sym_table.update(BUILTIN_FUNCS)
+        sym_table.update(self.global_sym_table.items())
+        for name, value in sym_table.items():
+            if name.lower().startswith(root):
+                if callable(value) or isinstance(value, EvalFunc):
+                    words.add(f"{name}(")
+                else:
+                    words.add(name)
+        return words
+
     async def eval(self, new_state_vars=None):
         """Execute parsed code, with the optional state variables added to the scope."""
         self.exception = None
+        self.exception_obj = None
         self.exception_long = None
         if new_state_vars:
             self.local_sym_table.update(new_state_vars)
@@ -1021,10 +1193,10 @@ class AstEval:
             except asyncio.CancelledError:  # pylint: disable=try-except-raise
                 raise
             except Exception as err:  # pylint: disable=broad-except
-                if self.exception_long is not None:
-                    _LOGGER.error("%s", self.exception_long)
-                else:
-                    _LOGGER.error("Exception %s", err)
+                if self.exception_long is None:
+                    self.exception_long = self.format_exc(
+                        err, self.lineno, self.col_offset
+                    )
         return None
 
     def dump(self):
