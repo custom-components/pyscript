@@ -40,8 +40,9 @@ with much of HASS by looking at state variables, calling services etc, in a simi
 CLI](https://github.com/home-assistant-ecosystem/home-assistant-cli), althought the CLI provides
 status on many other parts of HASS.
 
-For more information about the Jupyter kernel, see this [README](https://github.com/custom-components/pyscript/jupyter).
-There is also a [Jupyter notebook tutorial](https://github.com/custom-components/pyscript/jupyter/blob/master/pyscript_tutorial.ipynb),
+For more information about the Jupyter kernel, see the [README](https://github.com/custom-components/pyscript/tree/master/jupyter)
+in the jupyter directory.
+There is also a [Jupyter notebook tutorial](https://github.com/custom-components/pyscript/blob/master/jupyter/pyscript_tutorial.ipynb),
 which can be downlaoded and run interactively in Jupyter notebook connected to your live HASS with pyscript.
 
 Pyscript provides functionality that complements the existing automations, templates and triggers.
@@ -773,7 +774,7 @@ applications you develop.
 * [Issues](https://github.com/custom-components/pyscript/issues)
 * [Wiki](https://github.com/custom-components/pyscript/wiki)
 * [GitHub repository](https://github.com/custom-components/pyscript) (please add a star if you like `pyscript`!)
-* [Jupyter notebook tutorial](https://github.com/custom-components/pyscript/jupyter/blob/master/pyscript_tutorial.ipynb)
+* [Jupyter notebook tutorial](https://github.com/custom-components/pyscript/blob/master/jupyter/pyscript_tutorial.ipynb)
 
 ## Copyright
 

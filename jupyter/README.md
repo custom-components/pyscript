@@ -22,6 +22,7 @@ jupyter kernelspec list
 cd KERNEL_DIRECTORY
 mkdir pyscript
 cd pyscript
+```
 * Download and extract the latest `pyscript-jupyter-X.XX.zip` file from githib releases.
 Alternatively, you can download the current master version of the files (`kernel.json`,
 `hass_pyscript_kernel.py` and the two logo files) in this directory.
@@ -63,7 +64,7 @@ jupyter console --kernel=pyscript
 
 ## Tutorial
 
-There is a Jupyter notebook [tutorial](https://github.com/custom-components/pyscript/jupyter/blob/master/pyscript_tutorial.ipynb)
+There is a Jupyter notebook [tutorial](https://github.com/custom-components/pyscript/blob/master/jupyter/pyscript_tutorial.ipynb)
 that covers many pyscript features.  It can be downlaoded and run interactively in Jupyter
 notebook connected to your live HASS with pyscript.  After you download it, run it with:
 ```
