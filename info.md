@@ -11,7 +11,10 @@ event triggers. Functions can also call any service, fire events and set state v
 Functions can sleep or wait for additional changes in state variables or events, without slowing or
 affecting other operations. You can think of these functions as small programs that run in
 parallel, independently of each other, and they could be active for extended periods of time.
- 
+
+Pyscript also interfaces with the Jupyter front-ends (eg, notebook, console and lab).  That allows
+you to develop and test pyscript functions, triggers, automation and logic interactively.
+
 ## Installation
 
 Under HACS -> Integrations, select "+", search for `pyscript` and install it.
@@ -28,7 +31,8 @@ See the documentation if you want to install manually or install the latest unre
 
 ## Useful Links
 
-* [Documentation](https://github.com/custom-components/pyscript)
+* [Documentation](https://github.com/custom-components/pyscript), [Using Jupyter](https://github.com/custom-components/pyscript/tree/master/jupyter)
+* [Jupyter notebook tutorial](https://github.com/custom-components/pyscript/blob/master/jupyter/pyscript_tutorial.ipynb)
+* [GitHub repository](https://github.com/custom-components/pyscript) (please add a star if you like `pyscript`!)
 * [Issues](https://github.com/custom-components/pyscript/issues)
 * [Wiki](https://github.com/custom-components/pyscript/wiki)
-* [GitHub repository](https://github.com/custom-components/pyscript) (please add a star if you like `pyscript`!)
