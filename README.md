@@ -79,10 +79,10 @@ mkdir -p YOUR_HASS_CONFIG_DIRECTORY/custom_components
 cp -pr pyscript/custom_components/pyscript YOUR_HASS_CONFIG_DIRECTORY/custom_components
 ```
 
-### Install Jupyter Kerne
+### Install Jupyter Kernel
 
 Installing the pyscript Jupyter kernel is optional.  The steps to install and use it are in
-this [README](https://github.com/custom-components/pyscript/jupyter).
+this [README](https://github.com/custom-components/pyscript/tree/master/jupyter).
 
 ## Configuration
 

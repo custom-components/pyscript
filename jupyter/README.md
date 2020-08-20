@@ -96,7 +96,7 @@ the cell in which the function is defined or exiting the Jupyter session will no
 already running function. This is same behavior as `reload`. In pyscript, each triggered function
 (ie, a trigger has occurred and the trigger conditions are met, and the function is actually
 executing Python code) runs as an independent task until it finishes. So if you are testing triggers
-of a long-running function (eg, one that uses `task.sleep() or `task.wait_until()`) you could end up
+of a long-running function (eg, one that uses `task.sleep()` or `task.wait_until()`) you could end up
 with many running instances. It's strongly recommended that you use `task.unique()` to make sure old
 running function tasks are terminated when a new one is triggered. Then you can manually call
 `task.unique()` to terminate that last running function before exiting the Jupyter session.
@@ -106,7 +106,7 @@ triggers, functions or services there, then those objects will survive the termi
 of your Jupyter session.  However, if you `reload` the scripts, then those newly-created
 objects will be removed.  To make any additions or changes permanent (meaning they will
 be re-created on each `reload` or each time your restart HASS) then you shoud copy the
-changes or additions to one of you pyscript script files.
+changes or additions to one of your pyscript script files.
 
 ## Global Contexts
 
@@ -145,4 +145,4 @@ have a different iPython instance), so each tab (eg, a notebook in one and a con
 will have different global contexts. If you wish, you can use the function `pyscript.set_global_ctx()`
 to set the context in the other tabs to be the same as the first.
 
-* Jupyter auto-completion it doesn't yet work in Jupyter lab - that's an open bug I need to fix.
+* Jupyter auto-completion doesn't yet work in Jupyter lab - that's an open bug I need to fix.
