@@ -314,8 +314,9 @@ class Kernel:
                 "matches": sorted(list(words)),
                 "cursor_start": msg["content"]["cursor_pos"] - len(root),
                 "cursor_end": msg["content"]["cursor_pos"],
+                "metadata": {},
             }
-            await self.send(self.shell_socket, 'complete_request', content, parent_header=msg['header'], identities=identities)
+            await self.send(self.shell_socket, 'complete_reply', content, parent_header=msg['header'], identities=identities)
         elif msg['header']["msg_type"] == "is_complete_request":
             code = msg['content']["code"]
             self.ast_ctx.parse(code)
