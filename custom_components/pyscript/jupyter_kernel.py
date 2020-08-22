@@ -296,6 +296,11 @@ class Kernel:
             }
             await self.send(self.iopub_socket, 'status', content, parent_header=msg['header'])
         elif msg['header']["msg_type"] == "complete_request":
+            content = {
+                'execution_state': "busy",
+            }
+            await self.send(self.iopub_socket, 'status', content, parent_header=msg['header'])
+
             code = msg["content"]["code"]
             posn = msg["content"]["cursor_pos"]
             match = self.completion_re.match(code[0:posn].lower())
@@ -317,6 +322,11 @@ class Kernel:
                 "metadata": {},
             }
             await self.send(self.shell_socket, 'complete_reply', content, parent_header=msg['header'], identities=identities)
+
+            content = {
+                'execution_state': "idle",
+            }
+            await self.send(self.iopub_socket, 'status', content, parent_header=msg['header'])
         elif msg['header']["msg_type"] == "is_complete_request":
             code = msg['content']["code"]
             self.ast_ctx.parse(code)

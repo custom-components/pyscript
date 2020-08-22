@@ -1172,7 +1172,8 @@ class AstEval:
         for name, value in sym_table.items():
             if name.lower().startswith(root):
                 if callable(value) or isinstance(value, EvalFunc):
-                    words.add(f"{name}(")
+                    # used to be f"{name}(", but Jupyter doesn't always do the right thing with that
+                    words.add(name)
                 else:
                     words.add(name)
         return words
