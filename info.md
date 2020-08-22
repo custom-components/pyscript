@@ -31,7 +31,8 @@ See the documentation if you want to install manually or install the latest unre
 
 ## Useful Links
 
-* [Documentation](https://github.com/custom-components/pyscript), [Using Jupyter](https://github.com/custom-components/pyscript/tree/master/jupyter)
+* [Documentation](https://github.com/custom-components/pyscript)
+* [Using Jupyter](https://github.com/custom-components/pyscript/tree/master/jupyter)
 * [Jupyter notebook tutorial](https://github.com/custom-components/pyscript/blob/master/jupyter/pyscript_tutorial.ipynb)
 * [GitHub repository](https://github.com/custom-components/pyscript) (please add a star if you like `pyscript`!)
 * [Issues](https://github.com/custom-components/pyscript/issues)
