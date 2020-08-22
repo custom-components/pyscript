@@ -144,5 +144,3 @@ For Jupyter lab:
 have a different iPython instance), so each tab (eg, a notebook in one and a console in another)
 will have different global contexts. If you wish, you can use the function `pyscript.set_global_ctx()`
 to set the context in the other tabs to be the same as the first.
-
-* Jupyter auto-completion doesn't yet work in Jupyter lab - that's an open bug I need to fix.
