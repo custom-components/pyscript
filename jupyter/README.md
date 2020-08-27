@@ -34,10 +34,6 @@ Alternatively, you can download the current master version of the files (`kernel
     - `HASS_URL` with the URL of your HASS httpd service
     - `HASS_TOKEN` with a long-lived access token created via the button at the bottom of
        your user profile page in HASS.
-* Ensure that zmq is installed:
-```
-pip install zmq
-```
 * Confirm that Jupyter now recognizes the new pyscript kernel:
 ```
 jupyter kernelspec list

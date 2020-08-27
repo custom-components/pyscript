@@ -3,6 +3,7 @@
 from collections import OrderedDict
 import io
 import logging
+
 import yaml
 
 from homeassistant.const import SERVICE_RELOAD
@@ -10,7 +11,7 @@ from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers.service import async_set_service_schema
 
 from .const import DOMAIN, LOGGER_PATH, SERVICE_JUPYTER_KERNEL_START
-from .eval import AstEval, EvalFunc
+from .eval import AstEval
 from .trigger import TrigInfo
 
 
@@ -42,6 +43,7 @@ class GlobalContext:
         self.auto_start = False
 
     async def trigger_init(self, func):
+        """Initialize any decorator triggers for a newly defined function."""
         func_name = func.get_name()
         trig_args = {}
         got_reqd_dec = False
@@ -238,6 +240,7 @@ class GlobalContext:
             await self.start()
 
     def set_auto_start(self, auto_start):
+        """Set the auto-start flag."""
         self.auto_start = auto_start
         
     async def start(self):

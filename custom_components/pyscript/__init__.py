@@ -122,6 +122,12 @@ async def async_setup(hass, config):
     async def state_changed(event):
         var_name = event.data["entity_id"]
         # attr = event.data["new_state"].attributes
+        if "new_state" not in event.data or event.data["new_state"] is None:
+            _LOGGER.debug(
+                "state_changed: missing new_state in event.data=%s; ignoring",
+                event.data,
+            )
+            return
         new_val = event.data["new_state"].state
         old_val = event.data["old_state"].state if event.data["old_state"] else None
         new_vars = {var_name: new_val, f"{var_name}.old": old_val}

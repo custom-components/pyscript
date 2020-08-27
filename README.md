@@ -606,7 +606,7 @@ Four logging functions are provided, with increasing levels of severity:
 The [Logger](/integrations/logger/) component can be used to specify the logging level. Log messages
 below the configured level will not appear in the log. Each log message function uses a log name of
 the form:
-```python
+```yaml
 homeassistant.components.pyscript.file.FILENAME.FUNCNAME
 ```
 where `FUNCNAME` is the name of the top-level Python function (e.g., the one called by a trigger or
