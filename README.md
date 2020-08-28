@@ -242,8 +242,10 @@ built-in service (so you can't create your own service with that name). All func
 services and triggers are re-created on `reload`. Any currently running functions (ie, functions
 that have been triggered and are actively executing Python code or waiting inside `task.sleep()`
 or `task.wait_until()`) are not stopped by `reload` - they continue to run until they finish
-(return). You can terminate these running functions too on `reload` if you prefer by using
-`task.unique()` in both the script file preamble and inside those functions.
+(return). You can terminate these running functions too on `reload` if you wish by calling
+`task.unique()` in the script file preamble (ie, outside any function definition), so
+it is executed on load and reload, which will terminate any running functions that have
+previously called `task.unique()` with the same argument.
 
 ## Accessing state variables
 
@@ -623,6 +625,9 @@ will log all messages at `info` or higher (ie: `log.info()`, `log.warning()` and
 inside `my_function` defined in the script file `my_scripts.py` (and any other functions it calls)
 will log all messages at `debug` or higher.
 
+Note that in Jupyter, all the `log` functions will display output in your session, independent of
+the `logger` configuration settings.
+
 #### Sleep
 
 `task.sleep(seconds)` sleeps for the indicated number of seconds, which can be floating point. Do not
@@ -630,15 +635,23 @@ import `time` and use `time.sleep()` - that will block lots of other activity.
 
 #### Task Unique
 
-`task.unique(task_name, kill_me=False)` kills any running task that previously called `task.unique`
-with the same `task_name`. The name can be any string. If `kill_me` is `True` then the current
-task is killed if another task that is running previously called `task.unique` with the same
-`task_name`.
+`task.unique(task_name, kill_me=False)` kills any currently running triggered function that
+previously called `task.unique` with the same `task_name`. The name can be any string. If
+`kill_me=True` then the current task is killed if another task that is running previously called
+`task.unique` with the same `task_name`.
 
 Note that `task.unique` applies across all global contexts. It's up to you to use a convention
 for `task_name` that avoids accidential collisions. For example, you could use a prefix of the
 script file name, so that all `task_unique` calls in `FILENAME.py` use a `task_name` that
 starts with `"FILENAME."`.
+
+`task.unique` can also be called outside a function, for example in the preamble of a script file or
+interactively using Jupyter. That causes any currently running functions (ie, functions that have
+already been triggered and are running Python code) that previously called `task.unique` with the
+same name to be terminated. Since any currently running functions are not terminated on reload, this
+is the mechanism you can use should you wish to terminate specific functions on reload. If used
+outside a function or interactively with Jupyter, calling `task.unique` with `kill_me=True` causes
+`task.unique` to do nothing.
 
 #### Waiting for events
 
@@ -739,8 +752,8 @@ after `task.wait_until()` runs.
 
 #### Global Context functions
 
-Each pyscript script file runs inside its own global context, which means their global variables and
-functions are isolated from other script files. Each Jupyter session also runs in its own global
+Each pyscript script file runs inside its own global context, which means their global variables
+and functions are isolated from each other. Each Jupyter session also runs in its own global
 context.  For a script file called `FILENAME.py`, its global context is `file.FILENAME`. Each
 Jupyter global context name is `jupyter_NNN` where `NNN` is a unique integer starting at 0.
 
@@ -749,7 +762,8 @@ development, you might want your Jupyter session to access variables and functio
 a script file. Three functions are provided for getting, setting and listing the global
 contexts. That allows you to interactively change the global context during a Jupyter
 session. You could also use these functions in your script files, but that is strongly
-discouraged.  Here are the functions:
+discouraged because it violates the name space isolation among the script files.
+Here are the functions:
 - `pyscript.get_global_ctx()` returns the current global context name.
 - `pyscript.list_global_ctx()` lists all the global contexts, with the current global context listed first.
 - `pyscript.set_global_ctx(new_ctx_name)` sets the current global context to the given name.
@@ -759,7 +773,7 @@ services and variables you created are deleted (HASS state variables survive). I
 a script file's context, then any triggers, functions, services or variables you interactively
 create there will persist after you exit the Jupyter session.  However, if you don't update the
 corresponding script file, then upon the next pyscript reload or HASS restart, those interactive
-changes will be lost.
+changes will be lost, since reloading a script file recreates a new global context.
 
 ## Contributing
 
