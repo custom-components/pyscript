@@ -40,9 +40,8 @@ with much of HASS by looking at state variables, calling services etc, in a simi
 CLI](https://github.com/home-assistant-ecosystem/home-assistant-cli), althought the CLI provides
 status on many other parts of HASS.
 
-For more information about the Jupyter kernel, see the [README](https://github.com/custom-components/pyscript/tree/master/jupyter)
-in the jupyter directory.
-There is also a [Jupyter notebook tutorial](https://github.com/custom-components/pyscript/blob/master/jupyter/pyscript_tutorial.ipynb),
+For more information about the Jupyter kernel, see the [README](https://github.com/craigbarratt/hass-pyscript-jupyter/blob/master/README.md).
+There is also a [Jupyter notebook tutorial](https://github.com/craigbarratt/hass-pyscript-jupyter/blob/master/pyscript_tutorial.ipynb),
 which can be downlaoded and run interactively in Jupyter notebook connected to your live HASS with pyscript.
 
 Pyscript provides functionality that complements the existing automations, templates and triggers.
@@ -82,7 +81,7 @@ cp -pr pyscript/custom_components/pyscript YOUR_HASS_CONFIG_DIRECTORY/custom_com
 ### Install Jupyter Kernel
 
 Installing the pyscript Jupyter kernel is optional.  The steps to install and use it are in
-this [README](https://github.com/custom-components/pyscript/tree/master/jupyter).
+this [README](https://github.com/craigbarratt/hass-pyscript-jupyter/blob/master/README.md).
 
 ## Configuration
 
@@ -774,7 +773,7 @@ applications you develop.
 * [Issues](https://github.com/custom-components/pyscript/issues)
 * [Wiki](https://github.com/custom-components/pyscript/wiki)
 * [GitHub repository](https://github.com/custom-components/pyscript) (please add a star if you like `pyscript`!)
-* [Jupyter notebook tutorial](https://github.com/custom-components/pyscript/blob/master/jupyter/pyscript_tutorial.ipynb)
+* [Jupyter notebook tutorial](https://github.com/craigbarratt/hass-pyscript-jupyter/blob/master/pyscript_tutorial.ipynb)
 
 ## Copyright
 

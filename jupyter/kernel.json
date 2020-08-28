@@ -1,9 +1,0 @@
-{
- "argv": [
-  "python",
-  "KERNEL_DIRECTORY/pyscript/hass_pyscript_kernel.py",
-  "{connection_file}"
- ],
- "display_name": "hass pyscript",
- "language": "python"
-}
