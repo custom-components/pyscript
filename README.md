@@ -37,12 +37,12 @@ dynamically), sleeping and waiting for triggers.
 Pyscript also provides a kernel that interfaces with the Jupyter front-ends (eg, notebook, console
 and lab). That allows you to develop and test pyscript code interactively. Plus you can interact
 with much of HASS by looking at state variables, calling services etc, in a similar way to [HASS
-CLI](https://github.com/home-assistant-ecosystem/home-assistant-cli), althought the CLI provides
+CLI](https://github.com/home-assistant-ecosystem/home-assistant-cli), although the CLI provides
 status on many other parts of HASS.
 
 For more information about the Jupyter kernel, see the [README](https://github.com/craigbarratt/hass-pyscript-jupyter/blob/master/README.md).
 There is also a [Jupyter notebook tutorial](https://github.com/craigbarratt/hass-pyscript-jupyter/blob/master/pyscript_tutorial.ipynb),
-which can be downlaoded and run interactively in Jupyter notebook connected to your live HASS with pyscript.
+which can be downloaded and run interactively in Jupyter notebook connected to your live HASS with pyscript.
 
 Pyscript provides functionality that complements the existing automations, templates and triggers.
 Pyscript is most similar to [AppDaemon](https://appdaemon.readthedocs.io/en/latest/), and
@@ -69,7 +69,7 @@ cd custom_components/pyscript
 unzip hass-custom-pyscript.zip
 ```
 
-Alternatively you can install the current GitHub master version by cloning and copying:
+Alternatively, you can install the current GitHub master version by cloning and copying:
 ```bash
 mkdir SOME_LOCAL_WORKSPACE
 cd SOME_LOCAL_WORKSPACE
@@ -80,7 +80,7 @@ cp -pr pyscript/custom_components/pyscript YOUR_HASS_CONFIG_DIRECTORY/custom_com
 
 ### Install Jupyter Kernel
 
-Installing the pyscript Jupyter kernel is optional.  The steps to install and use it are in
+Installing the Pyscript Jupyter kernel is optional.  The steps to install and use it are in
 this [README](https://github.com/craigbarratt/hass-pyscript-jupyter/blob/master/README.md).
 
 ## Configuration
