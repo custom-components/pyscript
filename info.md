@@ -19,7 +19,7 @@ you to develop and test pyscript functions, triggers, automation and logic inter
 
 Under HACS -> Integrations, select "+", search for `pyscript` and install it.
 
-See the documentation if you want to install manually or install the latest unreleased version.
+See the documentation if you want to install pyscript manually.
 
 ## Configuration
 
@@ -28,12 +28,13 @@ See the documentation if you want to install manually or install the latest unre
 * Add files with a suffix of `.py` in the folder `<config>/pyscript`.
 * Whenever you change a script file, make a `reload` service call to `pyscript`.
 * Watch the HASS log for `pyscript` errors and logger output from your scripts.
+* Consider installing the optional Jupyter kernel, so you can use pyscript interactively.
 
 ## Useful Links
 
 * [Documentation](https://github.com/custom-components/pyscript)
-* [Using Jupyter](https://github.com/custom-components/pyscript/tree/master/jupyter)
-* [Jupyter notebook tutorial](https://github.com/custom-components/pyscript/blob/master/jupyter/pyscript_tutorial.ipynb)
-* [GitHub repository](https://github.com/custom-components/pyscript) (please add a star if you like `pyscript`!)
+* [Using Jupyter](https://github.com/craigbarratt/hass-pyscript-jupyter)
+* [Jupyter notebook tutorial](https://github.com/craigbarratt/hass-pyscript-jupyter/blob/master/pyscript_tutorial.ipynb)
+* [GitHub repository](https://github.com/custom-components/pyscript) (please add a star if you like pyscript!)
 * [Issues](https://github.com/custom-components/pyscript/issues)
 * [Wiki](https://github.com/custom-components/pyscript/wiki)
