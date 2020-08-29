@@ -20,7 +20,6 @@ import traceback
 import uuid
 
 from .const import LOGGER_PATH
-from .handler import current_task
 
 _LOGGER = logging.getLogger(LOGGER_PATH + ".jupyter_kernel")
 
@@ -522,7 +521,7 @@ class Kernel:
         """Task that listens to control messages."""
         try:
             _LOGGER.debug("control_listen connected")
-            await self.housekeep_q.put(["register", "control", current_task()])
+            await self.housekeep_q.put(["register", "control", asyncio.current_task()])
             control_socket = ZmqSocket(reader, writer, "ROUTER")
             await control_socket.handshake()
             while 1:
@@ -535,7 +534,7 @@ class Kernel:
             raise
         except EOFError:
             _LOGGER.debug("control_listen got eof")
-            await self.housekeep_q.put(["unregister", "control", current_task()])
+            await self.housekeep_q.put(["unregister", "control", asyncio.current_task()])
             control_socket.close()
         except Exception as err:  # pylint: disable=broad-except
             _LOGGER.error("control_listen exception %s", err)
@@ -545,7 +544,7 @@ class Kernel:
         """Task that listens to stdin messages."""
         try:
             _LOGGER.debug("stdin_listen connected")
-            await self.housekeep_q.put(["register", "stdin", current_task()])
+            await self.housekeep_q.put(["register", "stdin", asyncio.current_task()])
             stdin_socket = ZmqSocket(reader, writer, "ROUTER")
             await stdin_socket.handshake()
             while 1:
@@ -555,7 +554,7 @@ class Kernel:
             raise
         except EOFError:
             _LOGGER.debug("stdin_listen got eof")
-            await self.housekeep_q.put(["unregister", "stdin", current_task()])
+            await self.housekeep_q.put(["unregister", "stdin", asyncio.current_task()])
             stdin_socket.close()
         except Exception:  # pylint: disable=broad-except
             _LOGGER.error("stdin_listen exception %s", traceback.format_exc(-1))
@@ -565,7 +564,7 @@ class Kernel:
         """Task that listens to shell messages."""
         try:
             _LOGGER.debug("shell_listen connected")
-            await self.housekeep_q.put(["register", "shell", current_task()])
+            await self.housekeep_q.put(["register", "shell", asyncio.current_task()])
             shell_socket = ZmqSocket(reader, writer, "ROUTER")
             await shell_socket.handshake()
             while 1:
@@ -576,7 +575,7 @@ class Kernel:
             raise
         except EOFError:
             _LOGGER.debug("shell_listen got eof")
-            await self.housekeep_q.put(["unregister", "shell", current_task()])
+            await self.housekeep_q.put(["unregister", "shell", asyncio.current_task()])
             shell_socket.close()
         except Exception:  # pylint: disable=broad-except
             _LOGGER.error("shell_listen exception %s", traceback.format_exc(-1))
@@ -586,7 +585,7 @@ class Kernel:
         """Task that listens and responds to heart beat messages."""
         try:
             _LOGGER.debug("heartbeat_listen connected")
-            await self.housekeep_q.put(["register", "heartbeat", current_task()])
+            await self.housekeep_q.put(["register", "heartbeat", asyncio.current_task()])
             heartbeat_socket = ZmqSocket(reader, writer, "REP")
             await heartbeat_socket.handshake()
             while 1:
@@ -597,7 +596,7 @@ class Kernel:
             raise
         except EOFError:
             _LOGGER.debug("heartbeat_listen got eof")
-            await self.housekeep_q.put(["unregister", "heartbeat", current_task()])
+            await self.housekeep_q.put(["unregister", "heartbeat", asyncio.current_task()])
             heartbeat_socket.close()
         except Exception:  # pylint: disable=broad-except
             _LOGGER.error("heartbeat_listen exception: %s", traceback.format_exc(-1))
@@ -607,7 +606,7 @@ class Kernel:
         """Task that listens to iopub messages."""
         try:
             _LOGGER.debug("iopub_listen connected")
-            await self.housekeep_q.put(["register", "iopub", current_task()])
+            await self.housekeep_q.put(["register", "iopub", asyncio.current_task()])
             iopub_socket = ZmqSocket(reader, writer, "PUB")
             await iopub_socket.handshake()
             self.iopub_socket.add(iopub_socket)
@@ -617,7 +616,7 @@ class Kernel:
         except asyncio.CancelledError:  # pylint: disable=try-except-raise
             raise
         except EOFError:
-            await self.housekeep_q.put(["unregister", "iopub", current_task()])
+            await self.housekeep_q.put(["unregister", "iopub", asyncio.current_task()])
             iopub_socket.close()
             self.iopub_socket.discard(iopub_socket)
             _LOGGER.debug("iopub_listen got eof")
@@ -669,7 +668,7 @@ class Kernel:
 
     async def startup_timeout(self):
         """Shut down the session if nothing connects after 30 seconds."""
-        await self.housekeep_q.put(["register", "startup_timeout", current_task()])
+        await self.housekeep_q.put(["register", "startup_timeout", asyncio.current_task()])
         await asyncio.sleep(30)
         if self.task_cnt_max == 1:
             #
@@ -680,7 +679,7 @@ class Kernel:
                 self.session_cleanup_callback()
                 self.session_cleanup_callback = None
             await self.housekeep_q.put(["shutdown"])
-        await self.housekeep_q.put(["unregister", "startup_timeout", current_task()])
+        await self.housekeep_q.put(["unregister", "startup_timeout", asyncio.current_task()])
 
     async def start_one_server(self, callback):
         """Start a server by finding an available port."""

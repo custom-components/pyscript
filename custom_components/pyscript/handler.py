@@ -11,16 +11,6 @@ from .const import LOGGER_PATH
 _LOGGER = logging.getLogger(LOGGER_PATH + ".handler")
 
 
-def current_task():
-    """Return our asyncio current task."""
-    try:
-        # python >= 3.7
-        return asyncio.current_task()
-    except AttributeError:
-        # python <= 3.6
-        return asyncio.tasks.Task.current_task()
-
-
 class Handler:
     """Define function handler functions."""
 
@@ -74,7 +64,7 @@ class Handler:
         """Implement task.unique()."""
         if name in self.unique_name2task:
             if kill_me:
-                task = current_task()
+                task = asyncio.current_task()
 
                 # it seems we need to use another task to cancel ourselves
                 # I'm sure there is a better way to cancel ourselves...
@@ -97,7 +87,7 @@ class Handler:
                         await task
                     except asyncio.CancelledError:
                         pass
-        task = current_task()
+        task = asyncio.current_task()
         if task in self.our_tasks:
             self.unique_name2task[name] = task
             self.unique_task2name[task] = name
@@ -204,7 +194,7 @@ class Handler:
         #
         # Add a placeholder for the new task so we know it's one we started
         #
-        task = current_task()
+        task = asyncio.current_task()
         self.our_tasks.add(task)
         try:
             await coro
