@@ -149,7 +149,9 @@ BUILTIN_AST_FUNCS_FACTORY = {
 
 
 ALLOWED_IMPORTS = {
+    "bisect",
     "cmath",
+    "colorsys",
     "datetime",
     "decimal",
     "fractions",
