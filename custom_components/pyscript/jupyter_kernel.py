@@ -14,7 +14,6 @@ import hmac
 import json
 import logging
 import logging.handlers
-import random
 import re
 from struct import pack, unpack
 import traceback
@@ -205,7 +204,8 @@ class Kernel:
         self.control_port = None
         self.stdin_port = None
         self.shell_port = None
-        self.avail_port = random.randrange(40000, 50000)
+        # this should probably be a configuration parameter
+        self.avail_port = 50321
 
         # there can be multiple iopub subscribers, with corresponding tasks
         self.iopub_socket = set()
@@ -684,13 +684,14 @@ class Kernel:
 
     async def start_one_server(self, callback):
         """Start a server by finding an available port."""
+        first_port = self.avail_port
         for _ in range(2048):
             try:
-                server = await asyncio.start_server(callback, self.config["ip"], self.avail_port)
+                server = await asyncio.start_server(callback, "0.0.0.0", self.avail_port)
                 return server, self.avail_port
             except OSError:
                 self.avail_port += 1
-        _LOGGER.error("unable to find an available port on host %s, last port %d", self.config["ip"], self.avail_port)
+        _LOGGER.error("unable to find an available port from %d to %d", first_port, self.avail_port - 1)
         return None, None
 
     def get_ports(self):
