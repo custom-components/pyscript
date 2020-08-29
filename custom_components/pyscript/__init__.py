@@ -1,6 +1,7 @@
 """Component to allow running Python scripts."""
 
 import glob
+import json
 import logging
 import os
 
@@ -114,6 +115,12 @@ async def async_setup(hass, config):
         handler_func.install_ast_funcs(ast_ctx)
         kernel = Kernel(call.data, ast_ctx, global_ctx_name, global_ctx_mgr)
         await kernel.session_start()
+        hass.states.async_set(call.data["state_var"], json.dumps(kernel.get_ports()))
+
+        def state_var_remove():
+            hass.states.async_remove(call.data["state_var"])
+
+        kernel.set_session_cleanup_callback(state_var_remove)
 
     hass.services.async_register(
         DOMAIN, SERVICE_JUPYTER_KERNEL_START, jupyter_kernel_start
@@ -123,12 +130,10 @@ async def async_setup(hass, config):
         var_name = event.data["entity_id"]
         # attr = event.data["new_state"].attributes
         if "new_state" not in event.data or event.data["new_state"] is None:
-            _LOGGER.debug(
-                "state_changed: missing new_state in event.data=%s; ignoring",
-                event.data,
-            )
-            return
-        new_val = event.data["new_state"].state
+            # state variable has been deleted
+            new_val = None
+        else:
+            new_val = event.data["new_state"].state
         old_val = event.data["old_state"].state if event.data["old_state"] else None
         new_vars = {var_name: new_val, f"{var_name}.old": old_val}
         func_args = {
