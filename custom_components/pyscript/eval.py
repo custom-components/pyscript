@@ -648,42 +648,53 @@ class AstEval:
             for var_name in arg.names:
                 self.curr_func.nonlocal_names.add(var_name)
 
+    async def recurse_assign(self, lhs, val):
+        """Recursive assignment."""
+        if isinstance(lhs, ast.Tuple):
+            try:
+                val_len = len(val)
+            except TypeError:
+                raise TypeError("cannot unpack non-iterable object")
+            if len(lhs.elts) < val_len:
+                raise ValueError(
+                    f"too many values to unpack (expected {len(lhs.elts)})"
+                )
+            if len(lhs.elts) > val_len:
+                raise ValueError(f"too few values to unpack (expected {len(lhs.elts)})")
+            for lhs_elt, val_elt in zip(lhs.elts, val):
+                await self.recurse_assign(lhs_elt, val_elt)
+        elif isinstance(lhs, ast.Subscript):
+            var = await self.aeval(lhs.value)
+            if isinstance(lhs.slice, ast.Index):
+                ind = await self.aeval(lhs.slice.value)
+                var[ind] = val
+            else:
+                lower = await self.aeval(lhs.slice.lower) if lhs.slice.lower else None
+                upper = await self.aeval(lhs.slice.upper) if lhs.slice.upper else None
+                step = await self.aeval(lhs.slice.step) if lhs.slice.step else None
+                var[slice(lower, upper, step)] = val
+        else:
+            var_name = await self.aeval(lhs)
+            if var_name.find(".") >= 0:
+                self.state.set(var_name, val)
+            else:
+                if self.curr_func and var_name in self.curr_func.global_names:
+                    self.global_sym_table[var_name] = val
+                elif self.curr_func and var_name in self.curr_func.nonlocal_names:
+                    for sym_table in reversed(self.sym_table_stack[1:]):
+                        if var_name in sym_table:
+                            sym_table[var_name] = val
+                            break
+                    else:
+                        raise TypeError(
+                            f"can't find nonlocal '{var_name}' for assignment"
+                        )
+                else:
+                    self.sym_table[var_name] = val
+
     async def ast_assign(self, arg):
         """Execute assignment statement."""
-        val = await self.aeval(arg.value)
-        for lhs in arg.targets:  # pylint: disable=too-many-nested-blocks
-            if isinstance(lhs, ast.Subscript):
-                var = await self.aeval(lhs.value)
-                if isinstance(lhs.slice, ast.Index):
-                    ind = await self.aeval(lhs.slice.value)
-                    var[ind] = val
-                elif isinstance(lhs.slice, ast.Slice):
-                    lower = (
-                        await self.aeval(lhs.slice.lower) if lhs.slice.lower else None
-                    )
-                    upper = (
-                        await self.aeval(lhs.slice.upper) if lhs.slice.upper else None
-                    )
-                    step = await self.aeval(lhs.slice.step) if lhs.slice.step else None
-                    var[slice(lower, upper, step)] = val
-            else:
-                var_name = await self.aeval(lhs)
-                if var_name.find(".") >= 0:
-                    self.state.set(var_name, val)
-                else:
-                    if self.curr_func and var_name in self.curr_func.global_names:
-                        self.global_sym_table[var_name] = val
-                    elif self.curr_func and var_name in self.curr_func.nonlocal_names:
-                        for sym_table in reversed(self.sym_table_stack[1:]):
-                            if var_name in sym_table:
-                                sym_table[var_name] = val
-                                break
-                        else:
-                            raise TypeError(
-                                f"can't find nonlocal '{var_name}' for assignment"
-                            )
-                    else:
-                        self.sym_table[var_name] = val
+        await self.recurse_assign(arg.targets[0], await self.aeval(arg.value))
 
     async def ast_augassign(self, arg):
         """Execute augmented assignment statement (lhs <BinOp>= value)."""
@@ -991,8 +1002,7 @@ class AstEval:
 
     async def ast_tuple(self, arg):
         """Evaluate Tuple."""
-        if isinstance(arg.ctx, ast.Load):
-            return tuple(await self.eval_elt_list(arg.elts))
+        return tuple(await self.eval_elt_list(arg.elts))
 
     async def ast_dict(self, arg):
         """Evaluate dict."""

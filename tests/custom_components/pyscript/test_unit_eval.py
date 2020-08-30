@@ -138,6 +138,13 @@ evalTests = [
         "z = [0, 1, 2, 3, 4, 5, 6, 7, 8]; z[::] = [10, 11, 12, 13, 14, 15, 16, 17]; z",
         [10, 11, 12, 13, 14, 15, 16, 17],
     ],
+    ["(x, y) = (1, 2); [x, y]", [1, 2]],
+    ["y = [1,2]; (x, y[0]) = (3, 4); [x, y]", [3, [4, 2]]],
+    ["((x, y), (z, t)) = ((1, 2), (3, 4)); [x, y, z, t]", [1, 2, 3, 4]],
+    [
+        "z = [1,2,3]; ((x, y), (z[2], t)) = ((1, 2), (20, 4)); [x, y, z, t]",
+        [1, 2, [1, 2, 20], 4],
+    ],
     ["eval('1+2')", 3],
     ["x = 5; eval('2 * x')", 10],
     ["x = 5; exec('x = 2 * x'); x", 10],
@@ -513,6 +520,18 @@ evalTestsExceptions = [
         "Exception in test line 1 column 2: unsupported operand type(s) for +: 'int' and 'str'",
     ],
     ["xx", "Exception in test line 1 column 0: name 'xx' is not defined"],
+    [
+        "(x, y) = (1, 2, 4)",
+        "Exception in test line 1 column 16: too many values to unpack (expected 2)",
+    ],
+    [
+        "(x, y, z) = (1, 2)",
+        "Exception in test line 1 column 16: too few values to unpack (expected 3)",
+    ],
+    [
+        "(x, y) = 1",
+        "Exception in test line 1 column 9: cannot unpack non-iterable object",
+    ],
     [
         "import math; math.sinXYZ",
         "Exception in test line 1 column 13: module 'math' has no attribute 'sinXYZ'",
