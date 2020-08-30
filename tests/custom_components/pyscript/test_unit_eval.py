@@ -422,6 +422,55 @@ def foo(arg1=None, **kwargs):
             [None, {"arg2": 30}],
         ],
     ],
+    [
+        """
+def func(exc):
+    try:
+        x = 1
+        if exc:
+            raise exc
+    except NameError as err:
+        x += 100
+    except (NameError, OSError) as err:
+        x += 200
+    except Exception as err:
+        x += 300
+        return x
+    else:
+        x += 10
+    finally:
+        x += 2
+    x += 1
+    return x
+[func(None), func(NameError("x")), func(OSError("x")), func(ValueError("x"))]
+""",
+        [14, 104, 204, 301],
+    ],
+    [
+        """
+def func(exc):
+    try:
+        x = 1
+        if exc:
+            raise exc
+    except NameError as err:
+        x += 100
+    except (NameError, OSError) as err:
+        x += 200
+    except Exception as err:
+        x += 300
+        return x
+    else:
+        return x + 10
+    finally:
+        x += 2
+        return x
+    x += 1
+    return x
+[func(None), func(NameError("x")), func(OSError("x")), func(ValueError("x"))]
+""",
+        [3, 103, 203, 303],
+    ],
 ]
 
 

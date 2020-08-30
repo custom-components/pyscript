@@ -65,6 +65,74 @@ BUILTIN_FUNCS = {
 }
 
 
+BUILTIN_EXCEPTIONS = {
+    "BaseException": BaseException,
+    "SystemExit": SystemExit,
+    "KeyboardInterrupt": KeyboardInterrupt,
+    "GeneratorExit": GeneratorExit,
+    "Exception": Exception,
+    "StopIteration": StopIteration,
+    "StopAsyncIteration": StopAsyncIteration,
+    "ArithmeticError": ArithmeticError,
+    "FloatingPointError": FloatingPointError,
+    "OverflowError": OverflowError,
+    "ZeroDivisionError": ZeroDivisionError,
+    "AssertionError": AssertionError,
+    "AttributeError": AttributeError,
+    "BufferError": BufferError,
+    "EOFError": EOFError,
+    "ImportError": ImportError,
+    "ModuleNotFoundError": ModuleNotFoundError,
+    "LookupError": LookupError,
+    "IndexError": IndexError,
+    "KeyError": KeyError,
+    "MemoryError": MemoryError,
+    "NameError": NameError,
+    "UnboundLocalError": UnboundLocalError,
+    "OSError": OSError,
+    "BlockingIOError": BlockingIOError,
+    "ChildProcessError": ChildProcessError,
+    "ConnectionError": ConnectionError,
+    "BrokenPipeError": BrokenPipeError,
+    "ConnectionAbortedError": ConnectionAbortedError,
+    "ConnectionRefusedError": ConnectionRefusedError,
+    "ConnectionResetError": ConnectionResetError,
+    "FileExistsError": FileExistsError,
+    "FileNotFoundError": FileNotFoundError,
+    "InterruptedError": InterruptedError,
+    "IsADirectoryError": IsADirectoryError,
+    "NotADirectoryError": NotADirectoryError,
+    "PermissionError": PermissionError,
+    "ProcessLookupError": ProcessLookupError,
+    "TimeoutError": TimeoutError,
+    "ReferenceError": ReferenceError,
+    "RuntimeError": RuntimeError,
+    "NotImplementedError": NotImplementedError,
+    "RecursionError": RecursionError,
+    "SyntaxError": SyntaxError,
+    "IndentationError": IndentationError,
+    "TabError": TabError,
+    "SystemError": SystemError,
+    "TypeError": TypeError,
+    "ValueError": ValueError,
+    "UnicodeError": UnicodeError,
+    "UnicodeDecodeError": UnicodeDecodeError,
+    "UnicodeEncodeError": UnicodeEncodeError,
+    "UnicodeTranslateError": UnicodeTranslateError,
+    "Warning": Warning,
+    "DeprecationWarning": DeprecationWarning,
+    "PendingDeprecationWarning": PendingDeprecationWarning,
+    "RuntimeWarning": RuntimeWarning,
+    "SyntaxWarning": SyntaxWarning,
+    "UserWarning": UserWarning,
+    "FutureWarning": FutureWarning,
+    "ImportWarning": ImportWarning,
+    "UnicodeWarning": UnicodeWarning,
+    "BytesWarning": BytesWarning,
+    "ResourceWarning": ResourceWarning,
+}
+
+
 def ast_eval_exec_factory(ast_ctx, str_type):
     """Generate a function that executes eval() or exec() with given ast_ctx."""
 
@@ -491,6 +559,63 @@ class AstEval:
                     return val
         return None
 
+    async def ast_try(self, arg):
+        """Execute try...except statement."""
+        try:
+            for arg1 in arg.body:
+                val = await self.aeval(arg1)
+                if isinstance(val, EvalStopFlow):
+                    return val
+                print(f"exception_obj = {self.exception_obj}")
+                if self.exception_obj is not None:
+                    raise self.exception_obj  # pylint: disable=raising-bad-type
+        except Exception as err:  # pylint: disable=broad-except
+            self.exception_obj = None
+            self.exception = None
+            self.exception_long = None
+            for handler in arg.handlers:
+                exc_list = await self.aeval(handler.type)
+                if not isinstance(exc_list, tuple):
+                    exc_list = [exc_list]
+                match = False
+                for exc in exc_list:
+                    if isinstance(err, exc):
+                        match = True
+                        break
+                if match:
+                    if handler.name is not None:
+                        self.sym_table[handler.name] = err
+                    for arg1 in handler.body:
+                        val = await self.aeval(arg1)
+                        if isinstance(val, EvalStopFlow):
+                            if handler.name is not None:
+                                del self.sym_table[handler.name]
+                            return val
+                        if self.exception_obj is not None:
+                            if handler.name is not None:
+                                del self.sym_table[handler.name]
+                            raise self.exception_obj  # pylint: disable=raising-bad-type
+                    if handler.name is not None:
+                        del self.sym_table[handler.name]
+                    break
+            else:
+                raise err
+        else:
+            for arg1 in arg.orelse:
+                val = await self.aeval(arg1)
+                if isinstance(val, EvalStopFlow):
+                    return val
+        finally:
+            for arg1 in arg.finalbody:
+                val = await self.aeval(arg1)
+                if isinstance(val, EvalStopFlow):
+                    return val  # pylint: disable=lost-exception
+        return None
+
+    async def ast_raise(self, arg):
+        """Execute raise statement."""
+        raise await self.aeval(arg.exc)
+
     async def ast_pass(self, arg):
         """Execute pass statement."""
 
@@ -696,6 +821,8 @@ class AstEval:
                 )
             if num_dots == 1 or (num_dots == 2 and self.state.exist(arg.id)):
                 return self.state.get(arg.id)
+            if arg.id in BUILTIN_EXCEPTIONS:
+                return BUILTIN_EXCEPTIONS[arg.id]
             #
             # Couldn't find it, so return just the name wrapped in EvalName to
             # distinguish from a string variable value.  This is to support
