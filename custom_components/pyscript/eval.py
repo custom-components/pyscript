@@ -6,7 +6,7 @@ import importlib
 import logging
 import sys
 
-from .const import LOGGER_PATH
+from .const import ALLOWED_IMPORTS, LOGGER_PATH
 
 _LOGGER = logging.getLogger(LOGGER_PATH + ".eval")
 
@@ -145,24 +145,6 @@ BUILTIN_AST_FUNCS_FACTORY = {
     "exec": ast_exec_factory,
     "globals": ast_globals_factory,
     "locals": ast_locals_factory,
-}
-
-
-ALLOWED_IMPORTS = {
-    "bisect",
-    "cmath",
-    "colorsys",
-    "datetime",
-    "decimal",
-    "fractions",
-    "homeassistant.const",
-    "math",
-    "number",
-    "random",
-    "re",
-    "statistics",
-    "string",
-    "time",
 }
 
 

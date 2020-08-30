@@ -43,6 +43,7 @@ class Handler:
             "log.error": self.get_logger_error,
             "log.info": self.get_logger_info,
             "log.warning": self.get_logger_warning,
+            "print": self.get_logger_debug,
         }
 
         #
