@@ -260,7 +260,7 @@ class Kernel:
         msg['content']       = decode(msg_frames[3])
         check_sig = self.msg_sign(msg_frames)
         if check_sig != m_signature:
-            _LOGGER.debug("check_sig=%s, m_signature=%s, wire_msg=%s", check_sig, m_signature, wire_msg)
+            _LOGGER.error("signature mismatch: check_sig=%s, m_signature=%s, wire_msg=%s", check_sig, m_signature, wire_msg)
             raise ValueError("Signatures do not match")
 
         return identities, msg
@@ -355,6 +355,10 @@ class Kernel:
                     exc = self.ast_ctx.get_exception_obj()
                 if exc:
                     traceback_mesg = self.ast_ctx.get_exception_long().split("\n")
+
+                    if msg['content'].get("store_history", True):
+                        self.execution_count += 1
+
                     metadata = {
                         "dependencies_met": True,
                         "engine": self.engine_id,
@@ -374,8 +378,11 @@ class Kernel:
                     del content["execution_count"], content["status"]
                     await self.send(self.iopub_socket, 'error', content, parent_header=msg['header'])
 
-                    if msg['content'].get("store_history", True):
-                        self.execution_count += 1
+                    content = {
+                        'execution_state': "idle",
+                    }
+                    await self.send(self.iopub_socket, 'status', content, parent_header=msg['header'])
+                    return
 
                 # if True or isinstance(self.ast_ctx.ast, ast.Expr):
                 _LOGGER.debug("Executing: '%s' got result %s", code, result)
