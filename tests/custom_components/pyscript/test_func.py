@@ -203,6 +203,15 @@ def func4(trigger_type=None, event_type=None, **kwargs):
 
     seq_num += 1
     #
+    # make sure a short timeout works when there is only a state trigger
+    # that isn't true
+    #
+    res = task.wait_until(state_trigger="pyscript.f4var2 == '20'", timeout=1e-6)
+    log.info(f"func4 trigger_type = {res}")
+    pyscript.done = [seq_num, res]
+
+    seq_num += 1
+    #
     # make sure a short timeout works when there are no other triggers
     #
     res = task.wait_until(timeout=1e-6)
@@ -351,9 +360,9 @@ def func4(trigger_type=None, event_type=None, **kwargs):
     assert literal_eval(hass.states.get("pyscript.setVar3").state) == {"foo": "bar"}
 
     #
-    # check for the three time triggers, two timeouts and two none
+    # check for the four time triggers, three timeouts and two none
     #
-    for trig_type in ["time"] * 4 + ["timeout"] * 2 + ["none"] * 2:
+    for trig_type in ["time"] * 4 + ["timeout"] * 3 + ["none"] * 2:
         seq_num += 1
         assert literal_eval(await wait_until_done(notify_q)) == [
             seq_num,

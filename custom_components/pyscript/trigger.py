@@ -213,6 +213,7 @@ class TrigTime:
                     ret = {"trigger_type": "timeout"}
                     break
                 if this_timeout is None or this_timeout > time_left:
+                    ret = {"trigger_type": "timeout"}
                     this_timeout = time_left
             if this_timeout is None:
                 if state_trigger is None and event_trigger is None:
@@ -233,7 +234,8 @@ class TrigTime:
                         notify_q.get(), timeout=this_timeout
                     )
                 except asyncio.TimeoutError:
-                    ret = {"trigger_type": "time"}
+                    if not ret:
+                        ret = {"trigger_type": "time"}
                     break
             if notify_type == "state":
                 if state_trig_expr is None:
