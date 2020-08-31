@@ -120,7 +120,7 @@ install on the wide set of HASS platforms."""
                 # _LOGGER.debug(f"recv: got cmd={cmd}, params={params}")
             else:
                 parts.append(msg_body)
-                if cmd == 0x0:
+                if cmd == 0x0 or cmd == 0x2:
                     # _LOGGER.debug(f"recv: got msg {parts}")
                     if not multipart:
                         return b''.join(parts)
