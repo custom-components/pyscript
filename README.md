@@ -131,7 +131,7 @@ unless the [Logger](/integrations/logger/) is enabled at least for level `info`,
 logger:
   default: info
   logs:
-    homeassistant.components.pyscript: info
+    custom_components.pyscript: info
 ```
 </div>
 
@@ -608,7 +608,7 @@ The [Logger](/integrations/logger/) component can be used to specify the logging
 below the configured level will not appear in the log. Each log message function uses a log name of
 the form:
 ```yaml
-homeassistant.components.pyscript.file.FILENAME.FUNCNAME
+custom_components.pyscript.file.FILENAME.FUNCNAME
 ```
 where `FUNCNAME` is the name of the top-level Python function (e.g., the one called by a trigger or
 service), defined in the script file `FILENAME.py`. That allows you to set the log level for each
@@ -618,8 +618,8 @@ functions that the top-level Python function calls. For example, these settings:
 logger:
   default: info
   logs:
-    homeassistant.components.pyscript.file: info
-    homeassistant.components.pyscript.file.my_scripts.my_function: debug
+    custom_components.pyscript.file: info
+    custom_components.pyscript.file.my_scripts.my_function: debug
 ```
 will log all messages at `info` or higher (ie: `log.info()`, `log.warning()` and `log.error()`), and
 inside `my_function` defined in the script file `my_scripts.py` (and any other functions it calls)
