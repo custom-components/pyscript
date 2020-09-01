@@ -148,6 +148,18 @@ evalTests = [
     ["Foo = type('Foo', (), {'x': 100}); Foo.x = 10; Foo.x", 10],
     ["Foo = type('Foo', (), {'x': 100}); Foo.x += 10; Foo.x", 110],
     ["Foo = [type('Foo', (), {'x': 100})]; Foo[0].x = 10; Foo[0].x", 10],
+    [
+        "Foo = [type('Foo', (), {'x': [100, 101]})]; Foo[0].x[1] = 10; Foo[0].x",
+        [100, 10],
+    ],
+    [
+        "Foo = [type('Foo', (), {'x': [0, [[100, 101]]]})]; Foo[0].x[1][0][1] = 10; Foo[0].x[1]",
+        [[100, 10]],
+    ],
+    [
+        "Foo = [type('Foo', (), {'x': [0, [[100, 101, 102, 103]]]})]; Foo[0].x[1][0][1:2] = [11, 12]; Foo[0].x[1]",
+        [[100, 11, 12, 102, 103]],
+    ],
     ["eval('1+2')", 3],
     ["x = 5; eval('2 * x')", 10],
     ["x = 5; exec('x = 2 * x'); x", 10],
@@ -166,6 +178,17 @@ evalTests = [
     ["import random as rand, math as m\n[rand.uniform(10,10), m.sqrt(1024)]", [10, 32]],
     ["import cmath\ncmath.sqrt(complex(3, 4))", 2 + 1j],
     ["from math import sqrt as sqroot\nsqroot(1024)", 32],
+    [
+        """
+def foo(bar=6):
+    if bar == 5:
+        return
+    else:
+        return 2 * bar
+[foo(), foo(5), foo('xxx')]
+""",
+        [12, None, "xxxxxx"],
+    ],
     [
         """
 bar = 100
@@ -480,6 +503,30 @@ def func(exc):
 [func(None), func(NameError("x")), func(OSError("x")), func(ValueError("x"))]
 """,
         [3, 103, 203, 303],
+    ],
+    [
+        """
+class Test:
+    x = 10
+    def __init__(self, value):
+        self.y = value
+
+    def set_x(self, value):
+        Test.x += 2
+        self.x = value
+
+    def set_y(self, value):
+        self.y = value
+
+    def get(self):
+        return [self.x, self.y]
+
+t1 = Test(20)
+t2 = Test(40)
+Test.x = 5
+[t1.get(), t2.get(), t1.set_x(100), t1.get(), t2.get(), Test.x]
+""",
+        [[5, 20], [5, 40], None, [100, 20], [7, 40], 7],
     ],
 ]
 

@@ -4,6 +4,7 @@ import ast
 import asyncio
 import builtins
 import importlib
+import inspect
 import logging
 import sys
 
@@ -122,13 +123,25 @@ class EvalReturn(EvalStopFlow):
         """Initialize return statement value."""
         self.value = value
 
+    def name(self):
+        """Return short name."""
+        return "return"
+
 
 class EvalBreak(EvalStopFlow):
     """Break statement."""
 
+    def name(self):
+        """Return short name."""
+        return "break"
+
 
 class EvalContinue(EvalStopFlow):
     """Continue statement."""
+
+    def name(self):
+        """Return short name."""
+        return "continue"
 
 
 class EvalName:
@@ -380,7 +393,7 @@ class AstEval:
         for arg1 in arg.body:
             val = await self.aeval(arg1)
             if isinstance(val, EvalStopFlow):
-                return val
+                raise SyntaxError(f"{val.name()} statement outside function")
         return val
 
     async def ast_import(self, arg):
@@ -461,6 +474,47 @@ class AstEval:
                     return val
         return None
 
+    async def ast_classdef(self, arg):
+        """Evaluate class definition."""
+        bases = [(await self.aeval(base)) for base in arg.bases]
+        sym_table = {}
+        self.sym_table_stack.append(self.sym_table)
+        self.sym_table = sym_table
+        for arg1 in arg.body:
+            val = await self.aeval(arg1)
+            if isinstance(val, EvalStopFlow):
+                raise SyntaxError(f"{val.name()} statement outside function")
+        self.sym_table = self.sym_table_stack.pop()
+
+        for name, func in sym_table.items():
+            if not isinstance(func, EvalFunc):
+                continue
+
+            def class_func_factory(func):
+                async def class_func_wrapper(this_self, *args, **kwargs):
+                    method_args = [this_self, *args]
+                    return await func.call(self, method_args, kwargs)
+
+                return class_func_wrapper
+
+            sym_table[name] = class_func_factory(func)
+
+        if "__init__" in sym_table:
+            sym_table["__init__evalfunc_wrap__"] = sym_table["__init__"]
+            del sym_table["__init__"]
+        self.sym_table[arg.name] = type(arg.name, tuple(bases), sym_table)
+
+    async def ast_functiondef(self, arg):
+        """Evaluate function definition."""
+        func = EvalFunc(arg, self.code_list, self.code_str)
+        await func.eval_defaults(self)
+        await func.eval_decorators(self)
+        self.sym_table[func.get_name()] = func
+        if self.sym_table == self.global_sym_table:
+            # set up any triggers if this function is in the global context
+            await self.global_ctx.trigger_init(func)
+        return None
+
     async def ast_try(self, arg):
         """Execute try...except statement."""
         try:
@@ -534,20 +588,21 @@ class AstEval:
 
     async def ast_return(self, arg):
         """Execute return statement - return special class."""
-        val = await self.aeval(arg.value)
-        return EvalReturn(val)
+        return EvalReturn(await self.aeval(arg.value) if arg.value else None)
 
     async def ast_global(self, arg):
         """Execute global statement."""
-        if self.curr_func:
-            for var_name in arg.names:
-                self.curr_func.global_names.add(var_name)
+        if not self.curr_func:
+            raise SyntaxError("global statement outside function")
+        for var_name in arg.names:
+            self.curr_func.global_names.add(var_name)
 
     async def ast_nonlocal(self, arg):
         """Execute nonlocal statement."""
-        if self.curr_func:
-            for var_name in arg.names:
-                self.curr_func.nonlocal_names.add(var_name)
+        if not self.curr_func:
+            raise SyntaxError("nonlocal statement outside function")
+        for var_name in arg.names:
+            self.curr_func.nonlocal_names.add(var_name)
 
     async def recurse_assign(self, lhs, val):
         """Recursive assignment."""
@@ -579,6 +634,10 @@ class AstEval:
             if isinstance(var_name, EvalAttrSet):
                 var_name.setattr(val)
                 return
+            if not isinstance(var_name, str):
+                raise NotImplementedError(
+                    f"unknown lhs type {lhs} (got {var_name}) in assign"
+                )
             if var_name.find(".") >= 0:
                 self.state.set(var_name, val)
                 return
@@ -905,11 +964,9 @@ class AstEval:
         val = []
         for arg in elts:
             if isinstance(arg, ast.Starred):
-                for this_val in await self.aeval(arg.value):
-                    val.append(this_val)
+                val += await self.aeval(arg.value)
             else:
-                this_val = await self.aeval(arg)
-                val.append(this_val)
+                val.append(await self.aeval(arg))
         return val
 
     async def ast_list(self, arg):
@@ -934,10 +991,7 @@ class AstEval:
 
     async def ast_set(self, arg):
         """Evaluate set."""
-        val = set()
-        for elt in await self.eval_elt_list(arg.elts):
-            val.add(elt)
-        return val
+        return {elt for elt in await self.eval_elt_list(arg.elts)}
 
     async def ast_subscript(self, arg):
         """Evaluate subscript."""
@@ -986,6 +1040,14 @@ class AstEval:
             func_name = arg.func.attr
         else:
             func_name = "<other>"
+        if inspect.isclass(func) and hasattr(func, "__init__evalfunc_wrap__"):
+            #
+            # since our __init__ function is async, create the class instance
+            # without arguments and then call the async __init__evalfunc_wrap__
+            #
+            inst = func()
+            await inst.__init__evalfunc_wrap__(*args, **kwargs)
+            return inst
         if callable(func):
             _LOGGER.debug(
                 "%s: calling %s(%s, %s)", self.name, func_name, arg_str, kwargs
@@ -994,17 +1056,6 @@ class AstEval:
                 return await func(*args, **kwargs)
             return func(*args, **kwargs)
         raise NameError(f"function '{func_name}' is not callable (got {func})")
-
-    async def ast_functiondef(self, arg):
-        """Evaluate function definition."""
-        func = EvalFunc(arg, self.code_list, self.code_str)
-        await func.eval_defaults(self)
-        await func.eval_decorators(self)
-        self.sym_table[func.get_name()] = func
-        if self.sym_table == self.global_sym_table:
-            # set up any triggers if this function is in the global context
-            await self.global_ctx.trigger_init(func)
-        return None
 
     async def ast_ifexp(self, arg):
         """Evaluate if expression."""
