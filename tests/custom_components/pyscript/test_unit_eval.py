@@ -180,6 +180,29 @@ evalTests = [
     ["from math import sqrt as sqroot\nsqroot(1024)", 32],
     [
         """
+d = {"x": 1, "y": 2, "z": 3}
+s = []
+for k, v in d.items():
+    s.append(f"{k}: {v}")
+s
+""",
+        ["x: 1", "y: 2", "z: 3"],
+    ],
+    [
+        """
+d = {"x": 1, "y": 2, "z": 3}
+i = 0
+s = []
+k = [0, 0, 0]
+for k[i], v in d.items():
+    s.append([k.copy(), v])
+    i += 1
+s
+""",
+        [[["x", 0, 0], 1], [["x", "y", 0], 2], [["x", "y", "z"], 3]],
+    ],
+    [
+        """
 def foo(bar=6):
     if bar == 5:
         return

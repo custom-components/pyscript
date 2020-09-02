@@ -447,10 +447,8 @@ class AstEval:
 
     async def ast_for(self, arg):
         """Execute for statement."""
-        loop_var = await self.aeval(arg.target)
-        loop_iter = await self.aeval(arg.iter)
-        for i in loop_iter:
-            self.sym_table[loop_var] = i
+        for loop_var in await self.aeval(arg.iter):
+            await self.recurse_assign(arg.target, loop_var)
             for arg1 in arg.body:
                 val = await self.aeval(arg1)
                 if isinstance(val, EvalStopFlow):
