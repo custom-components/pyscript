@@ -5,12 +5,15 @@ import json
 import logging
 import os
 
+import voluptuous as vol
+
 from homeassistant.const import (
     EVENT_HOMEASSISTANT_STARTED,
     EVENT_HOMEASSISTANT_STOP,
     EVENT_STATE_CHANGED,
     SERVICE_RELOAD,
 )
+import homeassistant.helpers.config_validation as cv
 from homeassistant.loader import bind_hass
 
 from .const import DOMAIN, FOLDER, LOGGER_PATH, SERVICE_JUPYTER_KERNEL_START
@@ -24,10 +27,20 @@ from .trigger import TrigTime
 
 _LOGGER = logging.getLogger(LOGGER_PATH)
 
+CONF_ALLOW_ALL_IMPORTS = "allow_all_imports"
+
+CONFIG_SCHEMA = vol.Schema(
+    {
+        DOMAIN: vol.Schema(
+            {vol.Optional(CONF_ALLOW_ALL_IMPORTS, default=False): cv.boolean}
+        ),
+    },
+    extra=vol.ALLOW_EXTRA,
+)
+
 
 async def async_setup(hass, config):
     """Initialize the pyscript component."""
-
     handler_func = Handler(hass)
     event_func = Event(hass)
     trig_time_func = TrigTime(hass, handler_func)
@@ -43,6 +56,9 @@ async def async_setup(hass, config):
     if not await hass.async_add_executor_job(check_isdir, path):
         _LOGGER.error("Folder %s not found in configuration folder", FOLDER)
         return False
+
+    hass.data.setdefault(DOMAIN, {})
+    hass.data[DOMAIN]["allow_all_imports"] = config[DOMAIN].get(CONF_ALLOW_ALL_IMPORTS)
 
     await compile_scripts(  # pylint: disable=unused-variable
         hass,
