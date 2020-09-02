@@ -8,7 +8,7 @@ import inspect
 import logging
 import sys
 
-from .const import ALLOWED_IMPORTS, LOGGER_PATH
+from .const import ALLOWED_IMPORTS, DOMAIN, LOGGER_PATH
 
 _LOGGER = logging.getLogger(LOGGER_PATH + ".eval")
 
@@ -361,6 +361,11 @@ class AstEval:
         self.logger_handlers = set()
         self.logger = None
         self.set_logger_name(logger_name if logger_name is not None else self.name)
+        self.allow_all_imports = (
+            global_ctx.hass.data[DOMAIN]["allow_all_imports"]
+            if global_ctx.hass is not None
+            else False
+        )
 
     async def ast_not_implemented(self, arg, *args):
         """Raise NotImplementedError exception for unimplemented AST types."""
@@ -399,7 +404,7 @@ class AstEval:
     async def ast_import(self, arg):
         """Execute import."""
         for imp in arg.names:
-            if imp.name not in ALLOWED_IMPORTS:
+            if not self.allow_all_imports and imp.name not in ALLOWED_IMPORTS:
                 raise ModuleNotFoundError(f"import of {imp.name} not allowed")
             if imp.name not in sys.modules:
                 mod = importlib.import_module(imp.name)
@@ -409,7 +414,7 @@ class AstEval:
 
     async def ast_importfrom(self, arg):
         """Execute from X import Y."""
-        if arg.module not in ALLOWED_IMPORTS:
+        if not self.allow_all_imports and arg.module not in ALLOWED_IMPORTS:
             raise ModuleNotFoundError(f"import from {arg.module} not allowed")
         if arg.module not in sys.modules:
             mod = importlib.import_module(arg.module)
