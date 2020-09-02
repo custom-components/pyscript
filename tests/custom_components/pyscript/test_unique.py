@@ -4,6 +4,7 @@ import asyncio
 from datetime import datetime as dt
 import pathlib
 
+from config.custom_components.pyscript import DOMAIN
 import config.custom_components.pyscript.trigger as trigger
 
 from homeassistant import loader
@@ -43,7 +44,7 @@ async def setup_script(hass, notify_q, now, source):
     ), patch(
         "config.custom_components.pyscript.trigger.dt_now", return_value=now
     ):
-        assert await async_setup_component(hass, "pyscript", {})
+        assert await async_setup_component(hass, "pyscript", {DOMAIN: {}})
 
     #
     # I'm not sure how to run the mock all the time, so just force the dt_now()
@@ -79,7 +80,7 @@ async def test_task_unique(hass, caplog):
 
 seq_num = 0
 
-@time_trigger
+@time_trigger("startup")
 def funcStartupSync():
     global seq_num
 
@@ -121,6 +122,27 @@ def func3(var_name=None, value=None):
     log.info(f"func3 var = {var_name}, value = {value}")
     task.unique("func2")
     pyscript.done = [seq_num, var_name]
+
+@state_trigger("pyscript.f4var1 == '1'")
+@task_unique("func4")
+def func4():
+    global seq_num
+
+    seq_num += 1
+    pyscript.done = [seq_num, "pyscript.f4var1"]
+    res = task.wait_until(state_trigger="pyscript.f4var2 == '1'")
+    pyscript.done = [seq_num, "pyscript.f4var2"]
+
+@state_trigger("pyscript.f5var1 == '1'")
+@task_unique("func5", kill_me=True)
+def func5():
+    global seq_num
+
+    seq_num += 1
+    pyscript.done = [seq_num, "pyscript.f5var1"]
+    res = task.wait_until(state_trigger="pyscript.f5var2 == '1'")
+    pyscript.done = [seq_num, "pyscript.f5var2"]
+
 """,
     )
 
@@ -177,3 +199,48 @@ def func3(var_name=None, value=None):
             seq_num,
             "pyscript.f3var1",
         ]
+
+    #
+    # now run func4() a few times; each one should stop the last one
+    #
+    for _ in range(10):
+        seq_num += 1
+        hass.states.async_set("pyscript.f4var1", 0)
+        hass.states.async_set("pyscript.f4var1", 1)
+        assert literal_eval(await wait_until_done(notify_q)) == [
+            seq_num,
+            "pyscript.f4var1",
+        ]
+    #
+    # now let the last one complete, and check the seq number
+    #
+    hass.states.async_set("pyscript.f4var2", 0)
+    hass.states.async_set("pyscript.f4var2", 1)
+    assert literal_eval(await wait_until_done(notify_q)) == [
+        seq_num,
+        "pyscript.f4var2",
+    ]
+
+    #
+    # now run func5() a few times; only the first one should
+    # start and the rest will not
+    #
+    seq_num += 1
+    hass.states.async_set("pyscript.f5var1", 0)
+    hass.states.async_set("pyscript.f5var1", 1)
+    assert literal_eval(await wait_until_done(notify_q)) == [
+        seq_num,
+        "pyscript.f5var1",
+    ]
+    for _ in range(10):
+        hass.states.async_set("pyscript.f5var1", 0)
+        hass.states.async_set("pyscript.f5var1", 1)
+    #
+    # now let the first one complete, and check the seq number
+    #
+    hass.states.async_set("pyscript.f5var2", 0)
+    hass.states.async_set("pyscript.f5var2", 1)
+    assert literal_eval(await wait_until_done(notify_q)) == [
+        seq_num,
+        "pyscript.f5var2",
+    ]

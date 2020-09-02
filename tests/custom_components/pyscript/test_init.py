@@ -17,6 +17,7 @@ from tests.async_mock import mock_open, patch
 
 async def setup_script(hass, notify_q, now, source):
     """Initialize and load the given pyscript."""
+
     scripts = [
         "/some/config/dir/pyscript/hello.py",
     ]
@@ -45,7 +46,7 @@ async def setup_script(hass, notify_q, now, source):
     ), patch(
         "config.custom_components.pyscript.trigger.dt_now", return_value=now
     ):
-        assert await async_setup_component(hass, "pyscript", {})
+        assert await async_setup_component(hass, "pyscript", {DOMAIN: {}})
 
     #
     # I'm not sure how to run the mock all the time, so just force the dt_now()
@@ -87,7 +88,7 @@ async def test_setup_fails_on_no_dir(hass, caplog):
     with patch(
         "homeassistant.loader.async_get_integration", return_value=integration,
     ), patch("config.custom_components.pyscript.os.path.isdir", return_value=False):
-        res = await async_setup_component(hass, "pyscript", {})
+        res = await async_setup_component(hass, "pyscript", {DOMAIN: {}})
 
     assert not res
     assert "Folder pyscript not found in configuration folder" in caplog.text
@@ -119,6 +120,15 @@ def func4():
 @service("too many args")
 def func5():
     pass
+
+@time_trigger("wrong arg type", 50)
+def func6():
+    pass
+
+@time_trigger("invalid kwargs", arg=10)
+@task_unique("invalid kwargs", arg=10)
+def func7():
+    pass
 """,
     )
     assert hass.services.has_service("pyscript", "func1")
@@ -129,11 +139,23 @@ def func5():
         in caplog.text
     )
     assert (
-        "func4 defined in file.hello: decorator @state_active got 2 arguments, expected 1; ignored"
+        "func4 defined in file.hello: decorator @state_active got 2 arguments, expected 1; ignoring decorator"
         in caplog.text
     )
     assert (
-        "func5 defined in file.hello: decorator @service takes no arguments; ignored"
+        "func5 defined in file.hello: decorator @service takes no arguments; ignoring decorator"
+        in caplog.text
+    )
+    assert (
+        "func6 defined in file.hello: decorator @time_trigger argument 2 should be a string; ignoring decorator"
+        in caplog.text
+    )
+    assert (
+        "func7 defined in file.hello: decorator @time_trigger doesn't take keyword arguments; ignored"
+        in caplog.text
+    )
+    assert (
+        "func7 defined in file.hello: decorator @task_unique valid keyword arguments are: kill_me; others ignored"
         in caplog.text
     )
 
@@ -312,7 +334,7 @@ def func1(var_name=None, value=None):
     source1 = """
 seq_num = 10
 
-@time_trigger
+@time_trigger("startup")
 def func_startup_sync():
     global seq_num
 

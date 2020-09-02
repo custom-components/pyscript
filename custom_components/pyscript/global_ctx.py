@@ -58,13 +58,14 @@ class GlobalContext:
             "event_trigger",
             "state_active",
             "time_active",
+            "task_unique",
         }
         decorator_used = set()
         for dec in func.get_decorators():
-            dec_name, dec_args = dec[0], dec[1]
+            dec_name, dec_args, dec_kwargs = dec[0], dec[1], dec[2]
             if dec_name in decorator_used:
                 self.logger.error(
-                    "%s defined in %s: decorator %s repeated; ignored",
+                    "%s defined in %s: decorator %s repeated; ignoring decorator",
                     func_name,
                     self.name,
                     dec_name,
@@ -75,13 +76,16 @@ class GlobalContext:
                 got_reqd_dec = True
             if dec_name in trig_decorators:
                 if dec_name not in trig_args:
-                    trig_args[dec_name] = []
+                    trig_args[dec_name] = {}
+                    trig_args[dec_name]["args"] = []
                 if dec_args is not None:
-                    trig_args[dec_name] += dec_args
+                    trig_args[dec_name]["args"] += dec_args
+                if dec_kwargs is not None:
+                    trig_args[dec_name]["kwargs"] = dec_kwargs
             elif dec_name == "service":
                 if dec_args is not None:
                     self.logger.error(
-                        "%s defined in %s: decorator @service takes no arguments; ignored",
+                        "%s defined in %s: decorator @service takes no arguments; ignoring decorator",
                         func_name,
                         self.name,
                     )
@@ -167,30 +171,71 @@ class GlobalContext:
             self.services.discard(func_name)
 
         for dec_name in trig_decorators:
-            if dec_name in trig_args and len(trig_args[dec_name]) == 0:
-                trig_args[dec_name] = None
+            if dec_name in trig_args and len(trig_args[dec_name]["args"]) == 0:
+                trig_args[dec_name]["args"] = None
 
+        #
+        # check that we have the right number of arguments, and that they are
+        # strings
+        #
         arg_check = {
-            "state_trigger": {1},
-            "state_active": {1},
             "event_trigger": {1, 2},
+            "state_active": {1},
+            "state_trigger": {1},
+            "task_unique": {1},
+            "time_active": {"*"},
+            "time_trigger": {"*"},
         }
         for dec_name, arg_cnt in arg_check.items():
-            if dec_name not in trig_args or trig_args[dec_name] is None:
+            if dec_name not in trig_args or trig_args[dec_name]["args"] is None:
                 continue
-            if len(trig_args[dec_name]) not in arg_cnt:
+            if "*" not in arg_cnt and len(trig_args[dec_name]["args"]) not in arg_cnt:
                 self.logger.error(
-                    "%s defined in %s: decorator @%s got %d argument%s, expected %s; ignored",
+                    "%s defined in %s: decorator @%s got %d argument%s, expected %s; ignoring decorator",
                     func_name,
                     self.name,
                     dec_name,
-                    len(trig_args[dec_name]),
-                    "s" if len(trig_args[dec_name]) > 1 else "",
+                    len(trig_args[dec_name]["args"]),
+                    "s" if len(trig_args[dec_name]["args"]) > 1 else "",
                     " or ".join([str(cnt) for cnt in sorted(arg_cnt)]),
                 )
                 del trig_args[dec_name]
-            if arg_cnt == 1:
-                trig_args[dec_name] = trig_args[dec_name][0]
+                break
+            for arg_num, arg in enumerate(trig_args[dec_name]["args"]):
+                if not isinstance(arg, str):
+                    self.logger.error(
+                        "%s defined in %s: decorator @%s argument %d should be a string; ignoring decorator",
+                        func_name,
+                        self.name,
+                        dec_name,
+                        arg_num + 1
+                    )
+                    del trig_args[dec_name]
+                    break
+            if arg_cnt == {1}:
+                trig_args[dec_name]["args"] = trig_args[dec_name]["args"][0]
+
+        kwarg_check = {
+            "task_unique": {"kill_me"},
+        }
+        for dec_name in trig_args.keys():
+            if dec_name not in kwarg_check and "kwargs" in trig_args[dec_name]:
+                self.logger.error(
+                    "%s defined in %s: decorator @%s doesn't take keyword arguments; ignored",
+                    func_name,
+                    self.name,
+                    dec_name,
+                )
+            if dec_name in kwarg_check and "kwargs" in trig_args[dec_name]:
+                used_kw = set(trig_args[dec_name]["kwargs"].keys())
+                if not used_kw.issubset(kwarg_check[dec_name]):
+                    self.logger.error(
+                        "%s defined in %s: decorator @%s valid keyword arguments are: %s; others ignored",
+                        func_name,
+                        self.name,
+                        dec_name,
+                        ", ".join(sorted(kwarg_check[dec_name])),
+                    )
 
         if not got_reqd_dec and len(trig_args) > 0:
             self.logger.error(

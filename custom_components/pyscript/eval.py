@@ -217,11 +217,16 @@ class EvalFunc:
         for dec in self.func_def.decorator_list:
             if isinstance(dec, ast.Call) and isinstance(dec.func, ast.Name):
                 args = []
+                kwargs = {}
                 for arg in dec.args:
                     args.append(await ast_ctx.aeval(arg))
-                self.decorators.append([dec.func.id, args])
+                for keyword in dec.keywords:
+                    kwargs[keyword.arg] = await ast_ctx.aeval(keyword.value)
+                if len(kwargs) == 0:
+                    kwargs = None
+                self.decorators.append([dec.func.id, args, kwargs])
             elif isinstance(dec, ast.Name):
-                self.decorators.append([dec.id, None])
+                self.decorators.append([dec.id, None, None])
             else:
                 _LOGGER.error(
                     "function %s has unexpected decorator type %s", self.name, dec

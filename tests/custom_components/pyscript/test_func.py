@@ -5,6 +5,7 @@ from datetime import datetime as dt
 import pathlib
 import time
 
+from config.custom_components.pyscript import DOMAIN
 import config.custom_components.pyscript.trigger as trigger
 
 from homeassistant import loader
@@ -44,7 +45,7 @@ async def setup_script(hass, notify_q, now, source):
     ), patch(
         "config.custom_components.pyscript.trigger.dt_now", return_value=now
     ):
-        assert await async_setup_component(hass, "pyscript", {})
+        assert await async_setup_component(hass, "pyscript", {DOMAIN: {}})
 
     #
     # I'm not sure how to run the mock all the time, so just force the dt_now()
@@ -97,11 +98,11 @@ seq_num = 0
 # 11:59:59.999999, so this trigger won't happen again for another 24 hours.
 #
 @time_trigger("once(2020/07/01 11:00:00)")
-def func_startup_sync():
+def func_startup_sync(trigger_type=None, trigger_time=None):
     global seq_num
 
     seq_num += 1
-    log.info(f"func_startup_sync setting pyscript.done = {seq_num}")
+    log.info(f"func_startup_sync setting pyscript.done = {seq_num}, trigger_type = {trigger_type}, trigger_time = {trigger_time}")
     pyscript.done = seq_num
 
 @state_trigger("pyscript.f1var1 == '1'")
@@ -164,7 +165,7 @@ def func4(trigger_type=None, event_type=None, **kwargs):
     #
     res = task.wait_until(time_trigger="once(2020/07/01 12:00:00)", timeout=10)
     log.info(f"func4 trigger_type = {res}")
-    pyscript.done = [seq_num, res]
+    pyscript.done = [seq_num, res["trigger_type"], str(res["trigger_time"])]
 
     seq_num += 1
     #
@@ -172,7 +173,7 @@ def func4(trigger_type=None, event_type=None, **kwargs):
     #
     res = task.wait_until(time_trigger="period(2020/07/01 11:00, 1 hour)", timeout=10)
     log.info(f"func4 trigger_type = {res}")
-    pyscript.done = [seq_num, res]
+    pyscript.done = [seq_num, res["trigger_type"], str(res["trigger_time"])]
 
     seq_num += 1
     #
@@ -181,7 +182,7 @@ def func4(trigger_type=None, event_type=None, **kwargs):
     #
     res = task.wait_until(time_trigger="cron(0 10-15 * * *)", timeout=10)
     log.info(f"func4 trigger_type = {res}")
-    pyscript.done = [seq_num, res]
+    pyscript.done = [seq_num, res["trigger_type"], str(res["trigger_time"])]
 
     seq_num += 1
     #
@@ -190,7 +191,7 @@ def func4(trigger_type=None, event_type=None, **kwargs):
     #
     res = task.wait_until(time_trigger="cron(0 10-15 1-5 6,7 *)", timeout=10)
     log.info(f"func4 trigger_type = {res}")
-    pyscript.done = [seq_num, res]
+    pyscript.done = [seq_num, res["trigger_type"], str(res["trigger_time"])]
 
     seq_num += 1
     #
@@ -220,7 +221,7 @@ def func4(trigger_type=None, event_type=None, **kwargs):
 
     seq_num += 1
     #
-    # make sure we return when there no triggers and no timeout
+    # make sure we return when there are no triggers and no timeout
     #
     res = task.wait_until()
     log.info(f"func4 trigger_type = {res}")
@@ -247,6 +248,10 @@ def func4(trigger_type=None, event_type=None, **kwargs):
     # fire event to start triggers, and handshake when they are running
     hass.bus.async_fire(EVENT_HOMEASSISTANT_STARTED)
     assert literal_eval(await wait_until_done(notify_q)) == seq_num
+    assert (
+        "func_startup_sync setting pyscript.done = 1, trigger_type = time, trigger_time = 2020-07-01 11:00:00"
+        in caplog.text
+    )
 
     seq_num += 1
     # initialize the trigger and active variables
@@ -364,9 +369,17 @@ def func4(trigger_type=None, event_type=None, **kwargs):
     #
     for trig_type in ["time"] * 4 + ["timeout"] * 3 + ["none"] * 2:
         seq_num += 1
-        assert literal_eval(await wait_until_done(notify_q)) == [
-            seq_num,
-            {"trigger_type": trig_type},
-        ]
+        if trig_type == "time":
+            assert literal_eval(await wait_until_done(notify_q)) == [
+                seq_num,
+                "time",
+                "2020-07-01 12:00:00",
+            ]
+        else:
+            res = {"trigger_type": trig_type}
+            assert literal_eval(await wait_until_done(notify_q)) == [
+                seq_num,
+                res,
+            ]
 
     assert "name 'no_such_function' is not defined" in caplog.text

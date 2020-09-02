@@ -93,6 +93,10 @@ class Handler:
             self.unique_name2task[name] = task
             self.unique_task2name[task] = name
 
+    def unique_name_used(self, name):
+        """Return whether the current unique name is in use."""
+        return name in self.unique_name2task
+
     def service_has_service(self, domain, name):
         """Implement service.has_service()."""
         return self.hass.services.has_service(domain, name)
