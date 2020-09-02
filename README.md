@@ -265,6 +265,9 @@ In cases where you need to compute the name of the state variable dynamically, o
 set the state attributes, you can use the built-in functions `state.get(name)` and
 `state.set(name, value, attr=None)`; see below.
 
+The function `entity_ids(domain=None)` returns a list of all `entity_id`s of a domain. If domain
+is not specified, it returns all entities.
+
 Also, service names (which are called as functions) take priority over state variable names,
 so if a component has a state variable name that collides with one of its services, you'll
 need to use `state.get(name)` to access that state variable.
