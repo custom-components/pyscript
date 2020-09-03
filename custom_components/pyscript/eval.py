@@ -5,6 +5,7 @@ import asyncio
 import builtins
 import importlib
 import inspect
+import keyword
 import logging
 import sys
 
@@ -220,8 +221,8 @@ class EvalFunc:
                 kwargs = {}
                 for arg in dec.args:
                     args.append(await ast_ctx.aeval(arg))
-                for keyword in dec.keywords:
-                    kwargs[keyword.arg] = await ast_ctx.aeval(keyword.value)
+                for keyw in dec.keyw:
+                    kwargs[keyw.arg] = await ast_ctx.aeval(keyw.value)
                 if len(kwargs) == 0:
                     kwargs = None
                 self.decorators.append([dec.func.id, args, kwargs])
@@ -1325,6 +1326,9 @@ class AstEval:
                                 words.add(f"{name}.{attr}")
                 except Exception:  # pylint: disable=broad-except
                     pass
+        for keyw in set(keyword.kwlist) - {"yield", "lambda", "with", "assert"}:
+            if keyw.lower().startswith(root):
+                words.add(keyw)
         sym_table = BUILTIN_AST_FUNCS_FACTORY.copy()
         for name, value in builtins.__dict__.items():
             if name[0] != "_" and name not in BUILTIN_EXCLUDE:
