@@ -221,7 +221,7 @@ class EvalFunc:
                 kwargs = {}
                 for arg in dec.args:
                     args.append(await ast_ctx.aeval(arg))
-                for keyw in dec.keyw:
+                for keyw in dec.keywords:
                     kwargs[keyw.arg] = await ast_ctx.aeval(keyw.value)
                 if len(kwargs) == 0:
                     kwargs = None
