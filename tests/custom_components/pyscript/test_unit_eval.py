@@ -185,6 +185,14 @@ evalTests = [
     ["import random as rand, math as m\n[rand.uniform(10,10), m.sqrt(1024)]", [10, 32]],
     ["import cmath\ncmath.sqrt(complex(3, 4))", 2 + 1j],
     ["from math import sqrt as sqroot\nsqroot(1024)", 32],
+    ["from math import sin, cos, sqrt\nsqrt(1024)", 32],
+    ["from math import *\nsqrt(1024)", 32],
+    ["from math import sin, floor, sqrt; [sqrt(9), floor(10.5)]", [3, 10]],
+    ["from math import *; [sqrt(9), floor(10.5)]", [3, 10]],
+    [
+        "from math import floor as floor_alt, sqrt as sqrt_alt; [sqrt_alt(9), floor_alt(10.5)]",
+        [3, 10],
+    ],
     ["[i for i in range(7) if i != 5 if i != 3]", [0, 1, 2, 4, 6]],
     [
         """

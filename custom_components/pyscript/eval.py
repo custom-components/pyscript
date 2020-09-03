@@ -412,9 +412,14 @@ class AstEval:
         else:
             mod = sys.modules[arg.module]
         for imp in arg.names:
-            self.sym_table[imp.name if imp.asname is None else imp.asname] = getattr(
-                mod, imp.name
-            )
+            if imp.name == "*":
+                for name, value in mod.__dict__.items():
+                    if name[0] != "_":
+                        self.sym_table[name] = value
+            else:
+                self.sym_table[
+                    imp.name if imp.asname is None else imp.asname
+                ] = getattr(mod, imp.name)
 
     async def ast_if(self, arg):
         """Execute if statement."""
@@ -604,7 +609,7 @@ class AstEval:
             try:
                 val_iter = val.__iter__()
             except AttributeError:
-                 raise TypeError("cannot unpack non-iterable object")
+                raise TypeError("cannot unpack non-iterable object")
             sentinel = object()
             for lhs_elt in lhs.elts:
                 val_elt = next(val_iter, sentinel)
@@ -614,7 +619,7 @@ class AstEval:
                     )
                 await self.recurse_assign(lhs_elt, val_elt)
             if next(val_iter, sentinel) is not sentinel:
-                 raise TypeError(f"too many values to unpack (expected {len(lhs.elts)})")
+                raise TypeError(f"too many values to unpack (expected {len(lhs.elts)})")
         elif isinstance(lhs, ast.Subscript):
             var = await self.aeval(lhs.value)
             if isinstance(lhs.slice, ast.Index):
