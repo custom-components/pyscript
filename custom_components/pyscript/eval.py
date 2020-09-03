@@ -602,17 +602,19 @@ class AstEval:
         """Recursive assignment."""
         if isinstance(lhs, ast.Tuple):
             try:
-                val_len = len(val)
-            except TypeError:
-                raise TypeError("cannot unpack non-iterable object")
-            if len(lhs.elts) < val_len:
-                raise ValueError(
-                    f"too many values to unpack (expected {len(lhs.elts)})"
-                )
-            if len(lhs.elts) > val_len:
-                raise ValueError(f"too few values to unpack (expected {len(lhs.elts)})")
-            for lhs_elt, val_elt in zip(lhs.elts, val):
+                val_iter = val.__iter__()
+            except AttributeError:
+                 raise TypeError("cannot unpack non-iterable object")
+            sentinel = object()
+            for lhs_elt in lhs.elts:
+                val_elt = next(val_iter, sentinel)
+                if val_elt is sentinel:
+                    raise TypeError(
+                        f"too few values to unpack (expected {len(lhs.elts)})"
+                    )
                 await self.recurse_assign(lhs_elt, val_elt)
+            if next(val_iter, sentinel) is not sentinel:
+                 raise TypeError(f"too many values to unpack (expected {len(lhs.elts)})")
         elif isinstance(lhs, ast.Subscript):
             var = await self.aeval(lhs.value)
             if isinstance(lhs.slice, ast.Index):

@@ -55,6 +55,7 @@ evalTests = [
     ["z = [1,2,3]; [z[1], z[-1]]", [2, 3]],
     ["'{1} {0}'.format('one', 'two')", "two one"],
     ["'%d, %d' % (23, 45)", "23, 45"],
+    ["x = [[1,2,3]]; sum(*x)", 6],
     ["args = [1, 5, 10]; {6, *args, 15}", {1, 5, 6, 10, 15}],
     ["args = [1, 5, 10]; [6, *args, 15]", [6, 1, 5, 10, 15]],
     ["kw = {'x': 1, 'y': 5}; {**kw}", {"x": 1, "y": 5}],
@@ -144,6 +145,12 @@ evalTests = [
     [
         "z = [1,2,3]; ((x, y), (z[2], t)) = ((1, 2), (20, 4)); [x, y, z, t]",
         [1, 2, [1, 2, 20], 4],
+    ],
+    ["a, b, c = [1,2,3]; [a, b, c]", [1, 2, 3]],
+    ["a, b, c = iter([1,2,3]); [a, b, c]", [1, 2, 3]],
+    [
+        "tuples = [(1, 2), (3, 4), (5, 6)]; a, b = zip(*tuples); [a, b]",
+        [(1, 3, 5), (2, 4, 6)],
     ],
     ["Foo = type('Foo', (), {'x': 100}); Foo.x = 10; Foo.x", 10],
     ["Foo = type('Foo', (), {'x': 100}); Foo.x += 10; Foo.x", 110],
@@ -664,11 +671,19 @@ evalTestsExceptions = [
     ["xx", "Exception in test line 1 column 0: name 'xx' is not defined"],
     [
         "(x, y) = (1, 2, 4)",
-        "Exception in test line 1 column 16: too many values to unpack (expected 2)",
+        "Exception in test line 1 column 4: too many values to unpack (expected 2)",
+    ],
+    [
+        "(x, y) = iter([1, 2, 4])",
+        "Exception in test line 1 column 4: too many values to unpack (expected 2)",
     ],
     [
         "(x, y, z) = (1, 2)",
-        "Exception in test line 1 column 16: too few values to unpack (expected 3)",
+        "Exception in test line 1 column 4: too few values to unpack (expected 3)",
+    ],
+    [
+        "(x, y, z) = iter([1, 2])",
+        "Exception in test line 1 column 4: too few values to unpack (expected 3)",
     ],
     [
         "(x, y) = 1",
