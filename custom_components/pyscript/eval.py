@@ -981,6 +981,26 @@ class AstEval:
         if isinstance(arg.ctx, ast.Load):
             return await self.eval_elt_list(arg.elts)
 
+    async def listcomp_loop(self, generators, elt):
+        """Recursive list comprehension."""
+        out = []
+        gen = generators[0]
+        for loop_var in await self.aeval(gen.iter):
+            await self.recurse_assign(gen.target, loop_var)
+            for cond in gen.ifs:
+                if not await self.aeval(cond):
+                    break
+            else:
+                if len(generators) == 1:
+                    out.append(await self.aeval(elt))
+                else:
+                    out += await self.listcomp_loop(generators[1:], elt)
+        return out
+
+    async def ast_listcomp(self, arg):
+        """Evaluate list comprehension."""
+        return await self.listcomp_loop(arg.generators, arg.elt)
+
     async def ast_tuple(self, arg):
         """Evaluate Tuple."""
         return tuple(await self.eval_elt_list(arg.elts))
