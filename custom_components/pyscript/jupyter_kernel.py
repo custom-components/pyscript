@@ -33,7 +33,7 @@ def msg_id():
 
 def str_to_bytes(string):
     """Encode a string in bytes."""
-    return string.encode('ascii')
+    return string.encode('utf-8')
 
 class KernelBufferingHandler(logging.handlers.BufferingHandler):
     """Memory-based handler for logging; send via stdout queue."""
@@ -251,7 +251,7 @@ class Kernel:
         msg_frames = wire_msg[delim_idx + 2:]
 
         def decode(msg):
-            return json.loads(msg.decode('ascii'))
+            return json.loads(msg.decode('utf-8'))
 
         msg = {}
         msg['header']        = decode(msg_frames[0])
