@@ -1016,11 +1016,32 @@ class AstEval:
                 val[await self.aeval(key_ast)] = this_val
         return val
 
+    async def dictcomp_loop(self, generators, key, value):
+        """Recursive dict comprehension."""
+        out = {}
+        gen = generators[0]
+        for loop_var in await self.aeval(gen.iter):
+            await self.recurse_assign(gen.target, loop_var)
+            for cond in gen.ifs:
+                if not await self.aeval(cond):
+                    break
+            else:
+                if len(generators) == 1:
+                    out[await self.aeval(key)] = await self.aeval(value)
+                else:
+                    out.update(await self.dictcomp_loop(generators[1:], key, value))
+        return out
+
+    async def ast_dictcomp(self, arg):
+        """Evaluate dict comprehension."""
+        return await self.dictcomp_loop(arg.generators, arg.key, arg.value)
+
     async def ast_set(self, arg):
         """Evaluate set."""
-        return {
-            elt for elt in await self.eval_elt_list(arg.elts)
-        }  # pylint: disable=unnecessary-comprehension
+        ret = set()
+        for elt in await self.eval_elt_list(arg.elts):
+            ret.add(elt)
+        return ret
 
     async def setcomp_loop(self, generators, elt):
         """Recursive list comprehension."""
