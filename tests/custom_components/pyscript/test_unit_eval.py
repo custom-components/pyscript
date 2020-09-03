@@ -205,6 +205,33 @@ def no_op(i):
 """,
         [0, 1, 2, 4, 6, 13],
     ],
+    ["{i for i in range(7) if i != 5 if i != 3}", {0, 1, 2, 4, 6}],
+    [
+        """
+matrix = [[1, 2, 3], [4, 5], [6, 7, 8, 9]]
+{val for sublist in matrix for val in sublist if val != 8}
+""",
+        {1, 2, 3, 4, 5, 6, 7, 9},
+    ],
+    [
+        """
+matrix = [[1, 2, 3], [4, 5], [6, 7, 8, 9]]
+{val for sublist in matrix if sublist[0] != 4 for val in sublist if val != 8}
+""",
+        {1, 2, 3, 6, 7, 9},
+    ],
+    [
+        """
+# check short-circuit of nested if
+cnt = 0
+def no_op(i):
+    global cnt
+    cnt += 1
+    return i
+[{i for i in range(7) if no_op(i) != 5 if no_op(i) != 3}, cnt]
+""",
+        [{0, 1, 2, 4, 6}, 13],
+    ],
     [
         """
 d = {"x": 1, "y": 2, "z": 3}

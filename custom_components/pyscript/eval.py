@@ -1018,7 +1018,29 @@ class AstEval:
 
     async def ast_set(self, arg):
         """Evaluate set."""
-        return {elt for elt in await self.eval_elt_list(arg.elts)}  # pylint: disable=unnecessary-comprehension
+        return {
+            elt for elt in await self.eval_elt_list(arg.elts)
+        }  # pylint: disable=unnecessary-comprehension
+
+    async def setcomp_loop(self, generators, elt):
+        """Recursive list comprehension."""
+        out = set()
+        gen = generators[0]
+        for loop_var in await self.aeval(gen.iter):
+            await self.recurse_assign(gen.target, loop_var)
+            for cond in gen.ifs:
+                if not await self.aeval(cond):
+                    break
+            else:
+                if len(generators) == 1:
+                    out.add(await self.aeval(elt))
+                else:
+                    out.update(await self.setcomp_loop(generators[1:], elt))
+        return out
+
+    async def ast_setcomp(self, arg):
+        """Evaluate set comprehension."""
+        return await self.setcomp_loop(arg.generators, arg.elt)
 
     async def ast_subscript(self, arg):
         """Evaluate subscript."""
