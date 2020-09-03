@@ -752,7 +752,6 @@ class TrigInfo:
 
         async def do_func_call(func, ast_ctx, task_unique, kwargs=None):
             if task_unique:
-                _LOGGER.debug(f"do_func_call: calling task_unique with {task_unique}")
                 await self.handler.task_unique(task_unique)
             await func.call(ast_ctx, kwargs=kwargs)
             if ast_ctx.get_exception_obj():
@@ -876,7 +875,6 @@ class TrigInfo:
                         "trigger %s got %s trigger, @task_unique kill_me=True prevented new action",
                         notify_type,
                         self.name,
-                        func_args,
                     )
                     continue
 

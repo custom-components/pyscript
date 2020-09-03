@@ -123,7 +123,7 @@ class EvalReturn(EvalStopFlow):
         """Initialize return statement value."""
         self.value = value
 
-    def name(self):
+    def name(self):  # pylint: disable=no-self-use
         """Return short name."""
         return "return"
 
@@ -131,7 +131,7 @@ class EvalReturn(EvalStopFlow):
 class EvalBreak(EvalStopFlow):
     """Break statement."""
 
-    def name(self):
+    def name(self):  # pylint: disable=no-self-use
         """Return short name."""
         return "break"
 
@@ -139,7 +139,7 @@ class EvalBreak(EvalStopFlow):
 class EvalContinue(EvalStopFlow):
     """Continue statement."""
 
-    def name(self):
+    def name(self):  # pylint: disable=no-self-use
         """Return short name."""
         return "continue"
 
@@ -657,8 +657,7 @@ class AstEval:
                     if var_name in sym_table:
                         sym_table[var_name] = val
                         return
-                else:
-                    raise TypeError(f"can't find nonlocal '{var_name}' for assignment")
+                raise TypeError(f"can't find nonlocal '{var_name}' for assignment")
             self.sym_table[var_name] = val
 
     async def ast_assign(self, arg):
@@ -741,7 +740,7 @@ class AstEval:
             else:
                 raise NotImplementedError(f"unknown target type {arg1} in del")
 
-    async def ast_attribute_collapse(self, arg):  # pylint: disable=no-self-use
+    async def ast_attribute_collapse(self, arg):
         """Combine dotted attributes to allow variable names to have dots."""
         # collapse dotted names, eg:
         #   Attribute(value=Attribute(value=Name(id='i', ctx=Load()), attr='j', ctx=Load()), attr='k', ctx=Store())
@@ -999,7 +998,7 @@ class AstEval:
 
     async def ast_set(self, arg):
         """Evaluate set."""
-        return {elt for elt in await self.eval_elt_list(arg.elts)}
+        return {elt for elt in await self.eval_elt_list(arg.elts)}  # pylint: disable=unnecessary-comprehension
 
     async def ast_subscript(self, arg):
         """Evaluate subscript."""

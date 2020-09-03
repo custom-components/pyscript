@@ -218,7 +218,7 @@ class GlobalContext:
         kwarg_check = {
             "task_unique": {"kill_me"},
         }
-        for dec_name in trig_args.keys():
+        for dec_name in trig_args:
             if dec_name not in kwarg_check and "kwargs" in trig_args[dec_name]:
                 self.logger.error(
                     "%s defined in %s: decorator @%s doesn't take keyword arguments; ignored",
