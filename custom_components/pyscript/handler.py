@@ -34,6 +34,7 @@ class Handler:
             "task.unique": Handler.task_unique,
             "service.call": Handler.service_call,
             "service.has_service": Handler.service_has_service,
+            "entity_ids": Handler.entity_ids,
         }
 
         #
@@ -56,6 +57,9 @@ class Handler:
         # one for each function
         #
         Handler.loggers = {}
+
+    async def entity_ids(domain=None):
+        return Handler.hass.states.async_entity_ids(domain)
 
     async def async_sleep(duration):
         """Implement task.sleep()."""
