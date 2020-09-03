@@ -41,12 +41,12 @@ CONFIG_SCHEMA = vol.Schema(
 
 async def async_setup(hass, config):
     """Initialize the pyscript component."""
-    handler_func = Handler(hass)
-    event_func = Event(hass)
-    trig_time_func = TrigTime(hass, handler_func)
-    state_func = State(hass, handler_func)
-    state_func.register_functions()
-    global_ctx_mgr = GlobalContextMgr(handler_func)
+    Handler.init(hass)
+    Event.init(hass)
+    TrigTime.init(hass)
+    State.init(hass)
+    State.register_functions()
+    GlobalContextMgr.init()
 
     path = hass.config.path(FOLDER)
 
@@ -60,14 +60,7 @@ async def async_setup(hass, config):
     hass.data.setdefault(DOMAIN, {})
     hass.data[DOMAIN]["allow_all_imports"] = config[DOMAIN].get(CONF_ALLOW_ALL_IMPORTS)
 
-    await compile_scripts(  # pylint: disable=unused-variable
-        hass,
-        event_func=event_func,
-        state_func=state_func,
-        handler_func=handler_func,
-        trig_time_func=trig_time_func,
-        global_ctx_mgr=global_ctx_mgr,
-    )
+    await compile_scripts(hass)
 
     _LOGGER.debug("adding reload handler")
 
@@ -78,25 +71,18 @@ async def async_setup(hass, config):
         )
 
         ctx_delete = {}
-        for global_ctx_name, global_ctx in global_ctx_mgr.items():
+        for global_ctx_name, global_ctx in GlobalContextMgr.items():
             if not global_ctx_name.startswith("file."):
                 continue
             await global_ctx.stop()
             global_ctx.set_auto_start(False)
             ctx_delete[global_ctx_name] = global_ctx
         for global_ctx_name, global_ctx in ctx_delete.items():
-            await global_ctx_mgr.delete(global_ctx_name)
+            await GlobalContextMgr.delete(global_ctx_name)
 
-        await compile_scripts(
-            hass,
-            event_func=event_func,
-            state_func=state_func,
-            handler_func=handler_func,
-            trig_time_func=trig_time_func,
-            global_ctx_mgr=global_ctx_mgr,
-        )
+        await compile_scripts(hass)
 
-        for global_ctx_name, global_ctx in global_ctx_mgr.items():
+        for global_ctx_name, global_ctx in GlobalContextMgr.items():
             if not global_ctx_name.startswith("file."):
                 continue
             await global_ctx.start()
@@ -107,29 +93,15 @@ async def async_setup(hass, config):
         """Handle Jupyter kernel start call."""
         _LOGGER.debug("service call to jupyter_kernel_start: %s", call.data)
 
-        global_ctx_name = global_ctx_mgr.new_name("jupyter_")
-        global_ctx = GlobalContext(
-            global_ctx_name,
-            hass,
-            global_sym_table={},
-            state_func=state_func,
-            event_func=event_func,
-            handler_func=handler_func,
-            trig_time_func=trig_time_func,
-        )
+        global_ctx_name = GlobalContextMgr.new_name("jupyter_")
+        global_ctx = GlobalContext(global_ctx_name, hass, global_sym_table={})
         global_ctx.set_auto_start(True)
 
-        global_ctx_mgr.set(global_ctx_name, global_ctx)
+        GlobalContextMgr.set(global_ctx_name, global_ctx)
 
-        ast_ctx = AstEval(
-            global_ctx_name,
-            global_ctx=global_ctx,
-            state_func=state_func,
-            event_func=event_func,
-            handler_func=handler_func,
-        )
-        handler_func.install_ast_funcs(ast_ctx)
-        kernel = Kernel(call.data, ast_ctx, global_ctx_name, global_ctx_mgr)
+        ast_ctx = AstEval(global_ctx_name, global_ctx)
+        Handler.install_ast_funcs(ast_ctx)
+        kernel = Kernel(call.data, ast_ctx, global_ctx_name)
         await kernel.session_start()
         hass.states.async_set(call.data["state_var"], json.dumps(kernel.get_ports()))
 
@@ -158,12 +130,12 @@ async def async_setup(hass, config):
             "value": new_val,
             "old_value": old_val,
         }
-        await state_func.update(new_vars, func_args)
+        await State.update(new_vars, func_args)
 
     async def start_triggers(event):
         _LOGGER.debug("adding state changed listener and starting triggers")
         hass.bus.async_listen(EVENT_STATE_CHANGED, state_changed)
-        for global_ctx_name, global_ctx in global_ctx_mgr.items():
+        for global_ctx_name, global_ctx in GlobalContextMgr.items():
             if not global_ctx_name.startswith("file."):
                 continue
             await global_ctx.start()
@@ -171,7 +143,7 @@ async def async_setup(hass, config):
 
     async def stop_triggers(event):
         _LOGGER.debug("stopping triggers")
-        for global_ctx_name, global_ctx in global_ctx_mgr.items():
+        for global_ctx_name, global_ctx in GlobalContextMgr.items():
             if not global_ctx_name.startswith("file."):
                 continue
             await global_ctx.stop()
@@ -183,14 +155,7 @@ async def async_setup(hass, config):
 
 
 @bind_hass
-async def compile_scripts(
-    hass,
-    event_func=None,
-    state_func=None,
-    handler_func=None,
-    trig_time_func=None,
-    global_ctx_mgr=None,
-):
+async def compile_scripts(hass):
     """Compile all python scripts in FOLDER."""
 
     path = hass.config.path(FOLDER)
@@ -213,25 +178,11 @@ async def compile_scripts(
         source = await hass.async_add_executor_job(read_file, file)
 
         global_ctx_name = f"file.{name}"
-        global_ctx = GlobalContext(
-            global_ctx_name,
-            hass,
-            global_sym_table={},
-            state_func=state_func,
-            event_func=event_func,
-            handler_func=handler_func,
-            trig_time_func=trig_time_func,
-        )
+        global_ctx = GlobalContext(global_ctx_name, hass, global_sym_table={})
         global_ctx.set_auto_start(False)
 
-        ast_ctx = AstEval(
-            global_ctx_name,
-            global_ctx=global_ctx,
-            state_func=state_func,
-            event_func=event_func,
-            handler_func=handler_func,
-        )
-        handler_func.install_ast_funcs(ast_ctx)
+        ast_ctx = AstEval(global_ctx_name, global_ctx)
+        Handler.install_ast_funcs(ast_ctx)
 
         if not ast_ctx.parse(source, filename=file):
             exc = ast_ctx.get_exception_long()
@@ -242,4 +193,4 @@ async def compile_scripts(
         if exc is not None:
             ast_ctx.get_logger().error(exc)
             continue
-        global_ctx_mgr.set(global_ctx_name, global_ctx)
+        GlobalContextMgr.set(global_ctx_name, global_ctx)

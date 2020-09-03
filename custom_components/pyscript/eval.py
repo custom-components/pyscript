@@ -10,6 +10,8 @@ import logging
 import sys
 
 from .const import ALLOWED_IMPORTS, DOMAIN, LOGGER_PATH
+from .handler import Handler
+from .state import State
 
 _LOGGER = logging.getLogger(LOGGER_PATH + ".eval")
 
@@ -30,13 +32,7 @@ def ast_eval_exec_factory(ast_ctx, str_type):
     """Generate a function that executes eval() or exec() with given ast_ctx."""
 
     async def eval_func(arg_str, eval_globals=None, eval_locals=None):
-        eval_ast = AstEval(
-            ast_ctx.name,
-            global_ctx=ast_ctx.global_ctx,
-            state_func=ast_ctx.state,
-            event_func=ast_ctx.event,
-            handler_func=ast_ctx.handler,
-        )
+        eval_ast = AstEval(ast_ctx.name, ast_ctx.global_ctx)
         eval_ast.parse(arg_str, f"{str_type}()")
         if eval_ast.exception_obj:
             raise eval_ast.exception_obj  # pylint: disable=raising-bad-type
@@ -334,15 +330,7 @@ class EvalFunc:
 class AstEval:
     """Python interpreter AST object evaluator."""
 
-    def __init__(
-        self,
-        name,
-        global_ctx=None,
-        state_func=None,
-        event_func=None,
-        handler_func=None,
-        logger_name=None,
-    ):
+    def __init__(self, name, global_ctx, logger_name=None):
         """Initialize an interpreter execution context."""
         self.name = name
         self.str = None
@@ -359,9 +347,6 @@ class AstEval:
         self.exception = None
         self.exception_obj = None
         self.exception_long = None
-        self.state = state_func
-        self.handler = handler_func
-        self.event = event_func
         self.lineno = 1
         self.col_offset = 0
         self.logger_handlers = set()
@@ -648,7 +633,7 @@ class AstEval:
                     f"unknown lhs type {lhs} (got {var_name}) in assign"
                 )
             if var_name.find(".") >= 0:
-                self.state.set(var_name, val)
+                State.set(var_name, val)
                 return
             if self.curr_func and var_name in self.curr_func.global_names:
                 self.global_sym_table[var_name] = val
@@ -694,8 +679,8 @@ class AstEval:
                         break
                 else:
                     raise TypeError(f"can't find nonlocal '{var_name}' for assignment")
-            elif self.state.exist(var_name):
-                self.state.set(var_name, val)
+            elif State.exist(var_name):
+                State.set(var_name, val)
             else:
                 self.sym_table[var_name] = val
 
@@ -805,19 +790,15 @@ class AstEval:
                 and arg.id[0] != "_"
             ):
                 return getattr(builtins, arg.id)
-            if self.handler.get(arg.id):
-                return self.handler.get(arg.id)
+            if Handler.get(arg.id):
+                return Handler.get(arg.id)
             num_dots = arg.id.count(".")
             #
             # any single-dot name could be a state variable
             # a two-dot name for state.attr needs to exist
             #
-            if num_dots == 2:
-                _LOGGER.debug(
-                    "ast_name: arg = {arg.id}, exist = {self.state.exist(arg.id)}"
-                )
-            if num_dots == 1 or (num_dots == 2 and self.state.exist(arg.id)):
-                return self.state.get(arg.id)
+            if num_dots == 1 or (num_dots == 2 and State.exist(arg.id)):
+                return State.get(arg.id)
             #
             # Couldn't find it, so return just the name wrapped in EvalName to
             # distinguish from a string variable value.  This is to support

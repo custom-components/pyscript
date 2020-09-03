@@ -3,8 +3,8 @@ import asyncio
 
 from config.custom_components.pyscript.eval import AstEval
 from config.custom_components.pyscript.global_ctx import GlobalContext
-import config.custom_components.pyscript.handler as handler
-import config.custom_components.pyscript.state as state
+from config.custom_components.pyscript.handler import Handler
+from config.custom_components.pyscript.state import State
 
 evalTests = [
     ["1", 1],
@@ -631,19 +631,11 @@ Test.x = 5
 ]
 
 
-async def run_one_test(test_data, state_func, handler_func):
+async def run_one_test(test_data):
     """Run one interpreter test."""
     source, expect = test_data
-    global_ctx = GlobalContext(
-        "test",
-        None,
-        global_sym_table={},
-        state_func=state_func,
-        handler_func=handler_func,
-    )
-    ast = AstEval(
-        "test", global_ctx=global_ctx, state_func=state_func, handler_func=handler_func
-    )
+    global_ctx = GlobalContext("test", None, global_sym_table={},)
+    ast = AstEval("test", global_ctx=global_ctx)
     ast.parse(source)
     if ast.get_exception() is not None:
         print(f"Parsing {source} failed: {ast.get_exception()}")
@@ -654,12 +646,12 @@ async def run_one_test(test_data, state_func, handler_func):
 
 def test_eval(hass):
     """Test interpreter."""
-    handler_func = handler.Handler(hass)
-    state_func = state.State(hass, handler_func)
-    state_func.register_functions()
+    Handler.init(hass)
+    State.init(hass)
+    State.register_functions()
 
     for test_data in evalTests:
-        asyncio.run(run_one_test(test_data, state_func, handler_func))
+        asyncio.run(run_one_test(test_data))
 
 
 evalTestsExceptions = [
@@ -759,19 +751,11 @@ func()
 ]
 
 
-async def run_one_test_exception(test_data, state_func, handler_func):
+async def run_one_test_exception(test_data):
     """Run one interpreter test that generates an exception."""
     source, expect = test_data
-    global_ctx = GlobalContext(
-        "test",
-        None,
-        global_sym_table={},
-        state_func=state_func,
-        handler_func=handler_func,
-    )
-    ast = AstEval(
-        "test", global_ctx=global_ctx, state_func=state_func, handler_func=handler_func
-    )
+    global_ctx = GlobalContext("test", None, global_sym_table={})
+    ast = AstEval("test", global_ctx=global_ctx)
     ast.parse(source)
     exc = ast.get_exception()
     if exc is not None:
@@ -787,9 +771,9 @@ async def run_one_test_exception(test_data, state_func, handler_func):
 
 def test_eval_exceptions(hass):
     """Test interpreter exceptions."""
-    handler_func = handler.Handler(hass)
-    state_func = state.State(hass, handler_func)
-    state_func.register_functions()
+    Handler.init(hass)
+    State.init(hass)
+    State.register_functions()
 
     for test_data in evalTestsExceptions:
-        asyncio.run(run_one_test_exception(test_data, state_func, handler_func))
+        asyncio.run(run_one_test_exception(test_data))

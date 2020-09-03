@@ -20,6 +20,9 @@ import traceback
 import uuid
 
 from .const import LOGGER_PATH
+from .handler import Handler
+from .state import State
+from .global_ctx import GlobalContextMgr
 
 _LOGGER = logging.getLogger(LOGGER_PATH + ".jupyter_kernel")
 
@@ -176,11 +179,10 @@ install on the wide set of HASS platforms."""
 ##########################################
 class Kernel:
     """Define a Jupyter Kernel class."""
-    def __init__(self, config, ast_ctx, global_ctx_name, global_ctx_mgr):
+    def __init__(self, config, ast_ctx, global_ctx_name):
         """Initialize a Kernel object, one instance per session."""
         self.config = config.copy()
         self.global_ctx_name = global_ctx_name
-        self.global_ctx_mgr = global_ctx_mgr
         self.ast_ctx = ast_ctx
 
         self.secure_key = str_to_bytes(self.config["key"])
@@ -424,9 +426,9 @@ class Kernel:
             match = self.completion_re.match(code[0:posn].lower())
             if match:
                 root = match[1].lower()
-                words = self.ast_ctx.state.completions(root)
-                words = words.union(await self.ast_ctx.handler.service_completions(root))
-                words = words.union(await self.ast_ctx.handler.func_completions(root))
+                words = State.completions(root)
+                words = words.union(await Handler.service_completions(root))
+                words = words.union(await Handler.func_completions(root))
                 words = words.union(self.ast_ctx.completions(root))
             else:
                 root = ""
@@ -790,7 +792,7 @@ class Kernel:
         if not self.iopub_server:
             # already shutdown, so quit
             return
-        await self.global_ctx_mgr.delete(self.global_ctx_name)
+        await GlobalContextMgr.delete(self.global_ctx_name)
         self.ast_ctx.remove_logger_handler(self.console)
         # logging.getLogger("homeassistant.components.pyscript.func.").removeHandler(self.console)
         _LOGGER.info("Shutting down session %s", self.global_ctx_name)

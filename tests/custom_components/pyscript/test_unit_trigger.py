@@ -1,8 +1,8 @@
 """Unit tests for time trigger functions."""
 from datetime import datetime as dt
 
-import config.custom_components.pyscript.handler as handler
-import config.custom_components.pyscript.trigger as trigger
+from config.custom_components.pyscript.handler import Handler
+from config.custom_components.pyscript.trigger import TrigTime
 
 from tests.async_mock import patch
 
@@ -70,8 +70,8 @@ async def test_parse_date_time(hass):
     hass.config.elevation = 0
     hass.config.time_zone = "GMT"
 
-    handler_func = handler.Handler(hass)
-    trig = trigger.TrigTime(hass, handler_func)
+    Handler.init(hass)
+    TrigTime.init(hass)
 
     now = dt(2019, 9, 1, 13, 0, 0, 0)
     #
@@ -86,7 +86,7 @@ async def test_parse_date_time(hass):
     ):
         for test_data in parseDateTimeTests:
             spec, date_offset, expect = test_data
-            out = trig.parse_date_time(spec, date_offset, now)
+            out = TrigTime.parse_date_time(spec, date_offset, now)
             assert out == expect
 
     now = dt(2019, 9, 3, 13, 0, 0, 0)
@@ -97,7 +97,7 @@ async def test_parse_date_time(hass):
     ):
         for test_data in parseDateTimeTests2:
             spec, date_offset, expect = test_data
-            out = trig.parse_date_time(spec, date_offset, now)
+            out = TrigTime.parse_date_time(spec, date_offset, now)
             assert out == expect
 
 
@@ -138,14 +138,14 @@ timerActiveCheckTests = [
 
 def test_timer_active_check(hass):
     """Run time active check tests."""
-    handler_func = handler.Handler(hass)
-    trig = trigger.TrigTime(hass, handler_func)
+    Handler.init(hass)
+    TrigTime.init(hass)
     for test_data in timerActiveCheckTests:
         spec, now, expect = test_data
-        out = trig.timer_active_check(spec, now)
+        out = TrigTime.timer_active_check(spec, now)
         if out != expect:
             print(
-                f"trigger.timer_active_check({spec}, {now}) -> {out} vs expect {expect}"
+                f"TrigTime.timer_active_check({spec}, {now}) -> {out} vs expect {expect}"
             )
         assert out == expect
 
@@ -281,13 +281,13 @@ timerTriggerNextTests = [
 
 def test_timer_trigger_next(hass):
     """Run trigger next tests."""
-    handler_func = handler.Handler(hass)
-    trig = trigger.TrigTime(hass, handler_func)
+    Handler.init(hass)
+    TrigTime.init(hass)
     for test_data in timerTriggerNextTests:
         now = dt(2019, 9, 1, 13, 0, 0, 100000)
         spec, expect_seq = test_data
         for expect in expect_seq:
-            t_next = trig.timer_trigger_next(spec, now)
+            t_next = TrigTime.timer_trigger_next(spec, now)
             assert t_next == expect
             now = t_next
 
@@ -393,12 +393,12 @@ timerTriggerNextTestsMonthRollover = [
 
 def test_timer_trigger_next_month_rollover(hass):
     """Run month rollover tests."""
-    handler_func = handler.Handler(hass)
-    trig = trigger.TrigTime(hass, handler_func)
+    Handler.init(hass)
+    TrigTime.init(hass)
     for test_data in timerTriggerNextTestsMonthRollover:
         now = dt(2020, 6, 30, 13, 0, 0, 100000)
         spec, expect_seq = test_data
         for expect in expect_seq:
-            t_next = trig.timer_trigger_next(spec, now)
+            t_next = TrigTime.timer_trigger_next(spec, now)
             assert t_next == expect
             now = t_next

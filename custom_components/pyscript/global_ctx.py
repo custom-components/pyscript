@@ -12,8 +12,10 @@ from homeassistant.helpers.service import async_set_service_schema
 
 from .const import DOMAIN, LOGGER_PATH, SERVICE_JUPYTER_KERNEL_START
 from .eval import AstEval
+from .handler import Handler
 from .trigger import TrigInfo
 
+_LOGGER = logging.getLogger(LOGGER_PATH + ".global_ctx")
 
 class GlobalContext:
     """Define class for global variables and trigger context."""
@@ -23,10 +25,6 @@ class GlobalContext:
         name,
         hass,
         global_sym_table=None,
-        state_func=None,
-        event_func=None,
-        handler_func=None,
-        trig_time_func=None,
     ):
         """Initialize GlobalContext."""
         self.name = name
@@ -35,10 +33,6 @@ class GlobalContext:
         self.triggers = {}
         self.triggers_new = {}
         self.services = set()
-        self.state_func = state_func
-        self.handler_func = handler_func
-        self.event_func = event_func
-        self.trig_time_func = trig_time_func
         self.logger = logging.getLogger(LOGGER_PATH + "." + name)
         self.auto_start = False
 
@@ -128,14 +122,8 @@ class GlobalContext:
                         # use a new AstEval context so it can run fully independently
                         # of other instances (except for global_ctx which is common)
                         #
-                        ast_ctx = AstEval(
-                            f"{self.name}.{func_name}",
-                            global_ctx=self,
-                            state_func=self.state_func,
-                            event_func=self.event_func,
-                            handler_func=self.handler_func,
-                        )
-                        self.handler_func.install_ast_funcs(ast_ctx)
+                        ast_ctx = AstEval(f"{self.name}.{func_name}", self)
+                        Handler.install_ast_funcs(ast_ctx)
                         func_args = {
                             "trigger_type": "service",
                         }
@@ -146,7 +134,7 @@ class GlobalContext:
                             if ast_ctx.get_exception_obj():
                                 ast_ctx.get_logger().error(ast_ctx.get_exception_long())
 
-                        self.handler_func.create_task(do_service_call(func, ast_ctx, func_args))
+                        Handler.create_task(do_service_call(func, ast_ctx, func_args))
 
                     return pyscript_service_handler
 
@@ -258,14 +246,8 @@ class GlobalContext:
             return
 
         trig_args["action"] = func
-        trig_args["action_ast_ctx"] = AstEval(
-            f"{self.name}.{func_name}",
-            global_ctx=self,
-            state_func=self.state_func,
-            event_func=self.event_func,
-            handler_func=self.handler_func,
-        )
-        self.handler_func.install_ast_funcs(trig_args["action_ast_ctx"])
+        trig_args["action_ast_ctx"] = AstEval(f"{self.name}.{func_name}", self)
+        Handler.install_ast_funcs(trig_args["action_ast_ctx"])
         trig_args["global_sym_table"] = self.global_sym_table
 
         if func_name in self.triggers:
@@ -274,10 +256,6 @@ class GlobalContext:
         self.triggers_new[func_name] = TrigInfo(
             f"{self.name}.{func_name}",
             trig_args,
-            event_func=self.event_func,
-            state_func=self.state_func,
-            handler_func=self.handler_func,
-            trig_time=self.trig_time_func,
             global_ctx=self,
         )
 
@@ -324,11 +302,13 @@ class GlobalContext:
 class GlobalContextMgr:
     """Define class for all global contexts."""
 
-    def __init__(self, handler_func):
+    def __init__():
+        _LOGGER.error("GlobalContextMgr class is not meant to be instantiated")
+
+    def init():
         """Initialize GlobalContextMgr."""
-        self.handler_func = handler_func
-        self.contexts = {}
-        self.name_seq = 0
+        GlobalContextMgr.contexts = {}
+        GlobalContextMgr.name_seq = 0
 
         def get_global_ctx_factory(ast_ctx):
             """Generate a pyscript.get_global_ctx() function with given ast_ctx."""
@@ -339,7 +319,7 @@ class GlobalContextMgr:
         def list_global_ctx_factory(ast_ctx):
             """Generate a pyscript.list_global_ctx() function with given ast_ctx."""
             async def list_global_ctx():
-                ctx_names = set(self.contexts.keys())
+                ctx_names = set(GlobalContextMgr.contexts.keys())
                 curr_ctx_name = ast_ctx.get_global_ctx_name()
                 ctx_names.discard(curr_ctx_name)
                 return [curr_ctx_name] + sorted(sorted(ctx_names))
@@ -348,44 +328,44 @@ class GlobalContextMgr:
         def set_global_ctx_factory(ast_ctx):
             """Generate a pyscript.set_global_ctx() function with given ast_ctx."""
             async def set_global_ctx(name):
-                global_ctx = self.get(name)
+                global_ctx = GlobalContextMgr.get(name)
                 if global_ctx is None:
                     raise NameError(f"global context '{name}' does not exist")
                 ast_ctx.set_global_ctx(global_ctx)
                 ast_ctx.set_logger_name(global_ctx.name)
             return set_global_ctx
 
-        self.ast_funcs = {
+        GlobalContextMgr.ast_funcs = {
             "pyscript.get_global_ctx": get_global_ctx_factory,
             "pyscript.list_global_ctx": list_global_ctx_factory,
             "pyscript.set_global_ctx": set_global_ctx_factory,
         }
 
-        self.handler_func.register_ast(self.ast_funcs)
+        Handler.register_ast(GlobalContextMgr.ast_funcs)
 
-    def get(self, name):
+    def get(name):
         """Return the GlobalContext given a name."""
-        return self.contexts.get(name, None)
+        return GlobalContextMgr.contexts.get(name, None)
 
-    def set(self, name, global_ctx):
+    def set(name, global_ctx):
         """Save the GlobalContext by name."""
-        self.contexts[name] = global_ctx
+        GlobalContextMgr.contexts[name] = global_ctx
 
-    def items(self):
+    def items():
         """Return all the global context items."""
-        return sorted(self.contexts.items())
+        return sorted(GlobalContextMgr.contexts.items())
 
-    async def delete(self, name):
+    async def delete(name):
         """Delete the given GlobalContext."""
-        if name in self.contexts:
-            global_ctx = self.contexts[name]
+        if name in GlobalContextMgr.contexts:
+            global_ctx = GlobalContextMgr.contexts[name]
             await global_ctx.stop()
-            del self.contexts[name]
+            del GlobalContextMgr.contexts[name]
 
-    def new_name(self, root):
+    def new_name(root):
         """Find a unique new name by appending a sequence number to root."""
         while True:
-            name = f"{root}{self.name_seq}"
-            self.name_seq += 1
-            if name not in self.contexts:
+            name = f"{root}{GlobalContextMgr.name_seq}"
+            GlobalContextMgr.name_seq += 1
+            if name not in GlobalContextMgr.contexts:
                 return name
