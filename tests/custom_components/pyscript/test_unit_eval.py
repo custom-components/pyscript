@@ -153,6 +153,10 @@ evalTests = [
         "tuples = [(1, 2), (3, 4), (5, 6)]; a, b = zip(*tuples); [a, b]",
         [(1, 3, 5), (2, 4, 6)],
     ],
+    ["a, *y, w, z = range(3); [a, y, w, z]", [0, [], 1, 2]],
+    ["a, *y, w, z = range(4); [a, y, w, z]", [0, [1], 2, 3]],
+    ["a, *y, w, z = range(6); [a, y, w, z]", [0, [1, 2, 3], 4, 5]],
+    ["x = [0, 1]; i = 0; i, x[i] = 1, 2; [i, x]", [1, [0, 2]]],
     ["Foo = type('Foo', (), {'x': 100}); Foo.x = 10; Foo.x", 10],
     ["Foo = type('Foo', (), {'x': 100}); Foo.x += 10; Foo.x", 110],
     ["Foo = [type('Foo', (), {'x': 100})]; Foo[0].x = 10; Foo[0].x", 10],
@@ -697,6 +701,10 @@ evalTestsExceptions = [
     [
         "(x, y) = 1",
         "Exception in test line 1 column 9: cannot unpack non-iterable object",
+    ],
+    [
+        "a, *y, w, z = range(2)",
+        "Exception in test line 1 column 0: too few values to unpack (expected at least 3)",
     ],
     [
         "assert 1 == 0, 'this is an error'",

@@ -611,15 +611,31 @@ class AstEval:
             except AttributeError:
                 raise TypeError("cannot unpack non-iterable object")
             sentinel = object()
-            for lhs_elt in lhs.elts:
+            for lhs_idx, lhs_elt in enumerate(lhs.elts):
                 val_elt = next(val_iter, sentinel)
                 if val_elt is sentinel:
-                    raise TypeError(
+                    raise ValueError(
                         f"too few values to unpack (expected {len(lhs.elts)})"
                     )
+                if isinstance(lhs_elt, ast.Starred):
+                    star_lhs = [val_elt, *val_iter]
+                    star_len = len(star_lhs) - (len(lhs.elts) - lhs_idx - 1)
+                    if star_len < 0:
+                        raise ValueError(
+                            f"too few values to unpack (expected at least {len(lhs.elts) - 1})"
+                        )
+                    star_name = lhs_elt.value.id
+                    for lhs_idx, lhs_elt in enumerate(lhs.elts[lhs_idx + 1 :]):
+                        await self.recurse_assign(lhs_elt, star_lhs[star_len + lhs_idx])
+                    await self.recurse_assign(
+                        ast.Name(id=star_name, ctx=ast.Store()), star_lhs[0:star_len]
+                    )
+                    return
                 await self.recurse_assign(lhs_elt, val_elt)
             if next(val_iter, sentinel) is not sentinel:
-                raise TypeError(f"too many values to unpack (expected {len(lhs.elts)})")
+                raise ValueError(
+                    f"too many values to unpack (expected {len(lhs.elts)})"
+                )
         elif isinstance(lhs, ast.Subscript):
             var = await self.aeval(lhs.value)
             if isinstance(lhs.slice, ast.Index):
