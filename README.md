@@ -41,7 +41,7 @@ CLI](https://github.com/home-assistant-ecosystem/home-assistant-cli), although t
 status on many other parts of HASS.
 
 For more information about the Jupyter kernel, see the [README](https://github.com/craigbarratt/hass-pyscript-jupyter/blob/master/README.md).
-There is also a [Jupyter notebook tutorial](https://github.com/craigbarratt/hass-pyscript-jupyter/blob/master/pyscript_tutorial.ipynb),
+There is also a [Jupyter notebook tutorial](https://nbviewer.jupyter.org/github/craigbarratt/hass-pyscript-jupyter/blob/master/pyscript_tutorial.ipynb),
 which can be downloaded and run interactively in Jupyter notebook connected to your live HASS with pyscript.
 
 Pyscript provides functionality that complements the existing automations, templates and triggers.
@@ -790,7 +790,7 @@ applications you develop.
 * [Issues](https://github.com/custom-components/pyscript/issues)
 * [Wiki](https://github.com/custom-components/pyscript/wiki)
 * [GitHub repository](https://github.com/custom-components/pyscript) (please add a star if you like `pyscript`!)
-* [Jupyter notebook tutorial](https://github.com/craigbarratt/hass-pyscript-jupyter/blob/master/pyscript_tutorial.ipynb)
+* [Jupyter notebook tutorial](https://nbviewer.jupyter.org/github/craigbarratt/hass-pyscript-jupyter/blob/master/pyscript_tutorial.ipynb)
 
 ## Copyright
 
