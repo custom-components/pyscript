@@ -59,6 +59,7 @@ class Handler:
         Handler.loggers = {}
 
     async def entity_ids(domain=None):
+        """Implement entity_ids."""
         return Handler.hass.states.async_entity_ids(domain)
 
     async def async_sleep(duration):

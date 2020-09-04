@@ -140,6 +140,7 @@ evalTests = [
         [10, 11, 12, 13, 14, 15, 16, 17],
     ],
     ["(x, y) = (1, 2); [x, y]", [1, 2]],
+    ["a, b = (x, y) = (1, 2); [a, b, x, y]", [1, 2, 1, 2]],
     ["y = [1,2]; (x, y[0]) = (3, 4); [x, y]", [3, [4, 2]]],
     ["((x, y), (z, t)) = ((1, 2), (3, 4)); [x, y, z, t]", [1, 2, 3, 4]],
     [
@@ -697,6 +698,11 @@ evalTestsExceptions = [
         "(x, y) = 1",
         "Exception in test line 1 column 9: cannot unpack non-iterable object",
     ],
+    [
+        "assert 1 == 0, 'this is an error'",
+        "Exception in test line 1 column 15: this is an error",
+    ],
+    ["assert 1 == 0", "Exception in test line 1 column 12: "],
     [
         "import math; math.sinXYZ",
         "Exception in test line 1 column 13: module 'math' has no attribute 'sinXYZ'",

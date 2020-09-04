@@ -655,7 +655,9 @@ class AstEval:
 
     async def ast_assign(self, arg):
         """Execute assignment statement."""
-        await self.recurse_assign(arg.targets[0], await self.aeval(arg.value))
+        rhs = await self.aeval(arg.value)
+        for target in arg.targets:
+            await self.recurse_assign(target, rhs)
 
     async def ast_augassign(self, arg):
         """Execute augmented assignment statement (lhs <BinOp>= value)."""
@@ -732,6 +734,13 @@ class AstEval:
                     raise NameError(f"name '{arg1.id}' is not defined in del")
             else:
                 raise NotImplementedError(f"unknown target type {arg1} in del")
+
+    async def ast_assert(self, arg):
+        """Execute assert statement."""
+        if not await self.aeval(arg.test):
+            if arg.msg:
+                raise AssertionError(await self.aeval(arg.msg))
+            raise AssertionError
 
     async def ast_attribute_collapse(self, arg):
         """Combine dotted attributes to allow variable names to have dots."""
