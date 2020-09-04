@@ -625,8 +625,8 @@ class AstEval:
                             f"too few values to unpack (expected at least {len(lhs.elts) - 1})"
                         )
                     star_name = lhs_elt.value.id
-                    for lhs_idx, lhs_elt in enumerate(lhs.elts[lhs_idx + 1 :]):
-                        await self.recurse_assign(lhs_elt, star_lhs[star_len + lhs_idx])
+                    for lhs_idx2, lhs_elt in enumerate(lhs.elts[lhs_idx + 1 :]):
+                        await self.recurse_assign(lhs_elt, star_lhs[star_len + lhs_idx2])
                     await self.recurse_assign(
                         ast.Name(id=star_name, ctx=ast.Store()), star_lhs[0:star_len]
                     )

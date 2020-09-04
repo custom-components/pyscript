@@ -172,6 +172,10 @@ evalTests = [
         "Foo = [type('Foo', (), {'x': [0, [[100, 101, 102, 103]]]})]; Foo[0].x[1][0][1:2] = [11, 12]; Foo[0].x[1]",
         [[100, 11, 12, 102, 103]],
     ],
+    [
+        "pyscript.var1 = 1; pyscript.var2 = 2; set(state.names('pyscript'))",
+        {"pyscript.var1", "pyscript.var2"},
+    ],
     ["eval('1+2')", 3],
     ["x = 5; eval('2 * x')", 10],
     ["x = 5; exec('x = 2 * x'); x", 10],
@@ -654,7 +658,11 @@ Test.x = 5
 async def run_one_test(test_data):
     """Run one interpreter test."""
     source, expect = test_data
-    global_ctx = GlobalContext("test", None, global_sym_table={},)
+    global_ctx = GlobalContext(
+        "test",
+        None,
+        global_sym_table={},
+    )
     ast = AstEval("test", global_ctx=global_ctx)
     ast.parse(source)
     if ast.get_exception() is not None:

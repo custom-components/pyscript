@@ -34,7 +34,6 @@ class Handler:
             "task.unique": Handler.task_unique,
             "service.call": Handler.service_call,
             "service.has_service": Handler.service_has_service,
-            "entity_ids": Handler.entity_ids,
         }
 
         #

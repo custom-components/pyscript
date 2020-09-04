@@ -140,10 +140,15 @@ class State:
                     words.add(name.entity_id)
         return words
 
+    async def entity_ids(domain=None):
+        """Implement entity_ids."""
+        return State.hass.states.async_entity_ids(domain)
+
     def register_functions():
         """Register state functions."""
         functions = {
             "state.get": State.get,
             "state.set": State.set,
+            "state.names": State.entity_ids,
         }
         Handler.register(functions)

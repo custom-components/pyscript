@@ -34,7 +34,8 @@ async def setup_script(hass, notify_q, now, source):
     )
 
     with patch(
-        "homeassistant.loader.async_get_integration", return_value=integration,
+        "homeassistant.loader.async_get_integration",
+        return_value=integration,
     ), patch(
         "config.custom_components.pyscript.os.path.isdir", return_value=True
     ), patch(
@@ -86,7 +87,8 @@ async def test_setup_fails_on_no_dir(hass, caplog):
     )
 
     with patch(
-        "homeassistant.loader.async_get_integration", return_value=integration,
+        "homeassistant.loader.async_get_integration",
+        return_value=integration,
     ), patch("config.custom_components.pyscript.os.path.isdir", return_value=False):
         res = await async_setup_component(hass, "pyscript", {DOMAIN: {}})
 
@@ -432,7 +434,8 @@ def func5(var_name=None, value=None):
         )
 
         with patch(
-            "homeassistant.loader.async_get_integration", return_value=integration,
+            "homeassistant.loader.async_get_integration",
+            return_value=integration,
         ), patch(
             "config.custom_components.pyscript.os.path.isdir", return_value=True
         ), patch(
