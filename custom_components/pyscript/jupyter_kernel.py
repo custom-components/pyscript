@@ -20,9 +20,9 @@ import traceback
 import uuid
 
 from .const import LOGGER_PATH
+from .global_ctx import GlobalContextMgr
 from .handler import Handler
 from .state import State
-from .global_ctx import GlobalContextMgr
 
 _LOGGER = logging.getLogger(LOGGER_PATH + ".jupyter_kernel")
 
