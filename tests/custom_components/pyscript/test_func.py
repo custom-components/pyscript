@@ -33,8 +33,7 @@ async def setup_script(hass, notify_q, now, source):
     )
 
     with patch(
-        "homeassistant.loader.async_get_integration",
-        return_value=integration,
+        "homeassistant.loader.async_get_integration", return_value=integration,
     ), patch(
         "config.custom_components.pyscript.os.path.isdir", return_value=True
     ), patch(

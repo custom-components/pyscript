@@ -607,35 +607,37 @@ class AstEval:
         """Recursive assignment."""
         if isinstance(lhs, ast.Tuple):
             try:
-                val_iter = val.__iter__()
-            except AttributeError:
+                vals = [*(val.__iter__())]
+            except Exception:  # pylint: disable=broad-except
                 raise TypeError("cannot unpack non-iterable object")
-            sentinel = object()
-            for lhs_idx, lhs_elt in enumerate(lhs.elts):
-                val_elt = next(val_iter, sentinel)
-                if val_elt is sentinel:
-                    raise ValueError(
-                        f"too few values to unpack (expected {len(lhs.elts)})"
-                    )
+            got_star = 0
+            for lhs_elt in lhs.elts:
                 if isinstance(lhs_elt, ast.Starred):
-                    star_lhs = [val_elt, *val_iter]
-                    star_len = len(star_lhs) - (len(lhs.elts) - lhs_idx - 1)
-                    if star_len < 0:
-                        raise ValueError(
-                            f"too few values to unpack (expected at least {len(lhs.elts) - 1})"
-                        )
-                    star_name = lhs_elt.value.id
-                    for lhs_idx2, lhs_elt in enumerate(lhs.elts[lhs_idx + 1 :]):
-                        await self.recurse_assign(lhs_elt, star_lhs[star_len + lhs_idx2])
-                    await self.recurse_assign(
-                        ast.Name(id=star_name, ctx=ast.Store()), star_lhs[0:star_len]
-                    )
-                    return
-                await self.recurse_assign(lhs_elt, val_elt)
-            if next(val_iter, sentinel) is not sentinel:
+                    got_star = 1
+                    break
+            if len(lhs.elts) > len(vals) + got_star:
+                if got_star:
+                    err_msg = f"at least {len(lhs.elts) - got_star}"
+                else:
+                    err_msg = f"{len(lhs.elts)}"
+                raise ValueError(f"too few values to unpack (expected {err_msg})")
+            if len(lhs.elts) < len(vals) and got_star == 0:
                 raise ValueError(
                     f"too many values to unpack (expected {len(lhs.elts)})"
                 )
+            val_idx = 0
+            for lhs_elt in lhs.elts:
+                if isinstance(lhs_elt, ast.Starred):
+                    star_len = len(vals) - len(lhs.elts) + 1
+                    star_name = lhs_elt.value.id
+                    await self.recurse_assign(
+                        ast.Name(id=star_name, ctx=ast.Store()),
+                        vals[val_idx : val_idx + star_len],
+                    )
+                    val_idx += star_len
+                else:
+                    await self.recurse_assign(lhs_elt, vals[val_idx])
+                    val_idx += 1
         elif isinstance(lhs, ast.Subscript):
             var = await self.aeval(lhs.value)
             if isinstance(lhs.slice, ast.Index):

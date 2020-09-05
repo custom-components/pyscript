@@ -658,11 +658,7 @@ Test.x = 5
 async def run_one_test(test_data):
     """Run one interpreter test."""
     source, expect = test_data
-    global_ctx = GlobalContext(
-        "test",
-        None,
-        global_sym_table={},
-    )
+    global_ctx = GlobalContext("test", None, global_sym_table={})
     ast = AstEval("test", global_ctx=global_ctx)
     ast.parse(source)
     if ast.get_exception() is not None:
@@ -692,19 +688,19 @@ evalTestsExceptions = [
     ["xx", "Exception in test line 1 column 0: name 'xx' is not defined"],
     [
         "(x, y) = (1, 2, 4)",
-        "Exception in test line 1 column 4: too many values to unpack (expected 2)",
+        "Exception in test line 1 column 16: too many values to unpack (expected 2)",
     ],
     [
         "(x, y) = iter([1, 2, 4])",
-        "Exception in test line 1 column 4: too many values to unpack (expected 2)",
+        "Exception in test line 1 column 21: too many values to unpack (expected 2)",
     ],
     [
         "(x, y, z) = (1, 2)",
-        "Exception in test line 1 column 4: too few values to unpack (expected 3)",
+        "Exception in test line 1 column 16: too few values to unpack (expected 3)",
     ],
     [
         "(x, y, z) = iter([1, 2])",
-        "Exception in test line 1 column 4: too few values to unpack (expected 3)",
+        "Exception in test line 1 column 21: too few values to unpack (expected 3)",
     ],
     [
         "(x, y) = 1",
@@ -712,7 +708,7 @@ evalTestsExceptions = [
     ],
     [
         "a, *y, w, z = range(2)",
-        "Exception in test line 1 column 0: too few values to unpack (expected at least 3)",
+        "Exception in test line 1 column 20: too few values to unpack (expected at least 3)",
     ],
     [
         "assert 1 == 0, 'this is an error'",
