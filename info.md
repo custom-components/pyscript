@@ -23,7 +23,7 @@ See the documentation if you want to install pyscript manually.
 
 ## Configuration
 
-* Add `pyscript:` to `<config>/configuration.yaml`; pyscript doesn't have any configuration settings
+* Add `pyscript:` to `<config>/configuration.yaml`; there is one optional parameter (see docs)
 * Create the folder `<config>/pyscript`
 * Add files with a suffix of `.py` in the folder `<config>/pyscript`.
 * Whenever you change a script file, make a `reload` service call to `pyscript`.

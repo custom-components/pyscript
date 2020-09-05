@@ -29,10 +29,9 @@ Pyscript implements a Python interpreter using the ast parser output, in a fully
 allows several of the "magic" features to be implemented in a seamless Pythonic manner, such as
 binding of variables to states and functions to services. Pyscript supports imports, although the
 valid import list is restricted for security reasons. Pyscript does not (yet) support some language
-features like declaring new objects, list comprehensions, generators and some syntax like `with`
-and `yield`. Pyscript provides a handful of additional built-in functions that connect to HASS
-features, like logging, accessing state variables as strings (if you need to compute their names
-dynamically), sleeping and waiting for triggers.
+features like generators and some syntax like `with` and `yield`. Pyscript provides a handful of
+additional built-in functions that connect to HASS features, like logging, accessing state variables
+as strings (if you need to compute their names dynamically), sleeping and waiting for triggers.
 
 Pyscript also provides a kernel that interfaces with the Jupyter front-ends (eg, notebook, console
 and lab). That allows you to develop and test pyscript code interactively. Plus you can interact
@@ -85,7 +84,12 @@ this [README](https://github.com/craigbarratt/hass-pyscript-jupyter/blob/master/
 
 ## Configuration
 
-* Add `pyscript:` to `<config>/configuration.yaml`; pyscript doesn't have any configuration settings
+* Add `pyscript:` to `<config>/configuration.yaml`; pyscript has one optional
+configuration parameter that allows any python package to be imported if set, eg:
+```yaml
+pyscript:
+  allow_all_imports: true
+```
 * Create the folder `<config>/pyscript`
 * Add files with a suffix of `.py` in the folder `<config>/pyscript`.
 * Restart HASS.
