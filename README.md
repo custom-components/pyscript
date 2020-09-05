@@ -261,9 +261,12 @@ State variables have attributes that can be accessed by adding the name of the a
 them, so you will need to look at the State tab in the Developer Tools to see the available
 attributes.
 
-In cases where you need to compute the name of the state variable dynamically, or you need to
-set the state attributes, you can use the built-in functions `state.get(name)` and
-`state.set(name, value, attr=None)`; see below.
+Starting in version 0.21, when you set a state variable, the existing attributes are not
+affected (they were previously removed).
+
+In cases where you need to compute the name of the state variable dynamically, or you need
+to set or get the state attributes, you can use the built-in functions `state.get()`,
+`state.get_attr()` and `state.set()`; see below.
 
 The function `state.names(domain=None)` returns a list of all state variable names (ie, `entity_id`s)
 of a domain. If `domain` is not specified, it returns all HASS state variable (entity) names.
@@ -582,14 +585,23 @@ set the attributes, which you can't do if you are directly assigning to the vari
 
 `state.get(name)` returns the value of the state variable, or `None` if it doesn't exist
 
+`state.get_attr(name)` returns a `dict` of attribute values for the state variable, or `None`
+if it doesn't exist
+
 `state.names(domain=None)` returns a list of all state variable names (ie, `entity_id`s)
 of a domain. If `domain` is not specified, it returns all HASS state variable (`entity_id`)
 names.
 
-`state.set(name, value, attr=None)` sets the state variable to the given value, with the optional attributes.
+`state.set(name, value, new_attributes=None, **kwargs)` sets the state variable to the given value,
+with the optional attributes. The optional 3rd argument, `new_attributes`, should be a `dict` and
+it will overwrite all the existing attributes if specified. If instead attributes are specified
+using keyword arguments, then other attributes will not be affected. If no optional arguments
+are provided, just the state variable value is set and the attributes are not changed. To clear
+the attributes, set `new_attributes={}`.
 
 Note that in HASS, all state variable values are coerced into strings.  For example, if a state variable
 has a numeric value, you might want to convert it to a numeric type (eg, using `int()` or `float()`).
+Attributes keep their native type.
 
 #### Service Calls
 
@@ -605,11 +617,12 @@ parameters as the event data.
 
 #### Logging functions
 
-Four logging functions are provided, with increasing levels of severity:
+Five logging functions are provided, with increasing levels of severity:
 - `log.debug(str)`
 - `log.info(str)`
 - `log.warning(str)`
 - `log.error(str)`
+- `print(str)` is the same as `log.debug(str)`; currently `print` doesn't support other arguments.
 
 The [Logger](/integrations/logger/) component can be used to specify the logging level. Log messages
 below the configured level will not appear in the log. Each log message function uses a log name of

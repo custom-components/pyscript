@@ -83,14 +83,16 @@ class State:
 
     def set(var_name, value, attributes=None, **kwargs):
         """Set a state variable and optional attributes in hass."""
-        if len(var_name.split(".")) != 2:
-            _LOGGER.error(
-                "invalid variable name %s (should be 'domain.entity')", var_name
-            )
-            return
-        if attributes or kwargs:
-            if attributes is None:
+        if var_name.count(".") != 1:
+            raise NameError(f"invalid name {var_name} (should be 'domain.entity')")
+        if attributes is None:
+            state_value = State.hass.states.get(var_name)
+            if state_value:
+                attributes = state_value.attributes
+            else:
                 attributes = {}
+        if kwargs:
+            attributes = attributes.copy()
             attributes.update(kwargs)
         _LOGGER.debug("setting %s = %s, attr = %s", var_name, value, attributes)
         State.hass.states.async_set(var_name, value, attributes)
@@ -107,13 +109,22 @@ class State:
         """Get a state variable value or attribute from hass."""
         parts = var_name.split(".")
         if len(parts) != 2 and len(parts) != 3:
-            return None
+            raise NameError(f"invalid name {var_name} (should be 'domain.entity')")
         value = State.hass.states.get(f"{parts[0]}.{parts[1]}")
         if not value:
             return None
         if len(parts) == 2:
             return value.state
         return value.attributes.get(parts[2])
+
+    def get_attr(var_name):
+        """Return a dict of attributes for a state variable."""
+        if var_name.count(".") != 1:
+            raise NameError(f"invalid name {var_name} (should be 'domain.entity')")
+        value = State.hass.states.get(var_name)
+        if not value:
+            return None
+        return value.attributes.copy()
 
     def completions(root):
         """Return possible completions of state variables."""
@@ -140,8 +151,8 @@ class State:
                     words.add(name.entity_id)
         return words
 
-    async def entity_ids(domain=None):
-        """Implement entity_ids."""
+    async def names(domain=None):
+        """Implement names, which returns all entity_ids."""
         return State.hass.states.async_entity_ids(domain)
 
     def register_functions():
@@ -149,6 +160,7 @@ class State:
         functions = {
             "state.get": State.get,
             "state.set": State.set,
-            "state.names": State.entity_ids,
+            "state.names": State.names,
+            "state.get_attr": State.get_attr,
         }
         Handler.register(functions)

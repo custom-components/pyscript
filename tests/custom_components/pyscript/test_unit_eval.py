@@ -176,6 +176,27 @@ evalTests = [
         "pyscript.var1 = 1; pyscript.var2 = 2; set(state.names('pyscript'))",
         {"pyscript.var1", "pyscript.var2"},
     ],
+    [
+        """
+state.set("pyscript.var1", 100, attr1=1, attr2=3.5)
+chk1 = [pyscript.var1.attr1, pyscript.var1.attr2]
+pyscript.var1 += "xyz"
+chk2 = [pyscript.var1.attr1, pyscript.var1.attr2]
+state.set("pyscript.var1", 200, attr3 = 'abc')
+chk3 = [pyscript.var1.attr1, pyscript.var1.attr2, pyscript.var1.attr3]
+chk4 = state.get_attr("pyscript.var1")
+state.set("pyscript.var1", pyscript.var1, {})
+chk5 = state.get_attr("pyscript.var1")
+[chk1, chk2, chk3, chk4, chk5]
+""",
+        [
+            [1, 3.5],
+            [1, 3.5],
+            [1, 3.5, "abc"],
+            {"attr1": 1, "attr2": 3.5, "attr3": "abc"},
+            {},
+        ],
+    ],
     ["eval('1+2')", 3],
     ["x = 5; eval('2 * x')", 10],
     ["x = 5; exec('x = 2 * x'); x", 10],
