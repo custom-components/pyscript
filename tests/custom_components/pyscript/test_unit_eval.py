@@ -157,6 +157,8 @@ evalTests = [
     ["a, *y, w, z = range(4); [a, y, w, z]", [0, [1], 2, 3]],
     ["a, *y, w, z = range(6); [a, y, w, z]", [0, [1, 2, 3], 4, 5]],
     ["x = [0, 1]; i = 0; i, x[i] = 1, 2; [i, x]", [1, [0, 2]]],
+    ["d = {'x': 123}; d['x'] += 10; d", {"x": 133}],
+    ["d = [20, 30]; d[1] += 10; d", [20, 40]],
     ["Foo = type('Foo', (), {'x': 100}); Foo.x = 10; Foo.x", 10],
     ["Foo = type('Foo', (), {'x': 100}); Foo.x += 10; Foo.x", 110],
     ["Foo = [type('Foo', (), {'x': 100})]; Foo[0].x = 10; Foo[0].x", 10],
@@ -741,6 +743,10 @@ evalTestsExceptions = [
         "Exception in test line 1 column 13: module 'math' has no attribute 'sinXYZ'",
     ],
     ["del xx", "Exception in test line 1 column 0: name 'xx' is not defined in del"],
+    ["return", "Exception in test line 1 column 0: return statement outside function"],
+    ["break", "Exception in test line 1 column 0: break statement outside loop"],
+    ["continue", "Exception in test line 1 column 0: continue statement outside loop"],
+    ["raise", "Exception in test line 1 column 0: No active exception to reraise"],
     [
         "with None:\n    pass\n",
         "Exception in test line 1 column 0: test: not implemented ast ast_with",
@@ -809,6 +815,16 @@ def func():
 func()
 """,
         "Exception in test line 4 column 9: Exception in func(), eval() line 1 column 4: name 'y' is not defined",
+    ],
+    [
+        """
+try:
+    d = {}
+    x = d["bad_key"]
+except KeyError:
+    raise
+""",
+        "Exception in test line 4 column 10: 'bad_key'",
     ],
 ]
 

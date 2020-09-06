@@ -347,6 +347,7 @@ class AstEval:
         self.exception = None
         self.exception_obj = None
         self.exception_long = None
+        self.exception_curr = None
         self.lineno = 1
         self.col_offset = 0
         self.logger_handlers = set()
@@ -375,7 +376,7 @@ class AstEval:
                 raise NameError(f"name '{val.name}' is not defined")
             return val
         except Exception as err:  # pylint: disable=broad-except
-            if self.exception is None:
+            if not self.exception_obj:
                 func_name = self.curr_func.get_name() + "(), " if self.curr_func else ""
                 self.exception_obj = err
                 self.exception = f"Exception in {func_name}{self.filename} line {self.lineno} column {self.col_offset}: {err}"
@@ -388,8 +389,10 @@ class AstEval:
         val = None
         for arg1 in arg.body:
             val = await self.aeval(arg1)
-            if isinstance(val, EvalStopFlow):
+            if isinstance(val, EvalReturn):
                 raise SyntaxError(f"{val.name()} statement outside function")
+            if isinstance(val, EvalStopFlow):
+                raise SyntaxError(f"{val.name()} statement outside loop")
         return val
 
     async def ast_import(self, arg):
@@ -481,8 +484,10 @@ class AstEval:
         self.sym_table = sym_table
         for arg1 in arg.body:
             val = await self.aeval(arg1)
-            if isinstance(val, EvalStopFlow):
+            if isinstance(val, EvalReturn):
                 raise SyntaxError(f"{val.name()} statement outside function")
+            if isinstance(val, EvalStopFlow):
+                raise SyntaxError(f"{val.name()} statement outside loop")
         self.sym_table = self.sym_table_stack.pop()
 
         for name, func in sym_table.items():
@@ -524,10 +529,9 @@ class AstEval:
                 if self.exception_obj is not None:
                     raise self.exception_obj  # pylint: disable=raising-bad-type
         except Exception as err:  # pylint: disable=broad-except
-            self.exception_obj = None
-            self.exception = None
-            self.exception_long = None
-            for handler in arg.handlers:
+            curr_exc = self.exception_curr
+            self.exception_curr = err
+            for handler in arg.handlers:  # pylint: disable=too-many-nested-blocks
                 exc_list = await self.aeval(handler.type)
                 if not isinstance(exc_list, tuple):
                     exc_list = [exc_list]
@@ -537,22 +541,42 @@ class AstEval:
                         match = True
                         break
                 if match:
+                    save_obj = self.exception_obj
+                    save_exc_long = self.exception_long
+                    save_exc = self.exception
+                    self.exception_obj = None
+                    self.exception = None
+                    self.exception_long = None
                     if handler.name is not None:
                         self.sym_table[handler.name] = err
                     for arg1 in handler.body:
-                        val = await self.aeval(arg1)
-                        if isinstance(val, EvalStopFlow):
-                            if handler.name is not None:
-                                del self.sym_table[handler.name]
-                            return val
-                        if self.exception_obj is not None:
-                            if handler.name is not None:
-                                del self.sym_table[handler.name]
-                            raise self.exception_obj  # pylint: disable=raising-bad-type
+                        try:
+                            val = await self.aeval(arg1)
+                            if isinstance(val, EvalStopFlow):
+                                if handler.name is not None:
+                                    del self.sym_table[handler.name]
+                                self.exception_curr = curr_exc
+                                return val
+                        except Exception:  # pylint: disable=broad-except
+                            if self.exception_obj is not None:
+                                if handler.name is not None:
+                                    del self.sym_table[handler.name]
+                                self.exception_curr = curr_exc
+                                if self.exception_obj == save_obj:
+                                    self.exception_long = save_exc_long
+                                    self.exception = save_exc
+                                else:
+                                    self.exception_long = (
+                                        save_exc_long
+                                        + "\n\nDuring handling of the above exception, another exception occurred:\n\n"
+                                        + self.exception_long
+                                    )
+                                raise self.exception_obj  # pylint: disable=raising-bad-type
                     if handler.name is not None:
                         del self.sym_table[handler.name]
                     break
             else:
+                self.exception_curr = curr_exc
                 raise err
         else:
             for arg1 in arg.orelse:
@@ -568,7 +592,18 @@ class AstEval:
 
     async def ast_raise(self, arg):
         """Execute raise statement."""
-        raise await self.aeval(arg.exc)
+        if not arg.exc:
+            if not self.exception_curr:
+                raise RuntimeError("No active exception to reraise")
+            exc = self.exception_curr
+        else:
+            exc = await self.aeval(arg.exc)
+        if self.exception_curr:
+            exc.__cause__ = self.exception_curr
+        if arg.cause:
+            cause = await self.aeval(arg.cause)
+            raise exc from cause
+        raise exc
 
     async def ast_pass(self, arg):
         """Execute pass statement."""
@@ -679,37 +714,12 @@ class AstEval:
 
     async def ast_augassign(self, arg):
         """Execute augmented assignment statement (lhs <BinOp>= value)."""
-        var_name = await self.aeval(arg.target)
-        if isinstance(var_name, EvalAttrSet):
-            val = await self.aeval(
-                ast.BinOp(
-                    left=ast.Constant(value=var_name.getattr()),
-                    op=arg.op,
-                    right=arg.value,
-                )
-            )
-            var_name.setattr(val)
-        else:
-            val = await self.aeval(
-                ast.BinOp(
-                    left=ast.Name(id=var_name, ctx=ast.Load()),
-                    op=arg.op,
-                    right=arg.value,
-                )
-            )
-            if self.curr_func and var_name in self.curr_func.global_names:
-                self.global_sym_table[var_name] = val
-            elif self.curr_func and var_name in self.curr_func.nonlocal_names:
-                for sym_table in reversed(self.sym_table_stack[1:]):
-                    if var_name in sym_table:
-                        sym_table[var_name] = val
-                        break
-                else:
-                    raise TypeError(f"can't find nonlocal '{var_name}' for assignment")
-            elif State.exist(var_name):
-                State.set(var_name, val)
-            else:
-                self.sym_table[var_name] = val
+        arg.target.ctx = ast.Load()
+        new_val = await self.aeval(
+            ast.BinOp(left=arg.target, op=arg.op, right=arg.value)
+        )
+        arg.target.ctx = ast.Store()
+        await self.recurse_assign(arg.target, new_val)
 
     async def ast_delete(self, arg):
         """Execute del statement."""

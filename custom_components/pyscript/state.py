@@ -81,21 +81,21 @@ class State:
                 new_vars[var_name] = State.notify_var_last[var_name]
         return new_vars
 
-    def set(var_name, value, attributes=None, **kwargs):
+    def set(var_name, value, new_attributes=None, **kwargs):
         """Set a state variable and optional attributes in hass."""
         if var_name.count(".") != 1:
             raise NameError(f"invalid name {var_name} (should be 'domain.entity')")
-        if attributes is None:
+        if new_attributes is None:
             state_value = State.hass.states.get(var_name)
             if state_value:
-                attributes = state_value.attributes
+                new_attributes = state_value.attributes
             else:
-                attributes = {}
+                new_attributes = {}
         if kwargs:
-            attributes = attributes.copy()
-            attributes.update(kwargs)
-        _LOGGER.debug("setting %s = %s, attr = %s", var_name, value, attributes)
-        State.hass.states.async_set(var_name, value, attributes)
+            new_attributes = new_attributes.copy()
+            new_attributes.update(kwargs)
+        _LOGGER.debug("setting %s = %s, attr = %s", var_name, value, new_attributes)
+        State.hass.states.async_set(var_name, value, new_attributes)
 
     def exist(var_name):
         """Check if a state variable value or attribute exists in hass."""
