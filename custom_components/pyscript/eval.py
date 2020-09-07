@@ -532,14 +532,17 @@ class AstEval:
             curr_exc = self.exception_curr
             self.exception_curr = err
             for handler in arg.handlers:  # pylint: disable=too-many-nested-blocks
-                exc_list = await self.aeval(handler.type)
-                if not isinstance(exc_list, tuple):
-                    exc_list = [exc_list]
                 match = False
-                for exc in exc_list:
-                    if isinstance(err, exc):
-                        match = True
-                        break
+                if handler.type:
+                    exc_list = await self.aeval(handler.type)
+                    if not isinstance(exc_list, tuple):
+                        exc_list = [exc_list]
+                    for exc in exc_list:
+                        if isinstance(err, exc):
+                            match = True
+                            break
+                else:
+                    match = True
                 if match:
                     save_obj = self.exception_obj
                     save_exc_long = self.exception_long
@@ -604,6 +607,50 @@ class AstEval:
             cause = await self.aeval(arg.cause)
             raise exc from cause
         raise exc
+
+    async def ast_with(self, arg):
+        """Execute with statement."""
+        hit_except = False
+        ctx_list = []
+        val = None
+        try:
+            for item in arg.items:
+                manager = await self.aeval(item.context_expr)
+                ctx_list.append(
+                    {
+                        "manager": manager,
+                        "enter": type(manager).__enter__,
+                        "exit": type(manager).__exit__,
+                        "target": item.optional_vars,
+                    }
+                )
+            for ctx in ctx_list:
+                if ctx["target"]:
+                    value = await self.call_func(
+                        ctx["enter"], "__enter__", [ctx["manager"]], {}
+                    )
+                    await self.recurse_assign(ctx["target"], value)
+            for arg1 in arg.body:
+                val = await self.aeval(arg1)
+                if isinstance(val, EvalStopFlow):
+                    break
+        except Exception:
+            hit_except = True
+            exit_ok = True
+            for ctx in reversed(ctx_list):
+                ret = await self.call_func(
+                    ctx["exit"], "__exit__", [ctx["manager"], *sys.exc_info()], {}
+                )
+                exit_ok = exit_ok and ret
+            if not exit_ok:
+                raise
+        finally:
+            if not hit_except:
+                for ctx in reversed(ctx_list):
+                    await self.call_func(
+                        ctx["exit"], "__exit__", [ctx["manager"], None, None, None], {}
+                    )
+            return val
 
     async def ast_pass(self, arg):
         """Execute pass statement."""
@@ -1124,9 +1171,6 @@ class AstEval:
         arg_str = ", ".join(
             ['"' + elt + '"' if isinstance(elt, str) else str(elt) for elt in args]
         )
-
-        if isinstance(func, EvalFunc):
-            return await func.call(self, args, kwargs)
         #
         # try to deduce function name, although this only works in simple cases
         #
@@ -1136,6 +1180,13 @@ class AstEval:
             func_name = arg.func.attr
         else:
             func_name = "<other>"
+        _LOGGER.debug("%s: calling %s(%s, %s)", self.name, func_name, arg_str, kwargs)
+        return await self.call_func(func, func_name, args, kwargs)
+
+    async def call_func(self, func, func_name, args, kwargs):
+        """Call a function with the given arguments."""
+        if isinstance(func, EvalFunc):
+            return await func.call(self, args, kwargs)
         if inspect.isclass(func) and hasattr(func, "__init__evalfunc_wrap__"):
             #
             # since our __init__ function is async, create the class instance
@@ -1145,9 +1196,6 @@ class AstEval:
             await inst.__init__evalfunc_wrap__(*args, **kwargs)
             return inst
         if callable(func):
-            _LOGGER.debug(
-                "%s: calling %s(%s, %s)", self.name, func_name, arg_str, kwargs
-            )
             if asyncio.iscoroutinefunction(func):
                 return await func(*args, **kwargs)
             return func(*args, **kwargs)

@@ -675,6 +675,119 @@ Test.x = 5
 """,
         [[5, 20], [5, 40], None, [100, 20], [7, 40], 7],
     ],
+    [
+        """
+i = 10
+def f():
+    return i
+i = 42
+f()
+""",
+        42,
+    ],
+    [
+        """
+class Ctx:
+    def __init__(self, msgs, val):
+        self.val = val
+        self.msgs = msgs
+
+    def get(self):
+        return self.val
+
+    def __enter__(self):
+        self.msgs.append(f"__enter__ {self.val}")
+        return self
+
+    def __exit__(self, type, value, traceback):
+        self.msgs.append(f"__exit__ {self.val}")
+
+msgs = []
+x = [None, None]
+
+with Ctx(msgs, 5) as x[0], Ctx(msgs, 10) as x[1]:
+    msgs.append(x[0].get())
+    msgs.append(x[1].get())
+
+try:
+    with Ctx(msgs, 5) as x[0], Ctx(msgs, 10) as x[1]:
+        msgs.append(x[0].get())
+        msgs.append(x[1].get())
+        1/0
+except Exception as exc:
+    msgs.append(f"got {exc}")
+
+for i in range(5):
+    with Ctx(msgs, 5 + i) as x[0], Ctx(msgs, 10 + i) as x[1]:
+        msgs.append(x[0].get())
+        if i == 0:
+            continue
+        msgs.append(x[1].get())
+        if i >= 1:
+            break
+
+def func(i):
+    x = [None, None]
+    with Ctx(msgs, 5 + i) as x[0], Ctx(msgs, 10 + i) as x[1]:
+        msgs.append(x[0].get())
+        if i == 1:
+            return x[1].get()
+        msgs.append(x[1].get())
+        if i == 2:
+            return x[1].get() * 2
+    return 0
+msgs.append(func(0))
+msgs.append(func(1))
+msgs.append(func(2))
+msgs
+""",
+        [
+            "__enter__ 5",
+            "__enter__ 10",
+            5,
+            10,
+            "__exit__ 10",
+            "__exit__ 5",
+            "__enter__ 5",
+            "__enter__ 10",
+            5,
+            10,
+            "__exit__ 10",
+            "__exit__ 5",
+            "got division by zero",
+            "__enter__ 5",
+            "__enter__ 10",
+            5,
+            "__exit__ 10",
+            "__exit__ 5",
+            "__enter__ 6",
+            "__enter__ 11",
+            6,
+            11,
+            "__exit__ 11",
+            "__exit__ 6",
+            "__enter__ 5",
+            "__enter__ 10",
+            5,
+            10,
+            "__exit__ 10",
+            "__exit__ 5",
+            0,
+            "__enter__ 6",
+            "__enter__ 11",
+            6,
+            "__exit__ 11",
+            "__exit__ 6",
+            11,
+            "__enter__ 7",
+            "__enter__ 12",
+            7,
+            12,
+            "__exit__ 12",
+            "__exit__ 7",
+            24,
+        ],
+    ],
 ]
 
 
@@ -748,8 +861,8 @@ evalTestsExceptions = [
     ["continue", "Exception in test line 1 column 0: continue statement outside loop"],
     ["raise", "Exception in test line 1 column 0: No active exception to reraise"],
     [
-        "with None:\n    pass\n",
-        "Exception in test line 1 column 0: test: not implemented ast ast_with",
+        "yield",
+        "Exception in test line 1 column 0: test: not implemented ast ast_yield",
     ],
     [
         "import cmath; exec('xyz = cmath.sqrt(complex(3, 4))', {})",
