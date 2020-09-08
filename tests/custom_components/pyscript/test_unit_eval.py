@@ -225,6 +225,8 @@ chk5 = state.get_attr("pyscript.var1")
         "from math import floor as floor_alt, sqrt as sqrt_alt; [sqrt_alt(9), floor_alt(10.5)]",
         [3, 10],
     ],
+    ["task.executor(sum, range(5))", 10],
+    ["task.executor(int, 'ff', base=16)", 255],
     ["[i for i in range(7) if i != 5 if i != 3]", [0, 1, 2, 4, 6]],
     [
         """
@@ -804,14 +806,14 @@ async def run_one_test(test_data):
     assert result == expect
 
 
-def test_eval(hass):
+async def test_eval(hass):
     """Test interpreter."""
     Handler.init(hass)
     State.init(hass)
     State.register_functions()
 
     for test_data in evalTests:
-        asyncio.run(run_one_test(test_data))
+        await run_one_test(test_data)
 
 
 evalTestsExceptions = [
@@ -960,11 +962,11 @@ async def run_one_test_exception(test_data):
     assert False
 
 
-def test_eval_exceptions(hass):
+async def test_eval_exceptions(hass):
     """Test interpreter exceptions."""
     Handler.init(hass)
     State.init(hass)
     State.register_functions()
 
     for test_data in evalTestsExceptions:
-        asyncio.run(run_one_test_exception(test_data))
+        await run_one_test_exception(test_data)
