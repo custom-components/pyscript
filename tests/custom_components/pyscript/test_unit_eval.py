@@ -866,7 +866,7 @@ evalTestsExceptions = [
     ],
     [
         "import cmath; exec('xyz = cmath.sqrt(complex(3, 4))', {})",
-        "Exception in test line 1 column 54: Exception in exec() line 1 column 28: function 'sqrt' is not callable (got None)",
+        "Exception in test line 1 column 54: Exception in exec() line 1 column 28: 'sqrt' is not callable (got None)",
     ],
     ["func1(1)", "Exception in test line 1 column 0: name 'func1' is not defined"],
     [

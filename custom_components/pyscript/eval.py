@@ -1195,11 +1195,11 @@ class AstEval:
             inst = func()
             await inst.__init__evalfunc_wrap__(*args, **kwargs)
             return inst
+        if asyncio.iscoroutinefunction(func):
+            return await func(*args, **kwargs)
         if callable(func):
-            if asyncio.iscoroutinefunction(func):
-                return await func(*args, **kwargs)
             return func(*args, **kwargs)
-        raise NameError(f"function '{func_name}' is not callable (got {func})")
+        raise TypeError(f"'{func_name}' is not callable (got {func})")
 
     async def ast_ifexp(self, arg):
         """Evaluate if expression."""

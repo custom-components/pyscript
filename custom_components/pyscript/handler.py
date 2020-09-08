@@ -1,6 +1,7 @@
 """Function call handling."""
 
 import asyncio
+import functools
 import logging
 import traceback
 
@@ -29,6 +30,7 @@ class Handler:
         # initial list of available functions
         #
         Handler.functions = {
+            "task.executor": Handler.task_executor,
             "event.fire": Handler.event_fire,
             "task.sleep": Handler.async_sleep,
             "task.unique": Handler.task_unique,
@@ -100,6 +102,14 @@ class Handler:
         if task in Handler.our_tasks:
             Handler.unique_name2task[name] = task
             Handler.unique_task2name[task] = name
+
+    async def task_executor(func, *args, **kwargs):
+        """Implement task.executor()."""
+        if asyncio.iscoroutinefunction(func) or not callable(func):
+            raise TypeError("function is not callable by task.executor()")
+        return await Handler.hass.async_add_executor_job(
+            functools.partial(func, **kwargs), *args
+        )
 
     def unique_name_used(name):
         """Return whether the current unique name is in use."""

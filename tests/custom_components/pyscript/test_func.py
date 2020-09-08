@@ -5,7 +5,7 @@ from datetime import datetime as dt
 import pathlib
 import time
 
-from config.custom_components.pyscript import DOMAIN
+from config.custom_components.pyscript.const import DOMAIN
 import config.custom_components.pyscript.trigger as trigger
 
 from homeassistant import loader
@@ -132,7 +132,8 @@ def func3(trigger_type=None, event_type=None, **kwargs):
 
     seq_num += 1
     log.info(f"func3 trigger_type = {trigger_type}, event_type = {event_type}, event_data = {kwargs}")
-    pyscript.done = [seq_num, trigger_type, event_type, kwargs]
+    exec_test = task.executor(sum, range(5))
+    pyscript.done = [seq_num, trigger_type, event_type, kwargs, exec_test]
 
 @event_trigger("test_event4", "arg1 == 20 and arg2 == 30")
 def func4(trigger_type=None, event_type=None, **kwargs):
@@ -309,6 +310,7 @@ def func4(trigger_type=None, event_type=None, **kwargs):
         "event",
         "test_event3",
         {"arg1": 20, "arg2": 30},
+        10,
     ]
 
     seq_num += 1

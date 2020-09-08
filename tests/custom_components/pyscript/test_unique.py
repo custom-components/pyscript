@@ -4,7 +4,7 @@ import asyncio
 from datetime import datetime as dt
 import pathlib
 
-from config.custom_components.pyscript import DOMAIN
+from config.custom_components.pyscript.const import DOMAIN
 import config.custom_components.pyscript.trigger as trigger
 
 from homeassistant import loader
