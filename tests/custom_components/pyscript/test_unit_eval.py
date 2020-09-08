@@ -1,5 +1,4 @@
 """Unit tests for Python interpreter."""
-import asyncio
 
 from config.custom_components.pyscript.eval import AstEval
 from config.custom_components.pyscript.global_ctx import GlobalContext

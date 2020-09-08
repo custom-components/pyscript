@@ -401,7 +401,9 @@ class AstEval:
             if not self.allow_all_imports and imp.name not in ALLOWED_IMPORTS:
                 raise ModuleNotFoundError(f"import of {imp.name} not allowed")
             if imp.name not in sys.modules:
-                mod = importlib.import_module(imp.name)
+                mod = await Handler.hass.async_add_executor_job(
+                    importlib.import_module, imp.name
+                )
             else:
                 mod = sys.modules[imp.name]
             self.sym_table[imp.name if imp.asname is None else imp.asname] = mod
@@ -411,7 +413,9 @@ class AstEval:
         if not self.allow_all_imports and arg.module not in ALLOWED_IMPORTS:
             raise ModuleNotFoundError(f"import from {arg.module} not allowed")
         if arg.module not in sys.modules:
-            mod = importlib.import_module(arg.module)
+            mod = await Handler.hass.async_add_executor_job(
+                importlib.import_module, arg.module
+            )
         else:
             mod = sys.modules[arg.module]
         for imp in arg.names:
@@ -634,7 +638,7 @@ class AstEval:
                 val = await self.aeval(arg1)
                 if isinstance(val, EvalStopFlow):
                     break
-        except Exception:
+        except Exception:  # pylint: disable=broad-except
             hit_except = True
             exit_ok = True
             for ctx in reversed(ctx_list):
@@ -650,7 +654,7 @@ class AstEval:
                     await self.call_func(
                         ctx["exit"], "__exit__", [ctx["manager"], None, None, None], {}
                     )
-            return val
+        return val
 
     async def ast_pass(self, arg):
         """Execute pass statement."""
