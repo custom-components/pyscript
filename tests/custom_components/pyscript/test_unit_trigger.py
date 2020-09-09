@@ -1,7 +1,7 @@
 """Unit tests for time trigger functions."""
 from datetime import datetime as dt
 
-from config.custom_components.pyscript.handler import Handler
+from config.custom_components.pyscript.function import Function
 from config.custom_components.pyscript.trigger import TrigTime
 
 from tests.async_mock import patch
@@ -70,7 +70,7 @@ async def test_parse_date_time(hass):
     hass.config.elevation = 0
     hass.config.time_zone = "GMT"
 
-    Handler.init(hass)
+    Function.init(hass)
     TrigTime.init(hass)
 
     now = dt(2019, 9, 1, 13, 0, 0, 0)
@@ -138,7 +138,7 @@ timerActiveCheckTests = [
 
 def test_timer_active_check(hass):
     """Run time active check tests."""
-    Handler.init(hass)
+    Function.init(hass)
     TrigTime.init(hass)
     for test_data in timerActiveCheckTests:
         spec, now, expect = test_data
@@ -281,7 +281,7 @@ timerTriggerNextTests = [
 
 def test_timer_trigger_next(hass):
     """Run trigger next tests."""
-    Handler.init(hass)
+    Function.init(hass)
     TrigTime.init(hass)
     for test_data in timerTriggerNextTests:
         now = dt(2019, 9, 1, 13, 0, 0, 100000)
@@ -393,7 +393,7 @@ timerTriggerNextTestsMonthRollover = [
 
 def test_timer_trigger_next_month_rollover(hass):
     """Run month rollover tests."""
-    Handler.init(hass)
+    Function.init(hass)
     TrigTime.init(hass)
     for test_data in timerTriggerNextTestsMonthRollover:
         now = dt(2020, 6, 30, 13, 0, 0, 100000)

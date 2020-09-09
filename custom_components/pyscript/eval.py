@@ -10,7 +10,7 @@ import logging
 import sys
 
 from .const import ALLOWED_IMPORTS, DOMAIN, LOGGER_PATH
-from .handler import Handler
+from .function import Function
 from .state import State
 
 _LOGGER = logging.getLogger(LOGGER_PATH + ".eval")
@@ -401,7 +401,7 @@ class AstEval:
             if not self.allow_all_imports and imp.name not in ALLOWED_IMPORTS:
                 raise ModuleNotFoundError(f"import of {imp.name} not allowed")
             if imp.name not in sys.modules:
-                mod = await Handler.hass.async_add_executor_job(
+                mod = await Function.hass.async_add_executor_job(
                     importlib.import_module, imp.name
                 )
             else:
@@ -413,7 +413,7 @@ class AstEval:
         if not self.allow_all_imports and arg.module not in ALLOWED_IMPORTS:
             raise ModuleNotFoundError(f"import from {arg.module} not allowed")
         if arg.module not in sys.modules:
-            mod = await Handler.hass.async_add_executor_job(
+            mod = await Function.hass.async_add_executor_job(
                 importlib.import_module, arg.module
             )
         else:
@@ -885,8 +885,8 @@ class AstEval:
                 and arg.id[0] != "_"
             ):
                 return getattr(builtins, arg.id)
-            if Handler.get(arg.id):
-                return Handler.get(arg.id)
+            if Function.get(arg.id):
+                return Function.get(arg.id)
             num_dots = arg.id.count(".")
             #
             # any single-dot name could be a state variable

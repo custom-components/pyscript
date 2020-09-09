@@ -3,7 +3,7 @@
 import logging
 
 from .const import LOGGER_PATH
-from .handler import Handler
+from .function import Function
 
 _LOGGER = logging.getLogger(LOGGER_PATH + ".state")
 
@@ -163,4 +163,4 @@ class State:
             "state.names": State.names,
             "state.get_attr": State.get_attr,
         }
-        Handler.register(functions)
+        Function.register(functions)

@@ -12,7 +12,7 @@ from homeassistant.helpers.service import async_set_service_schema
 
 from .const import DOMAIN, LOGGER_PATH, SERVICE_JUPYTER_KERNEL_START
 from .eval import AstEval
-from .handler import Handler
+from .function import Function
 from .trigger import TrigInfo
 
 _LOGGER = logging.getLogger(LOGGER_PATH + ".global_ctx")
@@ -123,7 +123,7 @@ class GlobalContext:
                         # of other instances (except for global_ctx which is common)
                         #
                         ast_ctx = AstEval(f"{self.name}.{func_name}", self)
-                        Handler.install_ast_funcs(ast_ctx)
+                        Function.install_ast_funcs(ast_ctx)
                         func_args = {
                             "trigger_type": "service",
                         }
@@ -134,7 +134,7 @@ class GlobalContext:
                             if ast_ctx.get_exception_obj():
                                 ast_ctx.get_logger().error(ast_ctx.get_exception_long())
 
-                        Handler.create_task(do_service_call(func, ast_ctx, func_args))
+                        Function.create_task(do_service_call(func, ast_ctx, func_args))
 
                     return pyscript_service_handler
 
@@ -247,7 +247,7 @@ class GlobalContext:
 
         trig_args["action"] = func
         trig_args["action_ast_ctx"] = AstEval(f"{self.name}.{func_name}", self)
-        Handler.install_ast_funcs(trig_args["action_ast_ctx"])
+        Function.install_ast_funcs(trig_args["action_ast_ctx"])
         trig_args["global_sym_table"] = self.global_sym_table
 
         if func_name in self.triggers:
@@ -341,7 +341,7 @@ class GlobalContextMgr:
             "pyscript.set_global_ctx": set_global_ctx_factory,
         }
 
-        Handler.register_ast(GlobalContextMgr.ast_funcs)
+        Function.register_ast(GlobalContextMgr.ast_funcs)
 
     def get(name):
         """Return the GlobalContext given a name."""

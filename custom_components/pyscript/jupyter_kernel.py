@@ -20,8 +20,8 @@ import traceback
 import uuid
 
 from .const import LOGGER_PATH
+from .function import Function
 from .global_ctx import GlobalContextMgr
-from .handler import Handler
 from .state import State
 
 _LOGGER = logging.getLogger(LOGGER_PATH + ".jupyter_kernel")
@@ -427,8 +427,8 @@ class Kernel:
             if match:
                 root = match[1].lower()
                 words = State.completions(root)
-                words = words.union(await Handler.service_completions(root))
-                words = words.union(await Handler.func_completions(root))
+                words = words.union(await Function.service_completions(root))
+                words = words.union(await Function.func_completions(root))
                 words = words.union(self.ast_ctx.completions(root))
             else:
                 root = ""

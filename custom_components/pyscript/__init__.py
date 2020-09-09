@@ -19,8 +19,8 @@ from homeassistant.loader import bind_hass
 from .const import DOMAIN, FOLDER, LOGGER_PATH, SERVICE_JUPYTER_KERNEL_START
 from .eval import AstEval
 from .event import Event
+from .function import Function
 from .global_ctx import GlobalContext, GlobalContextMgr
-from .handler import Handler
 from .jupyter_kernel import Kernel
 from .state import State
 from .trigger import TrigTime
@@ -41,7 +41,7 @@ CONFIG_SCHEMA = vol.Schema(
 
 async def async_setup(hass, config):
     """Initialize the pyscript component."""
-    Handler.init(hass)
+    Function.init(hass)
     Event.init(hass)
     TrigTime.init(hass)
     State.init(hass)
@@ -100,7 +100,7 @@ async def async_setup(hass, config):
         GlobalContextMgr.set(global_ctx_name, global_ctx)
 
         ast_ctx = AstEval(global_ctx_name, global_ctx)
-        Handler.install_ast_funcs(ast_ctx)
+        Function.install_ast_funcs(ast_ctx)
         kernel = Kernel(call.data, ast_ctx, global_ctx_name)
         await kernel.session_start()
         hass.states.async_set(call.data["state_var"], json.dumps(kernel.get_ports()))
@@ -182,7 +182,7 @@ async def compile_scripts(hass):
         global_ctx.set_auto_start(False)
 
         ast_ctx = AstEval(global_ctx_name, global_ctx)
-        Handler.install_ast_funcs(ast_ctx)
+        Function.install_ast_funcs(ast_ctx)
 
         if not ast_ctx.parse(source, filename=file):
             exc = ast_ctx.get_exception_long()

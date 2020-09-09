@@ -15,7 +15,7 @@ from homeassistant.util import dt as dt_util
 from .const import LOGGER_PATH
 from .eval import AstEval
 from .event import Event
-from .handler import Handler
+from .function import Function
 from .state import State
 
 _LOGGER = logging.getLogger(LOGGER_PATH + ".trigger")
@@ -114,7 +114,7 @@ class TrigTime:
         TrigTime.ast_funcs = {
             "task.wait_until": wait_until_factory,
         }
-        Handler.register_ast(TrigTime.ast_funcs)
+        Function.register_ast(TrigTime.ast_funcs)
 
         #
         # Mappings of day of week name to number, using US convention of sun is 0.
@@ -155,7 +155,7 @@ class TrigTime:
                 ast_ctx.get_global_ctx(),
                 logger_name=ast_ctx.get_logger_name(),
             )
-            Handler.install_ast_funcs(state_trig_expr)
+            Function.install_ast_funcs(state_trig_expr)
             state_trig_expr.parse(state_trigger)
             exc = state_trig_expr.get_exception_obj()
             if exc is not None:
@@ -186,7 +186,7 @@ class TrigTime:
                     ast_ctx.get_global_ctx(),
                     logger_name=ast_ctx.get_logger_name(),
                 )
-                Handler.install_ast_funcs(event_trig_expr)
+                Function.install_ast_funcs(event_trig_expr)
                 event_trig_expr.parse(event_trigger[1])
                 exc = event_trig_expr.get_exception_obj()
                 if exc is not None:
@@ -657,7 +657,7 @@ class TrigInfo:
             self.active_expr = AstEval(
                 f"{self.name} @state_active()", self.global_ctx, logger_name=self.name,
             )
-            Handler.install_ast_funcs(self.active_expr)
+            Function.install_ast_funcs(self.active_expr)
             self.active_expr.parse(self.state_active)
             exc = self.active_expr.get_exception_long()
             if exc is not None:
@@ -677,7 +677,7 @@ class TrigInfo:
             self.state_trig_expr = AstEval(
                 f"{self.name} @state_trigger()", self.global_ctx, logger_name=self.name,
             )
-            Handler.install_ast_funcs(self.state_trig_expr)
+            Function.install_ast_funcs(self.state_trig_expr)
             self.state_trig_expr.parse(self.state_trigger)
             exc = self.state_trig_expr.get_exception_long()
             if exc is not None:
@@ -692,7 +692,7 @@ class TrigInfo:
                     self.global_ctx,
                     logger_name=self.name,
                 )
-                Handler.install_ast_funcs(self.event_trig_expr)
+                Function.install_ast_funcs(self.event_trig_expr)
                 self.event_trig_expr.parse(self.event_trigger[1])
                 exc = self.event_trig_expr.get_exception_long()
                 if exc is not None:
@@ -722,7 +722,7 @@ class TrigInfo:
     def start(self):
         """Start this trigger task."""
         if not self.task and self.setup_ok:
-            self.task = Handler.create_task(self.trigger_watch())
+            self.task = Function.create_task(self.trigger_watch())
             _LOGGER.debug("trigger %s is active", self.name)
 
     async def trigger_watch(self):
@@ -730,7 +730,7 @@ class TrigInfo:
 
         async def do_func_call(func, ast_ctx, task_unique, kwargs=None):
             if task_unique:
-                await Handler.task_unique(task_unique)
+                await Function.task_unique(task_unique)
             await func.call(ast_ctx, kwargs=kwargs)
             if ast_ctx.get_exception_obj():
                 ast_ctx.get_logger().error(ast_ctx.get_exception_long())
@@ -843,7 +843,7 @@ class TrigInfo:
                     self.task_unique is not None
                     and self.task_unique_kwargs
                     and self.task_unique_kwargs["kill_me"]
-                    and Handler.unique_name_used(self.task_unique)
+                    and Function.unique_name_used(self.task_unique)
                 ):
                     _LOGGER.debug(
                         "trigger %s got %s trigger, @task_unique kill_me=True prevented new action",
@@ -858,7 +858,7 @@ class TrigInfo:
                     notify_type,
                     func_args,
                 )
-                Handler.create_task(
+                Function.create_task(
                     do_func_call(
                         self.action,
                         self.action_ast_ctx,

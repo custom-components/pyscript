@@ -1,8 +1,8 @@
 """Unit tests for Python interpreter."""
 
 from config.custom_components.pyscript.eval import AstEval
+from config.custom_components.pyscript.function import Function
 from config.custom_components.pyscript.global_ctx import GlobalContext
-from config.custom_components.pyscript.handler import Handler
 from config.custom_components.pyscript.state import State
 
 evalTests = [
@@ -807,7 +807,7 @@ async def run_one_test(test_data):
 
 async def test_eval(hass):
     """Test interpreter."""
-    Handler.init(hass)
+    Function.init(hass)
     State.init(hass)
     State.register_functions()
 
@@ -963,7 +963,7 @@ async def run_one_test_exception(test_data):
 
 async def test_eval_exceptions(hass):
     """Test interpreter exceptions."""
-    Handler.init(hass)
+    Function.init(hass)
     State.init(hass)
     State.register_functions()
 
