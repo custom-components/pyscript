@@ -46,10 +46,6 @@ disable=
   too-many-statements,
   too-many-boolean-expressions,
   unused-argument,
-  no-self-argument,
-  no-member,
-  self-cls-assignment,
-  no-method-argument,
   no-value-for-parameter,
   unsubscriptable-object,
   wrong-import-order
