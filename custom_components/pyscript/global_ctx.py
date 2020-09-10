@@ -265,7 +265,7 @@ class GlobalContext:
     def set_auto_start(self, auto_start):
         """Set the auto-start flag."""
         self.auto_start = auto_start
-        
+
     async def start(self):
         """Start new triggers."""
         for name, trig in self.triggers_new.items():
@@ -302,13 +302,22 @@ class GlobalContext:
 class GlobalContextMgr:
     """Define class for all global contexts."""
 
-    def __init__():
+    #
+    # map of context names to contexts
+    #
+    contexts = {}
+
+    #
+    # sequence number for sessions
+    #
+    name_seq = 0
+
+    def __init__(self):
         _LOGGER.error("GlobalContextMgr class is not meant to be instantiated")
 
-    def init():
+    @classmethod
+    def init(cls):
         """Initialize GlobalContextMgr."""
-        GlobalContextMgr.contexts = {}
-        GlobalContextMgr.name_seq = 0
 
         def get_global_ctx_factory(ast_ctx):
             """Generate a pyscript.get_global_ctx() function with given ast_ctx."""
@@ -319,7 +328,7 @@ class GlobalContextMgr:
         def list_global_ctx_factory(ast_ctx):
             """Generate a pyscript.list_global_ctx() function with given ast_ctx."""
             async def list_global_ctx():
-                ctx_names = set(GlobalContextMgr.contexts.keys())
+                ctx_names = set(cls.contexts.keys())
                 curr_ctx_name = ast_ctx.get_global_ctx_name()
                 ctx_names.discard(curr_ctx_name)
                 return [curr_ctx_name] + sorted(sorted(ctx_names))
@@ -328,44 +337,49 @@ class GlobalContextMgr:
         def set_global_ctx_factory(ast_ctx):
             """Generate a pyscript.set_global_ctx() function with given ast_ctx."""
             async def set_global_ctx(name):
-                global_ctx = GlobalContextMgr.get(name)
+                global_ctx = cls.get(name)
                 if global_ctx is None:
                     raise NameError(f"global context '{name}' does not exist")
                 ast_ctx.set_global_ctx(global_ctx)
                 ast_ctx.set_logger_name(global_ctx.name)
             return set_global_ctx
 
-        GlobalContextMgr.ast_funcs = {
+        ast_funcs = {
             "pyscript.get_global_ctx": get_global_ctx_factory,
             "pyscript.list_global_ctx": list_global_ctx_factory,
             "pyscript.set_global_ctx": set_global_ctx_factory,
         }
 
-        Function.register_ast(GlobalContextMgr.ast_funcs)
+        Function.register_ast(ast_funcs)
 
-    def get(name):
+    @classmethod
+    def get(cls, name):
         """Return the GlobalContext given a name."""
-        return GlobalContextMgr.contexts.get(name, None)
+        return cls.contexts.get(name, None)
 
-    def set(name, global_ctx):
+    @classmethod
+    def set(cls, name, global_ctx):
         """Save the GlobalContext by name."""
-        GlobalContextMgr.contexts[name] = global_ctx
+        cls.contexts[name] = global_ctx
 
-    def items():
+    @classmethod
+    def items(cls):
         """Return all the global context items."""
-        return sorted(GlobalContextMgr.contexts.items())
+        return sorted(cls.contexts.items())
 
-    async def delete(name):
+    @classmethod
+    async def delete(cls, name):
         """Delete the given GlobalContext."""
-        if name in GlobalContextMgr.contexts:
-            global_ctx = GlobalContextMgr.contexts[name]
+        if name in cls.contexts:
+            global_ctx = cls.contexts[name]
             await global_ctx.stop()
-            del GlobalContextMgr.contexts[name]
+            del cls.contexts[name]
 
-    def new_name(root):
+    @classmethod
+    def new_name(cls, root):
         """Find a unique new name by appending a sequence number to root."""
         while True:
-            name = f"{root}{GlobalContextMgr.name_seq}"
-            GlobalContextMgr.name_seq += 1
-            if name not in GlobalContextMgr.contexts:
+            name = f"{root}{cls.name_seq}"
+            cls.name_seq += 1
+            if name not in cls.contexts:
                 return name

@@ -93,41 +93,46 @@ def parse_time_offset(offset_str):
 class TrigTime:
     """Class for trigger time functions."""
 
-    def __init__():
+    #
+    # Global hass instance
+    #
+    hass = None
+
+    #
+    # Mappings of day of week name to number, using US convention of sunday is 0.
+    # Initialized based on locale at startup.
+    #
+    dow2int = {}
+
+    def __init__(self):
         """Warn on TrigTime instantiation."""
         _LOGGER.error("TrigTime class is not meant to be instantiated")
 
-    def init(hass):
+    @classmethod
+    def init(cls, hass):
         """Initialize TrigTime."""
-        TrigTime.hass = hass
+        cls.hass = hass
 
         def wait_until_factory(ast_ctx):
             """Return wapper to call to astFunction with the ast context."""
 
             async def wait_until_call(*arg, **kw):
-                return await TrigTime.wait_until(ast_ctx, *arg, **kw)
+                return await cls.wait_until(ast_ctx, *arg, **kw)
 
             return wait_until_call
 
-        TrigTime.ast_funcs = {
+        ast_funcs = {
             "task.wait_until": wait_until_factory,
         }
-        Function.register_ast(TrigTime.ast_funcs)
+        Function.register_ast(ast_funcs)
 
-        #
-        # Mappings of day of week name to number, using US convention of sunday is 0.
-        # Initialized based on locale at startup.
-        #
-        TrigTime.dow2int = {}
         for i in range(0, 7):
-            TrigTime.dow2int[
-                locale.nl_langinfo(getattr(locale, f"ABDAY_{i+1}")).lower()
-            ] = i
-            TrigTime.dow2int[
-                locale.nl_langinfo(getattr(locale, f"DAY_{i+1}")).lower()
-            ] = i
+            cls.dow2int[locale.nl_langinfo(getattr(locale, f"ABDAY_{i+1}")).lower()] = i
+            cls.dow2int[locale.nl_langinfo(getattr(locale, f"DAY_{i+1}")).lower()] = i
 
+    @classmethod
     async def wait_until(
+        cls,
         ast_ctx,
         state_trigger=None,
         state_check_now=True,
@@ -200,7 +205,7 @@ class TrigTime:
             time_next = None
             if time_trigger is not None:
                 now = dt_now()
-                time_next = TrigTime.timer_trigger_next(time_trigger, now)
+                time_next = cls.timer_trigger_next(time_trigger, now)
                 _LOGGER.debug(
                     "trigger %s wait_until time_next = %s, now = %s",
                     ast_ctx.name,
@@ -277,7 +282,8 @@ class TrigTime:
         _LOGGER.debug("trigger %s wait_until returning %s", ast_ctx.name, ret)
         return ret
 
-    def parse_date_time(date_time_str, day_offset, now):
+    @classmethod
+    def parse_date_time(cls, date_time_str, day_offset, now):
         """Parse a date time string, returning datetime."""
         year = now.year
         month = now.month
@@ -297,8 +303,8 @@ class TrigTime:
                 year, month, day = int(match0[1]), int(match0[2]), int(match0[3])
             day_offset = 0  # explicit date means no offset
         elif len(match1) == 3:
-            if match1[1] in TrigTime.dow2int:
-                dow = TrigTime.dow2int[match1[1]]
+            if match1[1] in cls.dow2int:
+                dow = cls.dow2int[match1[1]]
                 if dow >= (now.isoweekday() % 7):
                     day_offset = dow - (now.isoweekday() % 7)
                 else:
@@ -340,7 +346,7 @@ class TrigTime:
             else:
                 hour, mins, sec = int(match0[1]), int(match0[2]), 0
         elif dt_str.startswith("sunrise") or dt_str.startswith("sunset"):
-            location = sun.get_astral_location(TrigTime.hass)
+            location = sun.get_astral_location(cls.hass)
             try:
                 if dt_str.startswith("sunrise"):
                     time_sun = location.sunrise(datetime.date(year, month, day))
@@ -373,7 +379,8 @@ class TrigTime:
             now = now + datetime.timedelta(seconds=parse_time_offset(dt_str))
         return now
 
-    def timer_active_check(time_spec, now):
+    @classmethod
+    def timer_active_check(cls, time_spec, now):
         """Check if the given time matches the time specification."""
         pos_check = False
         pos_cnt = 0
@@ -401,8 +408,8 @@ class TrigTime:
                         this_match = False
                         break
             elif len(match1) == 4:
-                start = TrigTime.parse_date_time(match1[1].strip(), 0, now)
-                end = TrigTime.parse_date_time(match1[2].strip(), 0, start)
+                start = cls.parse_date_time(match1[1].strip(), 0, now)
+                end = cls.parse_date_time(match1[2].strip(), 0, start)
                 if start < end:
                     if start <= now <= end:
                         this_match = True
@@ -421,7 +428,8 @@ class TrigTime:
             pos_check = True
         return pos_check and neg_check
 
-    def timer_trigger_next(time_spec, now):
+    @classmethod
+    def timer_trigger_next(cls, time_spec, now):
         """Return the next trigger time based on the given time and time specification."""
         next_time = None
         if not isinstance(time_spec, list):
@@ -564,26 +572,26 @@ class TrigTime:
                         next_time = this_t
 
             elif len(match1) == 3:
-                this_t = TrigTime.parse_date_time(match1[1].strip(), 0, now)
+                this_t = cls.parse_date_time(match1[1].strip(), 0, now)
                 if this_t <= now:
                     #
                     # Try tomorrow (won't make a difference if spec has full date)
                     #
-                    this_t = TrigTime.parse_date_time(match1[1].strip(), 1, now)
+                    this_t = cls.parse_date_time(match1[1].strip(), 1, now)
                 if now < this_t and (next_time is None or this_t < next_time):
                     next_time = this_t
 
             elif len(match2) == 5:
-                start = TrigTime.parse_date_time(match2[1].strip(), 0, now)
+                start = cls.parse_date_time(match2[1].strip(), 0, now)
                 if match2[3] is not None:
-                    end = TrigTime.parse_date_time(match2[3].strip(), 0, now)
+                    end = cls.parse_date_time(match2[3].strip(), 0, now)
                     if end < start:
                         if end <= now:
                             # try end of tomorrow
-                            end = TrigTime.parse_date_time(match2[3].strip(), 1, now)
+                            end = cls.parse_date_time(match2[3].strip(), 1, now)
                         else:
                             # try a start of yesterday
-                            start = TrigTime.parse_date_time(match2[1].strip(), -1, now)
+                            start = cls.parse_date_time(match2[1].strip(), -1, now)
                 if now < start and (next_time is None or start < next_time):
                     next_time = start
                 period = parse_time_offset(match2[2].strip())
@@ -605,7 +613,7 @@ class TrigTime:
                             # Try tomorrow's start (won't make a difference if spec has
                             # full date)
                             #
-                            start = TrigTime.parse_date_time(match2[1].strip(), 1, now)
+                            start = cls.parse_date_time(match2[1].strip(), 1, now)
                             if now < start and (next_time is None or start < next_time):
                                 next_time = start
             else:

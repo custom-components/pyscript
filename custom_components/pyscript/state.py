@@ -12,6 +12,11 @@ class State:
     """Class for state functions."""
 
     #
+    # Global hass instance
+    #
+    hass = None
+
+    #
     # notify message queues by variable
     #
     notify = {}
@@ -24,7 +29,7 @@ class State:
     #
     notify_var_last = {}
 
-    def __init__():
+    def __init__(self):
         """Warn on State instantiation."""
         _LOGGER.error("State class is not meant to be instantiated")
 
