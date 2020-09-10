@@ -462,6 +462,10 @@ class AstEval:
                     return val
         return None
 
+    async def ast_asyncfor(self, arg):
+        """Execute async for statement."""
+        return await self.ast_for(arg)
+
     async def ast_while(self, arg):
         """Execute while statement."""
         while await self.aeval(arg.test):
@@ -521,7 +525,10 @@ class AstEval:
         if self.sym_table == self.global_sym_table:
             # set up any triggers if this function is in the global context
             await self.global_ctx.trigger_init(func)
-        return None
+
+    async def ast_asyncfunctiondef(self, arg):
+        """Evaluate async function definition."""
+        return await self.ast_functiondef(arg)
 
     async def ast_try(self, arg):
         """Execute try...except statement."""
@@ -655,6 +662,10 @@ class AstEval:
                         ctx["exit"], "__exit__", [ctx["manager"], None, None, None], {}
                     )
         return val
+
+    async def ast_asyncwith(self, arg):
+        """Execute async with statement."""
+        return await self.ast_with(arg)
 
     async def ast_pass(self, arg):
         """Execute pass statement."""
@@ -1244,6 +1255,10 @@ class AstEval:
             fmt = await self.aeval(arg.format_spec)
             return f"{val:{fmt}}"
         return f"{val}"
+
+    async def ast_await(self, arg):
+        """Evaluate await expr."""
+        return await self.aeval(arg.value)
 
     async def ast_get_names2_dict(self, arg, names):
         """Recursively find all the names mentioned in the AST tree."""

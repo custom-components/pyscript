@@ -20,7 +20,7 @@ class State:
     # Last value of state variable notifications.  We maintain this
     # so that trigger evaluation can use the last notified value,
     # rather than fetching the current value, which is subject to
-    # race conditions multiple state variables are set.
+    # race conditions when multiple state variables are set.
     #
     notify_var_last = {}
 

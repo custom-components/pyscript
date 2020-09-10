@@ -365,8 +365,7 @@ class TrigTime:
                 _LOGGER.warning("'%s' not defined at this latitude", dt_str)
                 # return something in the past so it is ignored
                 return now - datetime.timedelta(days=100)
-            else:
-                now += time_sun.date() - now.date()
+            now += time_sun.date() - now.date()
             hour, mins, sec = time_sun.hour, time_sun.minute, time_sun.second
             _LOGGER.debug(
                 "trigger: got %s = %02d:%02d:%02d (t = %s)",
