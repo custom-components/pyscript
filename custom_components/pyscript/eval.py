@@ -529,7 +529,10 @@ class AstEval:
     async def ast_lambda(self, arg):
         """Evaluate lambda definition."""
         funcdef = ast.FunctionDef(
-            args=arg.args, body=[ast.Return(value=arg.body)], name="lambda", decorator_list=None
+            args=arg.args,
+            body=[ast.Return(value=arg.body)],
+            name="lambda",
+            decorator_list=None,
         )
         func = EvalFunc(funcdef, self.code_list, self.code_str)
         await func.eval_defaults(self)

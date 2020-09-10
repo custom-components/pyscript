@@ -8,7 +8,6 @@ import math
 import re
 import time
 
-from homeassistant.const import SUN_EVENT_SUNRISE, SUN_EVENT_SUNSET
 import homeassistant.helpers.sun as sun
 
 from .const import LOGGER_PATH
@@ -89,18 +88,6 @@ def parse_time_offset(offset_str):
         elif match[2] == "w" or match[2] == "week" or match[2] == "weeks":
             scale = 60 * 60 * 24 * 7
     return value * scale
-
-
-def get_astral_event_date(hass, event, date):
-    """Calculate the astral event time for the specified date."""
-
-    location = sun.get_astral_location(hass)
-
-    try:
-        return getattr(location, event)(date)  # type: ignore
-    except Exception:  # pylint: disable=broad-except
-        # Event never occurs for specified date.
-        return None
 
 
 class TrigTime:
@@ -353,28 +340,18 @@ class TrigTime:
             else:
                 hour, mins, sec = int(match0[1]), int(match0[2]), 0
         elif dt_str.startswith("sunrise") or dt_str.startswith("sunset"):
-            if dt_str.startswith("sunrise"):
-                time_sun = get_astral_event_date(
-                    TrigTime.hass, SUN_EVENT_SUNRISE, datetime.date(year, month, day)
-                )
-            else:
-                time_sun = get_astral_event_date(
-                    TrigTime.hass, SUN_EVENT_SUNSET, datetime.date(year, month, day)
-                )
-            if time_sun is None:
+            location = sun.get_astral_location(TrigTime.hass)
+            try:
+                if dt_str.startswith("sunrise"):
+                    time_sun = location.sunrise(datetime.date(year, month, day))
+                else:
+                    time_sun = location.sunset(datetime.date(year, month, day))
+            except Exception:  # pylint: disable=broad-except
                 _LOGGER.warning("'%s' not defined at this latitude", dt_str)
                 # return something in the past so it is ignored
                 return now - datetime.timedelta(days=100)
             now += time_sun.date() - now.date()
             hour, mins, sec = time_sun.hour, time_sun.minute, time_sun.second
-            _LOGGER.debug(
-                "trigger: got %s = %02d:%02d:%02d (t = %s)",
-                dt_str,
-                hour,
-                mins,
-                sec,
-                time_sun,
-            )
         elif dt_str.startswith("noon"):
             hour, mins, sec = 12, 0, 0
         elif dt_str.startswith("midnight"):
@@ -382,7 +359,7 @@ class TrigTime:
         else:
             hour, mins, sec = 0, 0, 0
             skip = False
-        now = now + datetime.timedelta(seconds=sec + 60 * (mins + 60 * hour))
+        now += datetime.timedelta(seconds=sec + 60 * (mins + 60 * hour))
         if skip:
             i = dt_str.find(" ")
             if i >= 0:
