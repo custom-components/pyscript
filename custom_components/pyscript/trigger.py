@@ -10,7 +10,6 @@ import time
 
 from homeassistant.const import SUN_EVENT_SUNRISE, SUN_EVENT_SUNSET
 import homeassistant.helpers.sun as sun
-from homeassistant.util import dt as dt_util
 
 from .const import LOGGER_PATH
 from .eval import AstEval
@@ -92,6 +91,18 @@ def parse_time_offset(offset_str):
     return value * scale
 
 
+def get_astral_event_date(hass, event, date):
+    """Calculate the astral event time for the specified date."""
+
+    location = sun.get_astral_location(hass)
+
+    try:
+        return getattr(location, event)(date)  # type: ignore
+    except Exception:  # pylint: disable=broad-except
+        # Event never occurs for specified date.
+        return None
+
+
 class TrigTime:
     """Class for trigger time functions."""
 
@@ -117,7 +128,7 @@ class TrigTime:
         Function.register_ast(TrigTime.ast_funcs)
 
         #
-        # Mappings of day of week name to number, using US convention of sun is 0.
+        # Mappings of day of week name to number, using US convention of sunday is 0.
         # Initialized based on locale at startup.
         #
         TrigTime.dow2int = {}
@@ -343,16 +354,19 @@ class TrigTime:
                 hour, mins, sec = int(match0[1]), int(match0[2]), 0
         elif dt_str.startswith("sunrise") or dt_str.startswith("sunset"):
             if dt_str.startswith("sunrise"):
-                time_sun = sun.get_astral_event_next(TrigTime.hass, SUN_EVENT_SUNRISE)
+                time_sun = get_astral_event_date(
+                    TrigTime.hass, SUN_EVENT_SUNRISE, datetime.date(year, month, day)
+                )
             else:
-                time_sun = sun.get_astral_event_next(TrigTime.hass, SUN_EVENT_SUNSET)
+                time_sun = get_astral_event_date(
+                    TrigTime.hass, SUN_EVENT_SUNSET, datetime.date(year, month, day)
+                )
             if time_sun is None:
                 _LOGGER.warning("'%s' not defined at this latitude", dt_str)
                 # return something in the past so it is ignored
                 return now - datetime.timedelta(days=100)
             else:
                 now += time_sun.date() - now.date()
-            time_sun = dt_util.as_local(time_sun)
             hour, mins, sec = time_sun.hour, time_sun.minute, time_sun.second
             _LOGGER.debug(
                 "trigger: got %s = %02d:%02d:%02d (t = %s)",

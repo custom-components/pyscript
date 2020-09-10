@@ -44,12 +44,14 @@ parseDateTimeTests = [
     ["16:01", 0, dt(2019, 9, 1, 16, 1, 0, 0)],
     ["14:56", 1, dt(2019, 9, 2, 14, 56, 0, 0)],
     ["8:00:23.6", 1, dt(2019, 9, 2, 8, 0, 23, 600000)],
-    ["sunrise", 0, dt(2019, 9, 1, 6, 39, 6, 0)],
-    ["sunrise", 1, dt(2019, 9, 2, 6, 39, 6, 0)],
-    ["sunrise", 2, dt(2019, 9, 3, 6, 39, 6, 0)],
-    ["sunrise + 1hr", 0, dt(2019, 9, 1, 7, 39, 6, 0)],
-    ["sunset", 0, dt(2019, 9, 1, 6, 39, 6, 0)],
-    ["2019/11/4 sunset + 1min", 0, dt(2019, 11, 4, 6, 40, 6, 0)],
+    ["sunrise", 0, dt(2019, 9, 1, 6, 37, 15, 0)],
+    ["sunrise", 1, dt(2019, 9, 2, 6, 38, 6, 0)],
+    ["sunrise", 2, dt(2019, 9, 3, 6, 38, 58, 0)],
+    ["tuesday sunrise", 0, dt(2019, 9, 3, 6, 38, 58, 0)],
+    ["sunrise + 1hr", 0, dt(2019, 9, 1, 7, 37, 15, 0)],
+    ["sunset", 0, dt(2019, 9, 1, 19, 39, 15, 0)],
+    ["2019/11/4 sunset + 1min", 0, dt(2019, 11, 4, 17, 7, 56, 0)],
+    ["11/4 sunset + 2min", 0, dt(2019, 11, 4, 17, 8, 56, 0)],
     ["+5 min", 0, dt(2019, 9, 1, 0, 5, 0, 0)],
 ]
 
@@ -61,40 +63,39 @@ parseDateTimeTests2 = [
 
 async def test_parse_date_time(hass):
     """Run time parse datetime tests."""
+
     #
-    # Unable to get sunrise/sunset to provide reasonable values for
-    # an artificial date and location, so can't test sunrise/sunset.
+    # Hardcode a location and timezone so we can check sunrise
+    # and sunset.
     #
-    hass.config.latitude = 54
-    hass.config.longitude = 0
+    hass.config.latitude = 38
+    hass.config.longitude = -122
     hass.config.elevation = 0
-    hass.config.time_zone = "GMT"
+    hass.config.time_zone = "America/Los_Angeles"
 
     Function.init(hass)
     TrigTime.init(hass)
 
+    #
+    # This set of tests assumes it's currently 13:00 on 2019/9/1
+    #
     now = dt(2019, 9, 1, 13, 0, 0, 0)
-    #
-    # the mock forces sunrise and sunset to be the same
-    #
-    sunrise = dt(2019, 9, 1, 6, 39, 6, 0)
 
     with patch(
         "homeassistant.helpers.condition.dt_util.utcnow", return_value=now
-    ), patch("homeassistant.util.dt.utcnow", return_value=now), patch(
-        "homeassistant.helpers.sun.get_astral_event_date", return_value=sunrise
-    ):
+    ), patch("homeassistant.util.dt.utcnow", return_value=now):
         for test_data in parseDateTimeTests:
             spec, date_offset, expect = test_data
             out = TrigTime.parse_date_time(spec, date_offset, now)
             assert out == expect
 
+    #
+    # This set of tests assumes it's currently 13:00 on 2019/9/3
+    #
     now = dt(2019, 9, 3, 13, 0, 0, 0)
     with patch(
         "homeassistant.helpers.condition.dt_util.utcnow", return_value=now
-    ), patch("homeassistant.util.dt.utcnow", return_value=now), patch(
-        "homeassistant.helpers.sun.get_astral_event_date", return_value=sunrise
-    ):
+    ), patch("homeassistant.util.dt.utcnow", return_value=now):
         for test_data in parseDateTimeTests2:
             spec, date_offset, expect = test_data
             out = TrigTime.parse_date_time(spec, date_offset, now)
