@@ -526,6 +526,15 @@ class AstEval:
             # set up any triggers if this function is in the global context
             await self.global_ctx.trigger_init(func)
 
+    async def ast_lambda(self, arg):
+        """Evaluate lambda definition."""
+        funcdef = ast.FunctionDef(
+            args=arg.args, body=[ast.Return(value=arg.body)], name="lambda", decorator_list=None
+        )
+        func = EvalFunc(funcdef, self.code_list, self.code_str)
+        await func.eval_defaults(self)
+        return func
+
     async def ast_asyncfunctiondef(self, arg):
         """Evaluate async function definition."""
         return await self.ast_functiondef(arg)
@@ -782,6 +791,12 @@ class AstEval:
         )
         arg.target.ctx = ast.Store()
         await self.recurse_assign(arg.target, new_val)
+
+    async def ast_namedexpr(self, arg):
+        """Execute named expression."""
+        val = await self.aeval(arg.value)
+        await self.recurse_assign(arg.target, val)
+        return val
 
     async def ast_delete(self, arg):
         """Execute del statement."""
@@ -1418,7 +1433,7 @@ class AstEval:
                                 words.add(f"{name}.{attr}")
                 except Exception:  # pylint: disable=broad-except
                     pass
-        for keyw in set(keyword.kwlist) - {"yield", "lambda", "with", "assert"}:
+        for keyw in set(keyword.kwlist) - {"yield"}:
             if keyw.lower().startswith(root):
                 words.add(keyw)
         sym_table = BUILTIN_AST_FUNCS_FACTORY.copy()

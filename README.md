@@ -27,11 +27,12 @@ Python trigger test based on the event data that runs the Python function if tru
 
 Pyscript implements a Python interpreter using the ast parser output, in a fully async manner. That
 allows several of the "magic" features to be implemented in a seamless Pythonic manner, such as
-binding of variables to states and functions to services. Pyscript supports imports, although the
-valid import list is restricted for security reasons. Pyscript does not (yet) support some language
-features like generators and some syntax like `with` and `yield`. Pyscript provides a handful of
-additional built-in functions that connect to HASS features, like logging, accessing state variables
-as strings (if you need to compute their names dynamically), sleeping and waiting for triggers.
+binding of variables to states and functions to services. Pyscript supports imports, although by
+default the valid import list is restricted for security reasons (there is a configuration option
+`allow_all_imports` to allow all imports).  Pyscript supports all language features except
+generators and `yield`. Pyscript provides a handful of additional built-in functions that connect
+to HASS features, like logging, accessing state variables as strings (if you need to compute their
+names dynamically), sleeping and waiting for triggers.
 
 Pyscript also provides a kernel that interfaces with the Jupyter front-ends (eg, notebook, console
 and lab). That allows you to develop and test pyscript code interactively. Plus you can interact
@@ -390,23 +391,29 @@ and all those values will simply get passed in into kwargs as a `dict`. That's t
 form to use if you have multiple decorators, since each one passes different variables into
 the function (although all of them set `"trigger_type"`).
 
-#### `@time_trigger(str_spec, ...)`
+#### `@time_trigger(time_spec, ...)`
 
-`@time_trigger` takes one or more strings that specify time-based triggers. When multiple time
-triggers are specified, each are evaluated, and the earliest one is the next trigger. Then the
-process repeats.
+`@time_trigger` takes one or more string specifications that specify time-based triggers. When
+multiple time triggers are specified, each are evaluated, and the earliest one is the next trigger.
+Then the process repeats.
 
 Several of the time specifications use a `datetime` format, which is ISO: `yyyy/mm/dd hh:mm:ss`,
-except there is no time-zone (local is assumed). Seconds can include a decimal (fractional) portion
-if you need finer resolution. The date is optional, and the year can be omitted with just `mm/dd`.
-The date can also be replaced by a day of the week (either full or 3-letters, based on the locale).
-The meaning of partial or missing dates depends on the trigger, as explained below. The time can
-instead be `sunrise` or `sunset`. The `datetime` can be followed by an offset of the form
-`[+-]number{sec|min|hours|days|weeks}` and single-letter abbreviations can be used. That allows
-things like `sunrise + 30m` to mean 30 minutes after sunrise. The `number` can be floating point.
-(Note, there is currently no i18n support for those offset abbreviations - they are in English.)
+with the following features:
+- There is no time-zone (local is assumed).
+- Seconds can include a decimal (fractional) portion if you need finer resolution.
+- The date is optional, and the year can be omitted with just `mm/dd`.
+- The date can also be replaced by a day of the week (either full like `sunday` or 3-letters like
+`sun`, based on the locale).
+- The meaning of partial or missing dates depends on the trigger, as explained below.
+- The time can instead be `sunrise`, `sunset`, `noon` or `midnight`.
+- The `datetime` can be followed by an optional offset of the form `[+-]number{seconds|minutes|hours|days|weeks}`
+and abbreviations `{s|m|h|d|w}` or `{sec|min|hr|day|week}` can be used. That allows things like `sunrise + 30m`
+to mean 30 minutes after sunrise, or `sunday sunset - 1h` to mean an hour before sunset on Sundays.
+The `number` can be floating point.  (Note, there is no i18n support for those offset abbreviations - they
+are in English.)
 
-In `@time_trigger`, each string specification can take one of three forms:
+In `@time_trigger`, each string specification `time_spec` can take one of four forms:
+- `"startup"` triggers on HASS start and reload.
 - `"once(datetime)"` triggers once on the date and time. If the year is omitted, it triggers once
 per year on the date and time (eg, birthday). If the date is just a day of week, it triggers once
 on that day of the week. If the date is omitted, it triggers once each day at the indicated time.
@@ -432,11 +439,14 @@ numbers or ranges (no spaces). Ranges are inclusive. For example, if you specify
 day that matches the specification. See any Linux documentation for examples and more details
 (note: names for days of week and months are not supported; only their integer values are).
 
-When the `@time_trigger` occurs, and the function is called, the only keyword argument is
-`trigger_type`, which is set to `"time"`.
+When the `@time_trigger` occurs and the function is called, the keyword argument `trigger_type`
+is set to `"time"`, and `trigger_time` is the exact `datetime` of the time specification that
+caused the trigger (it will be slightly before the current time), or `None` in the case
+of a `startup` trigger.
 
 A final special form of `@time_trigger` has no arguments, which causes the function to
-run once automatically on startup or reload:
+run once automatically on startup or reload, which is the same as providing a single
+`"startup"` time specification:
 ```python
 @time_trigger
 def run_on_startup_or_reload():
@@ -445,8 +455,7 @@ def run_on_startup_or_reload():
 ```
 The function is not re-started after it returns, unless a reload occurs. Startup occurs
 when the `EVENT_HOMEASSISTANT_STARTED` event is fired, which is after everything else
-is initialized and ready, so this function can call any services etc. (Note: currently
-no `trigger_type` or other arguments are  passed when this startup function is called.)
+is initialized and ready, so this function can call any services etc.
 
 #### `@event_trigger(event_type, str_expr=None)`
 
@@ -498,19 +507,25 @@ def monitor_light_turn_on_service(service_data=None):
 This [wiki page](https://github.com/custom-components/pyscript/wiki/Event-based-triggers)
 gives more examples of built-in and user events and how to create triggers for them.
 
+#### `@task_unique(task_name, kill_me=False)`
+
+This decorator is equivalent to calling `task.unique()` at the start of the function when that
+function is triggered. Like all the decorators, if the function is called directly from another
+Python function, this decorator has no effect. See the [`task.unique()`](#task-unique) description.
+
 #### `@state_active(str_expr)`
 
 When any trigger occurs (whether time, state or event), the `@state_active` expression is evaluated.
 If it evaluates to `False` (or zero), the trigger is ignored and the trigger function is not called.
 
-#### `@time_active(str_spec, ...)`
+#### `@time_active(time_spec, ...)`
 
 `@time_active` takes one or more strings that specify time-based ranges. When any trigger
 occurs (whether time, state or event), each time range specification is checked. If the
 current time doesn't fall within any range specified, the trigger is ignored and the
 trigger function is not called.
 
-Each string specification can take two forms:
+Each string specification `time_spec` can take two forms:
 - `"range(datetime_start, datetime_end)"` is satisfied if the current time is in the indicated
 range, including the end points. As in `@time_trigger`, the year or date can be omitted to
 specify daily ranges. If the end is prior to the start, the range is satisfied if the current
