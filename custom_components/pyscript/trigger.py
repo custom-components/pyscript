@@ -343,13 +343,15 @@ class TrigTime:
                 hour, mins, sec = int(match0[1]), int(match0[2]), 0
         elif dt_str.startswith("sunrise") or dt_str.startswith("sunset"):
             if dt_str.startswith("sunrise"):
-                time_sun = sun.get_astral_event_date(TrigTime.hass, SUN_EVENT_SUNRISE)
+                time_sun = sun.get_astral_event_next(TrigTime.hass, SUN_EVENT_SUNRISE)
             else:
-                time_sun = sun.get_astral_event_date(TrigTime.hass, SUN_EVENT_SUNSET)
+                time_sun = sun.get_astral_event_next(TrigTime.hass, SUN_EVENT_SUNSET)
             if time_sun is None:
                 _LOGGER.warning("'%s' not defined at this latitude", dt_str)
                 # return something in the past so it is ignored
                 return now - datetime.timedelta(days=100)
+            else:
+                now += time_sun.date() - now.date()
             time_sun = dt_util.as_local(time_sun)
             hour, mins, sec = time_sun.hour, time_sun.minute, time_sun.second
             _LOGGER.debug(
