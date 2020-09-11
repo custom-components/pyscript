@@ -1,10 +1,10 @@
 """Unit tests for time trigger functions."""
 from datetime import datetime as dt
 
-from config.custom_components.pyscript.function import Function
-from config.custom_components.pyscript.trigger import TrigTime
+from custom_components.pyscript.function import Function
+from custom_components.pyscript.trigger import TrigTime
 
-from tests.async_mock import patch
+from pytest_homeassistant.async_mock import patch
 
 parseDateTimeTests = [
     ["2019/9/12 13:45", 0, dt(2019, 9, 12, 13, 45, 0, 0)],
@@ -61,7 +61,7 @@ parseDateTimeTests2 = [
 ]
 
 
-async def test_parse_date_time(hass):
+async def test_parse_date_time(hass, caplog):
     """Run time parse datetime tests."""
 
     #
@@ -152,6 +152,7 @@ def test_timer_active_check(hass):
 
 
 timerTriggerNextTests = [
+    [["period(sunset, 60s, sunrise)"], [dt(2019, 9, 1, 19, 15, 16)]],
     [["once(2019/9/1 8:00)"], [None]],
     [["once(2019/9/1 15:00)"], [dt(2019, 9, 1, 15, 0, 0, 0)]],
     [["once(15:00)"], [dt(2019, 9, 1, 15, 0, 0, 0)]],
