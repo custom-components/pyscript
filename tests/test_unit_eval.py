@@ -1,9 +1,9 @@
 """Unit tests for Python interpreter."""
 
-from config.custom_components.pyscript.eval import AstEval
-from config.custom_components.pyscript.function import Function
-from config.custom_components.pyscript.global_ctx import GlobalContext
-from config.custom_components.pyscript.state import State
+from custom_components.pyscript.eval import AstEval
+from custom_components.pyscript.function import Function
+from custom_components.pyscript.global_ctx import GlobalContext
+from custom_components.pyscript.state import State
 
 evalTests = [
     ["1", 1],

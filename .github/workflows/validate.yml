@@ -1,4 +1,4 @@
-name: Push pand PR actions
+name: Push and PR actions
 
 on:
   push:
@@ -29,3 +29,14 @@ jobs:
             python-version: "3.x"
         - run: python3 -m pip install black
         - run: black .
+
+  pytest:
+    runs-on: "ubuntu-latest"
+    name: Run tests
+    steps:
+      - uses: "actions/checkout@v2"
+      - uses: "actions/setup-python@v1"
+        with:
+          python-version: "3.x"
+      - run: python3 -m pip install -r requirements_test.txt
+      - run: pytest --cov=custom_components
