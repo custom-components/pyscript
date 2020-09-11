@@ -39,4 +39,4 @@ jobs:
         with:
           python-version: "3.x"
       - run: python3 -m pip install -r requirements_test.txt
-      - run: pytest
+      - run: pytest --cov=custom_components
