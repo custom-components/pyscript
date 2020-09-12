@@ -5,8 +5,6 @@ import functools
 import logging
 import traceback
 
-from homeassistant.helpers.service import async_get_all_descriptions
-
 from .const import LOGGER_PATH
 
 _LOGGER = logging.getLogger(LOGGER_PATH + ".handler")
@@ -51,21 +49,25 @@ class Function:
     def init(cls, hass):
         """Initialize Function."""
         cls.hass = hass
-        cls.functions.update({
-            "task.executor": cls.task_executor,
-            "event.fire": cls.event_fire,
-            "task.sleep": cls.async_sleep,
-            "task.unique": cls.task_unique,
-            "service.call": cls.service_call,
-            "service.has_service": cls.service_has_service,
-        })
-        cls.ast_functions.update({
-            "log.debug": lambda ast_ctx: ast_ctx.get_logger().debug,
-            "log.error": lambda ast_ctx: ast_ctx.get_logger().error,
-            "log.info": lambda ast_ctx: ast_ctx.get_logger().info,
-            "log.warning": lambda ast_ctx: ast_ctx.get_logger().warning,
-            "print": lambda ast_ctx: ast_ctx.get_logger().debug,
-        })
+        cls.functions.update(
+            {
+                "task.executor": cls.task_executor,
+                "event.fire": cls.event_fire,
+                "task.sleep": cls.async_sleep,
+                "task.unique": cls.task_unique,
+                "service.call": cls.service_call,
+                "service.has_service": cls.service_has_service,
+            }
+        )
+        cls.ast_functions.update(
+            {
+                "log.debug": lambda ast_ctx: ast_ctx.get_logger().debug,
+                "log.error": lambda ast_ctx: ast_ctx.get_logger().error,
+                "log.info": lambda ast_ctx: ast_ctx.get_logger().info,
+                "log.warning": lambda ast_ctx: ast_ctx.get_logger().warning,
+                "print": lambda ast_ctx: ast_ctx.get_logger().debug,
+            }
+        )
 
     @classmethod
     async def entity_ids(cls, domain=None):
@@ -148,7 +150,11 @@ class Function:
         if num_period == 1:
             domain, svc_root = root.split(".")
             if domain in services:
-                words |= {f"{domain}.{svc}" for svc in services[domain] if svc.lower().startswith(svc_root)}
+                words |= {
+                    f"{domain}.{svc}"
+                    for svc in services[domain]
+                    if svc.lower().startswith(svc_root)
+                }
         elif num_period == 0:
             words |= {domain for domain in services if domain.lower().startswith(root)}
 

@@ -682,7 +682,7 @@ previously called `task.unique` with the same `task_name`. The name can be any s
 `task.unique` with the same `task_name`.
 
 Note that `task.unique` applies across all global contexts. It's up to you to use a convention
-for `task_name` that avoids accidential collisions. For example, you could use a prefix of the
+for `task_name` that avoids accidental collisions. For example, you could use a prefix of the
 script file name, so that all `task_unique` calls in `FILENAME.py` use a `task_name` that
 starts with `"FILENAME."`.
 

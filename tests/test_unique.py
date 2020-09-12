@@ -6,12 +6,11 @@ import pathlib
 
 from custom_components.pyscript.const import DOMAIN
 import custom_components.pyscript.trigger as trigger
+from pytest_homeassistant.async_mock import mock_open, patch
 
 from homeassistant import loader
 from homeassistant.const import EVENT_HOMEASSISTANT_STARTED, EVENT_STATE_CHANGED
 from homeassistant.setup import async_setup_component
-
-from pytest_homeassistant.async_mock import mock_open, patch
 
 
 async def setup_script(hass, notify_q, now, source):
@@ -33,14 +32,10 @@ async def setup_script(hass, notify_q, now, source):
 
     with patch(
         "homeassistant.loader.async_get_integration", return_value=integration,
-    ), patch(
-        "custom_components.pyscript.os.path.isdir", return_value=True
-    ), patch(
+    ), patch("custom_components.pyscript.os.path.isdir", return_value=True), patch(
         "custom_components.pyscript.glob.iglob", return_value=scripts
     ), patch(
-        "custom_components.pyscript.open",
-        mock_open(read_data=source),
-        create=True,
+        "custom_components.pyscript.open", mock_open(read_data=source), create=True,
     ), patch(
         "custom_components.pyscript.trigger.dt_now", return_value=now
     ):

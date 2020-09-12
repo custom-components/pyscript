@@ -1,23 +1,24 @@
 """Test the pyscript component."""
+from ast import literal_eval
 import asyncio
+from datetime import datetime as dt
 import pathlib
 import time
-from ast import literal_eval
-from datetime import datetime as dt
 
+from custom_components.pyscript.const import DOMAIN
+from custom_components.pyscript.function import Function
+import custom_components.pyscript.trigger as trigger
 import pytest
+from pytest_homeassistant.async_mock import MagicMock, Mock, mock_open, patch
+
 from homeassistant import loader
 from homeassistant.const import EVENT_HOMEASSISTANT_STARTED, EVENT_STATE_CHANGED
 from homeassistant.setup import async_setup_component
-from pytest_homeassistant.async_mock import MagicMock, Mock, mock_open, patch
-
-import custom_components.pyscript.trigger as trigger
-from custom_components.pyscript.const import DOMAIN
-from custom_components.pyscript.function import Function
 
 
 @pytest.fixture()
 def ast_functions():
+    """Test for ast function name completion."""
     return {
         "domain_ast.func_name": lambda ast_ctx: ast_ctx.func(),
         "domain_ast.other_func": lambda ast_ctx: ast_ctx.func(),
@@ -26,6 +27,7 @@ def ast_functions():
 
 @pytest.fixture
 def functions():
+    """Test for regular function name completion."""
     mock_func = Mock()
 
     return {
@@ -38,6 +40,7 @@ def functions():
 
 @pytest.fixture
 def services():
+    """Test for services name completion."""
     return {
         "domain": {"turn_on": None, "turn_off": None, "toggle": None},
         "helpers": {"set_state": None, "restart": None},
@@ -45,6 +48,7 @@ def services():
 
 
 def test_install_ast_funcs(ast_functions):
+    """Test installing ast functions."""
     ast_ctx = MagicMock()
     ast_ctx.func.return_value = "ok"
 
@@ -58,13 +62,13 @@ def test_install_ast_funcs(ast_functions):
     [
         ("helpers", {"helpers.entity_id", "helpers.get_today"}),
         (
-                "domain",
-                {
-                    "domain.func_2",
-                    "domain_ast.func_name",
-                    "domain_ast.other_func",
-                    "domain.func_1",
-                },
+            "domain",
+            {
+                "domain.func_2",
+                "domain_ast.func_name",
+                "domain_ast.other_func",
+                "domain.func_1",
+            },
         ),
         ("domain_", {"domain_ast.func_name", "domain_ast.other_func"}),
         ("domain_ast.func", {"domain_ast.func_name"}),
@@ -73,8 +77,9 @@ def test_install_ast_funcs(ast_functions):
     ids=lambda x: x if not isinstance(x, (set,)) else f"set({len(x)})",
 )
 async def test_func_completions(ast_functions, functions, root, expected):
+    """Test function name completion."""
     with patch.object(Function, "ast_functions", ast_functions), patch.object(
-            Function, "functions", functions
+        Function, "functions", functions
     ):
         words = await Function.func_completions(root)
         assert words == expected
@@ -92,8 +97,9 @@ async def test_func_completions(ast_functions, functions, root, expected):
     ids=lambda x: x if not isinstance(x, (set,)) else f"set({len(x)})",
 )
 async def test_service_completions(root, expected, hass, services):
+    """Test service name completion."""
     with patch.object(
-            hass.services, "async_services", return_value=services
+        hass.services, "async_services", return_value=services
     ), patch.object(Function, "hass", hass):
         words = await Function.service_completions(root)
         assert words == expected
@@ -237,7 +243,7 @@ def func4(trigger_type=None, event_type=None, **kwargs):
     seq_num += 1
     res = task.wait_until(state_trigger="pyscript.f4var2 == '10'", timeout=10)
     log.info(f"func4 trigger_type = {res}")
-    pyscript.done = [seq_num, res, pyscript.setVar1, pyscript.setVar1.attr1, state.get("pyscript.setVar1.attr2"), 
+    pyscript.done = [seq_num, res, pyscript.setVar1, pyscript.setVar1.attr1, state.get("pyscript.setVar1.attr2"),
     pyscript.setVar2, state.get("pyscript.setVar3")]
 
     seq_num += 1

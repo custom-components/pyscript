@@ -17,14 +17,12 @@ from .trigger import TrigInfo
 
 _LOGGER = logging.getLogger(LOGGER_PATH + ".global_ctx")
 
+
 class GlobalContext:
     """Define class for global variables and trigger context."""
 
     def __init__(
-        self,
-        name,
-        hass,
-        global_sym_table=None,
+        self, name, hass, global_sym_table=None,
     ):
         """Initialize GlobalContext."""
         self.name = name
@@ -100,12 +98,15 @@ class GlobalContext:
                         desc = desc[4:].lstrip(" \n\r")
                         file_desc = io.StringIO(desc)
                         service_desc = (
-                            yaml.load(file_desc, Loader=yaml.BaseLoader) or OrderedDict()
+                            yaml.load(file_desc, Loader=yaml.BaseLoader)
+                            or OrderedDict()
                         )
                         file_desc.close()
                     except Exception as exc:
                         self.logger.error(
-                            "Unable to decode yaml doc_string for %s(): %s", func_name, str(exc)
+                            "Unable to decode yaml doc_string for %s(): %s",
+                            func_name,
+                            str(exc),
                         )
                         raise HomeAssistantError(exc)
                 else:
@@ -139,9 +140,7 @@ class GlobalContext:
                     return pyscript_service_handler
 
                 self.hass.services.async_register(
-                    DOMAIN,
-                    func_name,
-                    pyscript_service_factory(func_name, func),
+                    DOMAIN, func_name, pyscript_service_factory(func_name, func),
                 )
                 async_set_service_schema(self.hass, DOMAIN, func_name, service_desc)
                 self.services.add(func_name)
@@ -196,7 +195,7 @@ class GlobalContext:
                         func_name,
                         self.name,
                         dec_name,
-                        arg_num + 1
+                        arg_num + 1,
                     )
                     del trig_args[dec_name]
                     break
@@ -254,9 +253,7 @@ class GlobalContext:
             await self.triggers[func_name].stop()
 
         self.triggers_new[func_name] = TrigInfo(
-            f"{self.name}.{func_name}",
-            trig_args,
-            global_ctx=self,
+            f"{self.name}.{func_name}", trig_args, global_ctx=self,
         )
 
         if self.auto_start:
@@ -313,6 +310,7 @@ class GlobalContextMgr:
     name_seq = 0
 
     def __init__(self):
+        """Report an error if GlobalContextMgr in instantiated."""
         _LOGGER.error("GlobalContextMgr class is not meant to be instantiated")
 
     @classmethod
@@ -321,27 +319,33 @@ class GlobalContextMgr:
 
         def get_global_ctx_factory(ast_ctx):
             """Generate a pyscript.get_global_ctx() function with given ast_ctx."""
+
             async def get_global_ctx():
                 return ast_ctx.get_global_ctx_name()
+
             return get_global_ctx
 
         def list_global_ctx_factory(ast_ctx):
             """Generate a pyscript.list_global_ctx() function with given ast_ctx."""
+
             async def list_global_ctx():
                 ctx_names = set(cls.contexts.keys())
                 curr_ctx_name = ast_ctx.get_global_ctx_name()
                 ctx_names.discard(curr_ctx_name)
                 return [curr_ctx_name] + sorted(sorted(ctx_names))
+
             return list_global_ctx
 
         def set_global_ctx_factory(ast_ctx):
             """Generate a pyscript.set_global_ctx() function with given ast_ctx."""
+
             async def set_global_ctx(name):
                 global_ctx = cls.get(name)
                 if global_ctx is None:
                     raise NameError(f"global context '{name}' does not exist")
                 ast_ctx.set_global_ctx(global_ctx)
                 ast_ctx.set_logger_name(global_ctx.name)
+
             return set_global_ctx
 
         ast_funcs = {

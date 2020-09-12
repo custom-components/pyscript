@@ -57,5 +57,4 @@ rules:
     type: unix
   trailing-spaces:
     level: error
-  truthy:
-    level: error
+  truthy: disable

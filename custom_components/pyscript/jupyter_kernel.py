@@ -30,24 +30,31 @@ _LOGGER = logging.getLogger(LOGGER_PATH + ".jupyter_kernel")
 
 DELIM = b"<IDS|MSG>"
 
+
 def msg_id():
-    """ Return a new uuid for message id """
+    """Return a new uuid for message id."""
     return str(uuid.uuid4())
+
 
 def str_to_bytes(string):
     """Encode a string in bytes."""
-    return string.encode('utf-8')
+    return string.encode("utf-8")
+
 
 class KernelBufferingHandler(logging.handlers.BufferingHandler):
     """Memory-based handler for logging; send via stdout queue."""
+
     def __init__(self, housekeep_q):
+        """Initialize KernelBufferingHandler instance."""
         super().__init__(0)
         self.housekeep_q = housekeep_q
 
     def flush(self):
+        """Flush is a no-op."""
         pass
 
     def shouldFlush(self, record):
+        """Write the buffer to the housekeeping queue."""
         try:
             self.housekeep_q.put_nowait(["stdout", self.format(record)])
         except asyncio.QueueFull:
@@ -56,10 +63,13 @@ class KernelBufferingHandler(logging.handlers.BufferingHandler):
 
 ################################################################
 class ZmqSocket:
-    """Defines a minimal implementation of a small subset of ZMQ,
-allowing pyscript to work with Jupyter without the real zmq
-and pyzmq packages, which might not be available or easy to
-install on the wide set of HASS platforms."""
+    """Defines a minimal implementation of a small subset of ZMQ."""
+
+    #
+    # This allows pyscript to work with Jupyter without the real zmq
+    # and pyzmq packages, which might not be available or easy to
+    # install on the wide set of HASS platforms.
+    #
     def __init__(self, reader, writer, sock_type):
         """Initialize a ZMQ socket with the given type and reader/writer streams."""
         self.writer = writer
@@ -68,7 +78,7 @@ install on the wide set of HASS platforms."""
 
     async def read_bytes(self, num_bytes):
         """Read bytes from ZMQ socket."""
-        data = b''
+        data = b""
         while len(data) < num_bytes:
             new_data = await self.reader.read(num_bytes - len(data))
             if len(new_data) == 0:
@@ -80,15 +90,17 @@ install on the wide set of HASS platforms."""
         """Write bytes to ZMQ socket."""
         self.writer.write(raw_msg)
         await self.writer.drain()
-        
+
     async def handshake(self):
         """Do initial greeting handshake on a new ZMQ connection."""
-        await self.write_bytes(b'\xff\x00\x00\x00\x00\x00\x00\x00\x01\x7f')
+        await self.write_bytes(b"\xff\x00\x00\x00\x00\x00\x00\x00\x01\x7f")
         _ = await self.read_bytes(10)
         # _LOGGER.debug(f"handshake: got initial greeting {greeting}")
-        await self.write_bytes(b'\x03')
+        await self.write_bytes(b"\x03")
         _ = await self.read_bytes(1)
-        await self.write_bytes(b'\x00' + "NULL".encode() + b'\x00' * 16 + b'\x00' + b'\x00' * 31)
+        await self.write_bytes(
+            b"\x00" + "NULL".encode() + b"\x00" * 16 + b"\x00" + b"\x00" * 31
+        )
         _ = await self.read_bytes(53)
         # _LOGGER.debug(f"handshake: got rest of greeting {greeting}")
         params = [["Socket-Type", self.type]]
@@ -109,16 +121,16 @@ install on the wide set of HASS platforms."""
             if cmd & 0x4:
                 # _LOGGER.debug(f"recv: got cmd {msg_body}")
                 cmd_len = msg_body[0]
-                cmd = msg_body[1:cmd_len+1]
-                msg_body = msg_body[cmd_len+1:]
+                cmd = msg_body[1 : cmd_len + 1]
+                msg_body = msg_body[cmd_len + 1 :]
                 params = []
                 while len(msg_body) > 0:
                     param_len = msg_body[0]
-                    param = msg_body[1:param_len+1]
-                    msg_body = msg_body[param_len+1:]
+                    param = msg_body[1 : param_len + 1]
+                    msg_body = msg_body[param_len + 1 :]
                     value_len = unpack(">L", msg_body[0:4])[0]
-                    value = msg_body[4:4+value_len]
-                    msg_body = msg_body[4+value_len:]
+                    value = msg_body[4 : 4 + value_len]
+                    msg_body = msg_body[4 + value_len :]
                     params.append([param, value])
                 # _LOGGER.debug(f"recv: got cmd={cmd}, params={params}")
             else:
@@ -126,7 +138,7 @@ install on the wide set of HASS platforms."""
                 if cmd in (0x0, 0x2):
                     # _LOGGER.debug(f"recv: got msg {parts}")
                     if not multipart:
-                        return b''.join(parts)
+                        return b"".join(parts)
 
                     return parts
 
@@ -160,7 +172,7 @@ install on the wide set of HASS platforms."""
 
     async def send_multipart(self, parts):
         """Send multipart messages over ZMQ socket."""
-        raw_msg = b''
+        raw_msg = b""
         for i, part in enumerate(parts):
             len_part = len(part)
             cmd = 0x1 if i < len(parts) - 1 else 0x0
@@ -179,6 +191,7 @@ install on the wide set of HASS platforms."""
 ##########################################
 class Kernel:
     """Define a Jupyter Kernel class."""
+
     def __init__(self, config, ast_ctx, global_ctx_name):
         """Initialize a Kernel object, one instance per session."""
         self.config = config.copy()
@@ -189,7 +202,7 @@ class Kernel:
         self.signature_schemes = {"hmac-sha256": hashlib.sha256}
         self.auth = hmac.HMAC(
             self.secure_key,
-            digestmod=self.signature_schemes[self.config["signature_scheme"]]
+            digestmod=self.signature_schemes[self.config["signature_scheme"]],
         )
         self.execution_count = 1
         self.engine_id = str(uuid.uuid4())
@@ -228,15 +241,15 @@ class Kernel:
         self.console = KernelBufferingHandler(self.housekeep_q)
         self.console.setLevel(logging.DEBUG)
         # set a format which is just the message
-        formatter = logging.Formatter('%(message)s')
+        formatter = logging.Formatter("%(message)s")
         self.console.setFormatter(formatter)
 
         # match alphanum or "." at end of line
-        self.completion_re = re.compile(r'.*?([\w.]*)$')
+        self.completion_re = re.compile(r".*?([\w.]*)$")
 
         # see if line ends in a ":", with optional whitespace and comment
         # note: this doesn't detect if we are inside a quoted string...
-        self.colon_end_re = re.compile(r'.*: *(#.*)?$')
+        self.colon_end_re = re.compile(r".*: *(#.*)?$")
 
     def msg_sign(self, msg_lst):
         """Sign a message with a secure signature."""
@@ -250,19 +263,24 @@ class Kernel:
         delim_idx = wire_msg.index(DELIM)
         identities = wire_msg[:delim_idx]
         m_signature = wire_msg[delim_idx + 1]
-        msg_frames = wire_msg[delim_idx + 2:]
+        msg_frames = wire_msg[delim_idx + 2 :]
 
         def decode(msg):
-            return json.loads(msg.decode('utf-8'))
+            return json.loads(msg.decode("utf-8"))
 
         msg = {}
-        msg['header']        = decode(msg_frames[0])
-        msg['parent_header'] = decode(msg_frames[1])
-        msg['metadata']      = decode(msg_frames[2])
-        msg['content']       = decode(msg_frames[3])
+        msg["header"] = decode(msg_frames[0])
+        msg["parent_header"] = decode(msg_frames[1])
+        msg["metadata"] = decode(msg_frames[2])
+        msg["content"] = decode(msg_frames[3])
         check_sig = self.msg_sign(msg_frames)
         if check_sig != m_signature:
-            _LOGGER.error("signature mismatch: check_sig=%s, m_signature=%s, wire_msg=%s", check_sig, m_signature, wire_msg)
+            _LOGGER.error(
+                "signature mismatch: check_sig=%s, m_signature=%s, wire_msg=%s",
+                check_sig,
+                m_signature,
+                wire_msg,
+            )
             raise ValueError("Signatures do not match")
 
         return identities, msg
@@ -270,15 +288,23 @@ class Kernel:
     def new_header(self, msg_type):
         """Make a new header."""
         return {
-                "date": datetime.datetime.now().isoformat(),
-                "msg_id": msg_id(),
-                "username": "kernel",
-                "session": self.engine_id,
-                "msg_type": msg_type,
-                "version": "5.3",
-            }
+            "date": datetime.datetime.now().isoformat(),
+            "msg_id": msg_id(),
+            "username": "kernel",
+            "session": self.engine_id,
+            "msg_type": msg_type,
+            "version": "5.3",
+        }
 
-    async def send(self, stream, msg_type, content=None, parent_header=None, metadata=None, identities=None):
+    async def send(
+        self,
+        stream,
+        msg_type,
+        content=None,
+        parent_header=None,
+        metadata=None,
+        identities=None,
+    ):
         """Send message to the Jupyter client."""
         header = self.new_header(msg_type)
         if content is None:
@@ -298,12 +324,7 @@ class Kernel:
             encode(content),
         ]
         signature = self.msg_sign(msg_lst)
-        parts = [DELIM,
-                 signature,
-                 msg_lst[0],
-                 msg_lst[1],
-                 msg_lst[2],
-                 msg_lst[3]]
+        parts = [DELIM, signature, msg_lst[0], msg_lst[1], msg_lst[2], msg_lst[3]]
         if identities:
             parts = identities + parts
         if stream:
@@ -318,22 +339,26 @@ class Kernel:
 
         identities, msg = self.deserialize_wire_msg(wire_msg)
         # _LOGGER.debug("shell received %s: %s", msg.get('header', {}).get('msg_type', 'UNKNOWN'), msg)
-        self.parent_header = msg['header']
+        self.parent_header = msg["header"]
 
         content = {
-            'execution_state': "busy",
+            "execution_state": "busy",
         }
-        await self.send(self.iopub_socket, 'status', content, parent_header=msg['header'])
+        await self.send(
+            self.iopub_socket, "status", content, parent_header=msg["header"]
+        )
 
-        if msg['header']["msg_type"] == "execute_request":
+        if msg["header"]["msg_type"] == "execute_request":
 
             content = {
-                'execution_count': self.execution_count,
-                'code': msg['content']["code"],
+                "execution_count": self.execution_count,
+                "code": msg["content"]["code"],
             }
-            await self.send(self.iopub_socket, 'execute_input', content, parent_header=msg['header'])
+            await self.send(
+                self.iopub_socket, "execute_input", content, parent_header=msg["header"]
+            )
 
-            code = msg['content']["code"]
+            code = msg["content"]["code"]
             self.ast_ctx.parse(code)
             exc = self.ast_ctx.get_exception_obj()
             if exc is None:
@@ -349,23 +374,33 @@ class Kernel:
                     "started": datetime.datetime.now().isoformat(),
                 }
                 content = {
-                    'execution_count': self.execution_count,
-                    'status': 'error',
-                    'ename': type(exc).__name__,   # Exception name, as a string
-                    'evalue': str(exc),  # Exception value, as a string
-                    'traceback': traceback_mesg,
+                    "execution_count": self.execution_count,
+                    "status": "error",
+                    "ename": type(exc).__name__,  # Exception name, as a string
+                    "evalue": str(exc),  # Exception value, as a string
+                    "traceback": traceback_mesg,
                 }
                 _LOGGER.debug("Executing '%s' got exception: %s", code, content)
-                await self.send(shell_socket, 'execute_reply', content, metadata=metadata,
-                    parent_header=msg['header'], identities=identities)
+                await self.send(
+                    shell_socket,
+                    "execute_reply",
+                    content,
+                    metadata=metadata,
+                    parent_header=msg["header"],
+                    identities=identities,
+                )
                 del content["execution_count"], content["status"]
-                await self.send(self.iopub_socket, 'error', content, parent_header=msg['header'])
+                await self.send(
+                    self.iopub_socket, "error", content, parent_header=msg["header"]
+                )
 
                 content = {
-                    'execution_state': "idle",
+                    "execution_state": "idle",
                 }
-                await self.send(self.iopub_socket, 'status', content, parent_header=msg['header'])
-                if msg['content'].get("store_history", True):
+                await self.send(
+                    self.iopub_socket, "status", content, parent_header=msg["header"]
+                )
+                if msg["content"].get("store_history", True):
                     self.execution_count += 1
                 return
 
@@ -373,11 +408,16 @@ class Kernel:
             _LOGGER.debug("Executing: '%s' got result %s", code, result)
             if result is not None:
                 content = {
-                    'execution_count': self.execution_count,
-                    'data': {"text/plain": repr(result)},
-                    'metadata': {}
+                    "execution_count": self.execution_count,
+                    "data": {"text/plain": repr(result)},
+                    "metadata": {},
                 }
-                await self.send(self.iopub_socket, 'execute_result', content, parent_header=msg['header'])
+                await self.send(
+                    self.iopub_socket,
+                    "execute_result",
+                    content,
+                    parent_header=msg["header"],
+                )
 
             metadata = {
                 "dependencies_met": True,
@@ -392,12 +432,18 @@ class Kernel:
                 "payload": [],
                 "user_expressions": {},
             }
-            await self.send(shell_socket, 'execute_reply', content, metadata=metadata,
-                parent_header=msg['header'], identities=identities)
-            if msg['content'].get("store_history", True):
+            await self.send(
+                shell_socket,
+                "execute_reply",
+                content,
+                metadata=metadata,
+                parent_header=msg["header"],
+                identities=identities,
+            )
+            if msg["content"].get("store_history", True):
                 self.execution_count += 1
 
-        elif msg['header']["msg_type"] == "kernel_info_request":
+        elif msg["header"]["msg_type"] == "kernel_info_request":
             content = {
                 "protocol_version": "5.3",
                 "ipython_version": [1, 1, 0, ""],
@@ -408,18 +454,25 @@ class Kernel:
                 "language_info": {
                     "name": "python",
                     "version": "1.0",
-                    'mimetype': "",
-                    'file_extension': ".py",
-                    #'pygments_lexer': "",
-                    'codemirror_mode': "",
-                    'nbconvert_exporter': "",
+                    "mimetype": "",
+                    "file_extension": ".py",
+                    "codemirror_mode": "",
+                    "nbconvert_exporter": "",
                 },
-                "banner": ""
+                "banner": "",
             }
-            await self.send(shell_socket, 'kernel_info_reply', content, parent_header=msg['header'], identities=identities)
+            await self.send(
+                shell_socket,
+                "kernel_info_reply",
+                content,
+                parent_header=msg["header"],
+                identities=identities,
+            )
 
-        elif msg['header']["msg_type"] == "complete_request":
-            await self.send(self.iopub_socket, 'status', content, parent_header=msg['header'])
+        elif msg["header"]["msg_type"] == "complete_request":
+            await self.send(
+                self.iopub_socket, "status", content, parent_header=msg["header"]
+            )
 
             code = msg["content"]["code"]
             posn = msg["content"]["cursor_pos"]
@@ -441,34 +494,40 @@ class Kernel:
                 "cursor_end": msg["content"]["cursor_pos"],
                 "metadata": {},
             }
-            await self.send(shell_socket, 'complete_reply', content, parent_header=msg['header'], identities=identities)
+            await self.send(
+                shell_socket,
+                "complete_reply",
+                content,
+                parent_header=msg["header"],
+                identities=identities,
+            )
 
-        elif msg['header']["msg_type"] == "is_complete_request":
-            code = msg['content']["code"]
+        elif msg["header"]["msg_type"] == "is_complete_request":
+            code = msg["content"]["code"]
             self.ast_ctx.parse(code)
             exc = self.ast_ctx.get_exception_obj()
 
             # determine indent of last line
             indent = 0
-            i = code.rfind("\n") 
+            i = code.rfind("\n")
             if i >= 0:
-                while i + 1 < len(code) and code[i+1] == " ":
+                while i + 1 < len(code) and code[i + 1] == " ":
                     i += 1
                     indent += 1
             if exc is None:
                 if indent == 0:
                     content = {
                         # One of 'complete', 'incomplete', 'invalid', 'unknown'
-                        "status": 'complete',
+                        "status": "complete",
                         # If status is 'incomplete', indent should contain the characters to use
                         # to indent the next line. This is only a hint: frontends may ignore it
                         # and use their own autoindentation rules. For other statuses, this
                         # field does not exist.
-                        #"indent": str,
+                        # "indent": str,
                     }
                 else:
                     content = {
-                        "status": 'incomplete',
+                        "status": "incomplete",
                         "indent": " " * indent,
                     }
             else:
@@ -479,39 +538,55 @@ class Kernel:
                 if str(exc).find("EOF while") >= 0:
                     # if error is at ":" then increase indent
                     if hasattr(exc, "lineno"):
-                        line = code.split("\n")[exc.lineno-1]
+                        line = code.split("\n")[exc.lineno - 1]
                         if self.colon_end_re.match(line):
                             indent += 4
                     content = {
-                        "status": 'incomplete',
+                        "status": "incomplete",
                         "indent": " " * indent,
                     }
                 else:
                     content = {
-                        "status": 'invalid',
+                        "status": "invalid",
                     }
             # _LOGGER.debug(f"is_complete_request code={code}, exc={exc}, content={content}")
-            await self.send(shell_socket, 'is_complete_reply', content, parent_header=msg['header'], identities=identities)
+            await self.send(
+                shell_socket,
+                "is_complete_reply",
+                content,
+                parent_header=msg["header"],
+                identities=identities,
+            )
 
-        elif msg['header']["msg_type"] == "comm_info_request":
-            content = {
-                "comms": {}
-            }
-            await self.send(shell_socket, 'comm_info_reply', content, parent_header=msg['header'], identities=identities)
+        elif msg["header"]["msg_type"] == "comm_info_request":
+            content = {"comms": {}}
+            await self.send(
+                shell_socket,
+                "comm_info_reply",
+                content,
+                parent_header=msg["header"],
+                identities=identities,
+            )
 
-        elif msg['header']["msg_type"] == "history_request":
-            content = {
-                "history": []
-            }
-            await self.send(shell_socket, 'history_reply', content, parent_header=msg['header'], identities=identities)
+        elif msg["header"]["msg_type"] == "history_request":
+            content = {"history": []}
+            await self.send(
+                shell_socket,
+                "history_reply",
+                content,
+                parent_header=msg["header"],
+                identities=identities,
+            )
 
         else:
-            _LOGGER.error("unknown msg_type: %s", msg['header']["msg_type"])
+            _LOGGER.error("unknown msg_type: %s", msg["header"]["msg_type"])
 
         content = {
-            'execution_state': "idle",
+            "execution_state": "idle",
         }
-        await self.send(self.iopub_socket, 'status', content, parent_header=msg['header'])
+        await self.send(
+            self.iopub_socket, "status", content, parent_header=msg["header"]
+        )
 
     async def control_listen(self, reader, writer):
         """Task that listens to control messages."""
@@ -524,17 +599,25 @@ class Kernel:
                 wire_msg = await control_socket.recv_multipart()
                 identities, msg = self.deserialize_wire_msg(wire_msg)
                 # _LOGGER.debug("control received %s: %s", msg.get('header', {}).get('msg_type', 'UNKNOWN'), msg)
-                if msg['header']["msg_type"] == "shutdown_request":
+                if msg["header"]["msg_type"] == "shutdown_request":
                     content = {
                         "restart": False,
                     }
-                    await self.send(control_socket, 'shutdown_reply', content, parent_header=msg['header'], identities=identities)
+                    await self.send(
+                        control_socket,
+                        "shutdown_reply",
+                        content,
+                        parent_header=msg["header"],
+                        identities=identities,
+                    )
                     await self.housekeep_q.put(["shutdown"])
         except asyncio.CancelledError:  # pylint: disable=try-except-raise
             raise
         except EOFError:
             _LOGGER.debug("control_listen got eof")
-            await self.housekeep_q.put(["unregister", "control", asyncio.current_task()])
+            await self.housekeep_q.put(
+                ["unregister", "control", asyncio.current_task()]
+            )
             control_socket.close()
         except Exception as err:  # pylint: disable=broad-except
             _LOGGER.error("control_listen exception %s", err)
@@ -585,7 +668,9 @@ class Kernel:
         """Task that listens and responds to heart beat messages."""
         try:
             _LOGGER.debug("heartbeat_listen connected")
-            await self.housekeep_q.put(["register", "heartbeat", asyncio.current_task()])
+            await self.housekeep_q.put(
+                ["register", "heartbeat", asyncio.current_task()]
+            )
             heartbeat_socket = ZmqSocket(reader, writer, "REP")
             await heartbeat_socket.handshake()
             while 1:
@@ -596,7 +681,9 @@ class Kernel:
             raise
         except EOFError:
             _LOGGER.debug("heartbeat_listen got eof")
-            await self.housekeep_q.put(["unregister", "heartbeat", asyncio.current_task()])
+            await self.housekeep_q.put(
+                ["unregister", "heartbeat", asyncio.current_task()]
+            )
             heartbeat_socket.close()
         except Exception:  # pylint: disable=broad-except
             _LOGGER.error("heartbeat_listen exception: %s", traceback.format_exc(-1))
@@ -630,12 +717,14 @@ class Kernel:
             try:
                 msg = await self.housekeep_q.get()
                 if msg[0] == "stdout":
-                    content = {
-                        'name': "stdout",
-                        'text': msg[1] + "\n"
-                    }
+                    content = {"name": "stdout", "text": msg[1] + "\n"}
                     if self.iopub_socket:
-                        await self.send(self.iopub_socket, 'stream', content, parent_header=self.parent_header)
+                        await self.send(
+                            self.iopub_socket,
+                            "stream",
+                            content,
+                            parent_header=self.parent_header,
+                        )
                 elif msg[0] == "register":
                     if msg[1] not in self.tasks:
                         self.tasks[msg[1]] = set()
@@ -668,29 +757,41 @@ class Kernel:
 
     async def startup_timeout(self):
         """Shut down the session if nothing connects after 30 seconds."""
-        await self.housekeep_q.put(["register", "startup_timeout", asyncio.current_task()])
+        await self.housekeep_q.put(
+            ["register", "startup_timeout", asyncio.current_task()]
+        )
         await asyncio.sleep(30)
         if self.task_cnt_max == 1:
             #
             # nothing started other than us, so shut down the session
             #
-            _LOGGER.error("No connections to session %s; shutting down", self.global_ctx_name)
+            _LOGGER.error(
+                "No connections to session %s; shutting down", self.global_ctx_name
+            )
             if self.session_cleanup_callback:
                 self.session_cleanup_callback()
                 self.session_cleanup_callback = None
             await self.housekeep_q.put(["shutdown"])
-        await self.housekeep_q.put(["unregister", "startup_timeout", asyncio.current_task()])
+        await self.housekeep_q.put(
+            ["unregister", "startup_timeout", asyncio.current_task()]
+        )
 
     async def start_one_server(self, callback):
         """Start a server by finding an available port."""
         first_port = self.avail_port
         for _ in range(2048):
             try:
-                server = await asyncio.start_server(callback, "0.0.0.0", self.avail_port)
+                server = await asyncio.start_server(
+                    callback, "0.0.0.0", self.avail_port
+                )
                 return server, self.avail_port
             except OSError:
                 self.avail_port += 1
-        _LOGGER.error("unable to find an available port from %d to %d", first_port, self.avail_port - 1)
+        _LOGGER.error(
+            "unable to find an available port from %d to %d",
+            first_port,
+            self.avail_port - 1,
+        )
         return None, None
 
     def get_ports(self):
@@ -715,11 +816,21 @@ class Kernel:
         self.tasks["housekeep"] = {asyncio.create_task(self.housekeep_run())}
         self.tasks["startup_timeout"] = {asyncio.create_task(self.startup_timeout())}
 
-        self.iopub_server, self.iopub_port = await self.start_one_server(self.iopub_listen)
-        self.heartbeat_server, self.heartbeat_port = await self.start_one_server(self.heartbeat_listen)
-        self.control_server, self.control_port = await self.start_one_server(self.control_listen)
-        self.stdin_server, self.stdin_port = await self.start_one_server(self.stdin_listen)
-        self.shell_server, self.shell_port = await self.start_one_server(self.shell_listen)
+        self.iopub_server, self.iopub_port = await self.start_one_server(
+            self.iopub_listen
+        )
+        self.heartbeat_server, self.heartbeat_port = await self.start_one_server(
+            self.heartbeat_listen
+        )
+        self.control_server, self.control_port = await self.start_one_server(
+            self.control_listen
+        )
+        self.stdin_server, self.stdin_port = await self.start_one_server(
+            self.stdin_listen
+        )
+        self.shell_server, self.shell_port = await self.start_one_server(
+            self.shell_listen
+        )
 
         #
         # For debugging, can use the real ZMQ library instead on certain sockets; comment out
@@ -759,7 +870,7 @@ class Kernel:
         #      except Exception:  # pylint: disable=broad-except
         #          _LOGGER.error("shell_listen exception %s", traceback.format_exc(-1))
         #          await self.housekeep_q.put(["shutdown"])
-        #  
+        #
         #  ##########################################
         #  # IOPub using real ZMQ for debugging:
         #  # IOPub/Sub:
@@ -797,7 +908,13 @@ class Kernel:
         # logging.getLogger("homeassistant.components.pyscript.func.").removeHandler(self.console)
         _LOGGER.info("Shutting down session %s", self.global_ctx_name)
 
-        for server in [self.heartbeat_server, self.control_server, self.stdin_server, self.shell_server, self.iopub_server]:
+        for server in [
+            self.heartbeat_server,
+            self.control_server,
+            self.stdin_server,
+            self.shell_server,
+            self.iopub_server,
+        ]:
             if server:
                 server.close()
         self.heartbeat_server = None
