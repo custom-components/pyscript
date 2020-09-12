@@ -1,13 +1,14 @@
 """Implements all the trigger logic."""
 
 import asyncio
-import datetime
+import datetime as dt
 import locale
 import logging
 import math
 import re
 import time
 
+from croniter import croniter
 import homeassistant.helpers.sun as sun
 
 from .const import LOGGER_PATH
@@ -21,7 +22,7 @@ _LOGGER = logging.getLogger(LOGGER_PATH + ".trigger")
 
 def dt_now():
     """Return current time."""
-    return datetime.datetime.now()
+    return dt.datetime.now()
 
 
 def isleap(year):
@@ -37,39 +38,6 @@ def days_in_mon(month, year):
     if (month == 1) and isleap(year):
         return dom[month] + 1
     return dom[month]
-
-
-def cron_ge(cron, fld, curr):
-    """Return the next value which is >= curr and matches cron[fld]."""
-    min_ge = 1000
-    ret = 1000
-
-    if cron[fld] == "*":
-        return curr
-    for elt in cron[fld].split(","):
-        match0 = re.split(r"^(\d+)(-(\d+))?$", elt)
-        if len(match0) != 5:
-            _LOGGER.warning("can't parse field %s in cron entry %s", elt, cron[fld])
-            return curr
-        if match0[3] is not None:
-            rng0, rng1 = [int(match0[1]), int(match0[3])]
-            if rng0 < ret:
-                ret = rng0
-            if rng0 <= curr <= rng1:
-                return curr
-            if curr <= rng0 < min_ge:
-                min_ge = rng0
-        else:
-            rng0 = int(match0[1])
-            if curr == rng0:
-                return curr
-            if rng0 < ret:
-                ret = rng0
-            if curr <= rng0 < min_ge:
-                min_ge = rng0
-    if min_ge < 1000:
-        return min_ge
-    return ret
 
 
 def parse_time_offset(offset_str):
@@ -127,19 +95,19 @@ class TrigTime:
         Function.register_ast(ast_funcs)
 
         for i in range(0, 7):
-            cls.dow2int[locale.nl_langinfo(getattr(locale, f"ABDAY_{i+1}")).lower()] = i
-            cls.dow2int[locale.nl_langinfo(getattr(locale, f"DAY_{i+1}")).lower()] = i
+            cls.dow2int[locale.nl_langinfo(getattr(locale, f"ABDAY_{i + 1}")).lower()] = i
+            cls.dow2int[locale.nl_langinfo(getattr(locale, f"DAY_{i + 1}")).lower()] = i
 
     @classmethod
     async def wait_until(
-        cls,
-        ast_ctx,
-        state_trigger=None,
-        state_check_now=True,
-        time_trigger=None,
-        event_trigger=None,
-        timeout=None,
-        **kwargs,
+            cls,
+            ast_ctx,
+            state_trigger=None,
+            state_check_now=True,
+            time_trigger=None,
+            event_trigger=None,
+            timeout=None,
+            **kwargs,
     ):
         """Wait for zero or more triggers, until an optional timeout."""
         if state_trigger is None and time_trigger is None and event_trigger is None:
@@ -318,18 +286,18 @@ class TrigTime:
         else:
             skip = False
         if day_offset != 0:
-            now = datetime.datetime(year, month, day) + datetime.timedelta(
+            now = dt.datetime(year, month, day) + dt.timedelta(
                 days=day_offset
             )
             year = now.year
             month = now.month
             day = now.day
         else:
-            now = datetime.datetime(year, month, day)
+            now = dt.datetime(year, month, day)
         if skip:
             i = dt_str.find(" ")
             if i >= 0:
-                dt_str = dt_str[i + 1 :].strip()
+                dt_str = dt_str[i + 1:].strip()
             else:
                 return now
 
@@ -349,13 +317,13 @@ class TrigTime:
             location = sun.get_astral_location(cls.hass)
             try:
                 if dt_str.startswith("sunrise"):
-                    time_sun = location.sunrise(datetime.date(year, month, day))
+                    time_sun = location.sunrise(dt.date(year, month, day))
                 else:
-                    time_sun = location.sunset(datetime.date(year, month, day))
+                    time_sun = location.sunset(dt.date(year, month, day))
             except Exception:  # pylint: disable=broad-except
                 _LOGGER.warning("'%s' not defined at this latitude", dt_str)
                 # return something in the past so it is ignored
-                return now - datetime.timedelta(days=100)
+                return now - dt.timedelta(days=100)
             now += time_sun.date() - now.date()
             hour, mins, sec = time_sun.hour, time_sun.minute, time_sun.second
         elif dt_str.startswith("noon"):
@@ -365,68 +333,65 @@ class TrigTime:
         else:
             hour, mins, sec = 0, 0, 0
             skip = False
-        now += datetime.timedelta(seconds=sec + 60 * (mins + 60 * hour))
+        now += dt.timedelta(seconds=sec + 60 * (mins + 60 * hour))
         if skip:
             i = dt_str.find(" ")
             if i >= 0:
-                dt_str = dt_str[i + 1 :].strip()
+                dt_str = dt_str[i + 1:].strip()
             else:
                 return now
         #
         # parse the offset
         #
         if len(dt_str) > 0 and (dt_str[0] == "+" or dt_str[0] == "-"):
-            now = now + datetime.timedelta(seconds=parse_time_offset(dt_str))
+            now = now + dt.timedelta(seconds=parse_time_offset(dt_str))
         return now
 
     @classmethod
     def timer_active_check(cls, time_spec, now):
         """Check if the given time matches the time specification."""
-        pos_check = False
-        pos_cnt = 0
-        neg_check = True
-
+        results = {"+": [], "-": []}
         for entry in time_spec if isinstance(time_spec, list) else [time_spec]:
             this_match = False
-            neg = False
+            negate = False
             active_str = entry.strip()
             if active_str.startswith("not"):
-                neg = True
-                active_str = active_str[3:].strip()
-            else:
-                pos_cnt = pos_cnt + 1
-            match0 = re.split(
-                r"cron\((\S+)\s+(\S+)\s+(\S+)\s+(\S+)\s+(\S+)\)", active_str
-            )
-            match1 = re.split(r"range\(([^,]*),(.*)\)", active_str)
-            if len(match0) == 7:
-                cron = match0[1:6]
-                check = [now.minute, now.hour, now.day, now.month, now.isoweekday() % 7]
-                this_match = True
-                for fld in range(5):
-                    if check[fld] != cron_ge(cron, fld, check[fld]):
-                        this_match = False
-                        break
-            elif len(match1) == 4:
-                start = cls.parse_date_time(match1[1].strip(), 0, now)
-                end = cls.parse_date_time(match1[2].strip(), 0, start)
-                if start < end:
-                    if start <= now <= end:
-                        this_match = True
-                else:
-                    if start <= now or now <= end:
-                        this_match = True
+                negate = True
+                active_str = active_str.replace("not ", "")
 
-            if neg:
-                neg_check = neg_check and not this_match
+            cron_match = re.match(r"cron\((?P<cron_expr>.*)\)", active_str)
+            range_expr = re.match(r"range\(([^,]+),\s?([^,]+)\)", active_str)
+            if cron_match:
+                if not croniter.is_valid(cron_match.group("cron_expr")):
+                    _LOGGER.error(f"Invalid cron expression: {cron_match}")
+                    return False
+
+                this_match = croniter.match(cron_match.group("cron_expr"), now)
+
+            elif range_expr:
+                try:
+                    dt_start, dt_end = range_expr.groups()
+                except ValueError as exc:
+                    _LOGGER.error(f"Invalid range expression: {exc}")
+                    return False
+
+                start = cls.parse_date_time(dt_start.strip(), 0, now)
+                end = cls.parse_date_time(dt_end.strip(), 0, start)
+
+                if start < end:
+                    this_match = start <= now <= end
+                else:  # Over midnight
+                    this_match = now >= start or now <= end
+
+            if negate:
+                results["-"].append(not this_match)
             else:
-                pos_check = pos_check or this_match
-        #
-        # An empty spec, or only neg specs, matches True
-        #
-        if pos_cnt == 0:
-            pos_check = True
-        return pos_check and neg_check
+                results["+"].append(this_match)
+
+        # An empty spec, or only neg specs, is True
+        result = any(results["+"]) if results["+"] else True and all(results["-"])
+
+        return result
 
     @classmethod
     def timer_trigger_next(cls, time_spec, now):
@@ -435,141 +400,17 @@ class TrigTime:
         if not isinstance(time_spec, list):
             time_spec = [time_spec]
         for spec in time_spec:  # pylint: disable=too-many-nested-blocks
-            match0 = re.split(r"cron\((\S+)\s+(\S+)\s+(\S+)\s+(\S+)\s+(\S+)\)", spec)
+            cron_match = re.search(r"cron\((?P<cron_expr>.*)\)", spec)
             match1 = re.split(r"once\((.*)\)", spec)
             match2 = re.split(r"period\(([^,]*),([^,]*)(?:,([^,]*))?\)", spec)
-            if len(match0) == 7:
-                cron = match0[1:6]
-                year_next = now.year
-                min_next = cron_ge(cron, 0, now.minute)
-                mon_next = cron_ge(cron, 3, now.month)  # 1-12
-                mday_next = cron_ge(cron, 2, now.day)  # 1-31
-                wday_next = cron_ge(cron, 4, now.isoweekday() % 7)  # 0-6
-                today = True
-                if (
-                    (cron[2] == "*" and (now.isoweekday() % 7) != wday_next)
-                    or (cron[4] == "*" and now.day != mday_next)
-                    or (now.day != mday_next and (now.isoweekday() % 7) != wday_next)
-                    or (now.month != mon_next)
-                ):
-                    today = False
-                min_next0 = now.minute + 1
-                if (now.hour + 1) <= cron_ge(cron, 1, now.hour):
-                    min_next0 = 0
-                min_next = cron_ge(cron, 0, min_next0 % 60)
+            if cron_match:
+                if not croniter.is_valid(cron_match.group("cron_expr")):
+                    _LOGGER.error(f"Invalid cron expression: {cron_match}")
+                    return None
 
-                carry = min_next < min_next0
-                hr_next0 = now.hour
-                if carry:
-                    hr_next0 = hr_next0 + 1
-                hr_next = cron_ge(cron, 1, hr_next0 % 24)
-                carry = hr_next < hr_next0
-
-                if carry or not today:
-                    # event is after today; get first min & hour
-
-                    min_next = cron_ge(cron, 0, 0)
-                    hr_next = cron_ge(cron, 1, 0)
-
-                    #
-                    # find next date; first check day of month
-                    #
-                    d1_next = now.day + 1
-                    day1 = cron_ge(
-                        cron, 2, (d1_next - 1) % days_in_mon(now.month, now.year) + 1
-                    )
-                    carry1 = day1 < d1_next or day1 > days_in_mon(mon_next, year_next)
-
-                    # check weekly day specification
-                    wday_next2 = (now.isoweekday() % 7) + 1
-                    wday_next = cron_ge(cron, 4, wday_next2 % 7)
-                    if wday_next < wday_next2:
-                        days_ahead = 7 - wday_next2 + wday_next
-                    else:
-                        days_ahead = wday_next - wday_next2
-                    day2 = (d1_next + days_ahead - 1) % days_in_mon(
-                        now.month, now.year
-                    ) + 1
-                    carry2 = day2 < d1_next or day2 > days_in_mon(mon_next, year_next)
-
-                    #
-                    # day1 and day2 give the day of the month based on day-of-month and
-                    # weekday specifications.
-                    #
-                    # if both day-of-month and weekday are specified, cron treats that
-                    # as "or", not "and" (ie, pick the earlier of the two)
-                    #
-                    if cron[2] == "*" and cron[4] != "*":
-                        day1 = day2
-                        carry1 = carry2
-                    if cron[2] != "*" and cron[4] == "*":
-                        day2 = day1
-                        carry2 = carry1
-
-                    if (carry1 and carry2) or now.month != mon_next:
-                        # event does not occur in this month; check the next
-                        # 8 years (to make sure we include a leap year) to see
-                        # if there is a valid mday & month
-                        day1 = cron_ge(cron, 2, 1)
-                        mon_next = now.month
-                        for _ in range(8 * 12):
-                            last_mon = mon_next
-                            mon_next = cron_ge(cron, 3, (mon_next % 12) + 1)
-                            if mon_next <= last_mon:
-                                year_next = year_next + 1
-                            if day1 <= days_in_mon(mon_next, year_next):
-                                break
-                        else:
-                            continue
-                        # recompute day2
-                        wd_next = datetime.date(year_next, mon_next, 1).isoweekday() % 7
-                        # wd_next is the dow of the first of mon_next
-                        wday_next = cron_ge(cron, 4, wd_next)
-                        if wday_next < wd_next:
-                            day2 = 8 - wd_next + wday_next
-                        else:
-                            day2 = 1 + wday_next - wd_next
-                        if cron[2] != "*" and cron[4] == "*":
-                            day2 = day1
-                        if cron[2] == "*" and cron[4] != "*":
-                            day1 = day2
-                        if day1 < day2:
-                            mday_next = day1
-                        else:
-                            mday_next = day2
-                    else:
-                        # event occurs in this month
-                        mon_next = now.month
-                        if not carry1 and not carry2:
-                            if day1 < day2:
-                                mday_next = day1
-                            else:
-                                mday_next = day2
-                        elif not carry1:
-                            mday_next = day1
-                        else:
-                            mday_next = day2
-
-                    #
-                    # now that we have the min, hr, day, mon, yr of the next event,
-                    # figure out what time that turns out to be.
-                    #
-                    this_t = datetime.datetime(
-                        year_next, mon_next, mday_next, hr_next, min_next, 0
-                    )
-                    if now < this_t and (next_time is None or this_t < next_time):
-                        next_time = this_t
-                else:
-                    # this event occurs today
-                    secs = (
-                        3600 * (hr_next - now.hour)
-                        + 60 * (min_next - now.minute)
-                        - now.second
-                        - 1e-6 * now.microsecond
-                    )
-                    this_t = now + datetime.timedelta(seconds=secs)
-                    if now < this_t and (next_time is None or this_t < next_time):
-                        next_time = this_t
+                val = croniter(cron_match.group("cron_expr"), now, dt.datetime).get_next()
+                if next_time is None or val < next_time:
+                    next_time = val
 
             elif len(match1) == 3:
                 this_t = cls.parse_date_time(match1[1].strip(), 0, now)
@@ -597,15 +438,15 @@ class TrigTime:
                 period = parse_time_offset(match2[2].strip())
                 if now >= start and period > 0:
                     secs = period * (
-                        1.0 + math.floor((now - start).total_seconds() / period)
+                            1.0 + math.floor((now - start).total_seconds() / period)
                     )
-                    this_t = start + datetime.timedelta(seconds=secs)
+                    this_t = start + dt.timedelta(seconds=secs)
                     if match2[3] is None:
                         if now < this_t and (next_time is None or this_t < next_time):
                             next_time = this_t
                     else:
                         if now < this_t <= end and (
-                            next_time is None or this_t < next_time
+                                next_time is None or this_t < next_time
                         ):
                             next_time = this_t
                         if next_time is None or now >= end:
@@ -625,7 +466,7 @@ class TrigInfo:
     """Class for all trigger-decorated functions."""
 
     def __init__(
-        self, name, trig_cfg, global_ctx=None,
+            self, name, trig_cfg, global_ctx=None,
     ):
         """Create a new TrigInfo."""
         self.name = name
@@ -840,10 +681,10 @@ class TrigInfo:
                 # check for @task_unique with kill_me=True
                 #
                 if (
-                    self.task_unique is not None
-                    and self.task_unique_kwargs
-                    and self.task_unique_kwargs["kill_me"]
-                    and Function.unique_name_used(self.task_unique)
+                        self.task_unique is not None
+                        and self.task_unique_kwargs
+                        and self.task_unique_kwargs["kill_me"]
+                        and Function.unique_name_used(self.task_unique)
                 ):
                     _LOGGER.debug(
                         "trigger %s got %s trigger, @task_unique kill_me=True prevented new action",

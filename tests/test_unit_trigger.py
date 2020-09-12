@@ -1,6 +1,8 @@
 """Unit tests for time trigger functions."""
 from datetime import datetime as dt
 
+import pytest
+
 from custom_components.pyscript.function import Function
 from custom_components.pyscript.trigger import TrigTime
 
@@ -102,53 +104,61 @@ async def test_parse_date_time(hass, caplog):
             assert out == expect
 
 
-timerActiveCheckTests = [
-    [["range(2019/9/1 8:00, 2019/9/1 18:00)"], dt(2019, 8, 31, 8, 0, 0, 0), False],
-    [["range(2019/9/1 8:00, 2019/9/1 18:00)"], dt(2019, 9, 1, 7, 59, 59, 0), False],
-    [["range(2019/9/1 8:00, 2019/9/1 18:00)"], dt(2019, 9, 1, 8, 0, 0, 0), True],
-    [["range(2019/9/1 8:00, 2019/9/1 18:00)"], dt(2019, 9, 1, 18, 0, 0, 0), True],
-    [["range(2019/9/1 8:00, 2019/9/1 18:00)"], dt(2019, 9, 1, 18, 0, 0, 1), False],
-    [["range(2019/9/1 8:00, 2019/9/3  6:00)"], dt(2019, 8, 31, 8, 0, 0, 0), False],
-    [["range(2019/9/1 8:00, 2019/9/3  6:00)"], dt(2019, 9, 1, 7, 59, 59, 0), False],
-    [["range(2019/9/1 8:00, 2019/9/3  6:00)"], dt(2019, 9, 1, 8, 0, 0, 0), True],
-    [["range(2019/9/1 8:00, 2019/9/3  6:00)"], dt(2019, 9, 3, 6, 0, 0, 0), True],
-    [["range(2019/9/1 8:00, 2019/9/3  6:00)"], dt(2019, 9, 3, 6, 0, 0, 1), False],
-    [["range(10:00, 20:00)"], dt(2019, 9, 3, 9, 59, 59, 999999), False],
-    [["range(10:00, 20:00)"], dt(2019, 9, 3, 10, 0, 0, 0), True],
-    [["range(10:00, 20:00)"], dt(2019, 9, 3, 20, 0, 0, 0), True],
-    [["range(10:00, 20:00)"], dt(2019, 9, 3, 20, 0, 0, 1), False],
-    [["range(20:00, 10:00)"], dt(2019, 9, 3, 9, 59, 59, 999999), True],
-    [["range(20:00, 10:00)"], dt(2019, 9, 3, 10, 0, 0, 0), True],
-    [["range(20:00, 10:00)"], dt(2019, 9, 3, 10, 0, 0, 1), False],
-    [["range(20:00, 10:00)"], dt(2019, 9, 3, 9, 59, 59, 999999), True],
-    [["range(20:00, 10:00)"], dt(2019, 9, 3, 20, 0, 0, 1), True],
-    ["not range(20:00, 10:00)", dt(2019, 9, 3, 10, 0, 0, 0), False],
-    ["not range(20:00, 10:00)", dt(2019, 9, 3, 10, 0, 0, 1), True],
-    ["not range(20:00, 10:00)", dt(2019, 9, 3, 9, 59, 59, 999999), False],
-    ["not range(20:00, 10:00)", dt(2019, 9, 3, 20, 0, 0, 1), False],
-    [["cron(* * * * *)"], dt(2019, 9, 3, 6, 0, 0, 0), True],
-    [["cron(* * * 9 *)"], dt(2019, 9, 3, 6, 0, 0, 0), True],
-    [["cron(* * 3 9 *)"], dt(2019, 9, 3, 6, 0, 0, 0), True],
-    [["cron(* 6 3 9 *)"], dt(2019, 9, 3, 6, 0, 0, 0), True],
-    [["cron(0 6 3 9 *)"], dt(2019, 9, 3, 6, 0, 0, 0), True],
-    [["cron(* * 4 9 *)"], dt(2019, 9, 3, 6, 0, 0, 0), False],
-    [["not cron(0 6 3 9 *)"], dt(2019, 9, 3, 6, 0, 0, 0), False],
-    [["not cron(* * 4 9 *)"], dt(2019, 9, 3, 6, 0, 0, 0), True],
-]
-
-
-def test_timer_active_check(hass):
+@pytest.mark.parametrize(
+    "spec,now,expected",
+    [
+        (
+            [
+                "range(1:00, 4:00)",
+                "not range(2:00, 3:00)",
+                "range(22:00, 0:00)",
+                "not range(3:30, 3:45)",
+            ],
+            dt(2019, 8, 31, 22, 0, 0, 0),
+            True,
+        ),
+        ("range(2019/9/1 8:00, 2019/9/1 18:00)", dt(2019, 8, 31, 8, 0, 0, 0), False),
+        ("range(2019/9/1 8:00, 2019/9/1 18:00)", dt(2019, 9, 1, 7, 59, 59, 0), False),
+        ("range(2019/9/1 8:00, 2019/9/1 18:00)", dt(2019, 9, 1, 8, 0, 0, 0), True),
+        ("range(2019/9/1 8:00, 2019/9/1 18:00)", dt(2019, 9, 1, 18, 0, 0, 0), True),
+        ("range(2019/9/1 8:00, 2019/9/1 18:00)", dt(2019, 9, 1, 18, 0, 0, 1), False),
+        ("range(2019/9/1 8:00, 2019/9/3  6:00)", dt(2019, 8, 31, 8, 0, 0, 0), False),
+        ("range(2019/9/1 8:00, 2019/9/3  6:00)", dt(2019, 9, 1, 7, 59, 59, 0), False),
+        ("range(2019/9/1 8:00, 2019/9/3  6:00)", dt(2019, 9, 1, 8, 0, 0, 0), True),
+        ("range(2019/9/1 8:00, 2019/9/3  6:00)", dt(2019, 9, 3, 6, 0, 0, 0), True),
+        ("range(2019/9/1 8:00, 2019/9/3  6:00)", dt(2019, 9, 3, 6, 0, 0, 1), False),
+        ("range(10:00, 20:00)", dt(2019, 9, 3, 9, 59, 59, 999999), False),
+        ("range(10:00, 20:00)", dt(2019, 9, 3, 10, 0, 0, 0), True),
+        ("range(10:00, 20:00)", dt(2019, 9, 3, 20, 0, 0, 0), True),
+        ("range(10:00, 20:00)", dt(2019, 9, 3, 20, 0, 0, 1), False),
+        ("range(20:00, 10:00)", dt(2019, 9, 3, 9, 59, 59, 999999), True),
+        ("range(20:00, 10:00)", dt(2019, 9, 3, 10, 0, 0, 0), True),
+        ("range(20:00, 10:00)", dt(2019, 9, 3, 10, 0, 0, 1), False),
+        ("range(20:00, 10:00)", dt(2019, 9, 3, 9, 59, 59, 999999), True),
+        ("range(20:00, 10:00)", dt(2019, 9, 3, 20, 0, 0, 1), True),
+        ("not range(20:00, 10:00)", dt(2019, 9, 3, 10, 0, 0, 0), False),
+        ("not range(20:00, 10:00)", dt(2019, 9, 3, 9, 59, 59, 999999), False),
+        ("not range(20:00, 10:00)", dt(2019, 9, 3, 20, 0, 0, 0), False),
+        ("not range(20:00, 10:00)", dt(2019, 9, 3, 19, 59, 59, 999999), True),
+        ("not range(20:00, 10:00)", dt(2019, 9, 3, 12, 0, 0, 0), True),
+        ("not range(20:00, 10:00)", dt(2019, 9, 3, 0, 0, 0, 0), False),
+        ("cron(* * * * *)", dt(2019, 9, 3, 6, 0, 0, 0), True),
+        ("cron(* * * 9 *)", dt(2019, 9, 3, 6, 0, 0, 0), True),
+        ("cron(* * 3 9 *)", dt(2019, 9, 3, 6, 0, 0, 0), True),
+        ("cron(* 6 3 9 *)", dt(2019, 9, 3, 6, 0, 0, 0), True),
+        ("cron(0 6 3 9 *)", dt(2019, 9, 3, 6, 0, 0, 0), True),
+        ("cron(* * 4 9 *)", dt(2019, 9, 3, 6, 0, 0, 0), False),
+        ("not cron(0 6 3 9 *)", dt(2019, 9, 3, 6, 0, 0, 0), False),
+        ("not cron(* * 4 9 *)", dt(2019, 9, 3, 6, 0, 0, 0), True),
+    ],
+    ids=lambda x: x if not isinstance(x, (dt, list)) else str(x),
+)
+def test_timer_active_check(hass, spec, now, expected):
     """Run time active check tests."""
     Function.init(hass)
     TrigTime.init(hass)
-    for test_data in timerActiveCheckTests:
-        spec, now, expect = test_data
-        out = TrigTime.timer_active_check(spec, now)
-        if out != expect:
-            print(
-                f"TrigTime.timer_active_check({spec}, {now}) -> {out} vs expect {expect}"
-            )
-        assert out == expect
+    out = TrigTime.timer_active_check(spec, now)
+    assert out == expected
 
 
 timerTriggerNextTests = [
@@ -269,14 +279,9 @@ timerTriggerNextTests = [
         ],
     ],
     [
-        # invalid fields treated as "*" (warning to log)
+        # invalid cron expression returns None
         ["cron(0 14 1-2-3 x *)"],
-        [
-            dt(2019, 9, 1, 14, 0, 0, 0),
-            dt(2019, 9, 2, 14, 0, 0, 0),
-            dt(2019, 9, 3, 14, 0, 0, 0),
-            dt(2019, 9, 4, 14, 0, 0, 0),
-        ],
+        [None],
     ],
 ]
 
