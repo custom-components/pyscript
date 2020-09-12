@@ -143,49 +143,39 @@ class Function:
     async def service_completions(cls, root):
         """Return possible completions of HASS services."""
         words = set()
-        services = await async_get_all_descriptions(cls.hass)
+        services = cls.hass.services.async_services()
         num_period = root.count(".")
         if num_period == 1:
-            domain, srv_root = root.split(".")
+            domain, svc_root = root.split(".")
             if domain in services:
-                for srv in services[domain].keys():
-                    if srv.lower().startswith(srv_root):
-                        words.add(f"{domain}.{srv}")
+                words |= {f"{domain}.{svc}" for svc in services[domain] if svc.lower().startswith(svc_root)}
         elif num_period == 0:
-            for domain in services.keys():
-                if domain.lower().startswith(root):
-                    words.add(domain)
+            words |= {domain for domain in services if domain.lower().startswith(root)}
+
         return words
 
     @classmethod
     async def func_completions(cls, root):
         """Return possible completions of functions."""
-        words = set()
-        funcs = cls.functions.copy()
-        funcs.update(cls.ast_functions)
-        for name in funcs.keys():
-            if name.lower().startswith(root):
-                words.add(name)
+        funcs = {**cls.functions, **cls.ast_functions}
+        words = {name for name in funcs if name.lower().startswith(root)}
+
         return words
 
     @classmethod
     def register(cls, funcs):
         """Register functions to be available for calling."""
-        for name, func in funcs.items():
-            cls.functions[name] = func
+        cls.functions.update(funcs)
 
     @classmethod
     def register_ast(cls, funcs):
         """Register functions that need ast context to be available for calling."""
-        for name, func in funcs.items():
-            cls.ast_functions[name] = func
+        cls.ast_functions.update(funcs)
 
     @classmethod
     def install_ast_funcs(cls, ast_ctx):
         """Install ast functions into the local symbol table."""
-        sym_table = {}
-        for name, func in cls.ast_functions.items():
-            sym_table[name] = func(ast_ctx)
+        sym_table = {name: func(ast_ctx) for name, func in cls.ast_functions.items()}
         ast_ctx.set_local_sym_table(sym_table)
 
     @classmethod
@@ -194,16 +184,19 @@ class Function:
         func = cls.functions.get(name, None)
         if func:
             return func
-        parts = name.split(".", 1)
-        if len(parts) != 2:
+
+        name_parts = name.split(".")
+        if len(name_parts) != 2:
             return None
-        domain = parts[0]
-        service = parts[1]
-        if not cls.hass.services.has_service(domain, service):
+
+        domain, service = name_parts
+        if not cls.service_has_service(domain, service):
             return None
 
         async def service_call(*args, **kwargs):
             await cls.hass.services.async_call(domain, service, kwargs)
+
+        # service_call = functools.partial(cls.service_call, domain, service)
 
         return service_call
 
@@ -218,17 +211,14 @@ class Function:
         try:
             await coro
         except asyncio.CancelledError:
-            if task in cls.unique_task2name:
-                cls.unique_name2task.pop(cls.unique_task2name[task], None)
-                cls.unique_task2name.pop(task, None)
-            cls.our_tasks.discard(task)
             raise
         except Exception:  # pylint: disable=broad-except
             _LOGGER.error("run_coro: %s", traceback.format_exc(-1))
-        if task in cls.unique_task2name:
-            cls.unique_name2task.pop(cls.unique_task2name[task], None)
-            cls.unique_task2name.pop(task, None)
-        cls.our_tasks.discard(task)
+        finally:
+            if task in cls.unique_task2name:
+                del cls.unique_name2task[cls.unique_task2name[task]]
+                del cls.unique_task2name[task]
+            cls.our_tasks.discard(task)
 
     @classmethod
     def create_task(cls, coro):

@@ -1,18 +1,102 @@
 """Test the pyscript component."""
-from ast import literal_eval
 import asyncio
-from datetime import datetime as dt
 import pathlib
 import time
+from ast import literal_eval
+from datetime import datetime as dt
 
-from custom_components.pyscript.const import DOMAIN
-import custom_components.pyscript.trigger as trigger
-
+import pytest
 from homeassistant import loader
 from homeassistant.const import EVENT_HOMEASSISTANT_STARTED, EVENT_STATE_CHANGED
 from homeassistant.setup import async_setup_component
+from pytest_homeassistant.async_mock import MagicMock, Mock, mock_open, patch
 
-from pytest_homeassistant.async_mock import mock_open, patch
+import custom_components.pyscript.trigger as trigger
+from custom_components.pyscript.const import DOMAIN
+from custom_components.pyscript.function import Function
+
+
+@pytest.fixture()
+def ast_functions():
+    return {
+        "domain_ast.func_name": lambda ast_ctx: ast_ctx.func(),
+        "domain_ast.other_func": lambda ast_ctx: ast_ctx.func(),
+    }
+
+
+@pytest.fixture
+def functions():
+    mock_func = Mock()
+
+    return {
+        "domain.func_1": mock_func,
+        "domain.func_2": mock_func,
+        "helpers.get_today": mock_func,
+        "helpers.entity_id": mock_func,
+    }
+
+
+@pytest.fixture
+def services():
+    return {
+        "domain": {"turn_on": None, "turn_off": None, "toggle": None},
+        "helpers": {"set_state": None, "restart": None},
+    }
+
+
+def test_install_ast_funcs(ast_functions):
+    ast_ctx = MagicMock()
+    ast_ctx.func.return_value = "ok"
+
+    with patch.object(Function, "ast_functions", ast_functions):
+        Function.install_ast_funcs(ast_ctx)
+        assert len(ast_ctx.method_calls) == 3
+
+
+@pytest.mark.parametrize(
+    "root,expected",
+    [
+        ("helpers", {"helpers.entity_id", "helpers.get_today"}),
+        (
+                "domain",
+                {
+                    "domain.func_2",
+                    "domain_ast.func_name",
+                    "domain_ast.other_func",
+                    "domain.func_1",
+                },
+        ),
+        ("domain_", {"domain_ast.func_name", "domain_ast.other_func"}),
+        ("domain_ast.func", {"domain_ast.func_name"}),
+        ("no match", set()),
+    ],
+    ids=lambda x: x if not isinstance(x, (set,)) else f"set({len(x)})",
+)
+async def test_func_completions(ast_functions, functions, root, expected):
+    with patch.object(Function, "ast_functions", ast_functions), patch.object(
+            Function, "functions", functions
+    ):
+        words = await Function.func_completions(root)
+        assert words == expected
+
+
+@pytest.mark.parametrize(
+    "root,expected",
+    [
+        ("do", {"domain"}),
+        ("domain.t", {"domain.toggle", "domain.turn_on", "domain.turn_off"}),
+        ("domain.turn", {"domain.turn_on", "domain.turn_off"}),
+        ("helpers.set", {"helpers.set_state"}),
+        ("no match", set()),
+    ],
+    ids=lambda x: x if not isinstance(x, (set,)) else f"set({len(x)})",
+)
+async def test_service_completions(root, expected, hass, services):
+    with patch.object(
+            hass.services, "async_services", return_value=services
+    ), patch.object(Function, "hass", hass):
+        words = await Function.service_completions(root)
+        assert words == expected
 
 
 async def setup_script(hass, notify_q, now, source):
@@ -34,14 +118,10 @@ async def setup_script(hass, notify_q, now, source):
 
     with patch(
         "homeassistant.loader.async_get_integration", return_value=integration,
-    ), patch(
-        "custom_components.pyscript.os.path.isdir", return_value=True
-    ), patch(
+    ), patch("custom_components.pyscript.os.path.isdir", return_value=True), patch(
         "custom_components.pyscript.glob.iglob", return_value=scripts
     ), patch(
-        "custom_components.pyscript.open",
-        mock_open(read_data=source),
-        create=True,
+        "custom_components.pyscript.open", mock_open(read_data=source), create=True,
     ), patch(
         "custom_components.pyscript.trigger.dt_now", return_value=now
     ):
@@ -157,7 +237,8 @@ def func4(trigger_type=None, event_type=None, **kwargs):
     seq_num += 1
     res = task.wait_until(state_trigger="pyscript.f4var2 == '10'", timeout=10)
     log.info(f"func4 trigger_type = {res}")
-    pyscript.done = [seq_num, res, pyscript.setVar1, pyscript.setVar1.attr1, state.get("pyscript.setVar1.attr2"), pyscript.setVar2, state.get("pyscript.setVar3")]
+    pyscript.done = [seq_num, res, pyscript.setVar1, pyscript.setVar1.attr1, state.get("pyscript.setVar1.attr2"), 
+    pyscript.setVar2, state.get("pyscript.setVar3")]
 
     seq_num += 1
     #
