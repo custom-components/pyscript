@@ -269,14 +269,9 @@ timerTriggerNextTests = [
         ],
     ],
     [
-        # invalid fields treated as "*" (warning to log)
+        # invalid cron expression returns None
         ["cron(0 14 1-2-3 x *)"],
-        [
-            dt(2019, 9, 1, 14, 0, 0, 0),
-            dt(2019, 9, 2, 14, 0, 0, 0),
-            dt(2019, 9, 3, 14, 0, 0, 0),
-            dt(2019, 9, 4, 14, 0, 0, 0),
-        ],
+        [None],
     ],
 ]
 
