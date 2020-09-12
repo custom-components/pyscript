@@ -9,6 +9,7 @@ import re
 import time
 
 from croniter import croniter
+
 import homeassistant.helpers.sun as sun
 
 from .const import LOGGER_PATH
@@ -95,19 +96,21 @@ class TrigTime:
         Function.register_ast(ast_funcs)
 
         for i in range(0, 7):
-            cls.dow2int[locale.nl_langinfo(getattr(locale, f"ABDAY_{i + 1}")).lower()] = i
+            cls.dow2int[
+                locale.nl_langinfo(getattr(locale, f"ABDAY_{i + 1}")).lower()
+            ] = i
             cls.dow2int[locale.nl_langinfo(getattr(locale, f"DAY_{i + 1}")).lower()] = i
 
     @classmethod
     async def wait_until(
-            cls,
-            ast_ctx,
-            state_trigger=None,
-            state_check_now=True,
-            time_trigger=None,
-            event_trigger=None,
-            timeout=None,
-            **kwargs,
+        cls,
+        ast_ctx,
+        state_trigger=None,
+        state_check_now=True,
+        time_trigger=None,
+        event_trigger=None,
+        timeout=None,
+        **kwargs,
     ):
         """Wait for zero or more triggers, until an optional timeout."""
         if state_trigger is None and time_trigger is None and event_trigger is None:
@@ -286,9 +289,7 @@ class TrigTime:
         else:
             skip = False
         if day_offset != 0:
-            now = dt.datetime(year, month, day) + dt.timedelta(
-                days=day_offset
-            )
+            now = dt.datetime(year, month, day) + dt.timedelta(days=day_offset)
             year = now.year
             month = now.month
             day = now.day
@@ -297,7 +298,7 @@ class TrigTime:
         if skip:
             i = dt_str.find(" ")
             if i >= 0:
-                dt_str = dt_str[i + 1:].strip()
+                dt_str = dt_str[i + 1 :].strip()
             else:
                 return now
 
@@ -337,7 +338,7 @@ class TrigTime:
         if skip:
             i = dt_str.find(" ")
             if i >= 0:
-                dt_str = dt_str[i + 1:].strip()
+                dt_str = dt_str[i + 1 :].strip()
             else:
                 return now
         #
@@ -408,7 +409,9 @@ class TrigTime:
                     _LOGGER.error(f"Invalid cron expression: {cron_match}")
                     return None
 
-                val = croniter(cron_match.group("cron_expr"), now, dt.datetime).get_next()
+                val = croniter(
+                    cron_match.group("cron_expr"), now, dt.datetime
+                ).get_next()
                 if next_time is None or val < next_time:
                     next_time = val
 
@@ -438,7 +441,7 @@ class TrigTime:
                 period = parse_time_offset(match2[2].strip())
                 if now >= start and period > 0:
                     secs = period * (
-                            1.0 + math.floor((now - start).total_seconds() / period)
+                        1.0 + math.floor((now - start).total_seconds() / period)
                     )
                     this_t = start + dt.timedelta(seconds=secs)
                     if match2[3] is None:
@@ -446,7 +449,7 @@ class TrigTime:
                             next_time = this_t
                     else:
                         if now < this_t <= end and (
-                                next_time is None or this_t < next_time
+                            next_time is None or this_t < next_time
                         ):
                             next_time = this_t
                         if next_time is None or now >= end:
@@ -466,7 +469,7 @@ class TrigInfo:
     """Class for all trigger-decorated functions."""
 
     def __init__(
-            self, name, trig_cfg, global_ctx=None,
+        self, name, trig_cfg, global_ctx=None,
     ):
         """Create a new TrigInfo."""
         self.name = name
@@ -681,10 +684,10 @@ class TrigInfo:
                 # check for @task_unique with kill_me=True
                 #
                 if (
-                        self.task_unique is not None
-                        and self.task_unique_kwargs
-                        and self.task_unique_kwargs["kill_me"]
-                        and Function.unique_name_used(self.task_unique)
+                    self.task_unique is not None
+                    and self.task_unique_kwargs
+                    and self.task_unique_kwargs["kill_me"]
+                    and Function.unique_name_used(self.task_unique)
                 ):
                     _LOGGER.debug(
                         "trigger %s got %s trigger, @task_unique kill_me=True prevented new action",

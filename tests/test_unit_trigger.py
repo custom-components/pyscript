@@ -1,11 +1,9 @@
 """Unit tests for time trigger functions."""
 from datetime import datetime as dt
 
-import pytest
-
 from custom_components.pyscript.function import Function
 from custom_components.pyscript.trigger import TrigTime
-
+import pytest
 from pytest_homeassistant.async_mock import patch
 
 parseDateTimeTests = [
