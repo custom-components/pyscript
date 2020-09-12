@@ -364,7 +364,7 @@ class TrigTime:
             range_expr = re.match(r"range\(([^,]+),\s?([^,]+)\)", active_str)
             if cron_match:
                 if not croniter.is_valid(cron_match.group("cron_expr")):
-                    _LOGGER.error(f"Invalid cron expression: {cron_match}")
+                    _LOGGER.error("Invalid cron expression: %s", cron_match)
                     return False
 
                 this_match = croniter.match(cron_match.group("cron_expr"), now)
@@ -373,7 +373,7 @@ class TrigTime:
                 try:
                     dt_start, dt_end = range_expr.groups()
                 except ValueError as exc:
-                    _LOGGER.error(f"Invalid range expression: {exc}")
+                    _LOGGER.error("Invalid range expression: %s", exc)
                     return False
 
                 start = cls.parse_date_time(dt_start.strip(), 0, now)
@@ -406,7 +406,7 @@ class TrigTime:
             match2 = re.split(r"period\(([^,]*),([^,]*)(?:,([^,]*))?\)", spec)
             if cron_match:
                 if not croniter.is_valid(cron_match.group("cron_expr")):
-                    _LOGGER.error(f"Invalid cron expression: {cron_match}")
+                    _LOGGER.error("Invalid cron expression: %s", cron_match)
                     return None
 
                 val = croniter(

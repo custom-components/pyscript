@@ -7,7 +7,6 @@ import logging
 import yaml
 
 from homeassistant.const import SERVICE_RELOAD
-from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers.service import async_set_service_schema
 
 from .const import DOMAIN, LOGGER_PATH, SERVICE_JUPYTER_KERNEL_START
@@ -108,7 +107,7 @@ class GlobalContext:
                             func_name,
                             str(exc),
                         )
-                        raise HomeAssistantError(exc)
+                        raise exc
                 else:
                     fields = OrderedDict()
                     for arg in func.get_positional_args():

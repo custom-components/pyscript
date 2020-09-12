@@ -47,7 +47,7 @@ def services():
     }
 
 
-def test_install_ast_funcs(ast_functions):
+def test_install_ast_funcs(ast_functions):  # pylint: disable=redefined-outer-name
     """Test installing ast functions."""
     ast_ctx = MagicMock()
     ast_ctx.func.return_value = "ok"
@@ -76,7 +76,9 @@ def test_install_ast_funcs(ast_functions):
     ],
     ids=lambda x: x if not isinstance(x, (set,)) else f"set({len(x)})",
 )
-async def test_func_completions(ast_functions, functions, root, expected):
+async def test_func_completions(
+    ast_functions, functions, root, expected
+):  # pylint: disable=redefined-outer-name
     """Test function name completion."""
     with patch.object(Function, "ast_functions", ast_functions), patch.object(
         Function, "functions", functions
@@ -96,7 +98,9 @@ async def test_func_completions(ast_functions, functions, root, expected):
     ],
     ids=lambda x: x if not isinstance(x, (set,)) else f"set({len(x)})",
 )
-async def test_service_completions(root, expected, hass, services):
+async def test_service_completions(
+    root, expected, hass, services
+):  # pylint: disable=redefined-outer-name
     """Test service name completion."""
     with patch.object(
         hass.services, "async_services", return_value=services

@@ -51,7 +51,6 @@ class KernelBufferingHandler(logging.handlers.BufferingHandler):
 
     def flush(self):
         """Flush is a no-op."""
-        pass
 
     def shouldFlush(self, record):
         """Write the buffer to the housekeeping queue."""

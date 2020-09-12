@@ -597,7 +597,7 @@ class AstEval:
                                         + "\n\nDuring handling of the above exception, another exception occurred:\n\n"
                                         + self.exception_long
                                     )
-                                raise self.exception_obj  # pylint: disable=raising-bad-type
+                                raise self.exception_obj  # pylint: disable=raising-bad-type disable=raise-missing-from
                     if handler.name is not None:
                         del self.sym_table[handler.name]
                     break
@@ -720,7 +720,9 @@ class AstEval:
             try:
                 vals = [*(val.__iter__())]
             except Exception:  # pylint: disable=broad-except
-                raise TypeError("cannot unpack non-iterable object")
+                raise TypeError(
+                    "cannot unpack non-iterable object"
+                )  # pylint: disable=raise-missing-from
             got_star = 0
             for lhs_elt in lhs.elts:
                 if isinstance(lhs_elt, ast.Starred):

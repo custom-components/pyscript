@@ -216,7 +216,7 @@ class Function:
         cls.our_tasks.add(task)
         try:
             await coro
-        except asyncio.CancelledError:
+        except asyncio.CancelledError:  # pylint: disable=try-except-raise
             raise
         except Exception:  # pylint: disable=broad-except
             _LOGGER.error("run_coro: %s", traceback.format_exc(-1))
