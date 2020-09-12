@@ -631,26 +631,28 @@ class AstEval:
             raise exc from cause
         raise exc
 
-    async def ast_with(self, arg):
+    async def ast_with(self, arg, async_attr=""):
         """Execute with statement."""
         hit_except = False
         ctx_list = []
         val = None
+        enter_attr = f"__{async_attr}enter__"
+        exit_attr = f"__{async_attr}exit__"
         try:
             for item in arg.items:
                 manager = await self.aeval(item.context_expr)
                 ctx_list.append(
                     {
                         "manager": manager,
-                        "enter": type(manager).__enter__,
-                        "exit": type(manager).__exit__,
+                        "enter": getattr(type(manager), enter_attr),
+                        "exit": getattr(type(manager), exit_attr),
                         "target": item.optional_vars,
                     }
                 )
             for ctx in ctx_list:
                 if ctx["target"]:
                     value = await self.call_func(
-                        ctx["enter"], "__enter__", [ctx["manager"]], {}
+                        ctx["enter"], enter_attr, [ctx["manager"]], {}
                     )
                     await self.recurse_assign(ctx["target"], value)
             for arg1 in arg.body:
@@ -662,7 +664,7 @@ class AstEval:
             exit_ok = True
             for ctx in reversed(ctx_list):
                 ret = await self.call_func(
-                    ctx["exit"], "__exit__", [ctx["manager"], *sys.exc_info()], {}
+                    ctx["exit"], exit_attr, [ctx["manager"], *sys.exc_info()], {}
                 )
                 exit_ok = exit_ok and ret
             if not exit_ok:
@@ -671,13 +673,13 @@ class AstEval:
             if not hit_except:
                 for ctx in reversed(ctx_list):
                     await self.call_func(
-                        ctx["exit"], "__exit__", [ctx["manager"], None, None, None], {}
+                        ctx["exit"], exit_attr, [ctx["manager"], None, None, None], {}
                     )
         return val
 
     async def ast_asyncwith(self, arg):
         """Execute async with statement."""
-        return await self.ast_with(arg)
+        return await self.ast_with(arg, async_attr="a")
 
     async def ast_pass(self, arg):
         """Execute pass statement."""
