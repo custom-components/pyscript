@@ -130,8 +130,10 @@ this is just an example.)
 
 <div class='note'>
 
-You'll need to look at the log messages to see the output. The log message won't be visible
-unless the [Logger](/integrations/logger/) is enabled at least for level `info`, for example:
+You'll need to look at the log messages to see the output (unless you are using Jupyter, in which
+case all log messages will be displayed, independent of the log setting).  The log message won't be
+visible unless the [Logger](/integrations/logger/) is enabled at least for level `info`, for
+example:
 ```yaml
 logger:
   default: info
