@@ -359,14 +359,14 @@ class TrigTime:
                 negate = True
                 active_str = active_str.replace("not ", "")
 
-            cron_expr = re.match(r"cron\((.*)\)", active_str)
+            cron_match = re.match(r"cron\((?P<cron_expr>.*)\)", active_str)
             range_expr = re.match(r"range\(([^,]+),\s?([^,]+)\)", active_str)
-            if cron_expr:
-                if not croniter.is_valid(cron_expr.group(1)):
-                    _LOGGER.error(f"Invalid cron expression: {cron_expr}")
+            if cron_match:
+                if not croniter.is_valid(cron_match.group("cron_expr")):
+                    _LOGGER.error(f"Invalid cron expression: {cron_match}")
                     return False
 
-                this_match = croniter.match(cron_expr.group(1), now)
+                this_match = croniter.match(cron_match.group("cron_expr"), now)
 
             elif range_expr:
                 try:
@@ -400,15 +400,15 @@ class TrigTime:
         if not isinstance(time_spec, list):
             time_spec = [time_spec]
         for spec in time_spec:  # pylint: disable=too-many-nested-blocks
-            cron_expr = re.search(r"cron\((.*)\)", spec)
+            cron_match = re.search(r"cron\((?P<cron_expr>.*)\)", spec)
             match1 = re.split(r"once\((.*)\)", spec)
             match2 = re.split(r"period\(([^,]*),([^,]*)(?:,([^,]*))?\)", spec)
-            if cron_expr:
-                if not croniter.is_valid(cron_expr.group(1)):
-                    _LOGGER.error(f"Invalid cron expression: {cron_expr}")
+            if cron_match:
+                if not croniter.is_valid(cron_match.group("cron_expr")):
+                    _LOGGER.error(f"Invalid cron expression: {cron_match}")
                     return None
 
-                val = croniter(cron_expr.group(1), now, dt.datetime).get_next()
+                val = croniter(cron_match.group("cron_expr"), now, dt.datetime).get_next()
                 if next_time is None or val < next_time:
                     next_time = val
 
