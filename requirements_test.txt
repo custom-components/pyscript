@@ -1,4 +1,5 @@
-croniter==0.3.34
+croniter>=0.3.34
+pre-commit
 pytest
-pytest-cov==2.9.0
+pytest-cov>=2.9.0
 pytest-homeassistant

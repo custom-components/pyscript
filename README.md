@@ -818,9 +818,10 @@ changes will be lost, since reloading a script file recreates a new global conte
 
 ## Contributing
 
-Contributions are welcome! You are encouraged to submit PRs, bug reports, feature requests or
-add to the Wiki with examples and tutorials. It would be fun to hear about unique and clever
-applications you develop.
+Contributions are welcome! You are encouraged to submit PRs, bug reports, feature requests or add to
+the Wiki with examples and tutorials. It would be fun to hear about unique and clever applications
+you develop. Please see this [README](https://github.com/custom-components/pyscript/tree/master/tests)
+for setting up a development environment and running tests.
 
 ## Useful Links
 
