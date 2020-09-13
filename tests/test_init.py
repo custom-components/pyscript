@@ -24,19 +24,12 @@ async def setup_script(hass, notify_q, now, source):
         hass,
         "custom_components.pyscript",
         pathlib.Path("custom_components/pyscript"),
-        {
-            "name": "pyscript",
-            "dependencies": [],
-            "requirements": [],
-            "domain": "automation",
-        },
+        {"name": "pyscript", "dependencies": [], "requirements": [], "domain": "automation"},
     )
 
-    with patch(
-        "homeassistant.loader.async_get_integration", return_value=integration,
-    ), patch("custom_components.pyscript.os.path.isdir", return_value=True), patch(
-        "custom_components.pyscript.glob.iglob", return_value=scripts
-    ), patch(
+    with patch("homeassistant.loader.async_get_integration", return_value=integration), patch(
+        "custom_components.pyscript.os.path.isdir", return_value=True
+    ), patch("custom_components.pyscript.glob.iglob", return_value=scripts), patch(
         "custom_components.pyscript.open", mock_open(read_data=source), create=True,
     ), patch(
         "custom_components.pyscript.trigger.dt_now", return_value=now
@@ -72,17 +65,12 @@ async def test_setup_fails_on_no_dir(hass, caplog):
         hass,
         "custom_components.pyscript",
         pathlib.Path("custom_components/pyscript"),
-        {
-            "name": "pyscript",
-            "dependencies": [],
-            "requirements": [],
-            "domain": "automation",
-        },
+        {"name": "pyscript", "dependencies": [], "requirements": [], "domain": "automation"},
     )
 
-    with patch(
-        "homeassistant.loader.async_get_integration", return_value=integration,
-    ), patch("custom_components.pyscript.os.path.isdir", return_value=False):
+    with patch("homeassistant.loader.async_get_integration", return_value=integration), patch(
+        "custom_components.pyscript.os.path.isdir", return_value=False
+    ):
         res = await async_setup_component(hass, "pyscript", {DOMAIN: {}})
 
     assert not res
@@ -192,19 +180,11 @@ fields:
         hass,
         "custom_components.pyscript",
         pathlib.Path("custom_components/pyscript"),
-        {
-            "name": "pyscript",
-            "dependencies": [],
-            "requirements": [],
-            "domain": "automation",
-        },
+        {"name": "pyscript", "dependencies": [], "requirements": [], "domain": "automation"},
     )
 
-    with patch(
-        "homeassistant.loader.async_get_integration", return_value=integration
-    ), patch(
-        "homeassistant.loader.async_get_custom_components",
-        return_value={"pyscript": integration},
+    with patch("homeassistant.loader.async_get_integration", return_value=integration), patch(
+        "homeassistant.loader.async_get_custom_components", return_value={"pyscript": integration},
     ):
         descriptions = await async_get_all_descriptions(hass)
 
@@ -267,36 +247,26 @@ def call_service(domain=None, name=None, **kwargs):
     assert "this is func1 x = 5" in caplog.text
 
     await hass.services.async_call(
-        "pyscript",
-        "call_service",
-        {"domain": "pyscript", "name": "func1", "arg1": "string1"},
+        "pyscript", "call_service", {"domain": "pyscript", "name": "func1", "arg1": "string1"},
     )
     ret = await wait_until_done(notify_q)
     assert literal_eval(ret) == [5, "string1", 2]
 
-    await hass.services.async_call(
-        "pyscript", "func1", {"arg1": "string1", "arg2": 123}
-    )
+    await hass.services.async_call("pyscript", "func1", {"arg1": "string1", "arg2": 123})
     ret = await wait_until_done(notify_q)
     assert literal_eval(ret) == [5, "string1", 123]
 
-    await hass.services.async_call(
-        "pyscript", "call_service", {"domain": "pyscript", "name": "func2"}
-    )
+    await hass.services.async_call("pyscript", "call_service", {"domain": "pyscript", "name": "func2"})
     ret = await wait_until_done(notify_q)
     assert literal_eval(ret) == [5, {}, 1, 0]
 
     await hass.services.async_call(
-        "pyscript",
-        "call_service",
-        {"domain": "pyscript", "name": "func2", "arg1": "string1"},
+        "pyscript", "call_service", {"domain": "pyscript", "name": "func2", "arg1": "string1"},
     )
     ret = await wait_until_done(notify_q)
     assert literal_eval(ret) == [5, {"arg1": "string1"}, 1, 0]
 
-    await hass.services.async_call(
-        "pyscript", "func2", {"arg1": "string1", "arg2": 123}
-    )
+    await hass.services.async_call("pyscript", "func2", {"arg1": "string1", "arg2": 123})
     ret = await wait_until_done(notify_q)
     assert literal_eval(ret) == [5, {"arg1": "string1", "arg2": 123}, 1, 0]
 
@@ -418,22 +388,13 @@ def func5(var_name=None, value=None):
             hass,
             "custom_components.pyscript",
             pathlib.Path("custom_components/pyscript"),
-            {
-                "name": "pyscript",
-                "dependencies": [],
-                "requirements": [],
-                "domain": "automation",
-            },
+            {"name": "pyscript", "dependencies": [], "requirements": [], "domain": "automation"},
         )
 
-        with patch(
-            "homeassistant.loader.async_get_integration", return_value=integration,
-        ), patch("custom_components.pyscript.os.path.isdir", return_value=True), patch(
-            "custom_components.pyscript.glob.iglob", return_value=scripts
-        ), patch(
-            "custom_components.pyscript.open",
-            mock_open(read_data=next_source),
-            create=True,
+        with patch("homeassistant.loader.async_get_integration", return_value=integration), patch(
+            "custom_components.pyscript.os.path.isdir", return_value=True
+        ), patch("custom_components.pyscript.glob.iglob", return_value=scripts), patch(
+            "custom_components.pyscript.open", mock_open(read_data=next_source), create=True,
         ), patch(
             "custom_components.pyscript.trigger.dt_now", return_value=now
         ):

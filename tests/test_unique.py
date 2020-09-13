@@ -22,19 +22,12 @@ async def setup_script(hass, notify_q, now, source):
         hass,
         "custom_components.pyscript",
         pathlib.Path("custom_components/pyscript"),
-        {
-            "name": "pyscript",
-            "dependencies": [],
-            "requirements": [],
-            "domain": "automation",
-        },
+        {"name": "pyscript", "dependencies": [], "requirements": [], "domain": "automation"},
     )
 
-    with patch(
-        "homeassistant.loader.async_get_integration", return_value=integration,
-    ), patch("custom_components.pyscript.os.path.isdir", return_value=True), patch(
-        "custom_components.pyscript.glob.iglob", return_value=scripts
-    ), patch(
+    with patch("homeassistant.loader.async_get_integration", return_value=integration), patch(
+        "custom_components.pyscript.os.path.isdir", return_value=True
+    ), patch("custom_components.pyscript.glob.iglob", return_value=scripts), patch(
         "custom_components.pyscript.open", mock_open(read_data=source), create=True,
     ), patch(
         "custom_components.pyscript.trigger.dt_now", return_value=now

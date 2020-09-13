@@ -202,9 +202,7 @@ class EvalFunc:
         self.num_posn_arg = len(self.func_def.args.args) - len(self.defaults)
         self.kw_defaults = []
         for val in self.func_def.args.kw_defaults:
-            self.kw_defaults.append(
-                {"ok": bool(val), "val": None if not val else await ast_ctx.aeval(val)}
-            )
+            self.kw_defaults.append({"ok": bool(val), "val": None if not val else await ast_ctx.aeval(val)})
 
     async def eval_decorators(self, ast_ctx):
         """Evaluate the function decorators arguments."""
@@ -225,9 +223,7 @@ class EvalFunc:
             elif isinstance(dec, ast.Name):
                 self.decorators.append([dec.id, None, None])
             else:
-                _LOGGER.error(
-                    "function %s has unexpected decorator type %s", self.name, dec
-                )
+                _LOGGER.error("function %s has unexpected decorator type %s", self.name, dec)
 
     def get_decorators(self):
         """Return the function decorators."""
@@ -252,9 +248,7 @@ class EvalFunc:
             raise
         except Exception as err:  # pylint: disable=broad-except
             if ast_ctx.exception_long is None:
-                ast_ctx.exception_long = ast_ctx.format_exc(
-                    err, arg.lineno, arg.col_offset
-                )
+                ast_ctx.exception_long = ast_ctx.format_exc(err, arg.lineno, arg.col_offset)
 
     async def call(self, ast_ctx, args=None, kwargs=None):
         """Call the function with the given context and arguments."""
@@ -268,9 +262,7 @@ class EvalFunc:
             if i < len(args):
                 val = args[i]
                 if var_name in kwargs:
-                    raise TypeError(
-                        f"{self.name}() got multiple values for argument '{var_name}'"
-                    )
+                    raise TypeError(f"{self.name}() got multiple values for argument '{var_name}'")
             elif var_name in kwargs:
                 val = kwargs[var_name]
                 del kwargs[var_name]
@@ -289,17 +281,13 @@ class EvalFunc:
             elif i < len(self.kw_defaults) and self.kw_defaults[i]["ok"]:
                 val = self.kw_defaults[i]["val"]
             else:
-                raise TypeError(
-                    f"{self.name}() missing required keyword-only arguments"
-                )
+                raise TypeError(f"{self.name}() missing required keyword-only arguments")
             sym_table[var_name] = val
         if self.func_def.args.kwarg:
             sym_table[self.func_def.args.kwarg.arg] = kwargs
         if self.func_def.args.vararg:
             if len(args) > len(self.func_def.args.args):
-                sym_table[self.func_def.args.vararg.arg] = tuple(
-                    args[len(self.func_def.args.args) :]
-                )
+                sym_table[self.func_def.args.vararg.arg] = tuple(args[len(self.func_def.args.args) :])
             else:
                 sym_table[self.func_def.args.vararg.arg] = ()
         elif len(args) > len(self.func_def.args.args):
@@ -354,9 +342,7 @@ class AstEval:
         self.logger = None
         self.set_logger_name(logger_name if logger_name is not None else self.name)
         self.allow_all_imports = (
-            global_ctx.hass.data[DOMAIN]["allow_all_imports"]
-            if global_ctx.hass is not None
-            else False
+            global_ctx.hass.data[DOMAIN]["allow_all_imports"] if global_ctx.hass is not None else False
         )
 
     async def ast_not_implemented(self, arg, *args):
@@ -401,9 +387,7 @@ class AstEval:
             if not self.allow_all_imports and imp.name not in ALLOWED_IMPORTS:
                 raise ModuleNotFoundError(f"import of {imp.name} not allowed")
             if imp.name not in sys.modules:
-                mod = await Function.hass.async_add_executor_job(
-                    importlib.import_module, imp.name
-                )
+                mod = await Function.hass.async_add_executor_job(importlib.import_module, imp.name)
             else:
                 mod = sys.modules[imp.name]
             self.sym_table[imp.name if imp.asname is None else imp.asname] = mod
@@ -413,9 +397,7 @@ class AstEval:
         if not self.allow_all_imports and arg.module not in ALLOWED_IMPORTS:
             raise ModuleNotFoundError(f"import from {arg.module} not allowed")
         if arg.module not in sys.modules:
-            mod = await Function.hass.async_add_executor_job(
-                importlib.import_module, arg.module
-            )
+            mod = await Function.hass.async_add_executor_job(importlib.import_module, arg.module)
         else:
             mod = sys.modules[arg.module]
         for imp in arg.names:
@@ -424,9 +406,7 @@ class AstEval:
                     if name[0] != "_":
                         self.sym_table[name] = value
             else:
-                self.sym_table[
-                    imp.name if imp.asname is None else imp.asname
-                ] = getattr(mod, imp.name)
+                self.sym_table[imp.name if imp.asname is None else imp.asname] = getattr(mod, imp.name)
 
     async def ast_if(self, arg):
         """Execute if statement."""
@@ -529,10 +509,7 @@ class AstEval:
     async def ast_lambda(self, arg):
         """Evaluate lambda definition."""
         funcdef = ast.FunctionDef(
-            args=arg.args,
-            body=[ast.Return(value=arg.body)],
-            name="lambda",
-            decorator_list=None,
+            args=arg.args, body=[ast.Return(value=arg.body)], name="lambda", decorator_list=None,
         )
         func = EvalFunc(funcdef, self.code_list, self.code_str)
         await func.eval_defaults(self)
@@ -651,9 +628,7 @@ class AstEval:
                 )
             for ctx in ctx_list:
                 if ctx["target"]:
-                    value = await self.call_func(
-                        ctx["enter"], enter_attr, [ctx["manager"]], {}
-                    )
+                    value = await self.call_func(ctx["enter"], enter_attr, [ctx["manager"]], {})
                     await self.recurse_assign(ctx["target"], value)
             for arg1 in arg.body:
                 val = await self.aeval(arg1)
@@ -663,18 +638,14 @@ class AstEval:
             hit_except = True
             exit_ok = True
             for ctx in reversed(ctx_list):
-                ret = await self.call_func(
-                    ctx["exit"], exit_attr, [ctx["manager"], *sys.exc_info()], {}
-                )
+                ret = await self.call_func(ctx["exit"], exit_attr, [ctx["manager"], *sys.exc_info()], {})
                 exit_ok = exit_ok and ret
             if not exit_ok:
                 raise
         finally:
             if not hit_except:
                 for ctx in reversed(ctx_list):
-                    await self.call_func(
-                        ctx["exit"], exit_attr, [ctx["manager"], None, None, None], {}
-                    )
+                    await self.call_func(ctx["exit"], exit_attr, [ctx["manager"], None, None, None], {})
         return val
 
     async def ast_asyncwith(self, arg):
@@ -720,9 +691,7 @@ class AstEval:
             try:
                 vals = [*(val.__iter__())]
             except Exception:  # pylint: disable=broad-except
-                raise TypeError(
-                    "cannot unpack non-iterable object"
-                )  # pylint: disable=raise-missing-from
+                raise TypeError("cannot unpack non-iterable object")  # pylint: disable=raise-missing-from
             got_star = 0
             for lhs_elt in lhs.elts:
                 if isinstance(lhs_elt, ast.Starred):
@@ -735,17 +704,14 @@ class AstEval:
                     err_msg = f"{len(lhs.elts)}"
                 raise ValueError(f"too few values to unpack (expected {err_msg})")
             if len(lhs.elts) < len(vals) and got_star == 0:
-                raise ValueError(
-                    f"too many values to unpack (expected {len(lhs.elts)})"
-                )
+                raise ValueError(f"too many values to unpack (expected {len(lhs.elts)})")
             val_idx = 0
             for lhs_elt in lhs.elts:
                 if isinstance(lhs_elt, ast.Starred):
                     star_len = len(vals) - len(lhs.elts) + 1
                     star_name = lhs_elt.value.id
                     await self.recurse_assign(
-                        ast.Name(id=star_name, ctx=ast.Store()),
-                        vals[val_idx : val_idx + star_len],
+                        ast.Name(id=star_name, ctx=ast.Store()), vals[val_idx : val_idx + star_len],
                     )
                     val_idx += star_len
                 else:
@@ -767,9 +733,7 @@ class AstEval:
                 var_name.setattr(val)
                 return
             if not isinstance(var_name, str):
-                raise NotImplementedError(
-                    f"unknown lhs type {lhs} (got {var_name}) in assign"
-                )
+                raise NotImplementedError(f"unknown lhs type {lhs} (got {var_name}) in assign")
             if var_name.find(".") >= 0:
                 State.set(var_name, val)
                 return
@@ -793,9 +757,7 @@ class AstEval:
     async def ast_augassign(self, arg):
         """Execute augmented assignment statement (lhs <BinOp>= value)."""
         arg.target.ctx = ast.Load()
-        new_val = await self.aeval(
-            ast.BinOp(left=arg.target, op=arg.op, right=arg.value)
-        )
+        new_val = await self.aeval(ast.BinOp(left=arg.target, op=arg.op, right=arg.value))
         arg.target.ctx = ast.Store()
         await self.recurse_assign(arg.target, new_val)
 
@@ -824,9 +786,7 @@ class AstEval:
                         step = await self.aeval(arg1.slice.step)
                     del var[slice(lower, upper, step)]
                 else:
-                    raise NotImplementedError(
-                        f"{self.name}: not implemented slice type {arg1.slice} in del"
-                    )
+                    raise NotImplementedError(f"{self.name}: not implemented slice type {arg1.slice} in del")
             elif isinstance(arg1, ast.Name):
                 if self.curr_func and arg1.id in self.curr_func.global_names:
                     if arg1.id in self.global_sym_table:
@@ -912,11 +872,7 @@ class AstEval:
                 return self.global_sym_table[arg.id]
             if arg.id in BUILTIN_AST_FUNCS_FACTORY:
                 return BUILTIN_AST_FUNCS_FACTORY[arg.id](self)
-            if (
-                hasattr(builtins, arg.id)
-                and arg.id not in BUILTIN_EXCLUDE
-                and arg.id[0] != "_"
-            ):
+            if hasattr(builtins, arg.id) and arg.id not in BUILTIN_EXCLUDE and arg.id[0] != "_":
                 return getattr(builtins, arg.id)
             if Function.get(arg.id):
                 return Function.get(arg.id)
@@ -1205,9 +1161,7 @@ class AstEval:
             else:
                 kwargs[kw_arg.arg] = await self.aeval(kw_arg.value)
         args = await self.eval_elt_list(arg.args)
-        arg_str = ", ".join(
-            ['"' + elt + '"' if isinstance(elt, str) else str(elt) for elt in args]
-        )
+        arg_str = ", ".join(['"' + elt + '"' if isinstance(elt, str) else str(elt) for elt in args])
         #
         # try to deduce function name, although this only works in simple cases
         #
@@ -1240,11 +1194,7 @@ class AstEval:
 
     async def ast_ifexp(self, arg):
         """Evaluate if expression."""
-        return (
-            await self.aeval(arg.body)
-            if (await self.aeval(arg.test))
-            else await self.aeval(arg.orelse)
-        )
+        return await self.aeval(arg.body) if (await self.aeval(arg.test)) else await self.aeval(arg.orelse)
 
     async def ast_num(self, arg):
         """Evaluate number."""
@@ -1430,9 +1380,7 @@ class AstEval:
                 var = self.global_sym_table[name]
                 try:
                     for attr in var.__dir__():
-                        if attr.lower().startswith(attr_root) and (
-                            attr_root != "" or attr[0:1] != "_"
-                        ):
+                        if attr.lower().startswith(attr_root) and (attr_root != "" or attr[0:1] != "_"):
                             value = getattr(var, attr, None)
                             if callable(value) or isinstance(value, EvalFunc):
                                 words.add(f"{name}.{attr}")
@@ -1474,9 +1422,7 @@ class AstEval:
                 raise
             except Exception as err:  # pylint: disable=broad-except
                 if self.exception_long is None:
-                    self.exception_long = self.format_exc(
-                        err, self.lineno, self.col_offset
-                    )
+                    self.exception_long = self.format_exc(err, self.lineno, self.col_offset)
         return None
 
     def dump(self):

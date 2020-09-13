@@ -58,10 +58,7 @@ evalTests = [
     ["args = [1, 5, 10]; {6, *args, 15}", {1, 5, 6, 10, 15}],
     ["args = [1, 5, 10]; [6, *args, 15]", [6, 1, 5, 10, 15]],
     ["kw = {'x': 1, 'y': 5}; {**kw}", {"x": 1, "y": 5}],
-    [
-        "kw = {'x': 1, 'y': 5}; kw2 = {'z': 10}; {**kw, **kw2}",
-        {"x": 1, "y": 5, "z": 10},
-    ],
+    ["kw = {'x': 1, 'y': 5}; kw2 = {'z': 10}; {**kw, **kw2}", {"x": 1, "y": 5, "z": 10}],
     ["[*iter([1, 2, 3])]", [1, 2, 3]],
     ["{*iter([1, 2, 3])}", {1, 2, 3}],
     ["if 1: x = 10\nelse: x = 20\nx", 10],
@@ -69,23 +66,14 @@ evalTests = [
     ["i = 0\nwhile i < 5: i += 1\ni", 5],
     ["i = 0\nwhile i < 5: i += 2\ni", 6],
     ["i = 0\nwhile i < 5:\n    i += 1\n    if i == 3: break\n2 * i", 6],
-    [
-        "i = 0; k = 10\nwhile i < 5:\n    i += 1\n    if i <= 2: continue\n    k += 1\nk + i",
-        18,
-    ],
+    ["i = 0; k = 10\nwhile i < 5:\n    i += 1\n    if i <= 2: continue\n    k += 1\nk + i", 18],
     ["i = 1; break; i = 1/0", None],
     ["s = 0;\nfor i in range(5):\n    s += i\ns", 10],
     ["s = 0;\nfor i in iter([10,20,30]):\n    s += i\ns", 60],
-    [
-        "z = {'foo': 'bar', 'foo2': 12}; z['foo'] = 'bar2'; z",
-        {"foo": "bar2", "foo2": 12},
-    ],
+    ["z = {'foo': 'bar', 'foo2': 12}; z['foo'] = 'bar2'; z", {"foo": "bar2", "foo2": 12}],
     ["z = {'foo': 'bar', 'foo2': 12}; z['foo'] = 'bar2'; z.keys()", {"foo", "foo2"}],
     ["z = {'foo', 'bar', 12}; z", {"foo", "bar", 12}],
-    [
-        "x = dict(key1 = 'value1', key2 = 'value2'); x",
-        {"key1": "value1", "key2": "value2"},
-    ],
+    ["x = dict(key1 = 'value1', key2 = 'value2'); x", {"key1": "value1", "key2": "value2"}],
     [
         "x = dict(key1 = 'value1', key2 = 'value2', key3 = 'value3'); del x['key1']; x",
         {"key2": "value2", "key3": "value3"},
@@ -105,35 +93,14 @@ evalTests = [
     ["[0, 1, 2, 3, 4, 5, 6, 7, 8][:4:]", [0, 1, 2, 3]],
     ["[0, 1, 2, 3, 4, 5, 6, 7, 8][::2]", [0, 2, 4, 6, 8]],
     ["[0, 1, 2, 3, 4, 5, 6, 7, 8][::]", [0, 1, 2, 3, 4, 5, 6, 7, 8]],
-    [
-        "z = [0, 1, 2, 3, 4, 5, 6, 7, 8]; z[1:5:2] = [6, 8]; z",
-        [0, 6, 2, 8, 4, 5, 6, 7, 8],
-    ],
+    ["z = [0, 1, 2, 3, 4, 5, 6, 7, 8]; z[1:5:2] = [6, 8]; z", [0, 6, 2, 8, 4, 5, 6, 7, 8]],
     ["z = [0, 1, 2, 3, 4, 5, 6, 7, 8]; z[1:5] = [10, 11]; z", [0, 10, 11, 5, 6, 7, 8]],
-    [
-        "z = [0, 1, 2, 3, 4, 5, 6, 7, 8]; z[1::3] = [10, 11, 12]; z",
-        [0, 10, 2, 3, 11, 5, 6, 12, 8],
-    ],
-    [
-        "z = [0, 1, 2, 3, 4, 5, 6, 7, 8]; z[4::] = [10, 11, 12, 13]; z",
-        [0, 1, 2, 3, 10, 11, 12, 13],
-    ],
-    [
-        "z = [0, 1, 2, 3, 4, 5, 6, 7, 8]; z[4:] = [10, 11, 12, 13, 14]; z",
-        [0, 1, 2, 3, 10, 11, 12, 13, 14],
-    ],
-    [
-        "z = [0, 1, 2, 3, 4, 5, 6, 7, 8]; z[:6:2] = [10, 11, 12]; z",
-        [10, 1, 11, 3, 12, 5, 6, 7, 8],
-    ],
-    [
-        "z = [0, 1, 2, 3, 4, 5, 6, 7, 8]; z[:4:] = [10, 11, 12, 13]; z",
-        [10, 11, 12, 13, 4, 5, 6, 7, 8],
-    ],
-    [
-        "z = [0, 1, 2, 3, 4, 5, 6, 7, 8]; z[::2] = [10, 11, 12, 13, 14]; z",
-        [10, 1, 11, 3, 12, 5, 13, 7, 14],
-    ],
+    ["z = [0, 1, 2, 3, 4, 5, 6, 7, 8]; z[1::3] = [10, 11, 12]; z", [0, 10, 2, 3, 11, 5, 6, 12, 8]],
+    ["z = [0, 1, 2, 3, 4, 5, 6, 7, 8]; z[4::] = [10, 11, 12, 13]; z", [0, 1, 2, 3, 10, 11, 12, 13]],
+    ["z = [0, 1, 2, 3, 4, 5, 6, 7, 8]; z[4:] = [10, 11, 12, 13, 14]; z", [0, 1, 2, 3, 10, 11, 12, 13, 14]],
+    ["z = [0, 1, 2, 3, 4, 5, 6, 7, 8]; z[:6:2] = [10, 11, 12]; z", [10, 1, 11, 3, 12, 5, 6, 7, 8]],
+    ["z = [0, 1, 2, 3, 4, 5, 6, 7, 8]; z[:4:] = [10, 11, 12, 13]; z", [10, 11, 12, 13, 4, 5, 6, 7, 8]],
+    ["z = [0, 1, 2, 3, 4, 5, 6, 7, 8]; z[::2] = [10, 11, 12, 13, 14]; z", [10, 1, 11, 3, 12, 5, 13, 7, 14]],
     [
         "z = [0, 1, 2, 3, 4, 5, 6, 7, 8]; z[::] = [10, 11, 12, 13, 14, 15, 16, 17]; z",
         [10, 11, 12, 13, 14, 15, 16, 17],
@@ -142,16 +109,10 @@ evalTests = [
     ["a, b = (x, y) = (1, 2); [a, b, x, y]", [1, 2, 1, 2]],
     ["y = [1,2]; (x, y[0]) = (3, 4); [x, y]", [3, [4, 2]]],
     ["((x, y), (z, t)) = ((1, 2), (3, 4)); [x, y, z, t]", [1, 2, 3, 4]],
-    [
-        "z = [1,2,3]; ((x, y), (z[2], t)) = ((1, 2), (20, 4)); [x, y, z, t]",
-        [1, 2, [1, 2, 20], 4],
-    ],
+    ["z = [1,2,3]; ((x, y), (z[2], t)) = ((1, 2), (20, 4)); [x, y, z, t]", [1, 2, [1, 2, 20], 4]],
     ["a, b, c = [1,2,3]; [a, b, c]", [1, 2, 3]],
     ["a, b, c = iter([1,2,3]); [a, b, c]", [1, 2, 3]],
-    [
-        "tuples = [(1, 2), (3, 4), (5, 6)]; a, b = zip(*tuples); [a, b]",
-        [(1, 3, 5), (2, 4, 6)],
-    ],
+    ["tuples = [(1, 2), (3, 4), (5, 6)]; a, b = zip(*tuples); [a, b]", [(1, 3, 5), (2, 4, 6)]],
     ["a, *y, w, z = range(3); [a, y, w, z]", [0, [], 1, 2]],
     ["a, *y, w, z = range(4); [a, y, w, z]", [0, [1], 2, 3]],
     ["a, *y, w, z = range(6); [a, y, w, z]", [0, [1, 2, 3], 4, 5]],
@@ -163,14 +124,8 @@ evalTests = [
     ["Foo = type('Foo', (), {'x': 100}); Foo.x = 10; Foo.x", 10],
     ["Foo = type('Foo', (), {'x': 100}); Foo.x += 10; Foo.x", 110],
     ["Foo = [type('Foo', (), {'x': 100})]; Foo[0].x = 10; Foo[0].x", 10],
-    [
-        "Foo = [type('Foo', (), {'x': [100, 101]})]; Foo[0].x[1] = 10; Foo[0].x",
-        [100, 10],
-    ],
-    [
-        "Foo = [type('Foo', (), {'x': [0, [[100, 101]]]})]; Foo[0].x[1][0][1] = 10; Foo[0].x[1]",
-        [[100, 10]],
-    ],
+    ["Foo = [type('Foo', (), {'x': [100, 101]})]; Foo[0].x[1] = 10; Foo[0].x", [100, 10]],
+    ["Foo = [type('Foo', (), {'x': [0, [[100, 101]]]})]; Foo[0].x[1][0][1] = 10; Foo[0].x[1]", [[100, 10]]],
     [
         "Foo = [type('Foo', (), {'x': [0, [[100, 101, 102, 103]]]})]; Foo[0].x[1][0][1:2] = [11, 12]; Foo[0].x[1]",
         [[100, 11, 12, 102, 103]],
@@ -192,13 +147,7 @@ state.set("pyscript.var1", pyscript.var1, {})
 chk5 = state.get_attr("pyscript.var1")
 [chk1, chk2, chk3, chk4, chk5]
 """,
-        [
-            [1, 3.5],
-            [1, 3.5],
-            [1, 3.5, "abc"],
-            {"attr1": 1, "attr2": 3.5, "attr3": "abc"},
-            {},
-        ],
+        [[1, 3.5], [1, 3.5], [1, 3.5, "abc"], {"attr1": 1, "attr2": 3.5, "attr3": "abc"}, {}],
     ],
     ["eval('1+2')", 3],
     ["x = 5; eval('2 * x')", 10],
@@ -207,10 +156,7 @@ chk5 = state.get_attr("pyscript.var1")
     ["g = {'xyz': 10}; eval('xyz', g, {})", 10],
     ["g = {'xyz': 10}; eval('xyz', {}, g)", 10],
     ["g = {'xyz': 10}; exec('xyz = 20', {}, g); g", {"xyz": 20}],
-    [
-        "g = {'xyz': 10}; xyz = 'abc'; exec('xyz = 20', g, {}); [g['xyz'], xyz]",
-        [10, "abc"],
-    ],
+    ["g = {'xyz': 10}; xyz = 'abc'; exec('xyz = 20', g, {}); [g['xyz'], xyz]", [10, "abc"]],
     ["g = {'xyz': 10}; exec('xyz = 20', {}, g); g", {"xyz": 20}],
     ["x = 18; locals()['x']", 18],
     ["import math; globals()['math'].sqrt(1024)", 32],
@@ -222,10 +168,7 @@ chk5 = state.get_attr("pyscript.var1")
     ["from math import *\nsqrt(1024)", 32],
     ["from math import sin, floor, sqrt; [sqrt(9), floor(10.5)]", [3, 10]],
     ["from math import *; [sqrt(9), floor(10.5)]", [3, 10]],
-    [
-        "from math import floor as floor_alt, sqrt as sqrt_alt; [sqrt_alt(9), floor_alt(10.5)]",
-        [3, 10],
-    ],
+    ["from math import floor as floor_alt, sqrt as sqrt_alt; [sqrt_alt(9), floor_alt(10.5)]", [3, 10]],
     ["task.executor(sum, range(5))", 10],
     ["task.executor(int, 'ff', base=16)", 255],
     ["[i for i in range(7) if i != 5 if i != 3]", [0, 1, 2, 4, 6]],
@@ -283,23 +226,10 @@ def no_op(i):
         [{0, 1, 2, 4, 6}, 13],
     ],
     ["{str(i):i for i in range(5) if i != 3}", {"0": 0, "1": 1, "2": 2, "4": 4}],
-    [
-        "{v:k for k,v in {str(i):i for i in range(5)}.items()}",
-        {0: "0", 1: "1", 2: "2", 3: "3", 4: "4"},
-    ],
+    ["{v:k for k,v in {str(i):i for i in range(5)}.items()}", {0: "0", 1: "1", 2: "2", 3: "3", 4: "4"}],
     [
         "{f'{i}+{k}':i+k for i in range(3) for k in range(3)}",
-        {
-            "0+0": 0,
-            "0+1": 1,
-            "0+2": 2,
-            "1+0": 1,
-            "1+1": 2,
-            "1+2": 3,
-            "2+0": 2,
-            "2+1": 3,
-            "2+2": 4,
-        },
+        {"0+0": 0, "0+1": 1, "0+2": 2, "1+0": 1, "1+1": 2, "1+2": 3, "2+0": 2, "2+1": 3, "2+2": 4},
     ],
     [
         "{f'{i}+{k}':i+k for i in range(3) for k in range(3) if k <= i}",
@@ -461,13 +391,7 @@ def foo(cnt=4):
     return sum
 [foo(3), foo(6), foo(10), foo(20), foo()]
 """,
-        [
-            sum(range(3)),
-            sum(range(6)),
-            1000 + sum(range(7)),
-            1000 + sum(range(7)),
-            sum(range(4)),
-        ],
+        [sum(range(3)), sum(range(6)), 1000 + sum(range(7)), 1000 + sum(range(7)), sum(range(4))],
     ],
     [
         """
@@ -482,13 +406,7 @@ def foo(cnt=5):
     return sum
 [foo(3), foo(6), foo(10), foo(20), foo()]
 """,
-        [
-            sum(range(3)),
-            sum(range(6)) - 4,
-            sum(range(9)) - 4 - 8,
-            sum(range(9)) - 4 - 8,
-            sum(range(5)) - 4,
-        ],
+        [sum(range(3)), sum(range(6)) - 4, sum(range(9)) - 4 - 8, sum(range(9)) - 4 - 8, sum(range(5)) - 4],
     ],
     [
         """
@@ -576,11 +494,7 @@ def foo(x=30, *args, y = 123, **kwargs):
     return [x, y, args, kwargs]
 [foo(a = 10, b = 3), foo(40, 7, 8, 9, a = 10, y = 3), foo(x=42)]
 """,
-        [
-            [30, 123, (), {"a": 10, "b": 3}],
-            [40, 3, (7, 8, 9), {"a": 10}],
-            [42, 123, (), {}],
-        ],
+        [[30, 123, (), {"a": 10, "b": 3}], [40, 3, (7, 8, 9), {"a": 10}], [42, 123, (), {}]],
     ],
     [
         """
@@ -597,13 +511,7 @@ def foo(arg1=None, **kwargs):
     return [arg1, kwargs]
 [foo(), foo(arg1=1), foo(arg2=20), foo(arg1=10, arg2=20), foo(**{'arg2': 30})]
 """,
-        [
-            [None, {}],
-            [1, {}],
-            [None, {"arg2": 20}],
-            [10, {"arg2": 20}],
-            [None, {"arg2": 30}],
-        ],
+        [[None, {}], [1, {}], [None, {"arg2": 20}], [10, {"arg2": 20}], [None, {"arg2": 30}]],
     ],
     [
         """
@@ -820,39 +728,24 @@ async def test_eval(hass):
 evalTestsExceptions = [
     [None, "parsing error compile() arg 1 must be a string, bytes or AST object"],
     ["1+", "syntax error invalid syntax (test, line 1)"],
-    [
-        "1+'x'",
-        "Exception in test line 1 column 2: unsupported operand type(s) for +: 'int' and 'str'",
-    ],
+    ["1+'x'", "Exception in test line 1 column 2: unsupported operand type(s) for +: 'int' and 'str'"],
     ["xx", "Exception in test line 1 column 0: name 'xx' is not defined"],
-    [
-        "(x, y) = (1, 2, 4)",
-        "Exception in test line 1 column 16: too many values to unpack (expected 2)",
-    ],
+    ["(x, y) = (1, 2, 4)", "Exception in test line 1 column 16: too many values to unpack (expected 2)"],
     [
         "(x, y) = iter([1, 2, 4])",
         "Exception in test line 1 column 21: too many values to unpack (expected 2)",
     ],
-    [
-        "(x, y, z) = (1, 2)",
-        "Exception in test line 1 column 16: too few values to unpack (expected 3)",
-    ],
+    ["(x, y, z) = (1, 2)", "Exception in test line 1 column 16: too few values to unpack (expected 3)"],
     [
         "(x, y, z) = iter([1, 2])",
         "Exception in test line 1 column 21: too few values to unpack (expected 3)",
     ],
-    [
-        "(x, y) = 1",
-        "Exception in test line 1 column 9: cannot unpack non-iterable object",
-    ],
+    ["(x, y) = 1", "Exception in test line 1 column 9: cannot unpack non-iterable object"],
     [
         "a, *y, w, z = range(2)",
         "Exception in test line 1 column 20: too few values to unpack (expected at least 3)",
     ],
-    [
-        "assert 1 == 0, 'this is an error'",
-        "Exception in test line 1 column 15: this is an error",
-    ],
+    ["assert 1 == 0, 'this is an error'", "Exception in test line 1 column 15: this is an error"],
     ["assert 1 == 0", "Exception in test line 1 column 12: "],
     [
         "import math; math.sinXYZ",
@@ -863,10 +756,7 @@ evalTestsExceptions = [
     ["break", "Exception in test line 1 column 0: break statement outside loop"],
     ["continue", "Exception in test line 1 column 0: continue statement outside loop"],
     ["raise", "Exception in test line 1 column 0: No active exception to reraise"],
-    [
-        "yield",
-        "Exception in test line 1 column 0: test: not implemented ast ast_yield",
-    ],
+    ["yield", "Exception in test line 1 column 0: test: not implemented ast ast_yield"],
     [
         "import cmath; exec('xyz = cmath.sqrt(complex(3, 4))', {})",
         "Exception in test line 1 column 54: Exception in exec() line 1 column 28: 'sqrt' is not callable (got None)",
@@ -888,14 +778,8 @@ evalTestsExceptions = [
         "def func(*a, b):\n    pass\nfunc(1, 2)",
         "Exception in test line 3 column 8: func() missing required keyword-only arguments",
     ],
-    [
-        "import asyncio",
-        "Exception in test line 1 column 0: import of asyncio not allowed",
-    ],
-    [
-        "from asyncio import xyz",
-        "Exception in test line 1 column 0: import from asyncio not allowed",
-    ],
+    ["import asyncio", "Exception in test line 1 column 0: import of asyncio not allowed"],
+    ["from asyncio import xyz", "Exception in test line 1 column 0: import from asyncio not allowed"],
     [
         """
 def func():

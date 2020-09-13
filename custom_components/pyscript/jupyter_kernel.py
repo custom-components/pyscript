@@ -97,9 +97,7 @@ class ZmqSocket:
         # _LOGGER.debug(f"handshake: got initial greeting {greeting}")
         await self.write_bytes(b"\x03")
         _ = await self.read_bytes(1)
-        await self.write_bytes(
-            b"\x00" + "NULL".encode() + b"\x00" * 16 + b"\x00" + b"\x00" * 31
-        )
+        await self.write_bytes(b"\x00" + "NULL".encode() + b"\x00" * 16 + b"\x00" + b"\x00" * 31)
         _ = await self.read_bytes(53)
         # _LOGGER.debug(f"handshake: got rest of greeting {greeting}")
         params = [["Socket-Type", self.type]]
@@ -165,7 +163,7 @@ class ZmqSocket:
         if len_msg <= 255:
             raw_msg = bytearray([0x1, 0x0, 0x0, len_msg]) + msg
         else:
-            raw_msg = bytearray([0x3, 0x0, 0x2]) + pack(">Q", len_msg) + msg
+            raw_msg = bytearray([0x1, 0x0, 0x2]) + pack(">Q", len_msg) + msg
         # _LOGGER.debug(f"send: sending {raw_msg}")
         await self.write_bytes(raw_msg)
 
@@ -200,8 +198,7 @@ class Kernel:
         self.secure_key = str_to_bytes(self.config["key"])
         self.signature_schemes = {"hmac-sha256": hashlib.sha256}
         self.auth = hmac.HMAC(
-            self.secure_key,
-            digestmod=self.signature_schemes[self.config["signature_scheme"]],
+            self.secure_key, digestmod=self.signature_schemes[self.config["signature_scheme"]],
         )
         self.execution_count = 1
         self.engine_id = str(uuid.uuid4())
@@ -296,13 +293,7 @@ class Kernel:
         }
 
     async def send(
-        self,
-        stream,
-        msg_type,
-        content=None,
-        parent_header=None,
-        metadata=None,
-        identities=None,
+        self, stream, msg_type, content=None, parent_header=None, metadata=None, identities=None,
     ):
         """Send message to the Jupyter client."""
         header = self.new_header(msg_type)
@@ -343,9 +334,7 @@ class Kernel:
         content = {
             "execution_state": "busy",
         }
-        await self.send(
-            self.iopub_socket, "status", content, parent_header=msg["header"]
-        )
+        await self.send(self.iopub_socket, "status", content, parent_header=msg["header"])
 
         if msg["header"]["msg_type"] == "execute_request":
 
@@ -353,9 +342,7 @@ class Kernel:
                 "execution_count": self.execution_count,
                 "code": msg["content"]["code"],
             }
-            await self.send(
-                self.iopub_socket, "execute_input", content, parent_header=msg["header"]
-            )
+            await self.send(self.iopub_socket, "execute_input", content, parent_header=msg["header"])
 
             code = msg["content"]["code"]
             self.ast_ctx.parse(code)
@@ -389,16 +376,12 @@ class Kernel:
                     identities=identities,
                 )
                 del content["execution_count"], content["status"]
-                await self.send(
-                    self.iopub_socket, "error", content, parent_header=msg["header"]
-                )
+                await self.send(self.iopub_socket, "error", content, parent_header=msg["header"])
 
                 content = {
                     "execution_state": "idle",
                 }
-                await self.send(
-                    self.iopub_socket, "status", content, parent_header=msg["header"]
-                )
+                await self.send(self.iopub_socket, "status", content, parent_header=msg["header"])
                 if msg["content"].get("store_history", True):
                     self.execution_count += 1
                 return
@@ -412,10 +395,7 @@ class Kernel:
                     "metadata": {},
                 }
                 await self.send(
-                    self.iopub_socket,
-                    "execute_result",
-                    content,
-                    parent_header=msg["header"],
+                    self.iopub_socket, "execute_result", content, parent_header=msg["header"],
                 )
 
             metadata = {
@@ -469,10 +449,6 @@ class Kernel:
             )
 
         elif msg["header"]["msg_type"] == "complete_request":
-            await self.send(
-                self.iopub_socket, "status", content, parent_header=msg["header"]
-            )
-
             code = msg["content"]["code"]
             posn = msg["content"]["cursor_pos"]
             match = self.completion_re.match(code[0:posn].lower())
@@ -494,11 +470,7 @@ class Kernel:
                 "metadata": {},
             }
             await self.send(
-                shell_socket,
-                "complete_reply",
-                content,
-                parent_header=msg["header"],
-                identities=identities,
+                shell_socket, "complete_reply", content, parent_header=msg["header"], identities=identities,
             )
 
         elif msg["header"]["msg_type"] == "is_complete_request":
@@ -560,21 +532,13 @@ class Kernel:
         elif msg["header"]["msg_type"] == "comm_info_request":
             content = {"comms": {}}
             await self.send(
-                shell_socket,
-                "comm_info_reply",
-                content,
-                parent_header=msg["header"],
-                identities=identities,
+                shell_socket, "comm_info_reply", content, parent_header=msg["header"], identities=identities,
             )
 
         elif msg["header"]["msg_type"] == "history_request":
             content = {"history": []}
             await self.send(
-                shell_socket,
-                "history_reply",
-                content,
-                parent_header=msg["header"],
-                identities=identities,
+                shell_socket, "history_reply", content, parent_header=msg["header"], identities=identities,
             )
 
         else:
@@ -583,9 +547,7 @@ class Kernel:
         content = {
             "execution_state": "idle",
         }
-        await self.send(
-            self.iopub_socket, "status", content, parent_header=msg["header"]
-        )
+        await self.send(self.iopub_socket, "status", content, parent_header=msg["header"])
 
     async def control_listen(self, reader, writer):
         """Task that listens to control messages."""
@@ -614,9 +576,7 @@ class Kernel:
             raise
         except EOFError:
             _LOGGER.debug("control_listen got eof")
-            await self.housekeep_q.put(
-                ["unregister", "control", asyncio.current_task()]
-            )
+            await self.housekeep_q.put(["unregister", "control", asyncio.current_task()])
             control_socket.close()
         except Exception as err:  # pylint: disable=broad-except
             _LOGGER.error("control_listen exception %s", err)
@@ -667,9 +627,7 @@ class Kernel:
         """Task that listens and responds to heart beat messages."""
         try:
             _LOGGER.debug("heartbeat_listen connected")
-            await self.housekeep_q.put(
-                ["register", "heartbeat", asyncio.current_task()]
-            )
+            await self.housekeep_q.put(["register", "heartbeat", asyncio.current_task()])
             heartbeat_socket = ZmqSocket(reader, writer, "REP")
             await heartbeat_socket.handshake()
             while 1:
@@ -680,9 +638,7 @@ class Kernel:
             raise
         except EOFError:
             _LOGGER.debug("heartbeat_listen got eof")
-            await self.housekeep_q.put(
-                ["unregister", "heartbeat", asyncio.current_task()]
-            )
+            await self.housekeep_q.put(["unregister", "heartbeat", asyncio.current_task()])
             heartbeat_socket.close()
         except Exception:  # pylint: disable=broad-except
             _LOGGER.error("heartbeat_listen exception: %s", traceback.format_exc(-1))
@@ -719,10 +675,7 @@ class Kernel:
                     content = {"name": "stdout", "text": msg[1] + "\n"}
                     if self.iopub_socket:
                         await self.send(
-                            self.iopub_socket,
-                            "stream",
-                            content,
-                            parent_header=self.parent_header,
+                            self.iopub_socket, "stream", content, parent_header=self.parent_header,
                         )
                 elif msg[0] == "register":
                     if msg[1] not in self.tasks:
@@ -756,40 +709,30 @@ class Kernel:
 
     async def startup_timeout(self):
         """Shut down the session if nothing connects after 30 seconds."""
-        await self.housekeep_q.put(
-            ["register", "startup_timeout", asyncio.current_task()]
-        )
+        await self.housekeep_q.put(["register", "startup_timeout", asyncio.current_task()])
         await asyncio.sleep(30)
         if self.task_cnt_max == 1:
             #
             # nothing started other than us, so shut down the session
             #
-            _LOGGER.error(
-                "No connections to session %s; shutting down", self.global_ctx_name
-            )
+            _LOGGER.error("No connections to session %s; shutting down", self.global_ctx_name)
             if self.session_cleanup_callback:
                 self.session_cleanup_callback()
                 self.session_cleanup_callback = None
             await self.housekeep_q.put(["shutdown"])
-        await self.housekeep_q.put(
-            ["unregister", "startup_timeout", asyncio.current_task()]
-        )
+        await self.housekeep_q.put(["unregister", "startup_timeout", asyncio.current_task()])
 
     async def start_one_server(self, callback):
         """Start a server by finding an available port."""
         first_port = self.avail_port
         for _ in range(2048):
             try:
-                server = await asyncio.start_server(
-                    callback, "0.0.0.0", self.avail_port
-                )
+                server = await asyncio.start_server(callback, "0.0.0.0", self.avail_port)
                 return server, self.avail_port
             except OSError:
                 self.avail_port += 1
         _LOGGER.error(
-            "unable to find an available port from %d to %d",
-            first_port,
-            self.avail_port - 1,
+            "unable to find an available port from %d to %d", first_port, self.avail_port - 1,
         )
         return None, None
 
@@ -815,21 +758,11 @@ class Kernel:
         self.tasks["housekeep"] = {asyncio.create_task(self.housekeep_run())}
         self.tasks["startup_timeout"] = {asyncio.create_task(self.startup_timeout())}
 
-        self.iopub_server, self.iopub_port = await self.start_one_server(
-            self.iopub_listen
-        )
-        self.heartbeat_server, self.heartbeat_port = await self.start_one_server(
-            self.heartbeat_listen
-        )
-        self.control_server, self.control_port = await self.start_one_server(
-            self.control_listen
-        )
-        self.stdin_server, self.stdin_port = await self.start_one_server(
-            self.stdin_listen
-        )
-        self.shell_server, self.shell_port = await self.start_one_server(
-            self.shell_listen
-        )
+        self.iopub_server, self.iopub_port = await self.start_one_server(self.iopub_listen)
+        self.heartbeat_server, self.heartbeat_port = await self.start_one_server(self.heartbeat_listen)
+        self.control_server, self.control_port = await self.start_one_server(self.control_listen)
+        self.stdin_server, self.stdin_port = await self.start_one_server(self.stdin_listen)
+        self.shell_server, self.shell_port = await self.start_one_server(self.shell_listen)
 
         #
         # For debugging, can use the real ZMQ library instead on certain sockets; comment out

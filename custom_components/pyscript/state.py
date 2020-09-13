@@ -60,10 +60,7 @@ class State:
             if len(parts) != 2 and len(parts) != 3:
                 continue
             state_var_name = f"{parts[0]}.{parts[1]}"
-            if (
-                state_var_name not in cls.notify
-                or queue not in cls.notify[state_var_name]
-            ):
+            if state_var_name not in cls.notify or queue not in cls.notify[state_var_name]:
                 return
             del cls.notify[state_var_name][queue]
 

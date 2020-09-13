@@ -30,11 +30,7 @@ _LOGGER = logging.getLogger(LOGGER_PATH)
 CONF_ALLOW_ALL_IMPORTS = "allow_all_imports"
 
 CONFIG_SCHEMA = vol.Schema(
-    {
-        DOMAIN: vol.Schema(
-            {vol.Optional(CONF_ALLOW_ALL_IMPORTS, default=False): cv.boolean}
-        ),
-    },
+    {DOMAIN: vol.Schema({vol.Optional(CONF_ALLOW_ALL_IMPORTS, default=False): cv.boolean})},
     extra=vol.ALLOW_EXTRA,
 )
 
@@ -66,9 +62,7 @@ async def async_setup(hass, config):
 
     async def reload_scripts_handler(call):
         """Handle reload service calls."""
-        _LOGGER.debug(
-            "stopping triggers and services, reloading scripts, and restarting"
-        )
+        _LOGGER.debug("stopping triggers and services, reloading scripts, and restarting")
 
         ctx_delete = {}
         for global_ctx_name, global_ctx in GlobalContextMgr.items():
@@ -110,9 +104,7 @@ async def async_setup(hass, config):
 
         kernel.set_session_cleanup_callback(state_var_remove)
 
-    hass.services.async_register(
-        DOMAIN, SERVICE_JUPYTER_KERNEL_START, jupyter_kernel_start
-    )
+    hass.services.async_register(DOMAIN, SERVICE_JUPYTER_KERNEL_START, jupyter_kernel_start)
 
     async def state_changed(event):
         var_name = event.data["entity_id"]

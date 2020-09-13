@@ -50,9 +50,7 @@ class Event:
         if event_type not in cls.notify:
             cls.notify[event_type] = set()
             _LOGGER.debug("event.notify_add(%s) -> adding event listener", event_type)
-            cls.notify_remove[event_type] = cls.hass.bus.async_listen(
-                event_type, cls.event_listener
-            )
+            cls.notify_remove[event_type] = cls.hass.bus.async_listen(event_type, cls.event_listener)
         cls.notify[event_type].add(queue)
 
     @classmethod

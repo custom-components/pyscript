@@ -96,9 +96,7 @@ class TrigTime:
         Function.register_ast(ast_funcs)
 
         for i in range(0, 7):
-            cls.dow2int[
-                locale.nl_langinfo(getattr(locale, f"ABDAY_{i + 1}")).lower()
-            ] = i
+            cls.dow2int[locale.nl_langinfo(getattr(locale, f"ABDAY_{i + 1}")).lower()] = i
             cls.dow2int[locale.nl_langinfo(getattr(locale, f"DAY_{i + 1}")).lower()] = i
 
     @classmethod
@@ -145,9 +143,7 @@ class TrigTime:
                 return {"trigger_type": "state"}
             state_trig_ident = await state_trig_expr.ast_get_names()
             _LOGGER.debug(
-                "trigger %s wait_until: watching vars %s",
-                ast_ctx.name,
-                state_trig_ident,
+                "trigger %s wait_until: watching vars %s", ast_ctx.name, state_trig_ident,
             )
             if len(state_trig_ident) > 0:
                 State.notify_add(state_trig_ident, notify_q)
@@ -178,10 +174,7 @@ class TrigTime:
                 now = dt_now()
                 time_next = cls.timer_trigger_next(time_trigger, now)
                 _LOGGER.debug(
-                    "trigger %s wait_until time_next = %s, now = %s",
-                    ast_ctx.name,
-                    time_next,
-                    now,
+                    "trigger %s wait_until time_next = %s, now = %s", ast_ctx.name, time_next, now,
                 )
                 if time_next is not None:
                     this_timeout = (time_next - now).total_seconds()
@@ -196,8 +189,7 @@ class TrigTime:
             if this_timeout is None:
                 if state_trigger is None and event_trigger is None:
                     _LOGGER.debug(
-                        "trigger %s wait_until no next time - returning with none",
-                        ast_ctx.name,
+                        "trigger %s wait_until no next time - returning with none", ast_ctx.name,
                     )
                     ret = {"trigger_type": "none"}
                     break
@@ -205,12 +197,8 @@ class TrigTime:
                 notify_type, notify_info = await notify_q.get()
             else:
                 try:
-                    _LOGGER.debug(
-                        "trigger %s wait_until %s secs", ast_ctx.name, this_timeout
-                    )
-                    notify_type, notify_info = await asyncio.wait_for(
-                        notify_q.get(), timeout=this_timeout
-                    )
+                    _LOGGER.debug("trigger %s wait_until %s secs", ast_ctx.name, this_timeout)
+                    notify_type, notify_info = await asyncio.wait_for(notify_q.get(), timeout=this_timeout)
                 except asyncio.TimeoutError:
                     if not ret:
                         ret = {"trigger_type": "time"}
@@ -239,9 +227,7 @@ class TrigTime:
                     break
             else:
                 _LOGGER.error(
-                    "trigger %s wait_until got unexpected queue message %s",
-                    ast_ctx.name,
-                    notify_type,
+                    "trigger %s wait_until got unexpected queue message %s", ast_ctx.name, notify_type,
                 )
 
         if state_trig_ident:
@@ -306,9 +292,7 @@ class TrigTime:
         # parse the time
         #
         skip = True
-        match0 = re.split(
-            r"0*(\d+):0*(\d+)(?::0*(\d*\.?\d+(?:[eE][-+]?\d+)?))?", dt_str
-        )
+        match0 = re.split(r"0*(\d+):0*(\d+)(?::0*(\d*\.?\d+(?:[eE][-+]?\d+)?))?", dt_str)
         if len(match0) == 5:
             if match0[3] is not None:
                 hour, mins, sec = int(match0[1]), int(match0[2]), float(match0[3])
@@ -409,9 +393,7 @@ class TrigTime:
                     _LOGGER.error("Invalid cron expression: %s", cron_match)
                     return None
 
-                val = croniter(
-                    cron_match.group("cron_expr"), now, dt.datetime
-                ).get_next()
+                val = croniter(cron_match.group("cron_expr"), now, dt.datetime).get_next()
                 if next_time is None or val < next_time:
                     next_time = val
 
@@ -440,17 +422,13 @@ class TrigTime:
                     next_time = start
                 period = parse_time_offset(match2[2].strip())
                 if now >= start and period > 0:
-                    secs = period * (
-                        1.0 + math.floor((now - start).total_seconds() / period)
-                    )
+                    secs = period * (1.0 + math.floor((now - start).total_seconds() / period))
                     this_t = start + dt.timedelta(seconds=secs)
                     if match2[3] is None:
                         if now < this_t and (next_time is None or this_t < next_time):
                             next_time = this_t
                     else:
-                        if now < this_t <= end and (
-                            next_time is None or this_t < next_time
-                        ):
+                        if now < this_t <= end and (next_time is None or this_t < next_time):
                             next_time = this_t
                         if next_time is None or now >= end:
                             #
@@ -499,7 +477,7 @@ class TrigInfo:
 
         if self.state_active is not None:
             self.active_expr = AstEval(
-                f"{self.name} @state_active()", self.global_ctx, logger_name=self.name,
+                f"{self.name} @state_active()", self.global_ctx, logger_name=self.name
             )
             Function.install_ast_funcs(self.active_expr)
             self.active_expr.parse(self.state_active)
@@ -519,7 +497,7 @@ class TrigInfo:
 
         if self.state_trigger is not None:
             self.state_trig_expr = AstEval(
-                f"{self.name} @state_trigger()", self.global_ctx, logger_name=self.name,
+                f"{self.name} @state_trigger()", self.global_ctx, logger_name=self.name
             )
             Function.install_ast_funcs(self.state_trig_expr)
             self.state_trig_expr.parse(self.state_trigger)
@@ -532,9 +510,7 @@ class TrigInfo:
         if self.event_trigger is not None:
             if len(self.event_trigger) == 2:
                 self.event_trig_expr = AstEval(
-                    f"{self.name} @event_trigger()",
-                    self.global_ctx,
-                    logger_name=self.name,
+                    f"{self.name} @event_trigger()", self.global_ctx, logger_name=self.name,
                 )
                 Function.install_ast_funcs(self.event_trig_expr)
                 self.event_trig_expr.parse(self.event_trigger[1])
@@ -581,16 +557,12 @@ class TrigInfo:
 
         if self.state_trigger is not None:
             self.state_trig_ident = await self.state_trig_expr.ast_get_names()
-            _LOGGER.debug(
-                "trigger %s: watching vars %s", self.name, self.state_trig_ident
-            )
+            _LOGGER.debug("trigger %s: watching vars %s", self.name, self.state_trig_ident)
             if len(self.state_trig_ident) > 0:
                 State.notify_add(self.state_trig_ident, self.notify_q)
 
         if self.event_trigger is not None:
-            _LOGGER.debug(
-                "trigger %s adding event_trigger %s", self.name, self.event_trigger[0]
-            )
+            _LOGGER.debug("trigger %s adding event_trigger %s", self.name, self.event_trigger[0])
             Event.notify_add(self.event_trigger[0], self.notify_q)
 
         while True:
@@ -609,18 +581,13 @@ class TrigInfo:
                         now = dt_now()
                         time_next = TrigTime.timer_trigger_next(self.time_trigger, now)
                         _LOGGER.debug(
-                            "trigger %s time_next = %s, now = %s",
-                            self.name,
-                            time_next,
-                            now,
+                            "trigger %s time_next = %s, now = %s", self.name, time_next, now,
                         )
                         if time_next is not None:
                             timeout = (time_next - now).total_seconds()
                     if timeout is not None:
                         try:
-                            _LOGGER.debug(
-                                "trigger %s waiting for %s secs", self.name, timeout
-                            )
+                            _LOGGER.debug("trigger %s waiting for %s secs", self.name, timeout)
                             notify_type, notify_info = await asyncio.wait_for(
                                 self.notify_q.get(), timeout=timeout
                             )
@@ -630,9 +597,7 @@ class TrigInfo:
                                 "trigger_time": time_next,
                             }
                     elif self.have_trigger:
-                        _LOGGER.debug(
-                            "trigger %s waiting for state change or event", self.name
-                        )
+                        _LOGGER.debug("trigger %s waiting for state change or event", self.name)
                         notify_type, notify_info = await self.notify_q.get()
                     else:
                         _LOGGER.debug("trigger %s finished", self.name)
@@ -674,9 +639,7 @@ class TrigInfo:
 
                 if not trig_ok:
                     _LOGGER.debug(
-                        "trigger %s got %s trigger, but not active",
-                        self.name,
-                        notify_type,
+                        "trigger %s got %s trigger, but not active", self.name, notify_type,
                     )
                     continue
 
@@ -703,12 +666,7 @@ class TrigInfo:
                     func_args,
                 )
                 Function.create_task(
-                    do_func_call(
-                        self.action,
-                        self.action_ast_ctx,
-                        self.task_unique,
-                        kwargs=func_args,
-                    )
+                    do_func_call(self.action, self.action_ast_ctx, self.task_unique, kwargs=func_args,)
                 )
 
             except asyncio.CancelledError:  # pylint: disable=try-except-raise

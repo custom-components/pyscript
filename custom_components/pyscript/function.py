@@ -122,9 +122,7 @@ class Function:
         """Implement task.executor()."""
         if asyncio.iscoroutinefunction(func) or not callable(func):
             raise TypeError("function is not callable by task.executor()")
-        return await cls.hass.async_add_executor_job(
-            functools.partial(func, **kwargs), *args
-        )
+        return await cls.hass.async_add_executor_job(functools.partial(func, **kwargs), *args)
 
     @classmethod
     def unique_name_used(cls, name):
@@ -150,11 +148,7 @@ class Function:
         if num_period == 1:
             domain, svc_root = root.split(".")
             if domain in services:
-                words |= {
-                    f"{domain}.{svc}"
-                    for svc in services[domain]
-                    if svc.lower().startswith(svc_root)
-                }
+                words |= {f"{domain}.{svc}" for svc in services[domain] if svc.lower().startswith(svc_root)}
         elif num_period == 0:
             words |= {domain for domain in services if domain.lower().startswith(root)}
 

@@ -81,9 +81,9 @@ async def test_parse_date_time(hass, caplog):
     #
     now = dt(2019, 9, 1, 13, 0, 0, 0)
 
-    with patch(
-        "homeassistant.helpers.condition.dt_util.utcnow", return_value=now
-    ), patch("homeassistant.util.dt.utcnow", return_value=now):
+    with patch("homeassistant.helpers.condition.dt_util.utcnow", return_value=now), patch(
+        "homeassistant.util.dt.utcnow", return_value=now
+    ):
         for test_data in parseDateTimeTests:
             spec, date_offset, expect = test_data
             out = TrigTime.parse_date_time(spec, date_offset, now)
@@ -93,9 +93,9 @@ async def test_parse_date_time(hass, caplog):
     # This set of tests assumes it's currently 13:00 on 2019/9/3
     #
     now = dt(2019, 9, 3, 13, 0, 0, 0)
-    with patch(
-        "homeassistant.helpers.condition.dt_util.utcnow", return_value=now
-    ), patch("homeassistant.util.dt.utcnow", return_value=now):
+    with patch("homeassistant.helpers.condition.dt_util.utcnow", return_value=now), patch(
+        "homeassistant.util.dt.utcnow", return_value=now
+    ):
         for test_data in parseDateTimeTests2:
             spec, date_offset, expect = test_data
             out = TrigTime.parse_date_time(spec, date_offset, now)
@@ -106,12 +106,7 @@ async def test_parse_date_time(hass, caplog):
     "spec,now,expected",
     [
         (
-            [
-                "range(1:00, 4:00)",
-                "not range(2:00, 3:00)",
-                "range(22:00, 0:00)",
-                "not range(3:30, 3:45)",
-            ],
+            ["range(1:00, 4:00)", "not range(2:00, 3:00)", "range(22:00, 0:00)", "not range(3:30, 3:45)"],
             dt(2019, 8, 31, 22, 0, 0, 0),
             True,
         ),
@@ -170,27 +165,15 @@ timerTriggerNextTests = [
     [["once(2019/9/10 23:59:13)"], [dt(2019, 9, 10, 23, 59, 13, 0)]],
     [
         ["period(2019/9/1 13:00, 120s)"],
-        [
-            dt(2019, 9, 1, 13, 2, 0, 0),
-            dt(2019, 9, 1, 13, 4, 0, 0),
-            dt(2019, 9, 1, 13, 6, 0, 0),
-        ],
+        [dt(2019, 9, 1, 13, 2, 0, 0), dt(2019, 9, 1, 13, 4, 0, 0), dt(2019, 9, 1, 13, 6, 0, 0)],
     ],
     [
         ["period(13:01, 120s)"],
-        [
-            dt(2019, 9, 1, 13, 1, 0, 0),
-            dt(2019, 9, 1, 13, 3, 0, 0),
-            dt(2019, 9, 1, 13, 5, 0, 0),
-        ],
+        [dt(2019, 9, 1, 13, 1, 0, 0), dt(2019, 9, 1, 13, 3, 0, 0), dt(2019, 9, 1, 13, 5, 0, 0)],
     ],
     [
         ["period(10:01, 120s, 12:00)"],
-        [
-            dt(2019, 9, 2, 10, 1, 0, 0),
-            dt(2019, 9, 2, 10, 3, 0, 0),
-            dt(2019, 9, 2, 10, 5, 0, 0),
-        ],
+        [dt(2019, 9, 2, 10, 1, 0, 0), dt(2019, 9, 2, 10, 3, 0, 0), dt(2019, 9, 2, 10, 5, 0, 0)],
     ],
     [["period(2019/9/1 12:59, 180s)"], [dt(2019, 9, 1, 13, 2, 0, 0)]],
     [["period(2019/9/1 12:50, 180s)"], [dt(2019, 9, 1, 13, 2, 0, 0)]],
@@ -301,11 +284,7 @@ timerTriggerNextTestsMonthRollover = [
     [
         # 1pm every day
         "cron(0 13 * * *)",
-        [
-            dt(2020, 7, 1, 13, 0, 0, 0),
-            dt(2020, 7, 2, 13, 0, 0, 0),
-            dt(2020, 7, 3, 13, 0, 0, 0),
-        ],
+        [dt(2020, 7, 1, 13, 0, 0, 0), dt(2020, 7, 2, 13, 0, 0, 0), dt(2020, 7, 3, 13, 0, 0, 0)],
     ],
     [
         # 1pm on 4th, 5th, 6th of each month

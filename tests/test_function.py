@@ -61,20 +61,12 @@ def test_install_ast_funcs(ast_functions):  # pylint: disable=redefined-outer-na
     "root,expected",
     [
         ("helpers", {"helpers.entity_id", "helpers.get_today"}),
-        (
-            "domain",
-            {
-                "domain.func_2",
-                "domain_ast.func_name",
-                "domain_ast.other_func",
-                "domain.func_1",
-            },
-        ),
+        ("domain", {"domain.func_2", "domain_ast.func_name", "domain_ast.other_func", "domain.func_1"}),
         ("domain_", {"domain_ast.func_name", "domain_ast.other_func"}),
         ("domain_ast.func", {"domain_ast.func_name"}),
         ("no match", set()),
     ],
-    ids=lambda x: x if not isinstance(x, (set,)) else f"set({len(x)})",
+    ids=lambda x: x if not isinstance(x, set) else f"set({len(x)})",
 )
 async def test_func_completions(
     ast_functions, functions, root, expected
@@ -96,15 +88,13 @@ async def test_func_completions(
         ("helpers.set", {"helpers.set_state"}),
         ("no match", set()),
     ],
-    ids=lambda x: x if not isinstance(x, (set,)) else f"set({len(x)})",
+    ids=lambda x: x if not isinstance(x, set) else f"set({len(x)})",
 )
-async def test_service_completions(
-    root, expected, hass, services
-):  # pylint: disable=redefined-outer-name
+async def test_service_completions(root, expected, hass, services):  # pylint: disable=redefined-outer-name
     """Test service name completion."""
-    with patch.object(
-        hass.services, "async_services", return_value=services
-    ), patch.object(Function, "hass", hass):
+    with patch.object(hass.services, "async_services", return_value=services), patch.object(
+        Function, "hass", hass
+    ):
         words = await Function.service_completions(root)
         assert words == expected
 
@@ -118,19 +108,12 @@ async def setup_script(hass, notify_q, now, source):
         hass,
         "custom_components.pyscript",
         pathlib.Path("custom_components/pyscript"),
-        {
-            "name": "pyscript",
-            "dependencies": [],
-            "requirements": [],
-            "domain": "automation",
-        },
+        {"name": "pyscript", "dependencies": [], "requirements": [], "domain": "automation"},
     )
 
-    with patch(
-        "homeassistant.loader.async_get_integration", return_value=integration,
-    ), patch("custom_components.pyscript.os.path.isdir", return_value=True), patch(
-        "custom_components.pyscript.glob.iglob", return_value=scripts
-    ), patch(
+    with patch("homeassistant.loader.async_get_integration", return_value=integration), patch(
+        "custom_components.pyscript.os.path.isdir", return_value=True
+    ), patch("custom_components.pyscript.glob.iglob", return_value=scripts), patch(
         "custom_components.pyscript.open", mock_open(read_data=source), create=True,
     ), patch(
         "custom_components.pyscript.trigger.dt_now", return_value=now
@@ -393,9 +376,7 @@ def func4(trigger_type=None, event_type=None, **kwargs):
     hass.bus.async_fire("test_event3", {"arg1": 12, "arg2": 34})
     hass.bus.async_fire("test_event3", {"arg1": 20, "arg2": 29})
     hass.bus.async_fire("test_event3", {"arg1": 12, "arg2": 30})
-    hass.bus.async_fire(
-        "fire_event", {"new_event": "test_event3", "arg1": 20, "arg2": 30}
-    )
+    hass.bus.async_fire("fire_event", {"new_event": "test_event3", "arg1": 20, "arg2": 30})
     assert literal_eval(await wait_until_done(notify_q)) == [
         seq_num,
         "event",

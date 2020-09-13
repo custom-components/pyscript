@@ -96,16 +96,11 @@ class GlobalContext:
                     try:
                         desc = desc[4:].lstrip(" \n\r")
                         file_desc = io.StringIO(desc)
-                        service_desc = (
-                            yaml.load(file_desc, Loader=yaml.BaseLoader)
-                            or OrderedDict()
-                        )
+                        service_desc = yaml.load(file_desc, Loader=yaml.BaseLoader) or OrderedDict()
                         file_desc.close()
                     except Exception as exc:
                         self.logger.error(
-                            "Unable to decode yaml doc_string for %s(): %s",
-                            func_name,
-                            str(exc),
+                            "Unable to decode yaml doc_string for %s(): %s", func_name, str(exc),
                         )
                         raise exc
                 else:
@@ -145,10 +140,7 @@ class GlobalContext:
                 self.services.add(func_name)
             else:
                 self.logger.warning(
-                    "%s defined in %s: unknown decorator @%s: ignored",
-                    func_name,
-                    self.name,
-                    dec_name,
+                    "%s defined in %s: unknown decorator @%s: ignored", func_name, self.name, dec_name,
                 )
 
         if func_name in self.services and "service" not in decorator_used:
@@ -251,9 +243,7 @@ class GlobalContext:
         if func_name in self.triggers:
             await self.triggers[func_name].stop()
 
-        self.triggers_new[func_name] = TrigInfo(
-            f"{self.name}.{func_name}", trig_args, global_ctx=self,
-        )
+        self.triggers_new[func_name] = TrigInfo(f"{self.name}.{func_name}", trig_args, global_ctx=self,)
 
         if self.auto_start:
             await self.start()
