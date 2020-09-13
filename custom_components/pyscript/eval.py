@@ -35,7 +35,7 @@ def ast_eval_exec_factory(ast_ctx, str_type):
         eval_ast = AstEval(ast_ctx.name, ast_ctx.global_ctx)
         eval_ast.parse(arg_str, f"{str_type}()")
         if eval_ast.exception_obj:
-            raise eval_ast.exception_obj  # pylint: disable=raising-bad-type
+            raise eval_ast.exception_obj
         eval_ast.local_sym_table = ast_ctx.local_sym_table
         if eval_globals is not None:
             eval_ast.global_sym_table = eval_globals
@@ -112,33 +112,33 @@ BUILTIN_AST_FUNCS_FACTORY = {
 class EvalStopFlow:
     """Denotes a statement or action that stops execution flow, eg: return, break etc."""
 
+    _name = None
+
+    def name(self):
+        """Return short name."""
+        return self._name
+
 
 class EvalReturn(EvalStopFlow):
     """Return statement."""
+
+    _name = "return"
 
     def __init__(self, value):
         """Initialize return statement value."""
         self.value = value
 
-    def name(self):  # pylint: disable=no-self-use
-        """Return short name."""
-        return "return"
-
 
 class EvalBreak(EvalStopFlow):
     """Break statement."""
 
-    def name(self):  # pylint: disable=no-self-use
-        """Return short name."""
-        return "break"
+    _name = "break"
 
 
 class EvalContinue(EvalStopFlow):
     """Continue statement."""
 
-    def name(self):  # pylint: disable=no-self-use
-        """Return short name."""
-        return "continue"
+    _name = "continue"
 
 
 class EvalName:
@@ -244,9 +244,9 @@ class EvalFunc:
         """Call self.aeval and capture exceptions."""
         try:
             return await ast_ctx.aeval(arg)
-        except asyncio.CancelledError:  # pylint: disable=try-except-raise
+        except asyncio.CancelledError:
             raise
-        except Exception as err:  # pylint: disable=broad-except
+        except Exception as err:
             if ast_ctx.exception_long is None:
                 ast_ctx.exception_long = ast_ctx.format_exc(err, arg.lineno, arg.col_offset)
 
@@ -361,7 +361,7 @@ class AstEval:
             if undefined_check and isinstance(val, EvalName):
                 raise NameError(f"name '{val.name}' is not defined")
             return val
-        except Exception as err:  # pylint: disable=broad-except
+        except Exception as err:
             if not self.exception_obj:
                 func_name = self.curr_func.get_name() + "(), " if self.curr_func else ""
                 self.exception_obj = err
@@ -527,11 +527,11 @@ class AstEval:
                 if isinstance(val, EvalStopFlow):
                     return val
                 if self.exception_obj is not None:
-                    raise self.exception_obj  # pylint: disable=raising-bad-type
-        except Exception as err:  # pylint: disable=broad-except
+                    raise self.exception_obj
+        except Exception as err:
             curr_exc = self.exception_curr
             self.exception_curr = err
-            for handler in arg.handlers:  # pylint: disable=too-many-nested-blocks
+            for handler in arg.handlers:
                 match = False
                 if handler.type:
                     exc_list = await self.aeval(handler.type)
@@ -560,7 +560,7 @@ class AstEval:
                                     del self.sym_table[handler.name]
                                 self.exception_curr = curr_exc
                                 return val
-                        except Exception:  # pylint: disable=broad-except
+                        except Exception:
                             if self.exception_obj is not None:
                                 if handler.name is not None:
                                     del self.sym_table[handler.name]
@@ -574,7 +574,7 @@ class AstEval:
                                         + "\n\nDuring handling of the above exception, another exception occurred:\n\n"
                                         + self.exception_long
                                     )
-                                raise self.exception_obj  # pylint: disable=raising-bad-type disable=raise-missing-from
+                                raise self.exception_obj  # pylint: disable=raise-missing-from
                     if handler.name is not None:
                         del self.sym_table[handler.name]
                     break
@@ -634,7 +634,7 @@ class AstEval:
                 val = await self.aeval(arg1)
                 if isinstance(val, EvalStopFlow):
                     break
-        except Exception:  # pylint: disable=broad-except
+        except Exception:
             hit_except = True
             exit_ok = True
             for ctx in reversed(ctx_list):
@@ -690,7 +690,7 @@ class AstEval:
         if isinstance(lhs, ast.Tuple):
             try:
                 vals = [*(val.__iter__())]
-            except Exception:  # pylint: disable=broad-except
+            except Exception:
                 raise TypeError("cannot unpack non-iterable object")  # pylint: disable=raise-missing-from
             got_star = 0
             for lhs_elt in lhs.elts:
@@ -1278,9 +1278,9 @@ class AstEval:
             self.exception = f"syntax error {err}"
             self.exception_long = self.format_exc(err, self.lineno, self.col_offset)
             return False
-        except asyncio.CancelledError:  # pylint: disable=try-except-raise
+        except asyncio.CancelledError:
             raise
-        except Exception as err:  # pylint: disable=broad-except
+        except Exception as err:
             self.exception_obj = err
             self.lineno = 1
             self.col_offset = 0
@@ -1372,7 +1372,7 @@ class AstEval:
         """Return potential variable, function or attribute matches."""
         words = set()
         num_period = root.count(".")
-        if num_period >= 1:  # pylint: disable=too-many-nested-blocks
+        if num_period >= 1:
             last_period = root.rfind(".")
             name = root[0:last_period]
             attr_root = root[last_period + 1 :]
@@ -1386,7 +1386,7 @@ class AstEval:
                                 words.add(f"{name}.{attr}")
                             else:
                                 words.add(f"{name}.{attr}")
-                except Exception:  # pylint: disable=broad-except
+                except Exception:
                     pass
         for keyw in set(keyword.kwlist) - {"yield"}:
             if keyw.lower().startswith(root):
@@ -1418,9 +1418,9 @@ class AstEval:
                 if isinstance(val, EvalStopFlow):
                     return None
                 return val
-            except asyncio.CancelledError:  # pylint: disable=try-except-raise
+            except asyncio.CancelledError:
                 raise
-            except Exception as err:  # pylint: disable=broad-except
+            except Exception as err:
                 if self.exception_long is None:
                     self.exception_long = self.format_exc(err, self.lineno, self.col_offset)
         return None

@@ -131,14 +131,14 @@ class TrigTime:
             state_trig_expr.parse(state_trigger)
             exc = state_trig_expr.get_exception_obj()
             if exc is not None:
-                raise exc  # pylint: disable=raising-bad-type
+                raise exc
             #
             # check straight away to see if the condition is met (to avoid race conditions)
             #
             state_trig_ok = await state_trig_expr.eval()
             exc = state_trig_expr.get_exception_obj()
             if exc is not None:
-                raise exc  # pylint: disable=raising-bad-type
+                raise exc
             if state_trig_ok:
                 return {"trigger_type": "state"}
             state_trig_ident = await state_trig_expr.ast_get_names()
@@ -305,7 +305,7 @@ class TrigTime:
                     time_sun = location.sunrise(dt.date(year, month, day))
                 else:
                     time_sun = location.sunset(dt.date(year, month, day))
-            except Exception:  # pylint: disable=broad-except
+            except Exception:
                 _LOGGER.warning("'%s' not defined at this latitude", dt_str)
                 # return something in the past so it is ignored
                 return now - dt.timedelta(days=100)
@@ -384,7 +384,7 @@ class TrigTime:
         next_time = None
         if not isinstance(time_spec, list):
             time_spec = [time_spec]
-        for spec in time_spec:  # pylint: disable=too-many-nested-blocks
+        for spec in time_spec:
             cron_match = re.search(r"cron\((?P<cron_expr>.*)\)", spec)
             match1 = re.split(r"once\((.*)\)", spec)
             match2 = re.split(r"period\(([^,]*),([^,]*)(?:,([^,]*))?\)", spec)
@@ -669,10 +669,10 @@ class TrigInfo:
                     do_func_call(self.action, self.action_ast_ctx, self.task_unique, kwargs=func_args,)
                 )
 
-            except asyncio.CancelledError:  # pylint: disable=try-except-raise
+            except asyncio.CancelledError:
                 raise
 
-            except Exception:  # pylint: disable=broad-except
+            except Exception:
                 # _LOGGER.error(f"{self.name}: " + traceback.format_exc(-1))
                 if self.state_trig_ident:
                     State.notify_del(self.state_trig_ident, self.notify_q)

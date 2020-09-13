@@ -572,13 +572,13 @@ class Kernel:
                         identities=identities,
                     )
                     await self.housekeep_q.put(["shutdown"])
-        except asyncio.CancelledError:  # pylint: disable=try-except-raise
+        except asyncio.CancelledError:
             raise
         except EOFError:
             _LOGGER.debug("control_listen got eof")
             await self.housekeep_q.put(["unregister", "control", asyncio.current_task()])
             control_socket.close()
-        except Exception as err:  # pylint: disable=broad-except
+        except Exception as err:
             _LOGGER.error("control_listen exception %s", err)
             await self.housekeep_q.put(["shutdown"])
 
@@ -592,13 +592,13 @@ class Kernel:
             while 1:
                 _ = await stdin_socket.recv_multipart()
                 # _LOGGER.debug("stdin_listen received %s", _)
-        except asyncio.CancelledError:  # pylint: disable=try-except-raise
+        except asyncio.CancelledError:
             raise
         except EOFError:
             _LOGGER.debug("stdin_listen got eof")
             await self.housekeep_q.put(["unregister", "stdin", asyncio.current_task()])
             stdin_socket.close()
-        except Exception:  # pylint: disable=broad-except
+        except Exception:
             _LOGGER.error("stdin_listen exception %s", traceback.format_exc(-1))
             await self.housekeep_q.put(["shutdown"])
 
@@ -612,14 +612,14 @@ class Kernel:
             while 1:
                 msg = await shell_socket.recv_multipart()
                 await self.shell_handler(shell_socket, msg)
-        except asyncio.CancelledError:  # pylint: disable=try-except-raise
+        except asyncio.CancelledError:
             shell_socket.close()
             raise
         except EOFError:
             _LOGGER.debug("shell_listen got eof")
             await self.housekeep_q.put(["unregister", "shell", asyncio.current_task()])
             shell_socket.close()
-        except Exception:  # pylint: disable=broad-except
+        except Exception:
             _LOGGER.error("shell_listen exception %s", traceback.format_exc(-1))
             await self.housekeep_q.put(["shutdown"])
 
@@ -634,13 +634,13 @@ class Kernel:
                 msg = await heartbeat_socket.recv()
                 # _LOGGER.debug("heartbeat_listen: got %s", msg)
                 await heartbeat_socket.send(msg)
-        except asyncio.CancelledError:  # pylint: disable=try-except-raise
+        except asyncio.CancelledError:
             raise
         except EOFError:
             _LOGGER.debug("heartbeat_listen got eof")
             await self.housekeep_q.put(["unregister", "heartbeat", asyncio.current_task()])
             heartbeat_socket.close()
-        except Exception:  # pylint: disable=broad-except
+        except Exception:
             _LOGGER.error("heartbeat_listen exception: %s", traceback.format_exc(-1))
             await self.housekeep_q.put(["shutdown"])
 
@@ -655,14 +655,14 @@ class Kernel:
             while 1:
                 _ = await iopub_socket.recv_multipart()
                 # _LOGGER.debug("iopub received %s", _)
-        except asyncio.CancelledError:  # pylint: disable=try-except-raise
+        except asyncio.CancelledError:
             raise
         except EOFError:
             await self.housekeep_q.put(["unregister", "iopub", asyncio.current_task()])
             iopub_socket.close()
             self.iopub_socket.discard(iopub_socket)
             _LOGGER.debug("iopub_listen got eof")
-        except Exception:  # pylint: disable=broad-except
+        except Exception:
             _LOGGER.error("iopub_listen exception %s", traceback.format_exc(-1))
             await self.housekeep_q.put(["shutdown"])
 
@@ -702,9 +702,9 @@ class Kernel:
                 elif msg[0] == "shutdown":
                     asyncio.create_task(self.session_shutdown())
                     await asyncio.sleep(10000)
-            except asyncio.CancelledError:  # pylint: disable=try-except-raise
+            except asyncio.CancelledError:
                 raise
-            except Exception:  # pylint: disable=broad-except
+            except Exception:
                 _LOGGER.error("housekeep task exception: %s", traceback.format_exc(-1))
 
     async def startup_timeout(self):
@@ -791,15 +791,15 @@ class Kernel:
         #      try:
         #          _LOGGER.debug("shell_listen_zmq connected")
         #          connection = self.config["transport"] + "://" + self.config["ip"]
-        #          shell_socket = zmq_ctx.socket(zmq.ROUTER)  # pylint: disable=no-member
+        #          shell_socket = zmq_ctx.socket(zmq.ROUTER)
         #          self.shell_port = zmq_bind(shell_socket, connection, -1)
         #          _LOGGER.debug("shell_listen_zmq connected")
         #          while 1:
         #              msg = await shell_socket.recv_multipart()
         #              await self.shell_handler(shell_socket, msg)
-        #      except asyncio.CancelledError:  # pylint: disable=try-except-raise
+        #      except asyncio.CancelledError:
         #          raise
-        #      except Exception:  # pylint: disable=broad-except
+        #      except Exception:
         #          _LOGGER.error("shell_listen exception %s", traceback.format_exc(-1))
         #          await self.housekeep_q.put(["shutdown"])
         #
@@ -811,18 +811,18 @@ class Kernel:
         #      try:
         #          _LOGGER.debug("iopub_listen_zmq connected")
         #          connection = self.config["transport"] + "://" + self.config["ip"]
-        #          iopub_socket = zmq_ctx.socket(zmq.PUB)  # pylint: disable=no-member
+        #          iopub_socket = zmq_ctx.socket(zmq.PUB)
         #          self.iopub_port = zmq_bind(self.iopub_socket, connection, -1)
         #          self.iopub_socket.add(iopub_socket)
         #          while 1:
         #              wire_msg = await iopub_socket.recv_multipart()
         #              _LOGGER.debug("iopub received %s", wire_msg)
-        #      except asyncio.CancelledError:  # pylint: disable=try-except-raise
+        #      except asyncio.CancelledError:
         #          raise
         #      except EOFError:
         #          await self.housekeep_q.put(["shutdown"])
         #          _LOGGER.debug("iopub_listen got eof")
-        #      except Exception as err:  # pylint: disable=broad-except
+        #      except Exception as err:
         #          _LOGGER.error("iopub_listen exception %s", err)
         #          await self.housekeep_q.put(["shutdown"])
         #
@@ -860,14 +860,14 @@ class Kernel:
                 try:
                     task.cancel()
                     await task
-                except asyncio.CancelledError:  # pylint: disable=try-except-raise
+                except asyncio.CancelledError:
                     pass
         self.tasks = []
 
         for sock in self.iopub_socket:
             try:
                 sock.close()
-            except Exception as err:  # pylint: disable=broad-except
+            except Exception as err:
                 _LOGGER.error("iopub socket close exception: %s", err)
 
         self.iopub_socket = set()

@@ -210,9 +210,9 @@ class Function:
         cls.our_tasks.add(task)
         try:
             await coro
-        except asyncio.CancelledError:  # pylint: disable=try-except-raise
+        except asyncio.CancelledError:
             raise
-        except Exception:  # pylint: disable=broad-except
+        except Exception:
             _LOGGER.error("run_coro: %s", traceback.format_exc(-1))
         finally:
             if task in cls.unique_task2name:
