@@ -1381,11 +1381,7 @@ class AstEval:
                 try:
                     for attr in var.__dir__():
                         if attr.lower().startswith(attr_root) and (attr_root != "" or attr[0:1] != "_"):
-                            value = getattr(var, attr, None)
-                            if callable(value) or isinstance(value, EvalFunc):
-                                words.add(f"{name}.{attr}")
-                            else:
-                                words.add(f"{name}.{attr}")
+                            words.add(f"{name}.{attr}")
                 except Exception:
                     pass
         for keyw in set(keyword.kwlist) - {"yield"}:
@@ -1398,11 +1394,7 @@ class AstEval:
         sym_table.update(self.global_sym_table.items())
         for name, value in sym_table.items():
             if name.lower().startswith(root):
-                if callable(value) or isinstance(value, EvalFunc):
-                    # used to be f"{name}(", but Jupyter doesn't always do the right thing with that
-                    words.add(name)
-                else:
-                    words.add(name)
+                words.add(name)
         return words
 
     async def eval(self, new_state_vars=None):

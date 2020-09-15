@@ -321,8 +321,6 @@ class Kernel:
             # _LOGGER.debug("send %s: %s", msg_type, parts)
             for this_stream in stream if isinstance(stream, set) else {stream}:
                 await this_stream.send_multipart(parts)
-        # else:
-        #     _LOGGER.debug("send skipping msg_type %s since socket is None", msg_type)
 
     async def shell_handler(self, shell_socket, wire_msg):
         """Handle shell messages."""

@@ -143,6 +143,54 @@ def func7():
     )
 
 
+async def test_syntax_error(hass, caplog):
+    """Test syntax error in pyscript file."""
+
+    await setup_script(
+        hass,
+        None,
+        dt(2020, 7, 1, 11, 59, 59, 999999),
+        """
+@service
+def func1()
+    pass
+""",
+    )
+    assert "SyntaxError: invalid syntax (hello.py, line 3)" in caplog.text
+
+
+async def test_syntax_error2(hass, caplog):
+    """Test syntax error in pyscript file."""
+
+    await setup_script(
+        hass,
+        None,
+        dt(2020, 7, 1, 11, 59, 59, 999999),
+        """
+xyz def 123
+""",
+    )
+    assert "SyntaxError: invalid syntax (hello.py, line 2)" in caplog.text
+
+
+async def test_runtime_error(hass, caplog):
+    """Test run-time error in pyscript file."""
+
+    await setup_script(
+        hass,
+        None,
+        dt(2020, 7, 1, 11, 59, 59, 999999),
+        """
+@service
+def func1():
+    pass
+
+xyz
+""",
+    )
+    assert "NameError: name 'xyz' is not defined" in caplog.text
+
+
 async def test_service_description(hass):
     """Test service description defined in doc_string."""
 

@@ -26,21 +26,6 @@ def dt_now():
     return dt.datetime.now()
 
 
-def isleap(year):
-    """Return True or False if year is a leap year."""
-    return (year % 4) == 0 and (year % 100) != 0 or (year % 400) == 0
-
-
-def days_in_mon(month, year):
-    """Return numbers of days in month month of year year, 1 <= month <= 12."""
-    dom = [31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31]
-
-    month -= 1
-    if (month == 1) and isleap(year):
-        return dom[month] + 1
-    return dom[month]
-
-
 def parse_time_offset(offset_str):
     """Parse a time offset."""
     match = re.split(r"([-+]?\s*\d*\.?\d+(?:[eE][-+]?\d+)?)\s*(\w*)", offset_str)

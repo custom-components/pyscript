@@ -15,6 +15,7 @@ import custom_components.pyscript.trigger as trigger
 from pytest_homeassistant.async_mock import mock_open, patch
 
 from homeassistant import loader
+from homeassistant.const import EVENT_HOMEASSISTANT_STARTED, EVENT_HOMEASSISTANT_STOP
 from homeassistant.setup import async_setup_component
 
 SECRET_KEY = b"0123456789abcdef"
@@ -232,9 +233,10 @@ async def shell_msg(sock, msg_type, msg_content, execute=False):
 
 
 async def test_jupyter_kernel_msgs(hass, caplog):
-    """Test Jupyter kernel."""
+    """Test Jupyter kernel messages."""
     sock, _ = await setup_script(hass, [dt(2020, 7, 1, 11, 0, 0, 0)], "")
 
+    hass.bus.async_fire(EVENT_HOMEASSISTANT_STARTED)
     #
     # test the heartbeat loopback with some long and short messages
     # also send messages to stdin and iopub, which ignore them
@@ -264,11 +266,13 @@ async def test_jupyter_kernel_msgs(hass, caplog):
     #
     # test completions
     #
-    reply = await shell_msg(sock, "complete_request", {"code": "whi", "cursor_pos": 3})
+    code = "whi"
+    reply = await shell_msg(sock, "complete_request", {"code": code, "cursor_pos": len(code)})
     assert reply["header"]["msg_type"] == "complete_reply"
     assert reply["content"]["matches"] == ["while"]
 
-    reply = await shell_msg(sock, "complete_request", {"code": "pyscr", "cursor_pos": 5})
+    code = "pyscr"
+    reply = await shell_msg(sock, "complete_request", {"code": code, "cursor_pos": len(code)})
     assert reply["header"]["msg_type"] == "complete_reply"
     assert reply["content"]["matches"] == [
         "pyscript",
@@ -313,14 +317,33 @@ async def test_jupyter_kernel_msgs(hass, caplog):
     #
     # test code execution
     #
-    reply = await shell_msg(sock, "execute_request", {"code": "1 + 2"}, execute=True)
-    assert reply["content"]["data"]["text/plain"] == "3"
+    reply = await shell_msg(sock, "execute_request", {"code": "x = 123; x + 1 + 2"}, execute=True)
+    assert reply["content"]["data"]["text/plain"] == "126"
+
+    reply = await shell_msg(sock, "execute_request", {"code": "import math; x + 5"}, execute=True)
+    assert reply["content"]["data"]["text/plain"] == "128"
+
+    #
+    # do a reload to make sure our global context is preserved
+    #
+    await hass.services.async_call("pyscript", "reload", {}, blocking=True)
+
+    reply = await shell_msg(sock, "execute_request", {"code": "x + 10"}, execute=True)
+    assert reply["content"]["data"]["text/plain"] == "133"
+
+    #
+    # test completion of object attribute now that we've loaded math above
+    #
+    code = "import math; math.sq"
+    reply = await shell_msg(sock, "complete_request", {"code": code, "cursor_pos": len(code)})
+    assert reply["header"]["msg_type"] == "complete_reply"
+    assert reply["content"]["matches"] == ["math.sqrt"]
 
     #
     # run-time error
     #
-    reply = await shell_msg(sock, "execute_request", {"code": "x"}, execute=True)
-    assert reply["content"]["evalue"] == "name 'x' is not defined"
+    reply = await shell_msg(sock, "execute_request", {"code": "xyz"}, execute=True)
+    assert reply["content"]["evalue"] == "name 'xyz' is not defined"
 
     #
     # syntax error
@@ -328,21 +351,13 @@ async def test_jupyter_kernel_msgs(hass, caplog):
     reply = await shell_msg(sock, "execute_request", {"code": "1 + "}, execute=True)
     assert reply["content"]["evalue"] == "invalid syntax (jupyter_0, line 1)"
 
-    #
-    # test stdout; doesn't work yet since iopub messages can be OoO
-    # doesn't work yet...
-    #
-    reply = await shell_msg(sock, "execute_request", {"code": "print('hello'); 123"}, execute=True)
-    assert reply["header"]["msg_type"] == "execute_result"
-    assert reply["content"]["data"]["text/plain"] == "123"
-    #    stdout_msg = await get_iopub_msg(sock, "stream")
-    #    assert reply["content"]["text"] == "hello"
+    hass.bus.async_fire(EVENT_HOMEASSISTANT_STOP)
 
     await shutdown(sock)
 
 
 async def test_jupyter_kernel_port_close(hass, caplog):
-    """Test Jupyter kernel."""
+    """Test Jupyter kernel closing ports."""
     sock, port_nums = await setup_script(hass, [dt(2020, 7, 1, 11, 0, 0, 0)], "")
 
     #
@@ -382,11 +397,12 @@ async def test_jupyter_kernel_port_close(hass, caplog):
         await sock["stdin_port"].send(msg)
         assert await sock["hb_port"].recv() == msg
 
+    hass.bus.async_fire(EVENT_HOMEASSISTANT_STARTED)
     await shutdown(sock)
 
 
 async def test_jupyter_kernel_redefine_func(hass, caplog):
-    """Test Jupyter kernel."""
+    """Test Jupyter kernel redefining trigger function."""
     sock, _ = await setup_script(hass, [dt(2020, 7, 1, 11, 0, 0, 0)], "")
 
     reply = await shell_msg(
@@ -427,7 +443,7 @@ def func():
 
 
 async def test_jupyter_kernel_global_ctx_func(hass, caplog):
-    """Test Jupyter kernel."""
+    """Test Jupyter kernel global_ctx functions."""
     sock, _ = await setup_script(hass, [dt(2020, 7, 1, 11, 0, 0, 0)], "")
 
     reply = await shell_msg(sock, "execute_request", {"code": "pyscript.get_global_ctx()"}, execute=True)
@@ -443,5 +459,18 @@ async def test_jupyter_kernel_global_ctx_func(hass, caplog):
         sock, "execute_request", {"code": "pyscript.set_global_ctx('file.hello'); 456"}, execute=True
     )
     assert literal_eval(reply["content"]["data"]["text/plain"]) == 456
+
+    await shutdown(sock)
+
+
+async def test_jupyter_kernel_stdout(hass, caplog):
+    """Test Jupyter kernel stdout."""
+    sock, _ = await setup_script(hass, [dt(2020, 7, 1, 11, 0, 0, 0)], "")
+
+    reply = await shell_msg(sock, "execute_request", {"code": "log.info('hello'); 123"}, execute=True)
+    assert reply["header"]["msg_type"] == "execute_result"
+    assert reply["content"]["data"]["text/plain"] == "123"
+    stdout_msg = await get_iopub_msg(sock, "stream")
+    assert stdout_msg["content"]["text"] == "hello\n"
 
     await shutdown(sock)

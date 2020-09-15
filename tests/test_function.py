@@ -315,6 +315,13 @@ def func4(trigger_type=None, event_type=None, **kwargs):
     #
     no_such_function("xyz")
 
+@state_trigger("True or pyscript.f5var1")
+def func5(var_name=None, value=None):
+    global seq_num
+
+    seq_num += 1
+    log.info(f"func5 var = {var_name}, value = {value}")
+    pyscript.done = [seq_num, var_name, value]
 """,
     )
     seq_num = 0
@@ -457,3 +464,14 @@ def func4(trigger_type=None, event_type=None, **kwargs):
             ]
 
     assert "name 'no_such_function' is not defined" in caplog.text
+
+    #
+    # test deleting a state variable; func5() triggers on any change to pyscript.f5var1
+    #
+    seq_num += 1
+    hass.states.async_set("pyscript.f5var1", 0)
+    assert literal_eval(await wait_until_done(notify_q)) == [seq_num, "pyscript.f5var1", "0"]
+
+    seq_num += 1
+    hass.states.async_remove("pyscript.f5var1")
+    assert literal_eval(await wait_until_done(notify_q)) == [seq_num, "pyscript.f5var1", None]
