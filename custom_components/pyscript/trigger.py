@@ -412,7 +412,7 @@ class TrigTime:
                 start = cls.parse_date_time(start_str, 0, now)
                 period = parse_time_offset(period_str)
                 if period <= 0:
-                    _LOGGER.error("Invalid non-positive period %s in period(): %s", period)
+                    _LOGGER.error("Invalid non-positive period %s in period(): %s", period, time_spec)
                     continue
 
                 if match2[3] is None:
