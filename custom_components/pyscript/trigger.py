@@ -391,7 +391,7 @@ class TrigTime:
             if cron_match:
                 if not croniter.is_valid(cron_match.group("cron_expr")):
                     _LOGGER.error("Invalid cron expression: %s", cron_match)
-                    return None
+                    continue
 
                 val = croniter(cron_match.group("cron_expr"), now, dt.datetime).get_next()
                 if next_time is None or val < next_time:
@@ -408,36 +408,39 @@ class TrigTime:
                     next_time = this_t
 
             elif len(match2) == 5:
-                start = cls.parse_date_time(match2[1].strip(), 0, now)
-                if match2[3] is not None:
-                    end = cls.parse_date_time(match2[3].strip(), 0, now)
-                    if end < start:
-                        if end <= now:
-                            # try end of tomorrow
-                            end = cls.parse_date_time(match2[3].strip(), 1, now)
-                        else:
-                            # try a start of yesterday
-                            start = cls.parse_date_time(match2[1].strip(), -1, now)
-                if now < start and (next_time is None or start < next_time):
-                    next_time = start
-                period = parse_time_offset(match2[2].strip())
-                if now >= start and period > 0:
-                    secs = period * (1.0 + math.floor((now - start).total_seconds() / period))
-                    this_t = start + dt.timedelta(seconds=secs)
-                    if match2[3] is None:
+                start_str, period_str = match2[1].strip(), match2[2].strip()
+                start = cls.parse_date_time(start_str, 0, now)
+                period = parse_time_offset(period_str)
+                if period <= 0:
+                    _LOGGER.error("Invalid non-positive period %s in period(): %s", period)
+                    continue
+
+                if match2[3] is None:
+                    if now < start and (next_time is None or start < next_time):
+                        next_time = start
+                    if now >= start:
+                        secs = period * (1.0 + math.floor((now - start).total_seconds() / period))
+                        this_t = start + dt.timedelta(seconds=secs)
                         if now < this_t and (next_time is None or this_t < next_time):
                             next_time = this_t
-                    else:
-                        if now < this_t <= end and (next_time is None or this_t < next_time):
+                    continue
+                end_str = match2[3].strip()
+                end = cls.parse_date_time(end_str, 0, now)
+                end_offset = 1 if end < start else 0
+                for day in [-1, 0, 1]:
+                    start = cls.parse_date_time(start_str, day, now)
+                    end = cls.parse_date_time(end_str, day + end_offset, now)
+                    if now < start:
+                        if next_time is None or start < next_time:
+                            next_time = start
+                        break
+                    secs = period * (1.0 + math.floor((now - start).total_seconds() / period))
+                    this_t = start + dt.timedelta(seconds=secs)
+                    if start <= this_t <= end:
+                        if next_time is None or this_t < next_time:
                             next_time = this_t
-                        if next_time is None or now >= end:
-                            #
-                            # Try tomorrow's start (won't make a difference if spec has
-                            # full date)
-                            #
-                            start = cls.parse_date_time(match2[1].strip(), 1, now)
-                            if now < start and (next_time is None or start < next_time):
-                                next_time = start
+                        break
+
             else:
                 _LOGGER.warning("Can't parse %s in time_trigger check", spec)
         return next_time

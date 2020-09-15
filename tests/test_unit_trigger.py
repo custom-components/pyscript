@@ -1,5 +1,7 @@
 """Unit tests for time trigger functions."""
+
 from datetime import datetime as dt
+import locale
 
 from custom_components.pyscript.function import Function
 from custom_components.pyscript.trigger import TrigTime
@@ -55,11 +57,6 @@ parseDateTimeTests = [
     ["+5 min", 0, dt(2019, 9, 1, 0, 5, 0, 0)],
 ]
 
-parseDateTimeTests2 = [
-    ["sunday", 0, dt(2019, 9, 8, 0, 0, 0, 0)],
-    ["monday", 0, dt(2019, 9, 9, 0, 0, 0, 0)],
-]
-
 
 async def test_parse_date_time(hass, caplog):
     """Run time parse datetime tests."""
@@ -72,6 +69,11 @@ async def test_parse_date_time(hass, caplog):
     hass.config.longitude = -122
     hass.config.elevation = 0
     hass.config.time_zone = "America/Los_Angeles"
+
+    #
+    # Set English since the week names use locale
+    #
+    locale.setlocale(locale.LC_ALL, "en_US")
 
     Function.init(hass)
     TrigTime.init(hass)
@@ -89,6 +91,34 @@ async def test_parse_date_time(hass, caplog):
             out = TrigTime.parse_date_time(spec, date_offset, now)
             assert out == expect
 
+
+parseDateTimeTestsDayNames = [
+    ["thu", 0, dt(2019, 9, 5, 0, 0, 0, 0)],
+    ["fri noon", 0, dt(2019, 9, 6, 12, 0, 0, 0)],
+    ["sunday", 0, dt(2019, 9, 8, 0, 0, 0, 0)],
+    ["monday", 0, dt(2019, 9, 9, 0, 0, 0, 0)],
+]
+
+
+async def test_parse_date_time_day_names(hass, caplog):
+    """Run time parse datetime on day of week names."""
+    #
+    # Hardcode a location and timezone so we can check sunrise
+    # and sunset.
+    #
+    hass.config.latitude = 38
+    hass.config.longitude = -122
+    hass.config.elevation = 0
+    hass.config.time_zone = "America/Los_Angeles"
+
+    #
+    # Set English since the week names use locale
+    #
+    locale.setlocale(locale.LC_ALL, "en_US")
+
+    Function.init(hass)
+    TrigTime.init(hass)
+
     #
     # This set of tests assumes it's currently 13:00 on 2019/9/3
     #
@@ -96,7 +126,7 @@ async def test_parse_date_time(hass, caplog):
     with patch("homeassistant.helpers.condition.dt_util.utcnow", return_value=now), patch(
         "homeassistant.util.dt.utcnow", return_value=now
     ):
-        for test_data in parseDateTimeTests2:
+        for test_data in parseDateTimeTestsDayNames:
             spec, date_offset, expect = test_data
             out = TrigTime.parse_date_time(spec, date_offset, now)
             assert out == expect
@@ -148,6 +178,10 @@ async def test_parse_date_time(hass, caplog):
 )
 def test_timer_active_check(hass, spec, now, expected):
     """Run time active check tests."""
+    #
+    # Set English since the week names use locale
+    #
+    locale.setlocale(locale.LC_ALL, "en_US")
     Function.init(hass)
     TrigTime.init(hass)
     out = TrigTime.timer_active_check(spec, now)
@@ -155,7 +189,6 @@ def test_timer_active_check(hass, spec, now, expected):
 
 
 timerTriggerNextTests = [
-    [["period(sunset, 60s, sunrise)"], [dt(2019, 9, 1, 19, 15, 16)]],
     [["once(2019/9/1 8:00)"], [None]],
     [["once(2019/9/1 15:00)"], [dt(2019, 9, 1, 15, 0, 0, 0)]],
     [["once(15:00)"], [dt(2019, 9, 1, 15, 0, 0, 0)]],
@@ -199,6 +232,55 @@ timerTriggerNextTests = [
             dt(2019, 9, 2, 6, 0, 0, 0),
             dt(2019, 9, 2, 18, 0, 0, 0),
             dt(2019, 9, 2, 22, 0, 0, 0),
+            dt(2019, 9, 3, 2, 0, 0, 0),
+            dt(2019, 9, 3, 6, 0, 0, 0),
+            dt(2019, 9, 3, 18, 0, 0, 0),
+        ],
+    ],
+    [
+        ["period(18:00, 12 hr, 6:00)"],
+        [
+            dt(2019, 9, 1, 18, 0, 0, 0),
+            dt(2019, 9, 2, 6, 0, 0, 0),
+            dt(2019, 9, 2, 18, 0, 0, 0),
+            dt(2019, 9, 3, 6, 0, 0, 0),
+        ],
+    ],
+    [
+        ["period(18:00, 12.0001 hr, 6:00)"],
+        [
+            dt(2019, 9, 1, 18, 0, 0, 0),
+            dt(2019, 9, 2, 18, 0, 0, 0),
+            dt(2019, 9, 3, 18, 0, 0, 0),
+            dt(2019, 9, 4, 18, 0, 0, 0),
+        ],
+    ],
+    [
+        ["period(6:00, 12 hr, 18:00)"],
+        [
+            dt(2019, 9, 1, 18, 0, 0, 0),
+            dt(2019, 9, 2, 6, 0, 0, 0),
+            dt(2019, 9, 2, 18, 0, 0, 0),
+            dt(2019, 9, 3, 6, 0, 0, 0),
+            dt(2019, 9, 3, 18, 0, 0, 0),
+            dt(2019, 9, 4, 6, 0, 0, 0),
+        ],
+    ],
+    [
+        ["period(6:00, 12.0001 hr, 18:00)"],
+        [dt(2019, 9, 2, 6, 0, 0, 0), dt(2019, 9, 3, 6, 0, 0, 0), dt(2019, 9, 4, 6, 0, 0, 0)],
+    ],
+    [
+        ["period(sunset, 4 hours, sunrise)"],
+        [
+            dt(2019, 9, 1, 19, 39, 15),
+            dt(2019, 9, 1, 23, 39, 15),
+            dt(2019, 9, 2, 3, 39, 15),
+            dt(2019, 9, 2, 19, 37, 46),
+            dt(2019, 9, 2, 23, 37, 46),
+            dt(2019, 9, 3, 3, 37, 46),
+            dt(2019, 9, 3, 19, 36, 17),
+            dt(2019, 9, 3, 23, 36, 17),
         ],
     ],
     [
@@ -269,8 +351,23 @@ timerTriggerNextTests = [
 
 def test_timer_trigger_next(hass):
     """Run trigger next tests."""
+    #
+    # Hardcode a location and timezone so we can check sunrise
+    # and sunset.
+    #
+    hass.config.latitude = 38
+    hass.config.longitude = -122
+    hass.config.elevation = 0
+    hass.config.time_zone = "America/Los_Angeles"
+    #
+
+    # Set English since the week names use locale
+    #
+    locale.setlocale(locale.LC_ALL, "en_US")
+
     Function.init(hass)
     TrigTime.init(hass)
+
     for test_data in timerTriggerNextTests:
         now = dt(2019, 9, 1, 13, 0, 0, 100000)
         spec, expect_seq = test_data
@@ -377,6 +474,10 @@ timerTriggerNextTestsMonthRollover = [
 
 def test_timer_trigger_next_month_rollover(hass):
     """Run month rollover tests."""
+    #
+    # Set English since the week names use locale
+    #
+    locale.setlocale(locale.LC_ALL, "en_US")
     Function.init(hass)
     TrigTime.init(hass)
     for test_data in timerTriggerNextTestsMonthRollover:
