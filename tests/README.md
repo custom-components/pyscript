@@ -6,7 +6,8 @@ git clone https://github.com/custom-components/pyscript.git
 cd pyscript
 ```
 
-Next, create a virtual environment (make sure `python` is version `3.x`; otherwise use `python3`):
+Next, create a virtual environment (make sure `python` is at least `v3.7`; you might need to use
+`python3` instead):
 ```bash
 python -m venv venv
 source venv/bin/activate
@@ -18,9 +19,9 @@ python -m pip install -r requirements_test.txt
 pre-commit install
 ```
 
-To develop code and submit PRs you will want to fork the repository, and follow the
-steps above on your forked repository. Once you have pushed your changes to the fork,
-you can go ahead and submit a PR.
+To submit PRs you will want to fork the repository, and follow the steps above on your
+forked repository. Once you have pushed your changes to the fork (which should run the
+pre-commit hooks), you can go ahead and submit a PR.
 
 # Pyscript Tests
 
