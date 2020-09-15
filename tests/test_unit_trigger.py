@@ -1,7 +1,6 @@
 """Unit tests for time trigger functions."""
 
 from datetime import datetime as dt
-import locale
 
 from custom_components.pyscript.function import Function
 from custom_components.pyscript.trigger import TrigTime
@@ -70,11 +69,6 @@ async def test_parse_date_time(hass, caplog):
     hass.config.elevation = 0
     hass.config.time_zone = "America/Los_Angeles"
 
-    #
-    # Set English since the week names use locale
-    #
-    locale.setlocale(locale.LC_ALL, "en_US")
-
     Function.init(hass)
     TrigTime.init(hass)
 
@@ -110,11 +104,6 @@ async def test_parse_date_time_day_names(hass, caplog):
     hass.config.longitude = -122
     hass.config.elevation = 0
     hass.config.time_zone = "America/Los_Angeles"
-
-    #
-    # Set English since the week names use locale
-    #
-    locale.setlocale(locale.LC_ALL, "en_US")
 
     Function.init(hass)
     TrigTime.init(hass)
@@ -178,10 +167,7 @@ async def test_parse_date_time_day_names(hass, caplog):
 )
 def test_timer_active_check(hass, spec, now, expected):
     """Run time active check tests."""
-    #
-    # Set English since the week names use locale
-    #
-    locale.setlocale(locale.LC_ALL, "en_US")
+
     Function.init(hass)
     TrigTime.init(hass)
     out = TrigTime.timer_active_check(spec, now)
@@ -359,11 +345,6 @@ def test_timer_trigger_next(hass):
     hass.config.longitude = -122
     hass.config.elevation = 0
     hass.config.time_zone = "America/Los_Angeles"
-    #
-
-    # Set English since the week names use locale
-    #
-    locale.setlocale(locale.LC_ALL, "en_US")
 
     Function.init(hass)
     TrigTime.init(hass)
@@ -474,12 +455,10 @@ timerTriggerNextTestsMonthRollover = [
 
 def test_timer_trigger_next_month_rollover(hass):
     """Run month rollover tests."""
-    #
-    # Set English since the week names use locale
-    #
-    locale.setlocale(locale.LC_ALL, "en_US")
+
     Function.init(hass)
     TrigTime.init(hass)
+
     for test_data in timerTriggerNextTestsMonthRollover:
         now = dt(2020, 6, 30, 13, 0, 0, 100000)
         spec, expect_seq = test_data
