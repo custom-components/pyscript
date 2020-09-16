@@ -145,7 +145,7 @@ class TrigTime:
                 event_trig_expr.parse(event_trigger[1])
                 exc = event_trig_expr.get_exception_obj()
                 if exc is not None:
-                    if len(state_trig_ident) > 0:
+                    if state_trig_ident:
                         State.notify_del(state_trig_ident, notify_q)
                     raise exc
             Event.notify_add(event_trigger[0], notify_q)
