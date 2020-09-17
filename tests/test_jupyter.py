@@ -32,9 +32,9 @@ def msg_id():
     return str(uuid.uuid4())
 
 
-def msg_sign(msg_lst):
+def msg_sign(msg_lst, secret_key=SECRET_KEY):
     """Sign a message with a secure signature."""
-    auth_hmac = hmac.HMAC(SECRET_KEY, digestmod=hashlib.sha256)
+    auth_hmac = hmac.HMAC(secret_key, digestmod=hashlib.sha256)
     for msg in msg_lst:
         auth_hmac.update(msg)
     return str_to_bytes(auth_hmac.hexdigest())
@@ -73,27 +73,27 @@ def new_header(msg_type):
 
 
 async def send(
-    zmq_sock, msg_type, content=None, parent_header=None, metadata=None, identities=None,
+    zmq_sock,
+    msg_type,
+    content=None,
+    parent_header=None,
+    metadata=None,
+    identities=None,
+    secret_key=SECRET_KEY,
 ):
     """Send message to the Jupyter client."""
     header = new_header(msg_type)
-    if content is None:
-        content = {}
-    if parent_header is None:
-        parent_header = {}
-    if metadata is None:
-        metadata = {}
 
     def encode(msg):
         return str_to_bytes(json.dumps(msg))
 
     msg_lst = [
         encode(header),
-        encode(parent_header),
-        encode(metadata),
-        encode(content),
+        encode(parent_header if parent_header else {}),
+        encode(metadata if metadata else {}),
+        encode(content if content else {}),
     ]
-    signature = msg_sign(msg_lst)
+    signature = msg_sign(msg_lst, secret_key=secret_key)
     parts = [DELIM, signature, msg_lst[0], msg_lst[1], msg_lst[2], msg_lst[3]]
     if identities:
         parts = identities + parts
@@ -106,7 +106,7 @@ IO_pub_msgs = {}
 PORT_NAMES = ["hb_port", "stdin_port", "shell_port", "iopub_port", "control_port"]
 
 
-async def setup_script(hass, now, source):
+async def setup_script(hass, now, source, no_connect=False):
     """Initialize and load the given pyscript."""
 
     scripts = [
@@ -149,6 +149,8 @@ async def setup_script(hass, now, source):
         "signature_scheme": "hmac-sha256",
         "state_var": kernel_state_var,
     }
+    if no_connect:
+        kernel_cfg["no_connect_timeout"] = 0.0
     await hass.services.async_call("pyscript", "jupyter_kernel_start", kernel_cfg)
 
     while True:
@@ -160,6 +162,10 @@ async def setup_script(hass, now, source):
     port_nums = json.loads(ports_state.state)
 
     sock = {}
+
+    if no_connect:
+        return sock, port_nums
+
     for name in PORT_NAMES:
         kernel_reader, kernel_writer = await asyncio.open_connection("127.0.0.1", port_nums[name])
         sock[name] = ZmqSocket(kernel_reader, kernel_writer, "ROUTER")
@@ -314,6 +320,10 @@ async def test_jupyter_kernel_msgs(hass, caplog):
     assert reply["header"]["msg_type"] == "is_complete_reply"
     assert reply["content"]["status"] == "invalid"
 
+    reply = await shell_msg(sock, "is_complete_request", {"code": "if 1:\n"})
+    assert reply["header"]["msg_type"] == "is_complete_reply"
+    assert reply["content"]["status"] == "incomplete"
+
     #
     # test code execution
     #
@@ -398,7 +408,23 @@ async def test_jupyter_kernel_port_close(hass, caplog):
         assert await sock["hb_port"].recv() == msg
 
     hass.bus.async_fire(EVENT_HOMEASSISTANT_STARTED)
-    await shutdown(sock)
+
+    #
+    # shut down the session via signature mismatch with bad key
+    #
+    await send(
+        sock["control_port"], "shutdown_request", {}, parent_header={}, identities={}, secret_key=b"bad_key"
+    )
+
+    #
+    # wait until the session ends, so the log receives the error message we check below
+    #
+    try:
+        await sock["iopub_port"].recv()
+    except EOFError:
+        pass
+
+    assert "signature mismatch: check_sig=" in caplog.text
 
 
 async def test_jupyter_kernel_redefine_func(hass, caplog):
@@ -474,3 +500,10 @@ async def test_jupyter_kernel_stdout(hass, caplog):
     assert stdout_msg["content"]["text"] == "hello\n"
 
     await shutdown(sock)
+
+
+async def test_jupyter_kernel_no_connection_timeout(hass, caplog):
+    """Test Jupyter kernel timeout on no connection."""
+    sock, port_nums = await setup_script(hass, [dt(2020, 7, 1, 11, 0, 0, 0)], "", no_connect=True)
+
+    assert "No connections to session " in caplog.text

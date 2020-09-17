@@ -196,6 +196,7 @@ class Kernel:
         self.ast_ctx = ast_ctx
 
         self.secure_key = str_to_bytes(self.config["key"])
+        self.no_connect_timeout = self.config.get("no_connect_timeout", 30)
         self.signature_schemes = {"hmac-sha256": hashlib.sha256}
         self.auth = hmac.HMAC(
             self.secure_key, digestmod=self.signature_schemes[self.config["signature_scheme"]],
@@ -297,21 +298,15 @@ class Kernel:
     ):
         """Send message to the Jupyter client."""
         header = self.new_header(msg_type)
-        if content is None:
-            content = {}
-        if parent_header is None:
-            parent_header = {}
-        if metadata is None:
-            metadata = {}
 
         def encode(msg):
             return str_to_bytes(json.dumps(msg))
 
         msg_lst = [
             encode(header),
-            encode(parent_header),
-            encode(metadata),
-            encode(content),
+            encode(parent_header if parent_header else {}),
+            encode(metadata if metadata else {}),
+            encode(content if content else {}),
         ]
         signature = self.msg_sign(msg_lst)
         parts = [DELIM, signature, msg_lst[0], msg_lst[1], msg_lst[2], msg_lst[3]]
@@ -447,6 +442,8 @@ class Kernel:
             )
 
         elif msg["header"]["msg_type"] == "complete_request":
+            root = ""
+            words = set()
             code = msg["content"]["code"]
             posn = msg["content"]["cursor_pos"]
             match = self.completion_re.match(code[0:posn].lower())
@@ -456,9 +453,6 @@ class Kernel:
                 words = words.union(await Function.service_completions(root))
                 words = words.union(await Function.func_completions(root))
                 words = words.union(self.ast_ctx.completions(root))
-            else:
-                root = ""
-                words = set()
             # _LOGGER.debug(f"complete_request code={code}, posn={posn}, root={root}, words={words}")
             content = {
                 "status": "ok",
@@ -708,8 +702,8 @@ class Kernel:
     async def startup_timeout(self):
         """Shut down the session if nothing connects after 30 seconds."""
         await self.housekeep_q.put(["register", "startup_timeout", asyncio.current_task()])
-        await asyncio.sleep(30)
-        if self.task_cnt_max == 1:
+        await asyncio.sleep(self.no_connect_timeout)
+        if self.task_cnt_max <= 1:
             #
             # nothing started other than us, so shut down the session
             #
