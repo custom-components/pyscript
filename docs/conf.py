@@ -17,13 +17,14 @@
 
 # -- Project information -----------------------------------------------------
 
-project = 'pyscript'
+project = 'hacs-pyscript'
 copyright = '2020, Craig Barratt'
 author = 'Craig Barratt'
 
 # The full version, including alpha/beta/rc tags
 release = '0.21'
 
+master_doc = 'index'
 
 # -- General configuration ---------------------------------------------------
 
