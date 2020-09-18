@@ -131,6 +131,14 @@ def func5():
     res = task.wait_until(state_trigger="pyscript.f5var2 == '1'")
     pyscript.done = [seq_num, "pyscript.f5var2"]
 
+
+@time_trigger("startup")
+def func6():
+    task.unique("func6")
+    task.unique("func6", kill_me=True)
+    # mess up the sequence numbers if task.unique fails to kill us
+    pyscript.done = [999]
+
 """,
     )
 

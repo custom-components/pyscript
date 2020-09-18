@@ -5,6 +5,10 @@ from datetime import datetime as dt
 import pathlib
 
 from custom_components.pyscript.const import DOMAIN
+from custom_components.pyscript.event import Event
+from custom_components.pyscript.function import Function
+from custom_components.pyscript.global_ctx import GlobalContextMgr
+from custom_components.pyscript.state import State
 import custom_components.pyscript.trigger as trigger
 from pytest_homeassistant.async_mock import mock_open, patch
 
@@ -285,7 +289,11 @@ def func2(**kwargs):
 
 @service
 def call_service(domain=None, name=None, **kwargs):
-    service.call(domain, name, **kwargs)
+    if domain == "pyscript" and name == "func1":
+        task.sleep(0)
+        pyscript.func1(**kwargs)
+    else:
+        service.call(domain, name, **kwargs)
 
 """,
     )
@@ -447,3 +455,22 @@ def func5(var_name=None, value=None):
             "custom_components.pyscript.trigger.dt_now", return_value=now
         ):
             await hass.services.async_call("pyscript", "reload", {}, blocking=True)
+
+
+async def test_misc_errors(hass, caplog):
+    """Test miscellaneous errors."""
+
+    await setup_script(hass, None, dt(2020, 7, 1, 11, 59, 59, 999999), "")
+
+    Function()
+    GlobalContextMgr()
+    State()
+    Event()
+    Event.notify_del("not_in_notify_list", None)
+    trigger.TrigTime()
+
+    assert "Function class is not meant to be instantiated" in caplog.text
+    assert "GlobalContextMgr class is not meant to be instantiated" in caplog.text
+    assert "State class is not meant to be instantiated" in caplog.text
+    assert "Event class is not meant to be instantiated" in caplog.text
+    assert "TrigTime class is not meant to be instantiated" in caplog.text

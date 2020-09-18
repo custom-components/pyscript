@@ -757,6 +757,7 @@ evalTestsExceptions = [
     ["continue", "Exception in test line 1 column 0: continue statement outside loop"],
     ["raise", "Exception in test line 1 column 0: No active exception to reraise"],
     ["yield", "Exception in test line 1 column 0: test: not implemented ast ast_yield"],
+    ["task.executor(5)", "Exception in test line 1 column 14: function is not callable by task.executor()"],
     [
         "import cmath; exec('xyz = cmath.sqrt(complex(3, 4))', {})",
         "Exception in test line 1 column 54: Exception in exec() line 1 column 28: 'sqrt' is not callable (got None)",

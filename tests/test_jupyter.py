@@ -506,4 +506,12 @@ async def test_jupyter_kernel_no_connection_timeout(hass, caplog):
     """Test Jupyter kernel timeout on no connection."""
     sock, port_nums = await setup_script(hass, [dt(2020, 7, 1, 11, 0, 0, 0)], "", no_connect=True)
 
-    assert "No connections to session " in caplog.text
+    #
+    # There is a race condition waiting for the log message, so we need to poll
+    #
+    for _ in range(50):
+        if "No connections to session jupyter_" in caplog.text:
+            break
+        await asyncio.sleep(2e-3)
+
+    assert "No connections to session jupyter_" in caplog.text

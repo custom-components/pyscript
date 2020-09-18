@@ -70,11 +70,6 @@ class Function:
         )
 
     @classmethod
-    async def entity_ids(cls, domain=None):
-        """Implement entity_ids."""
-        return cls.hass.states.async_entity_ids(domain)
-
-    @classmethod
     async def async_sleep(cls, duration):
         """Implement task.sleep()."""
         await asyncio.sleep(float(duration))
@@ -195,8 +190,6 @@ class Function:
 
         async def service_call(*args, **kwargs):
             await cls.hass.services.async_call(domain, service, kwargs)
-
-        # service_call = functools.partial(cls.service_call, domain, service)
 
         return service_call
 
