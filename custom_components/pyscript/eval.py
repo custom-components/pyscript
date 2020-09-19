@@ -8,6 +8,7 @@ import inspect
 import keyword
 import logging
 import sys
+import traceback
 
 from .const import ALLOWED_IMPORTS, DOMAIN, LOGGER_PATH
 from .function import Function
@@ -141,6 +142,43 @@ class EvalContinue(EvalStopFlow):
     _name = "continue"
 
 
+class EvalLocalVar:
+    """Wrapper for local variable symtable entry."""
+
+    def __init__(self, name, **kwargs):
+        """Initialize value of local symbol."""
+        self.name = name
+        self.valid = False
+        if "value" in kwargs:
+            self.value = kwargs["value"]
+            self.valid = True
+
+    def get(self):
+        """Get value of local symbol."""
+        if not self.valid:
+            raise NameError(f"name '{self.name}' is not defined")
+        return self.value
+
+    def get_name(self):
+        """Get name of local symbol."""
+        return self.name
+
+    def set(self, value):
+        """Set value of local symbol."""
+        self.value = value
+        self.valid = True
+
+    def defined(self):
+        """Return whether value is valid."""
+        return self.valid
+
+    def __getattr__(self, attr):
+        """Get attribute of local variable."""
+        if not self.valid:
+            raise NameError(f"name '{self.name}' is not defined")
+        return getattr(self.value, attr)
+
+
 class EvalName:
     """Identifier that hasn't yet been resolved."""
 
@@ -182,6 +220,7 @@ class EvalFunc:
         self.decorators = []
         self.global_names = set()
         self.nonlocal_names = set()
+        self.local_sym_table = {}
         self.doc_string = ast.get_docstring(func_def)
         self.num_posn_arg = len(self.func_def.args.args) - len(self.defaults)
         self.code_list = code_list
@@ -224,6 +263,55 @@ class EvalFunc:
                 self.decorators.append([dec.id, None, None])
             else:
                 _LOGGER.error("function %s has unexpected decorator type %s", self.name, dec)
+
+    async def resolve_nonlocals(self, ast_ctx):
+        """Tag local variables and resolve nonlocals."""
+
+        #
+        # determine the list of local variables, nonlocal and global
+        # arguments are local variables too
+        #
+        args = self.get_positional_args()
+        if self.func_def.args.vararg:
+            args.append(self.func_def.args.vararg.arg)
+        if self.func_def.args.kwarg:
+            args.append(self.func_def.args.kwarg.arg)
+        for i in range(len(self.func_def.args.kwonlyargs)):
+            args.append(self.func_def.args.kwonlyargs[i].arg)
+        nonlocal_names = set()
+        global_names = set()
+        var_names = set(args)
+        local_names = set(args)
+        for stmt in self.func_def.body:
+            var_names = var_names.union(
+                await ast_ctx.get_names(
+                    stmt, nonlocal_names=nonlocal_names, global_names=global_names, local_names=local_names,
+                )
+            )
+        for var_name in var_names:
+            got_dot = var_name.find(".")
+            if got_dot >= 0:
+                var_name = var_name[0:got_dot]
+
+            if var_name in global_names:
+                continue
+
+            if var_name in local_names and var_name not in nonlocal_names:
+                self.local_sym_table[var_name] = EvalLocalVar(var_name)
+                continue
+
+            if var_name in nonlocal_names:
+                sym_table_idx = 1
+            else:
+                sym_table_idx = 0
+            for sym_table in reversed(ast_ctx.sym_table_stack[sym_table_idx:] + [ast_ctx.sym_table]):
+                if var_name in sym_table and isinstance(sym_table[var_name], EvalLocalVar):
+                    self.local_sym_table[var_name] = sym_table[var_name]
+                    break
+            else:
+                val = await ast_ctx.ast_name(ast.Name(id=var_name, ctx=ast.Load()))
+                if isinstance(val, EvalName) and got_dot < 0:
+                    raise SyntaxError(f"no binding for nonlocal '{var_name}' found")
 
     def get_decorators(self):
         """Return the function decorators."""
@@ -292,6 +380,13 @@ class EvalFunc:
                 sym_table[self.func_def.args.vararg.arg] = ()
         elif len(args) > len(self.func_def.args.args):
             raise TypeError(f"{self.name}() called with too many positional arguments")
+        for name, value in self.local_sym_table.items():
+            if name in sym_table:
+                sym_table[name] = EvalLocalVar(name, value=sym_table[name])
+            elif value.defined():
+                sym_table[name] = value
+            else:
+                sym_table[name] = EvalLocalVar(name)
         ast_ctx.sym_table_stack.append(ast_ctx.sym_table)
         ast_ctx.sym_table = sym_table
         ast_ctx.code_str = self.code_str
@@ -366,7 +461,9 @@ class AstEval:
                 func_name = self.curr_func.get_name() + "(), " if self.curr_func else ""
                 self.exception_obj = err
                 self.exception = f"Exception in {func_name}{self.filename} line {self.lineno} column {self.col_offset}: {err}"
-                self.exception_long = self.format_exc(err, self.lineno, self.col_offset)
+                self.exception_long = self.format_exc(
+                    err, self.lineno, self.col_offset
+                ) + traceback.format_exc(-1)
             raise
 
     # Statements return NONE, EvalBreak, EvalContinue, EvalReturn
@@ -467,6 +564,7 @@ class AstEval:
     async def ast_classdef(self, arg):
         """Evaluate class definition."""
         bases = [(await self.aeval(base)) for base in arg.bases]
+        self.sym_table[arg.name] = EvalLocalVar(arg.name)
         sym_table = {}
         self.sym_table_stack.append(self.sym_table)
         self.sym_table = sym_table
@@ -494,14 +592,19 @@ class AstEval:
         if "__init__" in sym_table:
             sym_table["__init__evalfunc_wrap__"] = sym_table["__init__"]
             del sym_table["__init__"]
-        self.sym_table[arg.name] = type(arg.name, tuple(bases), sym_table)
+        self.sym_table[arg.name].set(type(arg.name, tuple(bases), sym_table))
 
     async def ast_functiondef(self, arg):
         """Evaluate function definition."""
         func = EvalFunc(arg, self.code_list, self.code_str)
         await func.eval_defaults(self)
         await func.eval_decorators(self)
-        self.sym_table[func.get_name()] = func
+        await func.resolve_nonlocals(self)
+        name = func.get_name()
+        if name in self.sym_table and isinstance(self.sym_table[name], EvalLocalVar):
+            self.sym_table[name].set(func)
+        else:
+            self.sym_table[name] = func
         if self.sym_table == self.global_sym_table:
             # set up any triggers if this function is in the global context
             await self.global_ctx.trigger_init(func)
@@ -551,7 +654,12 @@ class AstEval:
                     self.exception = None
                     self.exception_long = None
                     if handler.name is not None:
-                        self.sym_table[handler.name] = err
+                        if handler.name in self.sym_table and isinstance(
+                            self.sym_table[handler.name], EvalLocalVar
+                        ):
+                            self.sym_table[handler.name].set(err)
+                        else:
+                            self.sym_table[handler.name] = err
                     for arg1 in handler.body:
                         try:
                             val = await self.aeval(arg1)
@@ -740,13 +848,10 @@ class AstEval:
             if self.curr_func and var_name in self.curr_func.global_names:
                 self.global_sym_table[var_name] = val
                 return
-            if self.curr_func and var_name in self.curr_func.nonlocal_names:
-                for sym_table in reversed(self.sym_table_stack[1:]):
-                    if var_name in sym_table:
-                        sym_table[var_name] = val
-                        return
-                raise TypeError(f"can't find nonlocal '{var_name}' for assignment")
-            self.sym_table[var_name] = val
+            if var_name in self.sym_table and isinstance(self.sym_table[var_name], EvalLocalVar):
+                self.sym_table[var_name].set(val)
+            else:
+                self.sym_table[var_name] = val
 
     async def ast_assign(self, arg):
         """Execute assignment statement."""
@@ -793,11 +898,6 @@ class AstEval:
                         if isinstance(self.global_sym_table[arg1.id], EvalFunc):
                             await self.global_ctx.stop(arg1.id)
                         del self.global_sym_table[arg1.id]
-                elif self.curr_func and arg1.id in self.curr_func.nonlocal_names:
-                    for sym_table in reversed(self.sym_table_stack[1:]):
-                        if arg1.id in sym_table:
-                            del sym_table[arg1.id]
-                            break
                 elif arg1.id in self.sym_table:
                     if isinstance(self.sym_table[arg1.id], EvalFunc):
                         await self.global_ctx.stop(arg1.id)
@@ -814,7 +914,7 @@ class AstEval:
                 raise AssertionError(await self.aeval(arg.msg))
             raise AssertionError
 
-    async def ast_attribute_collapse(self, arg):
+    async def ast_attribute_collapse(self, arg, check_undef=True):
         """Combine dotted attributes to allow variable names to have dots."""
         # collapse dotted names, eg:
         #   Attribute(value=Attribute(value=Name(id='i', ctx=Load()), attr='j', ctx=Load()), attr='k', ctx=Store())
@@ -826,8 +926,9 @@ class AstEval:
         if isinstance(val, ast.Name):
             name = val.id + "." + name
             # ensure the first portion of name is undefined
-            val = await self.ast_name(ast.Name(id=val.id, ctx=ast.Load()))
-            if not isinstance(val, EvalName):
+            if check_undef and not isinstance(
+                await self.ast_name(ast.Name(id=val.id, ctx=ast.Load())), EvalName
+            ):
                 return None
             return name
         return None
@@ -850,21 +951,18 @@ class AstEval:
         """Look up value of identifier on load, or returns name on set."""
         if isinstance(arg.ctx, ast.Load):
             #
-            # check other scopes if required by global or nonlocal declarations
+            # check other scopes if required by global declarations
             #
             if self.curr_func and arg.id in self.curr_func.global_names:
                 if arg.id in self.global_sym_table:
                     return self.global_sym_table[arg.id]
                 raise NameError(f"global name '{arg.id}' is not defined")
-            if self.curr_func and arg.id in self.curr_func.nonlocal_names:
-                for sym_table in reversed(self.sym_table_stack[1:]):
-                    if arg.id in sym_table:
-                        return sym_table[arg.id]
-                raise NameError(f"nonlocal name '{arg.id}' is not defined")
             #
             # now check in our current symbol table, and then some other places
             #
             if arg.id in self.sym_table:
+                if isinstance(self.sym_table[arg.id], EvalLocalVar):
+                    return self.sym_table[arg.id].get()
                 return self.sym_table[arg.id]
             if arg.id in self.local_sym_table:
                 return self.local_sym_table[arg.id]
@@ -1170,7 +1268,10 @@ class AstEval:
         elif isinstance(arg.func, ast.Attribute):
             func_name = arg.func.attr
         else:
-            func_name = "<other>"
+            func_name = "<function>"
+        if isinstance(func, EvalLocalVar):
+            func_name = func.get_name()
+            func = func.get()
         _LOGGER.debug("%s: calling %s(%s, %s)", self.name, func_name, arg_str, kwargs)
         return await self.call_func(func, func_name, args, kwargs)
 
@@ -1232,24 +1333,109 @@ class AstEval:
         """Evaluate await expr."""
         return await self.aeval(arg.value)
 
-    async def ast_get_names2_dict(self, arg, names):
+    async def get_target_names(self, lhs):
+        """Recursively find all the target names mentioned in the AST tree."""
+        names = set()
+        if isinstance(lhs, ast.Tuple):
+            for lhs_elt in lhs.elts:
+                if isinstance(lhs_elt, ast.Starred):
+                    names.add(lhs_elt.value.id)
+                else:
+                    names = names.union(await self.get_target_names(lhs_elt))
+        elif isinstance(lhs, ast.Attribute):
+            var_name = await self.ast_attribute_collapse(lhs, check_undef=False)
+            if isinstance(var_name, str):
+                names.add(var_name)
+        elif isinstance(lhs, ast.Name):
+            names.add(lhs.id)
+        return names
+
+    async def get_names_set(self, arg, names, nonlocal_names=None, global_names=None, local_names=None):
         """Recursively find all the names mentioned in the AST tree."""
-        if isinstance(arg, ast.Attribute):
+
+        cls_name = arg.__class__.__name__
+        if cls_name == "Attribute":
             full_name = await self.ast_attribute_collapse(arg)
             if full_name is not None:
-                names[full_name] = 1
-        elif isinstance(arg, ast.Name):
-            names[arg.id] = 1
-        else:
-            for child in ast.iter_child_nodes(arg):
-                await self.ast_get_names2_dict(child, names)
+                names.add(full_name)
+                return
+        if cls_name == "Name":
+            names.add(arg.id)
+            return
+        if cls_name == "Nonlocal" and nonlocal_names is not None:
+            for var_name in arg.names:
+                nonlocal_names.add(var_name)
+                names.add(var_name)
+            return
+        if cls_name == "Global" and global_names is not None:
+            for var_name in arg.names:
+                global_names.add(var_name)
+                names.add(var_name)
+            return
+        if local_names is not None:
+            #
+            # find all the local variables by looking for assignments;
+            # also, don't recurse into function definitions
+            #
+            if cls_name == "Assign":
+                for target in arg.targets:
+                    for name in await self.get_target_names(target):
+                        local_names.add(name)
+                        names.add(name)
+            elif cls_name in {"AugAssign", "For", "AsyncFor", "NamedExpr"}:
+                for name in await self.get_target_names(arg.target):
+                    local_names.add(name)
+                    names.add(name)
+            elif cls_name in {"With", "AsyncWith"}:
+                for item in arg.items:
+                    if item.optional_vars:
+                        for name in await self.get_target_names(item.optional_vars):
+                            local_names.add(name)
+                            names.add(name)
+            elif cls_name == "Try":
+                for handler in arg.handlers:
+                    if handler.name is not None:
+                        local_names.add(handler.name)
+                        names.add(handler.name)
+            elif cls_name == "Call":
+                await self.get_names_set(
+                    arg.func,
+                    names,
+                    nonlocal_names=nonlocal_names,
+                    global_names=global_names,
+                    local_names=local_names,
+                )
+                for this_arg in arg.args:
+                    await self.get_names_set(
+                        this_arg,
+                        names,
+                        nonlocal_names=nonlocal_names,
+                        global_names=global_names,
+                        local_names=local_names,
+                    )
+                return
+            elif cls_name in {"FunctionDef", "ClassDef"}:
+                local_names.add(arg.name)
+                names.add(arg.name)
+                return
+        for child in ast.iter_child_nodes(arg):
+            await self.get_names_set(
+                child,
+                names,
+                nonlocal_names=nonlocal_names,
+                global_names=global_names,
+                local_names=local_names,
+            )
 
-    async def ast_get_names(self):
-        """Return list of all the names mentioned in our AST tree."""
-        names = {}
-        if self.ast:
-            await self.ast_get_names2_dict(self.ast, names)
-        return [*names]
+    async def get_names(self, ast=None, nonlocal_names=None, global_names=None, local_names=None):
+        """Return set of all the names mentioned in our AST tree."""
+        names = set()
+        ast = ast or self.ast
+        if ast:
+            await self.get_names_set(
+                ast, names, nonlocal_names=nonlocal_names, global_names=global_names, local_names=local_names
+            )
+        return names
 
     def parse(self, code_str, filename=None):
         """Parse the code_str source code into an AST tree."""
@@ -1417,6 +1603,6 @@ class AstEval:
                     self.exception_long = self.format_exc(err, self.lineno, self.col_offset)
         return None
 
-    def dump(self):
+    def dump(self, this_ast=None):
         """Dump the AST tree for debugging."""
-        return ast.dump(self.ast)
+        return ast.dump(this_ast if this_ast else self.ast)

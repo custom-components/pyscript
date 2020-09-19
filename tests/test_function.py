@@ -313,7 +313,7 @@ def func4(trigger_type=None, event_type=None, **kwargs):
     #
     # create a run-time exception
     #
-    no_such_function("xyz")
+    "xyz" + 123
 
 @state_trigger("True or pyscript.f5var1")
 def func5(var_name=None, value=None):
@@ -463,7 +463,7 @@ def func5(var_name=None, value=None):
                 res,
             ]
 
-    assert "name 'no_such_function' is not defined" in caplog.text
+    assert "TypeError: can only concatenate str" in caplog.text
 
     #
     # test deleting a state variable; func5() triggers on any change to pyscript.f5var1

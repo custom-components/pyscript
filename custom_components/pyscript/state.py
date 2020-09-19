@@ -42,7 +42,7 @@ class State:
     def notify_add(cls, var_names, queue):
         """Register to notify state variables changes to be sent to queue."""
 
-        for var_name in var_names if isinstance(var_names, list) else [var_names]:
+        for var_name in var_names if isinstance(var_names, set) else {var_names}:
             parts = var_name.split(".")
             if len(parts) != 2 and len(parts) != 3:
                 continue
@@ -55,7 +55,7 @@ class State:
     def notify_del(cls, var_names, queue):
         """Unregister notify of state variables changes for given queue."""
 
-        for var_name in var_names if isinstance(var_names, list) else [var_names]:
+        for var_name in var_names if isinstance(var_names, set) else {var_names}:
             parts = var_name.split(".")
             if len(parts) != 2 and len(parts) != 3:
                 continue

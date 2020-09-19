@@ -126,7 +126,7 @@ class TrigTime:
                 raise exc
             if state_trig_ok:
                 return {"trigger_type": "state"}
-            state_trig_ident = await state_trig_expr.ast_get_names()
+            state_trig_ident = await state_trig_expr.get_names()
             _LOGGER.debug(
                 "trigger %s wait_until: watching vars %s", ast_ctx.name, state_trig_ident,
             )
@@ -544,7 +544,7 @@ class TrigInfo:
                 ast_ctx.get_logger().error(ast_ctx.get_exception_long())
 
         if self.state_trigger is not None:
-            self.state_trig_ident = await self.state_trig_expr.ast_get_names()
+            self.state_trig_ident = await self.state_trig_expr.get_names()
             _LOGGER.debug("trigger %s: watching vars %s", self.name, self.state_trig_ident)
             if len(self.state_trig_ident) > 0:
                 State.notify_add(self.state_trig_ident, self.notify_q)

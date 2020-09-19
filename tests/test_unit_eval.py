@@ -699,6 +699,91 @@ msgs
             24,
         ],
     ],
+    [
+        """
+def func1(m):
+    def func2():
+        m[0] += 1
+        return m[0]
+
+    def func3():
+        n[0] += 10
+        return n[0]
+
+    n = m
+    return func2, func3
+
+f2, f3 = func1([10])
+[f2(), f3(), f2(), f3(), f2(), f3()]
+""",
+        [11, 21, 22, 32, 33, 43],
+    ],
+    [
+        """
+def func1(m=0):
+    def func2():
+        nonlocal m
+        m += 1
+        return eval("m")
+
+    def func3():
+        nonlocal n
+        n += 10
+        return n
+
+    n = m
+    return func2, func3
+
+f2, f3 = func1(10)
+f4, f5 = func1(50)
+[f2(), f3(), f4(), f5(), f2(), f3(), f4(), f5(), f2(), f3(), f4(), f5()]
+""",
+        [11, 20, 51, 60, 12, 30, 52, 70, 13, 40, 53, 80],
+    ],
+    [
+        """
+def func():
+    k = 10
+    def f1():
+        nonlocal i
+        i += 2
+        return i
+    def f2():
+        nonlocal k
+        k += 5
+        return k
+    i = 40
+    k += 5
+    return f1, f2
+f1, f2 = func()
+[f1(), f2(), f1(), f2(), f1(), f2()]
+""",
+        [42, 20, 44, 25, 46, 30],
+    ],
+    [
+        """
+def f1():
+    return 100
+
+def func():
+    def f2(x):
+        nonlocal y
+        y += f1(2*x)
+        return y
+
+    def f1(x):
+        nonlocal y
+        y += x
+        return y
+
+    y = 1
+    return f1, f2
+
+f3, f4 = func()
+[f3(2), f4(3), f3(4), f4(5)]
+""",
+        [3, 12, 16, 42],
+    ],
 ]
 
 
@@ -788,7 +873,7 @@ def func():
     x = 1
 func()
 """,
-        "Exception in func(), test line 4 column 4: can't find nonlocal 'x' for assignment",
+        "Exception in test line 2 column 0: no binding for nonlocal 'x' found",
     ],
     [
         """
@@ -797,7 +882,7 @@ def func():
     x += 1
 func()
 """,
-        "Exception in func(), test line 4 column 4: nonlocal name 'x' is not defined",
+        "Exception in test line 2 column 0: no binding for nonlocal 'x' found",
     ],
     [
         """
