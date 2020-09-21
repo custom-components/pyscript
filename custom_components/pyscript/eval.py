@@ -3,14 +3,20 @@
 import ast
 import asyncio
 import builtins
+from collections import OrderedDict
 import importlib
 import inspect
+import io
 import keyword
 import logging
 import sys
-import traceback
 
-from .const import ALLOWED_IMPORTS, DOMAIN, LOGGER_PATH
+import yaml
+
+from homeassistant.const import SERVICE_RELOAD
+from homeassistant.helpers.service import async_set_service_schema
+
+from .const import ALLOWED_IMPORTS, DOMAIN, LOGGER_PATH, SERVICE_JUPYTER_KERNEL_START
 from .function import Function
 from .state import State
 
@@ -211,10 +217,13 @@ class EvalAttrSet:
 class EvalFunc:
     """Class for a callable pyscript function."""
 
-    def __init__(self, func_def, code_list, code_str):
+    def __init__(self, func_def, code_list, code_str, global_ctx):
         """Initialize a function calling context."""
         self.func_def = func_def
         self.name = func_def.name
+        self.global_ctx = global_ctx
+        self.global_ctx_name = global_ctx.get_name()
+        self.logger = logging.getLogger(LOGGER_PATH + "." + self.global_ctx_name)
         self.defaults = []
         self.kw_defaults = []
         self.decorators = []
@@ -228,6 +237,9 @@ class EvalFunc:
         self.exception = None
         self.exception_obj = None
         self.exception_long = None
+        self.trigger = None
+        self.trigger_service = False
+        self.has_closure = False
 
     def get_name(self):
         """Return the function name."""
@@ -242,6 +254,223 @@ class EvalFunc:
         self.kw_defaults = []
         for val in self.func_def.args.kw_defaults:
             self.kw_defaults.append({"ok": bool(val), "val": None if not val else await ast_ctx.aeval(val)})
+
+    async def trigger_init(self):
+        """Initialize decorator triggers for this function."""
+        trig_args = {}
+        got_reqd_dec = False
+        trig_decorators_reqd = {
+            "time_trigger",
+            "state_trigger",
+            "event_trigger",
+        }
+        trig_decorators = {
+            "time_trigger",
+            "state_trigger",
+            "event_trigger",
+            "state_active",
+            "time_active",
+            "task_unique",
+        }
+        decorator_used = set()
+        for dec in self.decorators:
+            dec_name, dec_args, dec_kwargs = dec[0], dec[1], dec[2]
+            if dec_name in decorator_used:
+                self.logger.error(
+                    "%s defined in %s: decorator %s repeated; ignoring decorator",
+                    self.name,
+                    self.global_ctx_name,
+                    dec_name,
+                )
+                continue
+            decorator_used.add(dec_name)
+            if dec_name in trig_decorators_reqd:
+                got_reqd_dec = True
+            if dec_name in trig_decorators:
+                if dec_name not in trig_args:
+                    trig_args[dec_name] = {}
+                    trig_args[dec_name]["args"] = []
+                if dec_args is not None:
+                    trig_args[dec_name]["args"] += dec_args
+                if dec_kwargs is not None:
+                    trig_args[dec_name]["kwargs"] = dec_kwargs
+            elif dec_name == "service":
+                if dec_args is not None:
+                    self.logger.error(
+                        "%s defined in %s: decorator @service takes no arguments; ignoring decorator",
+                        self.name,
+                        self.global_ctx_name,
+                    )
+                    continue
+                if self.name in (SERVICE_RELOAD, SERVICE_JUPYTER_KERNEL_START):
+                    self.logger.error(
+                        "function '%s' in %s with @service conflicts with builtin service; ignoring (please rename function)",
+                        self.name,
+                        self.global_ctx_name,
+                    )
+                    return
+                desc = self.doc_string
+                if desc is None or desc == "":
+                    desc = f"pyscript function {self.name}()"
+                desc = desc.lstrip(" \n\r")
+                if desc.startswith("yaml"):
+                    try:
+                        desc = desc[4:].lstrip(" \n\r")
+                        file_desc = io.StringIO(desc)
+                        service_desc = yaml.load(file_desc, Loader=yaml.BaseLoader) or OrderedDict()
+                        file_desc.close()
+                    except Exception as exc:
+                        self.logger.error(
+                            "Unable to decode yaml doc_string for %s(): %s", self.name, str(exc),
+                        )
+                        raise exc
+                else:
+                    fields = OrderedDict()
+                    for arg in self.get_positional_args():
+                        fields[arg] = OrderedDict(description=f"argument {arg}")
+                    service_desc = {"description": desc, "fields": fields}
+
+                def pyscript_service_factory(func_name, func):
+                    async def pyscript_service_handler(call):
+                        """Handle python script service calls."""
+                        # self.logger.debug("service call to %s", func_name)
+                        #
+                        # use a new AstEval context so it can run fully independently
+                        # of other instances (except for global_ctx which is common)
+                        #
+                        ast_ctx = AstEval(f"{self.global_ctx_name}.{func_name}", self.global_ctx)
+                        Function.install_ast_funcs(ast_ctx)
+                        func_args = {
+                            "trigger_type": "service",
+                        }
+                        func_args.update(call.data)
+
+                        async def do_service_call(func, ast_ctx, data):
+                            await func.call(ast_ctx, [], call.data)
+                            if ast_ctx.get_exception_obj():
+                                ast_ctx.get_logger().error(ast_ctx.get_exception_long())
+
+                        Function.create_task(do_service_call(func, ast_ctx, func_args))
+
+                    return pyscript_service_handler
+
+                Function.hass.services.async_register(
+                    DOMAIN, self.name, pyscript_service_factory(self.name, self),
+                )
+                async_set_service_schema(Function.hass, DOMAIN, self.name, service_desc)
+                self.trigger_service = True
+            else:
+                self.logger.warning(
+                    "%s defined in %s: unknown decorator @%s: ignored",
+                    self.name,
+                    self.global_ctx_name,
+                    dec_name,
+                )
+
+        for dec_name in trig_decorators:
+            if dec_name in trig_args and len(trig_args[dec_name]["args"]) == 0:
+                trig_args[dec_name]["args"] = None
+
+        #
+        # check that we have the right number of arguments, and that they are
+        # strings
+        #
+        arg_check = {
+            "event_trigger": {1, 2},
+            "state_active": {1},
+            "state_trigger": {1},
+            "task_unique": {1},
+            "time_active": {"*"},
+            "time_trigger": {"*"},
+        }
+        for dec_name, arg_cnt in arg_check.items():
+            if dec_name not in trig_args or trig_args[dec_name]["args"] is None:
+                continue
+            if "*" not in arg_cnt and len(trig_args[dec_name]["args"]) not in arg_cnt:
+                self.logger.error(
+                    "%s defined in %s: decorator @%s got %d argument%s, expected %s; ignoring decorator",
+                    self.name,
+                    self.global_ctx_name,
+                    dec_name,
+                    len(trig_args[dec_name]["args"]),
+                    "s" if len(trig_args[dec_name]["args"]) > 1 else "",
+                    " or ".join([str(cnt) for cnt in sorted(arg_cnt)]),
+                )
+                del trig_args[dec_name]
+                break
+            for arg_num, arg in enumerate(trig_args[dec_name]["args"]):
+                if not isinstance(arg, str):
+                    self.logger.error(
+                        "%s defined in %s: decorator @%s argument %d should be a string; ignoring decorator",
+                        self.name,
+                        self.global_ctx_name,
+                        dec_name,
+                        arg_num + 1,
+                    )
+                    del trig_args[dec_name]
+                    break
+            if arg_cnt == {1}:
+                trig_args[dec_name]["args"] = trig_args[dec_name]["args"][0]
+
+        kwarg_check = {
+            "task_unique": {"kill_me"},
+        }
+        for dec_name in trig_args:
+            if dec_name not in kwarg_check and "kwargs" in trig_args[dec_name]:
+                self.logger.error(
+                    "%s defined in %s: decorator @%s doesn't take keyword arguments; ignored",
+                    self.name,
+                    self.global_ctx_name,
+                    dec_name,
+                )
+            if dec_name in kwarg_check and "kwargs" in trig_args[dec_name]:
+                used_kw = set(trig_args[dec_name]["kwargs"].keys())
+                if not used_kw.issubset(kwarg_check[dec_name]):
+                    self.logger.error(
+                        "%s defined in %s: decorator @%s valid keyword arguments are: %s; others ignored",
+                        self.name,
+                        self.global_ctx_name,
+                        dec_name,
+                        ", ".join(sorted(kwarg_check[dec_name])),
+                    )
+
+        if not got_reqd_dec and len(trig_args) > 0:
+            self.logger.error(
+                "%s defined in %s: needs at least one trigger decorator (ie: %s)",
+                self.name,
+                self.global_ctx_name,
+                ", ".join(sorted(trig_decorators_reqd)),
+            )
+            return
+
+        if len(trig_args) == 0:
+            if self.trigger_service:
+                self.global_ctx.trigger_register(self)
+            return
+
+        trig_args["action"] = self
+        trig_args["action_ast_ctx"] = AstEval(f"{self.global_ctx_name}.{self.name}", self.global_ctx)
+        Function.install_ast_funcs(trig_args["action_ast_ctx"])
+        trig_args["global_sym_table"] = self.global_ctx.global_sym_table
+
+        self.trigger = self.global_ctx.get_trig_info(f"{self.global_ctx_name}.{self.name}", trig_args)
+        if self.global_ctx.trigger_register(self):
+            self.trigger_start()
+
+    def trigger_start(self):
+        """Start any triggers for this function."""
+        if self.trigger:
+            self.trigger.start()
+
+    def trigger_stop(self):
+        """Stop any triggers for this function."""
+        if self.trigger:
+            trigger = self.trigger
+            self.trigger = None
+            trigger.stop()
+        if self.trigger_service:
+            self.trigger_service = False
+            Function.hass.services.async_remove(DOMAIN, self.name)
 
     async def eval_decorators(self, ast_ctx):
         """Evaluate the function decorators arguments."""
@@ -283,6 +512,7 @@ class EvalFunc:
         var_names = set(args)
         local_names = set(args)
         for stmt in self.func_def.body:
+            self.has_closure = self.has_closure or isinstance(stmt, ast.FunctionDef)
             var_names = var_names.union(
                 await ast_ctx.get_names(
                     stmt, nonlocal_names=nonlocal_names, global_names=global_names, local_names=local_names,
@@ -297,7 +527,8 @@ class EvalFunc:
                 continue
 
             if var_name in local_names and var_name not in nonlocal_names:
-                self.local_sym_table[var_name] = EvalLocalVar(var_name)
+                if self.has_closure:
+                    self.local_sym_table[var_name] = EvalLocalVar(var_name)
                 continue
 
             if var_name in nonlocal_names:
@@ -410,6 +641,26 @@ class EvalFunc:
         return val
 
 
+class EvalFuncVar:
+    """Class for a callable pyscript function."""
+
+    def __init__(self, func):
+        """Initialize instance with given EvalFunc function."""
+        self.func = func
+
+    def call(self, ctx, *args, **kwargs):
+        """Call the EvalFunc function."""
+        return self.func.call(ctx, *args, **kwargs)
+
+    def get_func(self):
+        """Return the EvalFunc function."""
+        return self.func
+
+    def __del__(self):
+        """On deletion, stop any triggers for this function."""
+        self.func.trigger_stop()
+
+
 class AstEval:
     """Python interpreter AST object evaluator."""
 
@@ -437,7 +688,7 @@ class AstEval:
         self.logger = None
         self.set_logger_name(logger_name if logger_name is not None else self.name)
         self.allow_all_imports = (
-            global_ctx.hass.data[DOMAIN]["allow_all_imports"] if global_ctx.hass is not None else False
+            Function.hass.data[DOMAIN]["allow_all_imports"] if global_ctx.hass is not None else False
         )
 
     async def ast_not_implemented(self, arg, *args):
@@ -461,9 +712,7 @@ class AstEval:
                 func_name = self.curr_func.get_name() + "(), " if self.curr_func else ""
                 self.exception_obj = err
                 self.exception = f"Exception in {func_name}{self.filename} line {self.lineno} column {self.col_offset}: {err}"
-                self.exception_long = self.format_exc(
-                    err, self.lineno, self.col_offset
-                ) + traceback.format_exc(-1)
+                self.exception_long = self.format_exc(err, self.lineno, self.col_offset)
             raise
 
     # Statements return NONE, EvalBreak, EvalContinue, EvalReturn
@@ -577,7 +826,7 @@ class AstEval:
         self.sym_table = self.sym_table_stack.pop()
 
         for name, func in sym_table.items():
-            if not isinstance(func, EvalFunc):
+            if not isinstance(func, EvalFuncVar):
                 continue
 
             def class_func_factory(func):
@@ -587,7 +836,7 @@ class AstEval:
 
                 return class_func_wrapper
 
-            sym_table[name] = class_func_factory(func)
+            sym_table[name] = class_func_factory(func.get_func())
 
         if "__init__" in sym_table:
             sym_table["__init__evalfunc_wrap__"] = sym_table["__init__"]
@@ -596,27 +845,26 @@ class AstEval:
 
     async def ast_functiondef(self, arg):
         """Evaluate function definition."""
-        func = EvalFunc(arg, self.code_list, self.code_str)
+        func = EvalFunc(arg, self.code_list, self.code_str, self.global_ctx)
         await func.eval_defaults(self)
         await func.eval_decorators(self)
         await func.resolve_nonlocals(self)
+        await func.trigger_init()
         name = func.get_name()
+        func_var = EvalFuncVar(func)
         if name in self.sym_table and isinstance(self.sym_table[name], EvalLocalVar):
-            self.sym_table[name].set(func)
+            self.sym_table[name].set(func_var)
         else:
-            self.sym_table[name] = func
-        if self.sym_table == self.global_sym_table:
-            # set up any triggers if this function is in the global context
-            await self.global_ctx.trigger_init(func)
+            self.sym_table[name] = func_var
 
     async def ast_lambda(self, arg):
         """Evaluate lambda definition."""
         funcdef = ast.FunctionDef(
             args=arg.args, body=[ast.Return(value=arg.body)], name="lambda", decorator_list=None,
         )
-        func = EvalFunc(funcdef, self.code_list, self.code_str)
+        func = EvalFunc(funcdef, self.code_list, self.code_str, self.global_ctx)
         await func.eval_defaults(self)
-        return func
+        return EvalFuncVar(func)
 
     async def ast_asyncfunctiondef(self, arg):
         """Evaluate async function definition."""
@@ -895,12 +1143,8 @@ class AstEval:
             elif isinstance(arg1, ast.Name):
                 if self.curr_func and arg1.id in self.curr_func.global_names:
                     if arg1.id in self.global_sym_table:
-                        if isinstance(self.global_sym_table[arg1.id], EvalFunc):
-                            await self.global_ctx.stop(arg1.id)
                         del self.global_sym_table[arg1.id]
                 elif arg1.id in self.sym_table:
-                    if isinstance(self.sym_table[arg1.id], EvalFunc):
-                        await self.global_ctx.stop(arg1.id)
                     del self.sym_table[arg1.id]
                 else:
                     raise NameError(f"name '{arg1.id}' is not defined in del")
@@ -1277,8 +1521,8 @@ class AstEval:
 
     async def call_func(self, func, func_name, args, kwargs):
         """Call a function with the given arguments."""
-        if isinstance(func, EvalFunc):
-            return await func.call(self, args, kwargs)
+        if isinstance(func, EvalFuncVar):
+            return await func.get_func().call(self, args, kwargs)
         if inspect.isclass(func) and hasattr(func, "__init__evalfunc_wrap__"):
             #
             # since our __init__ function is async, create the class instance
@@ -1414,7 +1658,7 @@ class AstEval:
                         local_names=local_names,
                     )
                 return
-            elif cls_name in {"FunctionDef", "ClassDef"}:
+            elif cls_name in {"FunctionDef", "ClassDef", "AsyncFunctionDef"}:
                 local_names.add(arg.name)
                 names.add(arg.name)
                 return
@@ -1427,13 +1671,17 @@ class AstEval:
                 local_names=local_names,
             )
 
-    async def get_names(self, ast=None, nonlocal_names=None, global_names=None, local_names=None):
+    async def get_names(self, this_ast=None, nonlocal_names=None, global_names=None, local_names=None):
         """Return set of all the names mentioned in our AST tree."""
         names = set()
-        ast = ast or self.ast
-        if ast:
+        this_ast = this_ast or self.ast
+        if this_ast:
             await self.get_names_set(
-                ast, names, nonlocal_names=nonlocal_names, global_names=global_names, local_names=local_names
+                this_ast,
+                names,
+                nonlocal_names=nonlocal_names,
+                global_names=global_names,
+                local_names=local_names,
             )
         return names
 

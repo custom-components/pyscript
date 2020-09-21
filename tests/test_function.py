@@ -475,3 +475,98 @@ def func5(var_name=None, value=None):
     seq_num += 1
     hass.states.async_remove("pyscript.f5var1")
     assert literal_eval(await wait_until_done(notify_q)) == [seq_num, "pyscript.f5var1", None]
+
+
+async def test_trigger_closures(hass, caplog):
+    """Test trigger function closures."""
+    notify_q = asyncio.Queue(0)
+    await setup_script(
+        hass,
+        notify_q,
+        [dt(2020, 7, 1, 10, 59, 59, 999999), dt(2020, 7, 1, 11, 59, 59, 999999)],
+        """
+
+seq_num = 0
+
+@time_trigger("startup")
+def func_startup_sync(trigger_type=None, trigger_time=None):
+    global seq_num
+
+    seq_num += 1
+    pyscript.done = seq_num
+
+def factory(trig_value):
+
+    @state_trigger(f"pyscript.var1 == '{trig_value}' or 100 <= int(pyscript.var1) <= 101")
+    def func_trig(var_name=None, value=None):
+        global seq_num, f
+        if value == '100':
+            pyscript.done = seq_num + trig_value
+        elif value == '101':
+            if trig_value == 50:
+                del f[-1]
+                seq_num += 1
+                pyscript.done = seq_num
+        else:
+            seq_num += 1
+            pyscript.done = seq_num
+
+    return func_trig
+
+f = [factory(50), factory(51), factory(52), factory(53)]
+""",
+    )
+    seq_num = 0
+
+    seq_num += 1
+    # fire event to start triggers, and handshake when they are running
+    hass.bus.async_fire(EVENT_HOMEASSISTANT_STARTED)
+    assert literal_eval(await wait_until_done(notify_q)) == seq_num
+
+    #
+    # trigger them one at a time
+    #
+    for i in range(3):
+        seq_num += 1
+        hass.states.async_set("pyscript.var1", 50 + i)
+        assert literal_eval(await wait_until_done(notify_q)) == seq_num
+
+    #
+    # trigger all three together; we don't know the order, so just check
+    # we got all 3
+    #
+    hass.states.async_set("pyscript.var1", 100)
+    seqs = set()
+    expect = set()
+    for i in range(4):
+        seqs.add(literal_eval(await wait_until_done(notify_q)))
+        expect.add(seq_num + 50 + i)
+    assert seqs == expect
+
+    #
+    # now trigger all again, but just the first deletes the last
+    # trigger function and replies
+    #
+    seq_num += 1
+    hass.states.async_set("pyscript.var1", 101)
+    assert literal_eval(await wait_until_done(notify_q)) == seq_num
+
+    #
+    # now trigger all again, and confirm we only get two
+    #
+    hass.states.async_set("pyscript.var1", 100)
+    seqs = set()
+    expect = set()
+    for i in range(3):
+        seqs.add(literal_eval(await wait_until_done(notify_q)))
+        expect.add(seq_num + 50 + i)
+    assert seqs == expect
+
+    #
+    # now trigger all again, but just the first deletes the last
+    # trigger function and replies, just to make sure the last
+    # one didn't trigger
+    #
+    seq_num += 1
+    hass.states.async_set("pyscript.var1", 101)
+    assert literal_eval(await wait_until_done(notify_q)) == seq_num

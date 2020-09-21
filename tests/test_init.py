@@ -186,7 +186,7 @@ async def test_runtime_error(hass, caplog):
         dt(2020, 7, 1, 11, 59, 59, 999999),
         """
 @service
-def func1():
+def func_runtime_error():
     pass
 
 xyz

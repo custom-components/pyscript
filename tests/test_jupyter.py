@@ -221,7 +221,7 @@ async def shell_msg(sock, msg_type, msg_content, execute=False):
         msg = await get_iopub_msg(sock, "execute_input")
         assert msg["header"]["msg_type"] == "execute_input"
 
-        reply_msg = await get_iopub_msg(sock, {"execute_result", "error", "stream"})
+        reply_msg = await get_iopub_msg(sock, {"execute_result", "error"})
 
         msg = deserialize_wire_msg(await sock["shell_port"].recv_multipart())
         assert msg["header"]["msg_type"] == "execute_reply"
@@ -436,7 +436,7 @@ async def test_jupyter_kernel_redefine_func(hass, caplog):
         "execute_request",
         {
             "code": """
-@time_trigger("2019/9/4 12:00")
+@time_trigger("once(2019/9/7 12:00)")
 @state_trigger("pyscript.var1 == '1'")
 @event_trigger("test_event")
 def func():
@@ -453,7 +453,7 @@ def func():
         "execute_request",
         {
             "code": """
-@time_trigger("2019/9/4 13:00")
+@time_trigger("once(2019/9/7 13:00)")
 @state_trigger("pyscript.var1 == '1'")
 @event_trigger("test_event2")
 def func():
@@ -504,7 +504,7 @@ async def test_jupyter_kernel_stdout(hass, caplog):
 
 async def test_jupyter_kernel_no_connection_timeout(hass, caplog):
     """Test Jupyter kernel timeout on no connection."""
-    sock, port_nums = await setup_script(hass, [dt(2020, 7, 1, 11, 0, 0, 0)], "", no_connect=True)
+    await setup_script(hass, [dt(2020, 7, 1, 11, 0, 0, 0)], "", no_connect=True)
 
     #
     # There is a race condition waiting for the log message, so we need to poll

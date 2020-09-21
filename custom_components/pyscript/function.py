@@ -69,6 +69,23 @@ class Function:
             }
         )
 
+        #
+        # start a task which is a reaper for canceled tasks, since some # functions
+        # like TrigInfo.stop() can't be async (it's called from a __del__ method)
+        #
+        async def task_await_reaper(reaper_q):
+            try:
+                while True:
+                    task = await reaper_q.get()
+                    await task
+            except asyncio.CancelledError:
+                raise
+            except Exception:
+                pass
+
+        cls.task_reaper_q = asyncio.Queue(0)
+        cls.task_await_repeaer = Function.create_task(task_await_reaper(cls.task_reaper_q))
+
     @classmethod
     async def async_sleep(cls, duration):
         """Implement task.sleep()."""
@@ -217,3 +234,8 @@ class Function:
     def create_task(cls, coro):
         """Create a new task that runs a coroutine."""
         return cls.hass.loop.create_task(cls.run_coro(coro))
+
+    @classmethod
+    def task_await_send(cls, task):
+        """Send a task that has been canceled to the reaper task so it can be awaited."""
+        cls.task_reaper_q.put_nowait(task)

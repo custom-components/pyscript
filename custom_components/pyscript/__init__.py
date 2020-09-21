@@ -68,7 +68,7 @@ async def async_setup(hass, config):
         for global_ctx_name, global_ctx in GlobalContextMgr.items():
             if not global_ctx_name.startswith("file."):
                 continue
-            await global_ctx.stop()
+            global_ctx.stop()
             global_ctx.set_auto_start(False)
             ctx_delete[global_ctx_name] = global_ctx
         for global_ctx_name, global_ctx in ctx_delete.items():
@@ -79,7 +79,7 @@ async def async_setup(hass, config):
         for global_ctx_name, global_ctx in GlobalContextMgr.items():
             if not global_ctx_name.startswith("file."):
                 continue
-            await global_ctx.start()
+            global_ctx.start()
 
     hass.services.async_register(DOMAIN, SERVICE_RELOAD, reload_scripts_handler)
 
@@ -130,7 +130,7 @@ async def async_setup(hass, config):
         for global_ctx_name, global_ctx in GlobalContextMgr.items():
             if not global_ctx_name.startswith("file."):
                 continue
-            await global_ctx.start()
+            global_ctx.start()
             global_ctx.set_auto_start(True)
 
     async def stop_triggers(event):
@@ -138,7 +138,7 @@ async def async_setup(hass, config):
         for global_ctx_name, global_ctx in GlobalContextMgr.items():
             if not global_ctx_name.startswith("file."):
                 continue
-            await global_ctx.stop()
+            global_ctx.stop()
 
     hass.bus.async_listen(EVENT_HOMEASSISTANT_STARTED, start_triggers)
     hass.bus.async_listen(EVENT_HOMEASSISTANT_STOP, stop_triggers)
@@ -179,10 +179,12 @@ async def compile_scripts(hass):
         if not ast_ctx.parse(source, filename=file):
             exc = ast_ctx.get_exception_long()
             ast_ctx.get_logger().error(exc)
+            global_ctx.stop()
             continue
         await ast_ctx.eval()
         exc = ast_ctx.get_exception_long()
         if exc is not None:
             ast_ctx.get_logger().error(exc)
+            global_ctx.stop()
             continue
         GlobalContextMgr.set(global_ctx_name, global_ctx)

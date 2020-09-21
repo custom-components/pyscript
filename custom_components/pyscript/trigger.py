@@ -510,7 +510,7 @@ class TrigInfo:
 
         self.setup_ok = True
 
-    async def stop(self):
+    def stop(self):
         """Stop this trigger task."""
 
         if self.task:
@@ -521,11 +521,11 @@ class TrigInfo:
             if self.task:
                 try:
                     self.task.cancel()
-                    await self.task
+                    Function.task_await_send(self.task)
                 except asyncio.CancelledError:
                     pass
-            self.task = None
-            _LOGGER.debug("trigger %s is stopped", self.name)
+                self.task = None
+                _LOGGER.debug("trigger %s is stopped", self.name)
 
     def start(self):
         """Start this trigger task."""
@@ -536,25 +536,26 @@ class TrigInfo:
     async def trigger_watch(self):
         """Task that runs for each trigger, waiting for the next trigger and calling the function."""
 
-        async def do_func_call(func, ast_ctx, task_unique, kwargs=None):
-            if task_unique:
-                await Function.task_unique(task_unique)
-            await func.call(ast_ctx, kwargs=kwargs)
-            if ast_ctx.get_exception_obj():
-                ast_ctx.get_logger().error(ast_ctx.get_exception_long())
+        try:
 
-        if self.state_trigger is not None:
-            self.state_trig_ident = await self.state_trig_expr.get_names()
-            _LOGGER.debug("trigger %s: watching vars %s", self.name, self.state_trig_ident)
-            if len(self.state_trig_ident) > 0:
-                State.notify_add(self.state_trig_ident, self.notify_q)
+            async def do_func_call(func, ast_ctx, task_unique, kwargs=None):
+                if task_unique:
+                    await Function.task_unique(task_unique)
+                await func.call(ast_ctx, kwargs=kwargs)
+                if ast_ctx.get_exception_obj():
+                    ast_ctx.get_logger().error(ast_ctx.get_exception_long())
 
-        if self.event_trigger is not None:
-            _LOGGER.debug("trigger %s adding event_trigger %s", self.name, self.event_trigger[0])
-            Event.notify_add(self.event_trigger[0], self.notify_q)
+            if self.state_trigger is not None:
+                self.state_trig_ident = await self.state_trig_expr.get_names()
+                _LOGGER.debug("trigger %s: watching vars %s", self.name, self.state_trig_ident)
+                if len(self.state_trig_ident) > 0:
+                    State.notify_add(self.state_trig_ident, self.notify_q)
 
-        while True:
-            try:
+            if self.event_trigger is not None:
+                _LOGGER.debug("trigger %s adding event_trigger %s", self.name, self.event_trigger[0])
+                Event.notify_add(self.event_trigger[0], self.notify_q)
+
+            while True:
                 timeout = None
                 notify_info = None
                 notify_type = None
@@ -657,13 +658,13 @@ class TrigInfo:
                     do_func_call(self.action, self.action_ast_ctx, self.task_unique, kwargs=func_args,)
                 )
 
-            except asyncio.CancelledError:
-                raise
+        except asyncio.CancelledError:
+            raise
 
-            except Exception:
-                # _LOGGER.error(f"{self.name}: " + traceback.format_exc(-1))
-                if self.state_trig_ident:
-                    State.notify_del(self.state_trig_ident, self.notify_q)
-                if self.event_trigger is not None:
-                    Event.notify_del(self.event_trigger[0], self.notify_q)
-                return
+        except Exception:
+            # _LOGGER.error(f"{self.name}: " + traceback.format_exc(-1))
+            if self.state_trig_ident:
+                State.notify_del(self.state_trig_ident, self.notify_q)
+            if self.event_trigger is not None:
+                Event.notify_del(self.event_trigger[0], self.notify_q)
+            return
