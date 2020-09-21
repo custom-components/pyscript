@@ -154,14 +154,14 @@ class EvalLocalVar:
     def __init__(self, name, **kwargs):
         """Initialize value of local symbol."""
         self.name = name
-        self.valid = False
+        self.defined = False
         if "value" in kwargs:
             self.value = kwargs["value"]
-            self.valid = True
+            self.defined = True
 
     def get(self):
         """Get value of local symbol."""
-        if not self.valid:
+        if not self.defined:
             raise NameError(f"name '{self.name}' is not defined")
         return self.value
 
@@ -172,15 +172,19 @@ class EvalLocalVar:
     def set(self, value):
         """Set value of local symbol."""
         self.value = value
-        self.valid = True
+        self.defined = True
 
-    def defined(self):
-        """Return whether value is valid."""
-        return self.valid
+    def is_defined(self):
+        """Return whether value is defined."""
+        return self.defined
+
+    def set_undefined(self):
+        """Set local symbol to undefined."""
+        self.defined = False
 
     def __getattr__(self, attr):
         """Get attribute of local variable."""
-        if not self.valid:
+        if not self.defined:
             raise NameError(f"name '{self.name}' is not defined")
         return getattr(self.value, attr)
 
@@ -614,7 +618,7 @@ class EvalFunc:
         for name, value in self.local_sym_table.items():
             if name in sym_table:
                 sym_table[name] = EvalLocalVar(name, value=sym_table[name])
-            elif value.defined():
+            elif value.is_defined():
                 sym_table[name] = value
             else:
                 sym_table[name] = EvalLocalVar(name)
@@ -1145,9 +1149,15 @@ class AstEval:
                     if arg1.id in self.global_sym_table:
                         del self.global_sym_table[arg1.id]
                 elif arg1.id in self.sym_table:
-                    del self.sym_table[arg1.id]
+                    if isinstance(self.sym_table[arg1.id], EvalLocalVar):
+                        if self.sym_table[arg1.id].is_defined():
+                            self.sym_table[arg1.id].set_undefined()
+                        else:
+                            raise NameError(f"name '{arg1.id}' is not defined")
+                    else:
+                        del self.sym_table[arg1.id]
                 else:
-                    raise NameError(f"name '{arg1.id}' is not defined in del")
+                    raise NameError(f"name '{arg1.id}' is not defined")
             else:
                 raise NotImplementedError(f"unknown target type {arg1} in del")
 
@@ -1662,6 +1672,10 @@ class AstEval:
                 local_names.add(arg.name)
                 names.add(arg.name)
                 return
+            elif cls_name == "Delete":
+                for arg1 in arg.targets:
+                    if isinstance(arg1, ast.Name):
+                        local_names.add(arg1.id)
         for child in ast.iter_child_nodes(arg):
             await self.get_names_set(
                 child,

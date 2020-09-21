@@ -784,6 +784,38 @@ f3, f4 = func()
 """,
         [3, 12, 16, 42],
     ],
+    [
+        """
+def func():
+    def f1():
+        nonlocal i
+        del i
+        i = 20
+        return i + 1
+
+    def f2():
+        return 2 * i
+
+    i = 10
+    return f1, f2
+
+f1, f2 = func()
+[f2(), f1(), f2()]
+""",
+        [20, 21, 40],
+    ],
+    [
+        """
+def func():
+    def func2():
+        z = x + 2
+        return z
+    x = 1
+    return func2()
+func()
+""",
+        3,
+    ],
 ]
 
 
@@ -836,7 +868,7 @@ evalTestsExceptions = [
         "import math; math.sinXYZ",
         "Exception in test line 1 column 13: module 'math' has no attribute 'sinXYZ'",
     ],
-    ["del xx", "Exception in test line 1 column 0: name 'xx' is not defined in del"],
+    ["del xx", "Exception in test line 1 column 0: name 'xx' is not defined"],
     ["return", "Exception in test line 1 column 0: return statement outside function"],
     ["break", "Exception in test line 1 column 0: break statement outside loop"],
     ["continue", "Exception in test line 1 column 0: continue statement outside loop"],
@@ -911,6 +943,32 @@ except KeyError:
     raise
 """,
         "Exception in test line 4 column 10: 'bad_key'",
+    ],
+    [
+        """
+def func():
+    def func2():
+        nonlocal x
+        del x
+        del x
+    x = 1
+    func2()
+func()
+""",
+        "Exception in func2(), test line 6 column 8: name 'x' is not defined",
+    ],
+    [
+        """
+def func():
+    def func2():
+        z = x + 2
+        return z
+        del x
+    x = 1
+    return func2()
+func()
+""",
+        "Exception in func2(), test line 4 column 12: name 'x' is not defined",
     ],
 ]
 
