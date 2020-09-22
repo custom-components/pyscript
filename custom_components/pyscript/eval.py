@@ -1399,6 +1399,27 @@ class AstEval:
         if isinstance(arg.ctx, ast.Load):
             return await self.eval_elt_list(arg.elts)
 
+    async def loopvar_scope_save(self, generators):
+        """Return current scope variables that match looping target vars."""
+        #
+        # looping variables are in their own implicit nested scope, so save/restore
+        # variables in the current scope with the same names
+        #
+        vars = set()
+        for gen in generators:
+            await self.get_names(
+                ast.Assign(targets=[gen.target], value=ast.Constant(value=None)), local_names=vars
+            )
+        return vars, {var: self.sym_table[var] for var in vars if var in self.sym_table}
+
+    async def loopvar_scope_restore(self, var_names, save_vars):
+        """Restore current scope variables that match looping target vars."""
+        for var_name in var_names:
+            if var_name in save_vars:
+                self.sym_table[var_name] = save_vars[var_name]
+            else:
+                del self.sym_table[var_name]
+
     async def listcomp_loop(self, generators, elt):
         """Recursive list comprehension."""
         out = []
@@ -1417,7 +1438,10 @@ class AstEval:
 
     async def ast_listcomp(self, arg):
         """Evaluate list comprehension."""
-        return await self.listcomp_loop(arg.generators, arg.elt)
+        target_vars, save_values = await self.loopvar_scope_save(arg.generators)
+        result = await self.listcomp_loop(arg.generators, arg.elt)
+        await self.loopvar_scope_restore(target_vars, save_values)
+        return result
 
     async def ast_tuple(self, arg):
         """Evaluate Tuple."""
@@ -1445,14 +1469,21 @@ class AstEval:
                     break
             else:
                 if len(generators) == 1:
-                    out[await self.aeval(key)] = await self.aeval(value)
+                    #
+                    # key is evaluated before value starting in 3.8
+                    #
+                    key_val = await self.aeval(key)
+                    out[key_val] = await self.aeval(value)
                 else:
                     out.update(await self.dictcomp_loop(generators[1:], key, value))
         return out
 
     async def ast_dictcomp(self, arg):
         """Evaluate dict comprehension."""
-        return await self.dictcomp_loop(arg.generators, arg.key, arg.value)
+        target_vars, save_values = await self.loopvar_scope_save(arg.generators)
+        result = await self.dictcomp_loop(arg.generators, arg.key, arg.value)
+        await self.loopvar_scope_restore(target_vars, save_values)
+        return result
 
     async def ast_set(self, arg):
         """Evaluate set."""
@@ -1479,7 +1510,10 @@ class AstEval:
 
     async def ast_setcomp(self, arg):
         """Evaluate set comprehension."""
-        return await self.setcomp_loop(arg.generators, arg.elt)
+        target_vars, save_values = await self.loopvar_scope_save(arg.generators)
+        result = await self.setcomp_loop(arg.generators, arg.elt)
+        await self.loopvar_scope_restore(target_vars, save_values)
+        return result
 
     async def ast_subscript(self, arg):
         """Evaluate subscript."""

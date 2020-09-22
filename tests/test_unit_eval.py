@@ -173,6 +173,24 @@ chk5 = state.get_attr("pyscript.var1")
     ["task.executor(int, 'ff', base=16)", 255],
     ["[i for i in range(7) if i != 5 if i != 3]", [0, 1, 2, 4, 6]],
     [
+        "i = 100; k = 10; [[k * i for i in range(3) for k in range(5)], i, k]",
+        [[0, 0, 0, 0, 0, 0, 1, 2, 3, 4, 0, 2, 4, 6, 8], 100, 10],
+    ],
+    [
+        "i = 100; k = 10; [[[k * i for i in range(3)] for k in range(5)], i, k]",
+        [[[0, 0, 0], [0, 1, 2], [0, 2, 4], [0, 3, 6], [0, 4, 8]], 100, 10],
+    ],
+    [
+        "i = 100; k = 10; [{k * i for i in range(3) for k in range(5)}, i, k]",
+        [{0, 1, 2, 3, 4, 6, 8}, 100, 10],
+    ],
+    [
+        "i = 100; k = 10; [[{k * i for i in range(3)} for k in range(5)], i, k]",
+        [[{0}, {0, 1, 2}, {0, 2, 4}, {0, 3, 6}, {0, 4, 8}], 100, 10],
+    ],
+    ["i = [10]; [[i[0] for i[0] in range(5)], i]", [[0, 1, 2, 3, 4], [4]]],
+    ["i = [10]; [{i[0] for i[0] in range(5)}, i]", [{0, 1, 2, 3, 4}, [4]]],
+    [
         """
 matrix = [[1, 2, 3], [4, 5], [6, 7, 8, 9]]
 [val for sublist in matrix for val in sublist if val != 8]
@@ -226,6 +244,7 @@ def no_op(i):
         [{0, 1, 2, 4, 6}, 13],
     ],
     ["{str(i):i for i in range(5) if i != 3}", {"0": 0, "1": 1, "2": 2, "4": 4}],
+    ["i = 100; [{str(i):i for i in range(5) if i != 3}, i]", [{"0": 0, "1": 1, "2": 2, "4": 4}, 100]],
     ["{v:k for k,v in {str(i):i for i in range(5)}.items()}", {0: "0", 1: "1", 2: "2", 3: "3", 4: "4"}],
     [
         "{f'{i}+{k}':i+k for i in range(3) for k in range(3)}",
