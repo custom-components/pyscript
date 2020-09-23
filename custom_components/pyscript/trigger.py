@@ -221,7 +221,6 @@ class TrigTime:
             Event.notify_del(event_trigger[0], notify_q)
         if exc:
             raise exc
-        _LOGGER.debug("trigger %s wait_until returning %s", ast_ctx.name, ret)
         return ret
 
     @classmethod
@@ -461,8 +460,6 @@ class TrigInfo:
         self.setup_ok = False
         self.run_on_startup = False
 
-        _LOGGER.debug("trigger %s event_trigger = %s", self.name, self.event_trigger)
-
         if self.state_active is not None:
             self.active_expr = AstEval(
                 f"{self.name} @state_active()", self.global_ctx, logger_name=self.name
@@ -519,19 +516,13 @@ class TrigInfo:
             if self.event_trigger is not None:
                 Event.notify_del(self.event_trigger[0], self.notify_q)
             if self.task:
-                try:
-                    self.task.cancel()
-                    Function.task_await_send(self.task)
-                except asyncio.CancelledError:
-                    pass
-                self.task = None
-                _LOGGER.debug("trigger %s is stopped", self.name)
+                Function.task_cancel(self.task)
 
     def start(self):
         """Start this trigger task."""
         if not self.task and self.setup_ok:
             self.task = Function.create_task(self.trigger_watch())
-            _LOGGER.debug("trigger %s is active", self.name)
+            _LOGGER.debug("trigger %s is active %s", self.name, self.task)
 
     async def trigger_watch(self):
         """Task that runs for each trigger, waiting for the next trigger and calling the function."""
@@ -655,7 +646,7 @@ class TrigInfo:
                     func_args,
                 )
                 Function.create_task(
-                    do_func_call(self.action, self.action_ast_ctx, self.task_unique, kwargs=func_args,)
+                    do_func_call(self.action, self.action_ast_ctx, self.task_unique, kwargs=func_args)
                 )
 
         except asyncio.CancelledError:

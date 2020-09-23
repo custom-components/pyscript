@@ -247,21 +247,21 @@ In ``@time_trigger``, each string specification ``time_spec`` can take one of fo
   according to Linux-style crontab. Each of the five entries are separated by spaces and correspond
   to minutes, hours, day-of-month, month, day-of-week (0 = sunday):
 
-============ ==============
-field        allowed values
-============ ==============
-minute       0-59
-hour         0-23
-day of month 1-31
-month        1-12
-day of week  0-6 (0 is Sun)
-============ ==============
+  ============ ==============
+  field        allowed values
+  ============ ==============
+  minute       0-59
+  hour         0-23
+  day of month 1-31
+  month        1-12
+  day of week  0-6 (0 is Sun)
+  ============ ==============
 
-Each field can be a ``*`` (which means “all”), a single number, a range or comma-separated list of
-numbers or ranges (no spaces). Ranges are inclusive. For example, if you specify hours as
-``6,10-13`` that means hours of 6,10,11,12,13. The trigger happens on the next minute, hour, day
-that matches the specification. See any Linux documentation for examples and more details (note:
-names for days of week and months are not supported; only their integer values are).
+  Each field can be a ``*`` (which means “all”), a single number, a range or comma-separated list of
+  numbers or ranges (no spaces). Ranges are inclusive. For example, if you specify hours as
+  ``6,10-13`` that means hours of 6,10,11,12,13. The trigger happens on the next minute, hour, day
+  that matches the specification. See any Linux documentation for examples and more details (note:
+  names for days of week and months are not supported; only their integer values are).
 
 When the ``@time_trigger`` occurs and the function is called, the keyword argument ``trigger_type``
 is set to ``"time"``, and ``trigger_time`` is the exact ``datetime`` of the time specification that

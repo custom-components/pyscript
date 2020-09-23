@@ -513,7 +513,7 @@ def factory(trig_value):
 
     return func_trig
 
-f = [factory(50), factory(51), factory(52), factory(53)]
+f = [factory(50), factory(51), factory(52), factory(53), factory(54)]
 """,
     )
     seq_num = 0
@@ -524,49 +524,30 @@ f = [factory(50), factory(51), factory(52), factory(53)]
     assert literal_eval(await wait_until_done(notify_q)) == seq_num
 
     #
-    # trigger them one at a time
+    # trigger them one at a time to make sure each is working
     #
-    for i in range(3):
+    for i in range(5):
         seq_num += 1
         hass.states.async_set("pyscript.var1", 50 + i)
         assert literal_eval(await wait_until_done(notify_q)) == seq_num
 
-    #
-    # trigger all three together; we don't know the order, so just check
-    # we got all 3
-    #
-    hass.states.async_set("pyscript.var1", 100)
-    seqs = set()
-    expect = set()
-    for i in range(4):
-        seqs.add(literal_eval(await wait_until_done(notify_q)))
-        expect.add(seq_num + 50 + i)
-    assert seqs == expect
+    for num_func in range(5, 1, -1):
+        #
+        # trigger all together; we don't know the order, so just check
+        # we got all of the remaining ones
+        #
+        hass.states.async_set("pyscript.var1", 100)
+        seqs = set()
+        expect = set()
+        for i in range(num_func):
+            seqs.add(literal_eval(await wait_until_done(notify_q)))
+            expect.add(seq_num + 50 + i)
+        assert seqs == expect
 
-    #
-    # now trigger all again, but just the first deletes the last
-    # trigger function and replies
-    #
-    seq_num += 1
-    hass.states.async_set("pyscript.var1", 101)
-    assert literal_eval(await wait_until_done(notify_q)) == seq_num
-
-    #
-    # now trigger all again, and confirm we only get two
-    #
-    hass.states.async_set("pyscript.var1", 100)
-    seqs = set()
-    expect = set()
-    for i in range(3):
-        seqs.add(literal_eval(await wait_until_done(notify_q)))
-        expect.add(seq_num + 50 + i)
-    assert seqs == expect
-
-    #
-    # now trigger all again, but just the first deletes the last
-    # trigger function and replies, just to make sure the last
-    # one didn't trigger
-    #
-    seq_num += 1
-    hass.states.async_set("pyscript.var1", 101)
-    assert literal_eval(await wait_until_done(notify_q)) == seq_num
+        #
+        # now trigger all again, but just the first deletes the last
+        # trigger function and replies with the next seq number
+        #
+        seq_num += 1
+        hass.states.async_set("pyscript.var1", 101)
+        assert literal_eval(await wait_until_done(notify_q)) == seq_num

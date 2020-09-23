@@ -7,7 +7,7 @@ import traceback
 
 from .const import LOGGER_PATH
 
-_LOGGER = logging.getLogger(LOGGER_PATH + ".handler")
+_LOGGER = logging.getLogger(LOGGER_PATH + ".function")
 
 
 class Function:
@@ -73,18 +73,22 @@ class Function:
         # start a task which is a reaper for canceled tasks, since some # functions
         # like TrigInfo.stop() can't be async (it's called from a __del__ method)
         #
-        async def task_await_reaper(reaper_q):
-            try:
-                while True:
-                    task = await reaper_q.get()
-                    await task
-            except asyncio.CancelledError:
-                raise
-            except Exception:
-                pass
+        async def task_cancel_reaper(reaper_q):
+            while True:
+                try:
+                    try:
+                        task = await reaper_q.get()
+                        task.cancel()
+                        await task
+                    except asyncio.CancelledError:
+                        pass
+                except asyncio.CancelledError:
+                    raise
+                except Exception:
+                    _LOGGER.error("task_cancel_reaper: got exception %s", traceback.format_exc(-1))
 
         cls.task_reaper_q = asyncio.Queue(0)
-        cls.task_await_repeaer = Function.create_task(task_await_reaper(cls.task_reaper_q))
+        cls.task_cancel_repeaer = Function.create_task(task_cancel_reaper(cls.task_reaper_q))
 
     @classmethod
     async def async_sleep(cls, duration):
@@ -101,20 +105,13 @@ class Function:
         """Implement task.unique()."""
         if name in cls.unique_name2task:
             if kill_me:
-                task = asyncio.current_task()
-
-                # it seems we need to use another task to cancel ourselves
-                # I'm sure there is a better way to cancel ourselves...
-                async def cancel_self():
-                    try:
-                        task.cancel()
-                        await task
-                    except asyncio.CancelledError:
-                        pass
-
-                asyncio.create_task(cancel_self())
-                # ugh - wait to be canceled
-                await asyncio.sleep(10000)
+                #
+                # it seems we can't cancel ourselves, so we
+                # tell the repeaer task to cancel us
+                #
+                Function.task_cancel(asyncio.current_task())
+                # wait to be canceled
+                await asyncio.sleep(100000)
             else:
                 task = cls.unique_name2task[name]
                 if task in cls.our_tasks:
@@ -216,14 +213,14 @@ class Function:
         #
         # Add a placeholder for the new task so we know it's one we started
         #
-        task = asyncio.current_task()
-        cls.our_tasks.add(task)
         try:
+            task = asyncio.current_task()
+            cls.our_tasks.add(task)
             await coro
         except asyncio.CancelledError:
             raise
         except Exception:
-            _LOGGER.error("run_coro: %s", traceback.format_exc(-1))
+            _LOGGER.error("run_coro: got exception %s", traceback.format_exc(-1))
         finally:
             if task in cls.unique_task2name:
                 del cls.unique_name2task[cls.unique_task2name[task]]
@@ -236,6 +233,6 @@ class Function:
         return cls.hass.loop.create_task(cls.run_coro(coro))
 
     @classmethod
-    def task_await_send(cls, task):
-        """Send a task that has been canceled to the reaper task so it can be awaited."""
+    def task_cancel(cls, task):
+        """Send a task to be canceled by the reaper."""
         cls.task_reaper_q.put_nowait(task)
