@@ -15,7 +15,7 @@ source venv/bin/activate
 
 Finally, install the requirements and the pre-commit hooks:
 ```bash
-python -m pip install -r requirements_test.txt
+python -m pip install -r tests/requirements_test.txt
 pre-commit install
 ```
 
