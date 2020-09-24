@@ -5,10 +5,10 @@ Configuration
    one optional configuration parameter that allows any python package
    to be imported if set, eg:
 
-.. code:: yaml
+   .. code:: yaml
 
-   pyscript:
-     allow_all_imports: true
+      pyscript:
+        allow_all_imports: true
 
 -  Create the folder ``<config>/pyscript``
 -  Add files with a suffix of ``.py`` in the folder ``<config>/pyscript``.

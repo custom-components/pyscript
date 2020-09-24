@@ -61,10 +61,10 @@ this [README](https://github.com/craigbarratt/hass-pyscript-jupyter/blob/master/
 
 * Add `pyscript:` to `<config>/configuration.yaml`; pyscript has one optional
 configuration parameter that allows any python package to be imported if set, eg:
-```yaml
-pyscript:
-  allow_all_imports: true
-```
+    ```yaml
+    pyscript:
+      allow_all_imports: true
+    ```
 * Create the folder `<config>/pyscript`
 * Add files with a suffix of `.py` in the folder `<config>/pyscript`.
 * Restart HASS.

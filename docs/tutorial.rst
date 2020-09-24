@@ -11,13 +11,13 @@ with:
 
 .. code:: bash
 
-    wget https://github.com/craigbarratt/hass-pyscript-jupyter/raw/master/pyscript_tutorial.ipynb
+   wget https://github.com/craigbarratt/hass-pyscript-jupyter/raw/master/pyscript_tutorial.ipynb
 
 and open it with:
 
 .. code:: bash
 
-    jupyter notebook pyscript_tutorial.ipynb
+   jupyter notebook pyscript_tutorial.ipynb
 
 You can step through each command by hitting <Shift>Enter. There are various ways to navigate and
 run cells in Jupyter that you can read in the Jupyter documentation.
