@@ -691,9 +691,7 @@ class AstEval:
         self.logger_handlers = set()
         self.logger = None
         self.set_logger_name(logger_name if logger_name is not None else self.name)
-        self.allow_all_imports = (
-            Function.hass.data[DOMAIN]["allow_all_imports"] if global_ctx.hass is not None else False
-        )
+        self.allow_all_imports = Function.hass.data.get(DOMAIN, {}).get("allow_all_imports", False)
 
     async def ast_not_implemented(self, arg, *args):
         """Raise NotImplementedError exception for unimplemented AST types."""
@@ -734,22 +732,26 @@ class AstEval:
     async def ast_import(self, arg):
         """Execute import."""
         for imp in arg.names:
-            if not self.allow_all_imports and imp.name not in ALLOWED_IMPORTS:
-                raise ModuleNotFoundError(f"import of {imp.name} not allowed")
-            if imp.name not in sys.modules:
-                mod = await Function.hass.async_add_executor_job(importlib.import_module, imp.name)
-            else:
-                mod = sys.modules[imp.name]
+            mod = await self.global_ctx.module_import(imp.name)
+            if not mod:
+                if not self.allow_all_imports and imp.name not in ALLOWED_IMPORTS:
+                    raise ModuleNotFoundError(f"import of {imp.name} not allowed")
+                if imp.name not in sys.modules:
+                    mod = await Function.hass.async_add_executor_job(importlib.import_module, imp.name)
+                else:
+                    mod = sys.modules[imp.name]
             self.sym_table[imp.name if imp.asname is None else imp.asname] = mod
 
     async def ast_importfrom(self, arg):
         """Execute from X import Y."""
-        if not self.allow_all_imports and arg.module not in ALLOWED_IMPORTS:
-            raise ModuleNotFoundError(f"import from {arg.module} not allowed")
-        if arg.module not in sys.modules:
-            mod = await Function.hass.async_add_executor_job(importlib.import_module, arg.module)
-        else:
-            mod = sys.modules[arg.module]
+        mod = await self.global_ctx.module_import(arg.module)
+        if not mod:
+            if not self.allow_all_imports and arg.module not in ALLOWED_IMPORTS:
+                raise ModuleNotFoundError(f"import from {arg.module} not allowed")
+            if arg.module not in sys.modules:
+                mod = await Function.hass.async_add_executor_job(importlib.import_module, arg.module)
+            else:
+                mod = sys.modules[arg.module]
         for imp in arg.names:
             if imp.name == "*":
                 for name, value in mod.__dict__.items():
@@ -1405,12 +1407,12 @@ class AstEval:
         # looping variables are in their own implicit nested scope, so save/restore
         # variables in the current scope with the same names
         #
-        vars = set()
+        lvars = set()
         for gen in generators:
             await self.get_names(
-                ast.Assign(targets=[gen.target], value=ast.Constant(value=None)), local_names=vars
+                ast.Assign(targets=[gen.target], value=ast.Constant(value=None)), local_names=lvars
             )
-        return vars, {var: self.sym_table[var] for var in vars if var in self.sym_table}
+        return lvars, {var: self.sym_table[var] for var in lvars if var in self.sym_table}
 
     async def loopvar_scope_restore(self, var_names, save_vars):
         """Restore current scope variables that match looping target vars."""

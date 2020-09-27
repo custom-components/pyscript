@@ -7,14 +7,16 @@ import os
 
 import voluptuous as vol
 
+from homeassistant.config import async_hass_config_yaml, async_process_component_config
 from homeassistant.const import (
     EVENT_HOMEASSISTANT_STARTED,
     EVENT_HOMEASSISTANT_STOP,
     EVENT_STATE_CHANGED,
     SERVICE_RELOAD,
 )
+from homeassistant.exceptions import HomeAssistantError
 import homeassistant.helpers.config_validation as cv
-from homeassistant.loader import bind_hass
+from homeassistant.loader import async_get_integration, bind_hass
 
 from .const import DOMAIN, FOLDER, LOGGER_PATH, SERVICE_JUPYTER_KERNEL_START
 from .eval import AstEval
@@ -30,7 +32,11 @@ _LOGGER = logging.getLogger(LOGGER_PATH)
 CONF_ALLOW_ALL_IMPORTS = "allow_all_imports"
 
 CONFIG_SCHEMA = vol.Schema(
-    {DOMAIN: vol.Schema({vol.Optional(CONF_ALLOW_ALL_IMPORTS, default=False): cv.boolean})},
+    {
+        DOMAIN: vol.Schema(
+            {vol.Optional(CONF_ALLOW_ALL_IMPORTS, default=False): cv.boolean}, extra=vol.ALLOW_EXTRA,
+        )
+    },
     extra=vol.ALLOW_EXTRA,
 )
 
@@ -44,29 +50,43 @@ async def async_setup(hass, config):
     State.register_functions()
     GlobalContextMgr.init()
 
-    path = hass.config.path(FOLDER)
+    pyscript_folder = hass.config.path(FOLDER)
 
     def check_isdir(path):
         return os.path.isdir(path)
 
-    if not await hass.async_add_executor_job(check_isdir, path):
+    if not await hass.async_add_executor_job(check_isdir, pyscript_folder):
         _LOGGER.error("Folder %s not found in configuration folder", FOLDER)
         return False
 
     hass.data.setdefault(DOMAIN, {})
     hass.data[DOMAIN]["allow_all_imports"] = config[DOMAIN].get(CONF_ALLOW_ALL_IMPORTS)
 
-    await compile_scripts(hass)
+    State.set_pyscript_config(config.get(DOMAIN, {}))
 
-    _LOGGER.debug("adding reload handler")
+    await load_scripts(hass)
 
     async def reload_scripts_handler(call):
         """Handle reload service calls."""
-        _LOGGER.debug("stopping triggers and services, reloading scripts, and restarting")
+        _LOGGER.debug("reload: yaml, reloading scripts, and restarting")
+
+        try:
+            conf = await async_hass_config_yaml(hass)
+        except HomeAssistantError as err:
+            _LOGGER.error(err)
+            return
+
+        integration = await async_get_integration(hass, DOMAIN)
+
+        config = await async_process_component_config(hass, conf, integration)
+
+        # GlobalContext.global_sym_table_add("pyscript.config", config.get(DOMAIN, {}))
+        State.set_pyscript_config(config.get(DOMAIN, {}))
 
         ctx_delete = {}
         for global_ctx_name, global_ctx in GlobalContextMgr.items():
-            if not global_ctx_name.startswith("file."):
+            idx = global_ctx_name.find(".")
+            if idx < 0 or global_ctx_name[0:idx] not in {"file", "apps", "modules"}:
                 continue
             global_ctx.stop()
             global_ctx.set_auto_start(False)
@@ -74,7 +94,7 @@ async def async_setup(hass, config):
         for global_ctx_name, global_ctx in ctx_delete.items():
             await GlobalContextMgr.delete(global_ctx_name)
 
-        await compile_scripts(hass)
+        await load_scripts(hass)
 
         for global_ctx_name, global_ctx in GlobalContextMgr.items():
             if not global_ctx_name.startswith("file."):
@@ -88,7 +108,7 @@ async def async_setup(hass, config):
         _LOGGER.debug("service call to jupyter_kernel_start: %s", call.data)
 
         global_ctx_name = GlobalContextMgr.new_name("jupyter_")
-        global_ctx = GlobalContext(global_ctx_name, hass, global_sym_table={})
+        global_ctx = GlobalContext(global_ctx_name, global_sym_table={}, manager=GlobalContextMgr)
         global_ctx.set_auto_start(True)
 
         GlobalContextMgr.set(global_ctx_name, global_ctx)
@@ -147,44 +167,25 @@ async def async_setup(hass, config):
 
 
 @bind_hass
-async def compile_scripts(hass):
-    """Compile all python scripts in FOLDER."""
+async def load_scripts(hass):
+    """Load all python scripts in FOLDER."""
 
-    path = hass.config.path(FOLDER)
+    load_paths = [hass.config.path(FOLDER) + "/apps", hass.config.path(FOLDER)]
 
-    _LOGGER.debug("compile_scripts: path = %s", path)
+    _LOGGER.debug("load_scripts: load_paths = %s", load_paths)
 
-    def glob_files(path, match):
-        return glob.iglob(os.path.join(path, match))
+    def glob_files(load_paths, match):
+        source_files = []
+        for path in load_paths:
+            source_files += sorted(glob.glob(os.path.join(path, match)))
+        return source_files
 
-    def read_file(path):
-        with open(path) as file_desc:
-            source = file_desc.read()
-        return source
+    source_files = await hass.async_add_executor_job(glob_files, load_paths, "*.py")
 
-    source_files = await hass.async_add_executor_job(glob_files, path, "*.py")
+    for source_file in sorted(source_files):
+        name = os.path.splitext(os.path.basename(source_file))[0]
 
-    for file in sorted(source_files):
-        _LOGGER.debug("reading and parsing %s", file)
-        name = os.path.splitext(os.path.basename(file))[0]
-        source = await hass.async_add_executor_job(read_file, file)
-
-        global_ctx_name = f"file.{name}"
-        global_ctx = GlobalContext(global_ctx_name, hass, global_sym_table={})
+        global_ctx = GlobalContext(f"file.{name}", global_sym_table={}, manager=GlobalContextMgr)
         global_ctx.set_auto_start(False)
 
-        ast_ctx = AstEval(global_ctx_name, global_ctx)
-        Function.install_ast_funcs(ast_ctx)
-
-        if not ast_ctx.parse(source, filename=file):
-            exc = ast_ctx.get_exception_long()
-            ast_ctx.get_logger().error(exc)
-            global_ctx.stop()
-            continue
-        await ast_ctx.eval()
-        exc = ast_ctx.get_exception_long()
-        if exc is not None:
-            ast_ctx.get_logger().error(exc)
-            global_ctx.stop()
-            continue
-        GlobalContextMgr.set(global_ctx_name, global_ctx)
+        await GlobalContextMgr.load_file(source_file, global_ctx)

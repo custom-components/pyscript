@@ -2,7 +2,7 @@
 
 from custom_components.pyscript.eval import AstEval
 from custom_components.pyscript.function import Function
-from custom_components.pyscript.global_ctx import GlobalContext
+from custom_components.pyscript.global_ctx import GlobalContext, GlobalContextMgr
 from custom_components.pyscript.state import State
 
 evalTests = [
@@ -841,7 +841,7 @@ func()
 async def run_one_test(test_data):
     """Run one interpreter test."""
     source, expect = test_data
-    global_ctx = GlobalContext("test", None, global_sym_table={})
+    global_ctx = GlobalContext("test", global_sym_table={}, manager=GlobalContextMgr)
     ast = AstEval("test", global_ctx=global_ctx)
     ast.parse(source)
     if ast.get_exception() is not None:
@@ -995,7 +995,7 @@ func()
 async def run_one_test_exception(test_data):
     """Run one interpreter test that generates an exception."""
     source, expect = test_data
-    global_ctx = GlobalContext("test", None, global_sym_table={})
+    global_ctx = GlobalContext("test", global_sym_table={}, manager=GlobalContextMgr)
     ast = AstEval("test", global_ctx=global_ctx)
     ast.parse(source)
     exc = ast.get_exception()

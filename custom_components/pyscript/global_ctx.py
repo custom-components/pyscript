@@ -1,8 +1,11 @@
 """Global context handling."""
 
 import logging
+import os
+from types import ModuleType
 
-from .const import LOGGER_PATH
+from .const import FOLDER, LOGGER_PATH
+from .eval import AstEval
 from .function import Function
 from .trigger import TrigInfo
 
@@ -12,15 +15,16 @@ _LOGGER = logging.getLogger(LOGGER_PATH + ".global_ctx")
 class GlobalContext:
     """Define class for global variables and trigger context."""
 
-    def __init__(self, name, hass, global_sym_table=None):
+    def __init__(self, name, global_sym_table=None, manager=None):
         """Initialize GlobalContext."""
         self.name = name
-        self.hass = hass
         self.global_sym_table = global_sym_table if global_sym_table else {}
         self.triggers = set()
         self.triggers_delay_start = set()
         self.logger = logging.getLogger(LOGGER_PATH + "." + name)
+        self.manager = manager
         self.auto_start = False
+        self.module = None
 
     def trigger_register(self, func):
         """Register a trigger function; return True if start now."""
@@ -63,6 +67,28 @@ class GlobalContext:
     def get_trig_info(self, name, trig_args):
         """Return a new trigger info instance with the given args."""
         return TrigInfo(name, trig_args, self)
+
+    async def module_import(self, module_name):
+        """Import a module from the pyscript/modules folder."""
+        mod_ctx_name = f"module.{module_name}"
+        mod_ctx = self.manager.get(mod_ctx_name)
+        if not mod_ctx:
+
+            def check_isfile(filepath):
+                return os.path.isfile(filepath)
+
+            filepath = Function.hass.config.path(FOLDER) + f"/modules/{module_name}.py"
+            if await Function.hass.async_add_executor_job(check_isfile, filepath):
+                mod = ModuleType(module_name)
+                global_ctx = GlobalContext(mod_ctx_name, global_sym_table=mod.__dict__, manager=self.manager)
+                global_ctx.set_auto_start(True)
+                await self.manager.load_file(filepath, global_ctx)
+                global_ctx.module = mod
+                mod_ctx = self.manager.get(mod_ctx_name)
+
+        if mod_ctx and mod_ctx.module:
+            return mod_ctx.module
+        return None
 
 
 class GlobalContextMgr:
@@ -156,3 +182,39 @@ class GlobalContextMgr:
             cls.name_seq += 1
             if name not in cls.contexts:
                 return name
+
+    @classmethod
+    async def load_file(cls, filepath, global_ctx):
+        """Load, parse and run the given script file."""
+
+        def read_file(path):
+            try:
+                with open(path) as file_desc:
+                    source = file_desc.read()
+                return source
+            except Exception as exc:
+                _LOGGER.error("%s", exc)
+                return None
+
+        _LOGGER.debug("reading and parsing %s", filepath)
+
+        source = await Function.hass.async_add_executor_job(read_file, filepath)
+
+        if source is None:
+            return
+
+        ast_ctx = AstEval(global_ctx.get_name(), global_ctx)
+        Function.install_ast_funcs(ast_ctx)
+
+        if not ast_ctx.parse(source, filename=filepath):
+            exc = ast_ctx.get_exception_long()
+            ast_ctx.get_logger().error(exc)
+            global_ctx.stop()
+            return
+        await ast_ctx.eval()
+        exc = ast_ctx.get_exception_long()
+        if exc is not None:
+            ast_ctx.get_logger().error(exc)
+            global_ctx.stop()
+            return
+        cls.set(global_ctx.get_name(), global_ctx)

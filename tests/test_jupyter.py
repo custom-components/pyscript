@@ -122,7 +122,7 @@ async def setup_script(hass, now, source, no_connect=False):
     with patch("homeassistant.loader.async_get_integration", return_value=integration,), patch(
         "custom_components.pyscript.os.path.isdir", return_value=True
     ), patch("custom_components.pyscript.glob.iglob", return_value=scripts), patch(
-        "custom_components.pyscript.open", mock_open(read_data=source), create=True,
+        "custom_components.pyscript.global_ctx.open", mock_open(read_data=source), create=True,
     ), patch(
         "custom_components.pyscript.trigger.dt_now", return_value=now
     ):
@@ -282,6 +282,7 @@ async def test_jupyter_kernel_msgs(hass, caplog):
     assert reply["header"]["msg_type"] == "complete_reply"
     assert reply["content"]["matches"] == [
         "pyscript",
+        "pyscript.config",
         "pyscript.get_global_ctx",
         "pyscript.list_global_ctx",
         "pyscript.set_global_ctx",
@@ -336,7 +337,8 @@ async def test_jupyter_kernel_msgs(hass, caplog):
     #
     # do a reload to make sure our global context is preserved
     #
-    await hass.services.async_call("pyscript", "reload", {}, blocking=True)
+    with patch("homeassistant.config.load_yaml_config_file", return_value={}):
+        await hass.services.async_call("pyscript", "reload", {}, blocking=True)
 
     reply = await shell_msg(sock, "execute_request", {"code": "x + 10"}, execute=True)
     assert reply["content"]["data"]["text/plain"] == "133"

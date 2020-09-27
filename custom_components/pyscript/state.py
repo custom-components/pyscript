@@ -29,6 +29,11 @@ class State:
     #
     notify_var_last = {}
 
+    #
+    # pyscript yaml configuration
+    #
+    pyscript_config = {}
+
     def __init__(self):
         """Warn on State instantiation."""
         _LOGGER.error("State class is not meant to be instantiated")
@@ -170,11 +175,22 @@ class State:
 
     @classmethod
     def register_functions(cls):
-        """Register state functions."""
+        """Register state functions and config variable."""
         functions = {
             "state.get": cls.get,
             "state.set": cls.set,
             "state.names": cls.names,
             "state.get_attr": cls.get_attr,
+            "pyscript.config": cls.pyscript_config,
         }
         Function.register(functions)
+
+    @classmethod
+    def set_pyscript_config(cls, config):
+        """Set pyscript yaml config."""
+        #
+        # have to update inplace, since dist is already used as value
+        #
+        cls.pyscript_config.clear()
+        for name, value in config.items():
+            cls.pyscript_config[name] = value

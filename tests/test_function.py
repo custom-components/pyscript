@@ -114,7 +114,7 @@ async def setup_script(hass, notify_q, now, source):
     with patch("homeassistant.loader.async_get_integration", return_value=integration), patch(
         "custom_components.pyscript.os.path.isdir", return_value=True
     ), patch("custom_components.pyscript.glob.iglob", return_value=scripts), patch(
-        "custom_components.pyscript.open", mock_open(read_data=source), create=True,
+        "custom_components.pyscript.global_ctx.open", mock_open(read_data=source), create=True,
     ), patch(
         "custom_components.pyscript.trigger.dt_now", return_value=now
     ):
