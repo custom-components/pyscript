@@ -97,8 +97,10 @@ async def async_setup(hass, config):
         await load_scripts(hass)
 
         for global_ctx_name, global_ctx in GlobalContextMgr.items():
-            if not global_ctx_name.startswith("file."):
+            idx = global_ctx_name.find(".")
+            if idx < 0 or global_ctx_name[0:idx] not in {"file", "apps"}:
                 continue
+            global_ctx.set_auto_start(True)
             global_ctx.start()
 
     hass.services.async_register(DOMAIN, SERVICE_RELOAD, reload_scripts_handler)
