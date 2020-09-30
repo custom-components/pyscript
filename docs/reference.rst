@@ -4,7 +4,7 @@ Reference
 Configuration
 -------------
 
-Pyscript has one optional configuration variable that allows any python package to be imported
+Pyscript has one optional configuration variable that allows any Python package to be imported
 if set, eg:
 
 .. code:: yaml
@@ -459,20 +459,21 @@ functions allow you to get and set a variable using its string name. The set fun
 you to optionally set the attributes, which you can’t do if you are directly assigning to the
 variable:
 
-``state.get(name)`` returns the value of the state variable, or ``None`` if it doesn’t exist
-
-``state.get_attr(name)`` returns a ``dict`` of attribute values for the state variable, or ``None``
-if it doesn’t exist
-
-``state.names(domain=None)`` returns a list of all state variable names (ie, ``entity_id``\ s) of a
-domain. If ``domain`` is not specified, it returns all HASS state variable (``entity_id``) names.
-
-``state.set(name, value, new_attributes=None, **kwargs)`` sets the state variable to the given
-value, with the optional attributes. The optional 3rd argument, ``new_attributes``, should be a
-``dict`` and it will overwrite all the existing attributes if specified. If instead attributes are
-specified using keyword arguments, then other attributes will not be affected. If no optional
-arguments are provided, just the state variable value is set and the attributes are not changed. To
-clear the attributes, set ``new_attributes={}``.
+``state.get(name)``
+  returns the value of the state variable, or ``None`` if it doesn’t exist
+``state.get_attr(name)``
+  returns a ``dict`` of attribute values for the state variable, or ``None``
+  if it doesn’t exist
+``state.names(domain=None)``
+  returns a list of all state variable names (ie, ``entity_id``\ s) of a
+  domain. If ``domain`` is not specified, it returns all HASS state variable (``entity_id``) names.
+``state.set(name, value, new_attributes=None, **kwargs)``
+  sets the state variable to the given value, with the optional attributes. The optional 3rd
+  argument, ``new_attributes``, should be a ``dict`` and it will overwrite all the existing
+  attributes if specified. If instead attributes are specified using keyword arguments, then other
+  attributes will not be affected. If no optional arguments are provided, just the state variable
+  value is set and the attributes are not changed. To clear the attributes, set
+  ``new_attributes={}``.
 
 Note that in HASS, all state variable values are coerced into strings.  For example, if a state
 variable has a numeric value, you might want to convert it to a numeric type (eg, using ``int()`` or
@@ -481,28 +482,32 @@ variable has a numeric value, you might want to convert it to a numeric type (eg
 Service Calls
 ^^^^^^^^^^^^^
 
-``service.call(domain, name, **kwargs)`` calls the service ``domain.name`` with the given keyword
-arguments as parameters.
-
-``service.has_service(domain, name)`` returns whether the service ``domain.name`` exists.
+``service.call(domain, name, **kwargs)``
+  calls the service ``domain.name`` with the given keyword arguments as parameters.
+``service.has_service(domain, name)``
+  returns whether the service ``domain.name`` exists.
 
 Event Firing
 ^^^^^^^^^^^^
 
-``event.fire(event_type, **kwargs)`` sends an event with the given ``event_type`` string and the
-keyword parameters as the event data.
+``event.fire(event_type, **kwargs)``
+  sends an event with the given ``event_type`` string and the keyword parameters as the event data.
 
 Logging functions
 ^^^^^^^^^^^^^^^^^
 
 Five logging functions are provided, with increasing levels of severity:
 
-- ``log.debug(str)``
-- ``log.info(str)``
-- ``log.warning(str)``
-- ``log.error(str)``
-- ``print(str)`` is the same as ``log.debug(str)``; currently ``print`` doesn’t support other
-  arguments.
+``log.debug(str)``
+  log a message at debug level
+``log.info(str)``
+  log a message at info level
+``log.warning(str)``
+  log a message at warning level
+``log.error(str)``
+  log a message at error level
+``print(str)``
+  same as ``log.debug(str)``; currently ``print`` doesn’t support other arguments.
 
 The `Logger </integrations/logger/>`__ component can be used to specify the logging level. Log
 messages below the configured level will not appear in the log. Each log message function uses a log
@@ -532,19 +537,21 @@ other functions it calls) will log all messages at ``debug`` or higher.
 Note that in Jupyter, all the ``log`` functions will display output in your session, independent of
 the ``logger`` configuration settings.
 
-Sleep
-^^^^^
+Task sleep
+^^^^^^^^^^
 
-``task.sleep(seconds)`` sleeps for the indicated number of seconds, which can be floating point. Do
-not import ``time`` and use ``time.sleep()`` - that will block lots of other activity.
+``task.sleep(seconds)``
+  sleeps for the indicated number of seconds, which can be floating point. Do not import ``time``
+  and use ``time.sleep()`` - that will block lots of other activity.
 
-Task Unique
+Task unique
 ^^^^^^^^^^^
 
-``task.unique(task_name, kill_me=False)`` kills any currently running triggered function that
-previously called ``task.unique`` with the same ``task_name``. The name can be any string. If
-``kill_me=True`` then the current task is killed if another task that is running previously called
-``task.unique`` with the same ``task_name``.
+``task.unique(task_name, kill_me=False)``
+  kills any currently running triggered function that previously called ``task.unique`` with the
+  same ``task_name``. The name can be any string. If ``kill_me=True`` then the current task is
+  killed if another task that is running previously called ``task.unique`` with the same
+  ``task_name``.
 
 Note that ``task.unique`` applies across all global contexts. It’s up to you to use a convention for
 ``task_name`` that avoids accidental collisions. For example, you could use a prefix of the script
@@ -559,12 +566,13 @@ is the mechanism you can use should you wish to terminate specific functions on 
 outside a function or interactively with Jupyter, calling ``task.unique`` with ``kill_me=True``
 causes ``task.unique`` to do nothing.
 
-Waiting for events
-^^^^^^^^^^^^^^^^^^
+Task waiting
+^^^^^^^^^^^^
 
-``task.wait_until()`` allows functions to wait for events, using identical syntax to the decorators.
-This can be helpful if at some point during execution of some logic you want to wait for some
-additional triggers.
+``task.wait_until()``
+  allows functions to wait for events, using identical syntax to the decorators.  This can be
+  helpful if at some point during execution of some logic you want to wait for some additional
+  triggers.
 
 It takes the following keyword arguments (all are optional):
 
@@ -667,8 +675,21 @@ Summary: use trigger decorators whenever you can. Be especially cautious using `
 to wait for events; you must make sure your logic is robust to missing events that happen before or
 after ``task.wait_until()`` runs.
 
-Global Context functions
-^^^^^^^^^^^^^^^^^^^^^^^^
+Task executor
+^^^^^^^^^^^^^
+
+If you call any Python functions that do I/O or otherwise block, they need to be run outside the
+main event loop using ``task.executor``:
+
+``task.executor(func, *args, **kwargs)``
+  Run the given function in a separate thread.  The first argument is the function to be called,
+  followed by each of the positional or keyword arguments that function expects. The ``func``
+  argument can only be a regular Python function, not a function defined in pyscript.
+
+See `this section <#avoiding-event-loop-i-o>`__ for more information.
+
+Global Context
+^^^^^^^^^^^^^^
 
 Each pyscript script file runs inside its own global context, which means their global variables and
 functions are isolated from each other.  Each Jupyter session also runs in its own global context.
@@ -697,8 +718,11 @@ there will persist after you exit the Jupyter session. However, if you don’t u
 corresponding script file, then upon the next pyscript reload or HASS restart, those interactive
 changes will be lost, since reloading a script file recreates a new global context.
 
+Advanced Topics
+---------------
+
 Workflow
---------
+^^^^^^^^
 
 Without Jupyter, the pyscript workflow involves editing scripts in the ``<config>/pyscript`` folder,
 and calling the ``pyscript.reload`` service to reload the code. You will need to look at the log
@@ -741,23 +765,38 @@ To make any additions or changes permanent (meaning they will be re-created on e
 time your restart HASS) then you should copy the changes or additions to one of your pyscript script
 files.
 
-Importing packages
-------------------
 
-By default, pyscript only allows a short list of packages to be imported.
+Importing
+^^^^^^^^^
 
-If you set the ``allow_all_imports`` configuration parameter, any available python package can be
+Pyscript supports importing two types of packages or modules:
+
+- Pyscript code can be put into modules and stored in the ``<config>/pyscript/modules`` folder.
+  Any pyscript code can import and use these modules or packages. These modules are not autoloaded
+  on startup; they are only loaded when another script imports them. When you call the pyscript
+  reload service, all imported modules are unloaded. Imports of pyscript modules and packages
+  are not affected by the ``allow_all_imports`` setting - if a file is in the ``<config>/pyscript/modules``
+  folder then it can be imported.
+
+- Installed Python packages can be imported. By default, pyscript only allows a short list of Python
+  packages to be imported, for both security reasons and to reduce the risk that package functions
+  that block doing I/O are called.
+
+The rest of this section discusses the second style - importing installed Python modules and packages.
+
+If you set the ``allow_all_imports`` configuration parameter, any available Python package can be
 imported. You should be cautious about setting this if you are going to install community pyscript
-code without inspecting it, since it could, for example, `import os` and call `os.remove()`.
+code without inspecting it, since it could, for example, ``import os`` and call ``os.remove()``.
 However, if you are developing your own code then there is no issue with enabling all imports.
 
 Pyscript code is run using an asynchronous interpreter, which allows it to run in the HASS main
 event loop. That allows many of the "magic" features to be implemented without the user having to
 worry about the details. However, the performance will be much slower that regular Python code,
-which is typically compiled. Any packages you import will run at native, compiled speed.
+which is typically compiled. Any Python packages you import will run at native, compiled speed.
 
-So if you plan to run large chunks of code in pyscript, you might instead consider putting them in a
-package and importing it instead.  That way it will run at native compiled speed.
+So if you plan to run large chunks of code in pyscript without needing any of the pypscript-specific
+features, you might consider putting them in a package and importing it instead.  That way it will
+run at native compiled speed.
 
 One way to do that is in one of your pyscript script files, add this code:
 
@@ -765,23 +804,227 @@ One way to do that is in one of your pyscript script files, add this code:
 
     import sys
 
-    sys.path.append("config/pyscript_modules")
+    if "config/pyscript_module" not in sys.path:
+        sys.path.append("config/pyscript_modules")
 
-This adds a new folder ``config/pyscript_modules`` to python's module search path.  You can then add
-modules to that folder, which will be native python compiled code (but none of the pyscript-specific
-features are available).
+This adds a new folder ``config/pyscript_modules`` to Python's module search path.  You can then add
+modules (files ending in ``.py``) to that folder, which will contain native python that is compiled
+when imported (note that none of the pyscript-specific features are available).
 
-An example of the module might be a file called ``get_random.py``:
+Trigger Closures
+^^^^^^^^^^^^^^^^
+
+Pyscript supports trigger functions that are defined as closures, ie: functions defined inside
+another function. This allows you to easily create many similar trigger functions that might
+differ only in a couple of parameters (eg, a common function in different rooms or for each
+media set up). The trigger will be stopped when the function is no longer referenced in
+any scope. Typically the closure function is returned, and the return value is assigned
+to a variable. If that variable is re-assigned or deleted, the trigger function will be
+destroyed.
+
+Here's an example:
 
 .. code:: python
 
-    def read(n=64):
-        with open("/dev/random", "rb") as fd:
-            return fd.read(n)
+        def state_trigger_factory(sensor_name, trig_value):
 
-Event Loop
-----------
+            @state_trigger(f"input_boolean.{sensor_name} == '{trig_value}'")
+            def func_trig(value=None):
+                log.info(f"func_trig: {sensor_name} is {value}")
 
-Description of limitation of no I/O or blocking in main event loop.
+            return func_trig
 
-Wrap I/O or long-running functions in `task.executor()`.
+        f1 = state_trigger_factory("test1", "on")
+        f2 = state_trigger_factory("test2", "on")
+        f3 = state_trigger_factory("test3", "on")
+
+This creates three trigger functions that fire when the given sensor ``input_boolean.testN`` is
+``on``.  If you re-assign or delete ``f1`` then that trigger will be destroyed, and the other two
+will not be affected. If you repeatedly re-run this block of code in Jupyter the right thing will
+happen - each time it runs the old triggers are destroyed when the variables are re-assigned.
+
+Any data type could be used to maintain a reference to the trigger function.  For example
+a list could be manually built:
+
+.. code:: python
+
+    input_boolean_test_triggers = [
+        state_trigger_factory("test1", "on"),
+        state_trigger_factory("test2", "on"),
+        state_trigger_factory("test3", "on")
+    ]
+
+or dynamically in a loop:
+
+.. code:: python
+
+    input_boolean_test_triggers = []
+    for i in range(1, 4):
+        input_boolean_test_triggers.append(state_trigger_factory(f"test{i}", "on"))
+
+If you are writing a factory function and you prefer the caller not to bother with
+maintaining variables with the closure functions, you could move the appending into
+the function and use a global variable (a class could also be used):
+
+.. code:: python
+
+        input_boolean_test_triggers = []
+
+        def state_trigger_factory(sensor_name, trig_value):
+
+            @state_trigger(f"input_boolean.{sensor_name} == '{trig_value}'")
+            def func_trig(value=None):
+                log.info(f"func_trig: {sensor_name} is {value}")
+
+            input_boolean_test_triggers.append(func_trig)
+
+        state_trigger_factory("test1", "on")
+        state_trigger_factory("test2", "on")
+        state_trigger_factory("test3", "on")
+
+Notice there is no return value from the factory function.
+
+A ``dict`` could be used instead of a list, with a key that combines the unique parameters
+of the trigger. That way a new trigger with the same parameters will replace an old one
+when the ``dict`` entry is set, if that's the behavior you want.
+
+Accessing YAML configuration
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Pyscript binds all of its ``yaml`` configuration to the variable ``pyscript.config``.  That
+allows you to add configuration settings that can be processed by your pyscript code.
+
+One motivation is to allow pyscript apps to be developed and shared that can instantiate triggers
+and logic based on yaml configuration. That allows other users to use and configure your pyscript
+code without needing to edit or even understand it - they just need to add the corresponding
+``yaml`` configuration.
+
+A recommended convention is to put the settings for a pyscript application called ``auto_lights``
+below an entry ``apps``. That entry could contain a list of settings (eg, for handling multiple
+rooms or locations).
+
+Here's an example ``yaml`` configuration with settings for two applications, ``auto_lights``
+and ``motion_light``:
+
+.. code:: yaml
+
+   pyscript:
+     allow_all_imports: true
+     apps:
+       - auto_lights:
+         - room: living
+           level: 60
+           some_list:
+            - 1
+            - 20
+         - room: dining
+           level: 80
+           some_list:
+            - 1
+            - 20
+       - motion_light:
+         - sensor: rear_left
+           light: rear_flood
+         - sensor: side_yard
+           light: side_flood
+         - sensor: front_patio
+           light: front_porch
+
+The corresponding ``pyscript.config`` will be:
+
+.. code:: python
+
+   {
+       "allow_all_imports": True,
+       "apps": [
+           {
+               "auto_lights": [
+                   {"room": "living", "level": 60, "some_list": [1, 20]},
+                   {"room": "dining", "level": 80, "some_list": [1, 20]},
+               ]
+           },
+           {
+               "motion_light": [
+                   {"sensor": "rear_left", "light": "rear_flood"},
+                   {"sensor": "side_yard", "light": "side_flood"},
+                   {"sensor": "front_patio", "light": "front_porch"},
+               ]
+           },
+       ],
+   }
+
+Your application code can iterate over ``pyscript.config["apps"]["auto_lights"]``
+settings up the necessary triggers and application logic.
+
+.. code:: python
+
+   def setup_triggers(room=None, level=None, some_list=None):
+       #
+       # define some trigger functions etc
+       #
+       pass
+
+   for inst in pyscript.config["apps"]["auto_lights"]:
+       setup_triggers(**inst)
+
+Validating the configuration can be done either manually or with the
+``voluptuous`` package.
+
+Avoiding Event Loop I/O
+^^^^^^^^^^^^^^^^^^^^^^^
+
+All pyscript code runs in the HASS main event loop. That means if you execute code that blocks, for
+example doing I/O like reading or writing files or fetching a URL, then the main loop in HASS will
+be blocked, which will delay all other tasks.
+
+All the built-in functionality in pyscript is written using asynchronous code, which runs seamlessly
+together with all the other tasks in the main event loop. However, if you import Python packages and
+call functions that block (eg, file or networrk I/O) then you need to run those functions outside
+the main event loop. That can be accomplished wrapping those function calls with the
+``task.executor`` function, which runs the function in a separate thread:
+
+``task.executor(func, *args, **kwargs)``
+  Run the given function in a separate thread.  The first argument is the function to be called,
+  followed by each of the positional or keyword arguments that function expects. The ``func``
+  argument can only be a regular Python function, not a function defined in pyscript.
+
+If you forget to use ``task.executor``, you might get this warning from HASS:
+
+::
+
+    WARNING (MainThread) [homeassistant.util.async_] Detected I/O inside the event loop. This is
+    causing stability issues. Please report issue to the custom component author for pyscript doing
+    I/O at custom_components/pyscript/eval.py, line 1583: return func(*args, **kwargs)
+
+Here's an example fetching a URL. Inside pyscript, this is the wrong way since it does I/O without
+using a separate thread:
+
+.. code:: python
+
+    import requests
+
+    url = "https://raw.githubusercontent.com/custom-components/pyscript/master/README.md"
+    resp = requests.get(url)
+
+The correct way is:
+
+.. code:: python
+
+    import requests
+
+    url = "https://raw.githubusercontent.com/custom-components/pyscript/master/README.md"
+    resp = task.executor(requests.get, url)
+
+An even better solution to fetch a URL is to use a Python package that uses asyncio, in which case
+there is no need for ``task.executor``. In this case, ``aiohttp`` can be used (the `await` keyword
+is optional in pyscript):
+
+.. code:: python
+
+    import aiohttp
+
+    url = "https://raw.githubusercontent.com/custom-components/pyscript/master/README.md"
+    async with aiohttp.ClientSession() as session:
+        async with session.get(url) as resp:
+            print(resp.status)
+            print(resp.text())
