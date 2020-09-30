@@ -24,4 +24,5 @@ ALLOWED_IMPORTS = {
     "statistics",
     "string",
     "time",
+    "voluptuous",
 }
