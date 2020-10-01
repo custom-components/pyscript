@@ -31,13 +31,13 @@ global and services can be called from any script file.
 
 Reloading the ``.py`` files is accomplished by calling the ``pyscript.reload`` service, which is the
 one built-in service (so you can’t create your own service with that name). All function
-definitions, services and triggers are re-created on ``reload``. Any currently running functions
-(ie, functions that have been triggered and are actively executing Python code or waiting inside
-``task.sleep()`` or ``task.wait_until()``) are not stopped by ``reload`` - they continue to run
-until they finish (return). You can terminate these running functions too on ``reload`` if you wish
-by calling ``task.unique()`` in the script file preamble (ie, outside any function definition), so
-it is executed on load and reload, which will terminate any running functions that have previously
-called ``task.unique()`` with the same argument.
+definitions, services and triggers are re-created on ``reload``, except for any active Jupyter
+sessions.  Any currently running functions (ie, functions that have been triggered and are actively
+executing Python code or waiting inside ``task.sleep()`` or ``task.wait_until()``) are not stopped
+by ``reload`` - they continue to run until they finish (return). You can terminate these running
+functions too on ``reload`` if you wish by calling ``task.unique()`` in the script file preamble
+(ie, outside any function definition), so it is executed on load and reload, which will terminate
+any running functions that have previously called ``task.unique()`` with the same argument.
 
 
 State Variables
@@ -62,15 +62,17 @@ get the state attributes, you can use the built-in functions ``state.get()``, ``
 and ``state.set()``; see below.
 
 The function ``state.names(domain=None)`` returns a list of all state variable names (ie,
-``entity_id``\ s) of a domain. If ``domain`` is not specified, it returns all HASS state variable
-(entity) names.
+``entity_id``\ s) of a domain. If ``domain`` is not specified, it returns all HASS state
+variable (entity) names.
 
 Also, service names (which are called as functions) take priority over state variable names, so if a
 component has a state variable name that collides with one of its services, you’ll need to use
 ``state.get(name)`` to access that state variable.
 
 Finally, state variables that don’t exist evaluate to ``None``, rather than throwing an exception.
-That makes it easy to test if a state variable has a valid value.
+That makes it easy to test if a state variable has a valid value.  In contrast, accessing a state
+attribute using ``DOMAIN.name.attr`` will throw an exception if the attribute doesn't exist
+(``None`` could be a valid attribute value).
 
 Calling services
 ----------------
@@ -132,9 +134,11 @@ more state variables, and evaluates to ``True`` or ``False`` (or non-zero or zer
 state variables mentioned in the expression change, the expression is evaluated and the trigger
 occurs if it evaluates to ``True`` (or non-zero). For each state variable, eg: ``domain.name``, the
 prior value if also available to the expression as ``domain.name.old`` in case you want to condition
-the trigger on the prior value too. Note that all state variables have string values. So you’ll have
-to do comparisons against string values or cast the variable to an integer or float. These two
-examples are essentially equivalent (note the use of single quotes inside the outer double quotes):
+the trigger on the prior value too.
+
+Note that all state variables have string values. So you’ll have to do comparisons against string
+values or cast the variable to an integer or float. These two examples are essentially equivalent
+(note the use of single quotes inside the outer double quotes):
 
 .. code:: python
 
@@ -147,6 +151,10 @@ examples are essentially equivalent (note the use of single quotes inside the ou
 although the second will give an exception if the variable string doesn’t represent a valid integer.
 If you want numerical inequalities you should use the second form, since string lexicographic
 ordering is not the same as numeric ordering.
+
+You can also use state variable attributes in the trigger expression, with an indenfitier of the
+form ``DOMAIN.name.attr``. Attributes maintain their original type, so there is no need to cast
+then to another type.
 
 If you specify ``@state_trigger("True")`` the state trigger will never occur. While that might seem
 counter-intuitive, the reason is that the expression will never be evaluated - it takes underlying
@@ -446,29 +454,37 @@ made available by ``pyscript``.
 
 Note that even though the function names contain a period, the left portion is not a class (e.g.,
 ``state`` is not a class, and in fact isn’t even defined). These are simply functions whose name
-includes a period. This is one aspect where the interpreter behaves differently from real Python.
+includes a period. This is one aspect where the interpreter behaves slightly differently from real
+Python.
 
-.. _accessing-state-variables-1:
+However, if you set a variable like ``state``, ``log`` or ``task`` to some value, then the functions
+defined with that prefix will no longer be available, since the portion after the period will now be
+interpreted as a method or class function acting on that variable. That's the same behavior as
+Python - for example if you set ``bytes`` to some value, then the ``bytes.fromhex()`` class method
+is no longer available in the current scope.
 
-Accessing state variables
-^^^^^^^^^^^^^^^^^^^^^^^^^
+State variables
+^^^^^^^^^^^^^^^
 
 State variables can be used and set just by using them as normal Python variables. However, there
-could be cases where you want to dynamically generate the variable name (eg, in a loop). These
-functions allow you to get and set a variable using its string name. The set function also allows
-you to optionally set the attributes, which you can’t do if you are directly assigning to the
-variable:
+could be cases where you want to dynamically generate the variable name (eg, in a function or loop
+where the state variable name is computed dynamically).  These functions allow you to get and set a
+variable using its string name. The set function also allows you to optionally set the attributes,
+which you can’t do if you are directly assigning to the variable:
 
 ``state.get(name)``
-  returns the value of the state variable, or ``None`` if it doesn’t exist
+  Returns the value of the state variable given its string ``name``, or ``None`` if it doesn’t exist.
+  If ``name`` is a string of the form ``DOMAIN.entity.attr`` then the attribute ``attr`` of the
+  state variable ``DOMAIN.entity`` is returned; an exception is thrown if that attribute doesn't
+  exist.
 ``state.get_attr(name)``
-  returns a ``dict`` of attribute values for the state variable, or ``None``
+  Returns a ``dict`` of attribute values for the state variable, or ``None``
   if it doesn’t exist
 ``state.names(domain=None)``
-  returns a list of all state variable names (ie, ``entity_id``\ s) of a
+  Returns a list of all state variable names (ie, ``entity_id``\ s) of a
   domain. If ``domain`` is not specified, it returns all HASS state variable (``entity_id``) names.
 ``state.set(name, value, new_attributes=None, **kwargs)``
-  sets the state variable to the given value, with the optional attributes. The optional 3rd
+  Sets the state variable to the given value, with the optional attributes. The optional 3rd
   argument, ``new_attributes``, should be a ``dict`` and it will overwrite all the existing
   attributes if specified. If instead attributes are specified using keyword arguments, then other
   attributes will not be affected. If no optional arguments are provided, just the state variable
@@ -493,8 +509,8 @@ Event Firing
 ``event.fire(event_type, **kwargs)``
   sends an event with the given ``event_type`` string and the keyword parameters as the event data.
 
-Logging functions
-^^^^^^^^^^^^^^^^^
+Logging
+^^^^^^^
 
 Five logging functions are provided, with increasing levels of severity:
 

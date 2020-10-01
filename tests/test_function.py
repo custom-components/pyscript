@@ -322,6 +322,14 @@ def func5(var_name=None, value=None):
     seq_num += 1
     log.info(f"func5 var = {var_name}, value = {value}")
     pyscript.done = [seq_num, var_name, value]
+
+@state_trigger("pyscript.f6var1.attr1 == 123")
+def func6(var_name=None, value=None):
+    global seq_num
+
+    seq_num += 1
+    log.info(f"func6 var = {var_name}, value = {value}")
+    pyscript.done = [seq_num, var_name, pyscript.f6var1.attr1]
 """,
     )
     seq_num = 0
@@ -475,6 +483,15 @@ def func5(var_name=None, value=None):
     seq_num += 1
     hass.states.async_remove("pyscript.f5var1")
     assert literal_eval(await wait_until_done(notify_q)) == [seq_num, "pyscript.f5var1", None]
+
+    #
+    # check that we can state_trigger off an attribute
+    #
+    seq_num += 1
+    hass.states.async_set("pyscript.f6var1", 0, {"attr1": 5, "attr2": 10})
+    hass.states.async_set("pyscript.f6var1", 1, {"attr1": 100, "attr2": 10})
+    hass.states.async_set("pyscript.f6var1", 1, {"attr1": 123, "attr2": 10})
+    assert literal_eval(await wait_until_done(notify_q)) == [seq_num, "pyscript.f6var1", 123]
 
 
 async def test_trigger_closures(hass, caplog):
