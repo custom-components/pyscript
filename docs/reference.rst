@@ -569,10 +569,8 @@ Task unique
   killed if another task that is running previously called ``task.unique`` with the same
   ``task_name``.
 
-Note that ``task.unique`` applies across all global contexts. It’s up to you to use a convention for
-``task_name`` that avoids accidental collisions. For example, you could use a prefix of the script
-file name, so that all ``task_unique`` calls in ``FILENAME.py`` use a ``task_name`` that starts with
-``"FILENAME."``.
+Note that ``task.unique`` is specific to the current global context, so names used in one
+global context will not affect another.
 
 ``task.unique`` can also be called outside a function, for example in the preamble of a script file
 or interactively using Jupyter. That causes any currently running functions (ie, functions that have
@@ -581,6 +579,10 @@ same name to be terminated. Since any currently running functions are not termin
 is the mechanism you can use should you wish to terminate specific functions on reload.  If used
 outside a function or interactively with Jupyter, calling ``task.unique`` with ``kill_me=True``
 causes ``task.unique`` to do nothing.
+
+The ``task.unique`` functionality is also provided via a decorator ``@task_unique``. If your
+function immediately and always calls ``task.unique``, you could choose instead to use the
+function decorator form.
 
 Task waiting
 ^^^^^^^^^^^^

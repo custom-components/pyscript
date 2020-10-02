@@ -448,6 +448,7 @@ class TrigInfo:
         self.time_active = trig_cfg.get("time_active", {}).get("args", None)
         self.task_unique = trig_cfg.get("task_unique", {}).get("args", None)
         self.task_unique_kwargs = trig_cfg.get("task_unique", {}).get("kwargs", None)
+        self.task_unique_func = None
         self.action = trig_cfg.get("action")
         self.action_ast_ctx = trig_cfg.get("action_ast_ctx")
         self.global_sym_table = trig_cfg.get("global_sym_table", {})
@@ -505,6 +506,9 @@ class TrigInfo:
                     return
             self.have_trigger = True
 
+        if self.task_unique:
+            self.task_unique_func = Function.task_unique_factory(self.action_ast_ctx)
+
         self.setup_ok = True
 
     def stop(self):
@@ -530,8 +534,8 @@ class TrigInfo:
         try:
 
             async def do_func_call(func, ast_ctx, task_unique, kwargs=None):
-                if task_unique:
-                    await Function.task_unique(task_unique)
+                if task_unique and self.task_unique_func:
+                    await self.task_unique_func(task_unique)
                 await func.call(ast_ctx, kwargs=kwargs)
                 if ast_ctx.get_exception_obj():
                     ast_ctx.get_logger().error(ast_ctx.get_exception_long())
@@ -630,7 +634,7 @@ class TrigInfo:
                     self.task_unique is not None
                     and self.task_unique_kwargs
                     and self.task_unique_kwargs["kill_me"]
-                    and Function.unique_name_used(self.task_unique)
+                    and Function.unique_name_used(self.action_ast_ctx, self.task_unique)
                 ):
                     _LOGGER.debug(
                         "trigger %s got %s trigger, @task_unique kill_me=True prevented new action",

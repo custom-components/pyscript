@@ -54,7 +54,6 @@ class Function:
                 "task.executor": cls.task_executor,
                 "event.fire": cls.event_fire,
                 "task.sleep": cls.async_sleep,
-                "task.unique": cls.task_unique,
                 "service.call": cls.service_call,
                 "service.has_service": cls.service_has_service,
             }
@@ -66,6 +65,7 @@ class Function:
                 "log.info": lambda ast_ctx: ast_ctx.get_logger().info,
                 "log.warning": lambda ast_ctx: ast_ctx.get_logger().warning,
                 "print": lambda ast_ctx: ast_ctx.get_logger().debug,
+                "task.unique": lambda ast_ctx: cls.task_unique_factory(ast_ctx),
             }
         )
 
@@ -101,30 +101,36 @@ class Function:
         cls.hass.bus.async_fire(event_type, kwargs)
 
     @classmethod
-    async def task_unique(cls, name, kill_me=False):
-        """Implement task.unique()."""
-        if name in cls.unique_name2task:
-            if kill_me:
-                #
-                # it seems we can't cancel ourselves, so we
-                # tell the repeaer task to cancel us
-                #
-                Function.task_cancel(asyncio.current_task())
-                # wait to be canceled
-                await asyncio.sleep(100000)
-            else:
-                task = cls.unique_name2task[name]
-                if task in cls.our_tasks:
-                    # only cancel tasks if they are ones we started
-                    try:
-                        task.cancel()
-                        await task
-                    except asyncio.CancelledError:
-                        pass
-        task = asyncio.current_task()
-        if task in cls.our_tasks:
-            cls.unique_name2task[name] = task
-            cls.unique_task2name[task] = name
+    def task_unique_factory(cls, ctx):
+        """Define and return task.unique() for this context."""
+
+        async def task_unique(name, kill_me=False):
+            """Implement task.unique()."""
+            name = f"{ctx.get_global_ctx_name()}.{name}"
+            if name in cls.unique_name2task:
+                if kill_me:
+                    #
+                    # it seems we can't cancel ourselves, so we
+                    # tell the repeaer task to cancel us
+                    #
+                    Function.task_cancel(asyncio.current_task())
+                    # wait to be canceled
+                    await asyncio.sleep(100000)
+                else:
+                    task = cls.unique_name2task[name]
+                    if task in cls.our_tasks:
+                        # only cancel tasks if they are ones we started
+                        try:
+                            task.cancel()
+                            await task
+                        except asyncio.CancelledError:
+                            pass
+            task = asyncio.current_task()
+            if task in cls.our_tasks:
+                cls.unique_name2task[name] = task
+                cls.unique_task2name[task] = name
+
+        return task_unique
 
     @classmethod
     async def task_executor(cls, func, *args, **kwargs):
@@ -134,8 +140,9 @@ class Function:
         return await cls.hass.async_add_executor_job(functools.partial(func, **kwargs), *args)
 
     @classmethod
-    def unique_name_used(cls, name):
+    def unique_name_used(cls, ctx, name):
         """Return whether the current unique name is in use."""
+        name = f"{ctx.get_global_ctx_name()}.{name}"
         return name in cls.unique_name2task
 
     @classmethod
