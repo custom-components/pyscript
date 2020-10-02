@@ -895,6 +895,14 @@ evalTestsExceptions = [
     ["yield", "Exception in test line 1 column 0: test: not implemented ast ast_yield"],
     ["task.executor(5)", "Exception in test line 1 column 14: function is not callable by task.executor()"],
     [
+        "state.get('pyscript.xyz1.abc')",
+        "Exception in test line 1 column 10: name 'pyscript.xyz1' is not defined",
+    ],
+    [
+        "pyscript.xyz1 = 1; state.get('pyscript.xyz1.abc')",
+        "Exception in test line 1 column 29: state 'pyscript.xyz1' has no attribute 'abc'",
+    ],
+    [
         "import cmath; exec('xyz = cmath.sqrt(complex(3, 4))', {})",
         "Exception in test line 1 column 54: Exception in exec() line 1 column 6: name 'cmath.sqrt' is not defined",
     ],
