@@ -199,6 +199,7 @@ def func6():
     #
     # now run func4() a few times; each one should stop the last one
     #
+    hass.states.async_set("pyscript.f4var2", 0)
     for _ in range(10):
         seq_num += 1
         hass.states.async_set("pyscript.f4var1", 0)
@@ -222,6 +223,7 @@ def func6():
     # start and the rest will not
     #
     seq_num += 1
+    hass.states.async_set("pyscript.f5var2", 0)
     hass.states.async_set("pyscript.f5var1", 0)
     hass.states.async_set("pyscript.f5var1", 1)
     assert literal_eval(await wait_until_done(notify_q)) == [

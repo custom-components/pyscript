@@ -69,10 +69,8 @@ Also, service names (which are called as functions) take priority over state var
 component has a state variable name that collides with one of its services, you’ll need to use
 ``state.get(name)`` to access that state variable.
 
-Finally, state variables that don’t exist evaluate to ``None``, rather than throwing an exception.
-That makes it easy to test if a state variable has a valid value.  In contrast, accessing a state
-attribute using ``DOMAIN.name.attr`` will throw an exception if the attribute doesn't exist
-(``None`` could be a valid attribute value).
+Accessing state variables don't exist will throw a ``NameError`` exception, and accessing an
+attribute that doesn't exist will throw a ``AttributeError`` exception.
 
 Calling services
 ----------------
@@ -473,10 +471,10 @@ variable using its string name. The set function also allows you to optionally s
 which you can’t do if you are directly assigning to the variable:
 
 ``state.get(name)``
-  Returns the value of the state variable given its string ``name``, or ``None`` if it doesn’t exist.
-  If ``name`` is a string of the form ``DOMAIN.entity.attr`` then the attribute ``attr`` of the
-  state variable ``DOMAIN.entity`` is returned; an exception is thrown if that attribute doesn't
-  exist.
+  Returns the value of the state variable given its string ``name``. A ``NameError`` exception
+  is thrown if the name doesn't exist.  If ``name`` is a string of the form ``DOMAIN.entity.attr``
+  then the attribute ``attr`` of the state variable ``DOMAIN.entity`` is returned; an
+  ``AttributeError`` exception is thrown if that attribute doesn't exist.
 ``state.get_attr(name)``
   Returns a ``dict`` of attribute values for the state variable, or ``None``
   if it doesn’t exist

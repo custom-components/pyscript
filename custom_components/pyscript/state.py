@@ -124,12 +124,14 @@ class State:
         """Get a state variable value or attribute from hass."""
         parts = var_name.split(".")
         if len(parts) != 2 and len(parts) != 3:
-            raise NameError(f"invalid name {var_name} (should be 'domain.entity')")
+            raise NameError(f"invalid name '{var_name}' (should be 'domain.entity')")
         value = cls.hass.states.get(f"{parts[0]}.{parts[1]}")
         if not value:
-            return None
+            raise NameError(f"name '{parts[0]}.{parts[1]}' is not defined")
         if len(parts) == 2:
             return value.state
+        if parts[2] not in value.attributes:
+            raise AttributeError(f"state '{parts[0]}.{parts[1]}' has no attribute '{parts[2]}'")
         return value.attributes.get(parts[2])
 
     @classmethod
