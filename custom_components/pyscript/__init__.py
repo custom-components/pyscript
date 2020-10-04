@@ -64,7 +64,7 @@ async def async_setup(hass, config):
 
     State.set_pyscript_config(config.get(DOMAIN, {}))
 
-    await load_scripts(hass)
+    await load_scripts(hass, config)
 
     async def reload_scripts_handler(call):
         """Handle reload service calls."""
@@ -80,7 +80,6 @@ async def async_setup(hass, config):
 
         config = await async_process_component_config(hass, conf, integration)
 
-        # GlobalContext.global_sym_table_add("pyscript.config", config.get(DOMAIN, {}))
         State.set_pyscript_config(config.get(DOMAIN, {}))
 
         ctx_delete = {}
@@ -89,18 +88,22 @@ async def async_setup(hass, config):
             if idx < 0 or global_ctx_name[0:idx] not in {"file", "apps", "modules"}:
                 continue
             global_ctx.stop()
-            global_ctx.set_auto_start(False)
             ctx_delete[global_ctx_name] = global_ctx
         for global_ctx_name, global_ctx in ctx_delete.items():
             await GlobalContextMgr.delete(global_ctx_name)
 
-        await load_scripts(hass)
+        await load_scripts(hass, config)
 
         for global_ctx_name, global_ctx in GlobalContextMgr.items():
             idx = global_ctx_name.find(".")
             if idx < 0 or global_ctx_name[0:idx] not in {"file", "apps"}:
                 continue
             global_ctx.set_auto_start(True)
+
+        for global_ctx_name, global_ctx in GlobalContextMgr.items():
+            idx = global_ctx_name.find(".")
+            if idx < 0 or global_ctx_name[0:idx] not in {"file", "apps"}:
+                continue
             global_ctx.start()
 
     hass.services.async_register(DOMAIN, SERVICE_RELOAD, reload_scripts_handler)
@@ -150,10 +153,15 @@ async def async_setup(hass, config):
         _LOGGER.debug("adding state changed listener and starting triggers")
         hass.bus.async_listen(EVENT_STATE_CHANGED, state_changed)
         for global_ctx_name, global_ctx in GlobalContextMgr.items():
-            if not global_ctx_name.startswith("file."):
+            idx = global_ctx_name.find(".")
+            if idx < 0 or global_ctx_name[0:idx] not in {"file", "apps"}:
+                continue
+            global_ctx.set_auto_start(True)
+        for global_ctx_name, global_ctx in GlobalContextMgr.items():
+            idx = global_ctx_name.find(".")
+            if idx < 0 or global_ctx_name[0:idx] not in {"file", "apps"}:
                 continue
             global_ctx.start()
-            global_ctx.set_auto_start(True)
 
     async def stop_triggers(event):
         _LOGGER.debug("stopping triggers")
@@ -169,25 +177,46 @@ async def async_setup(hass, config):
 
 
 @bind_hass
-async def load_scripts(hass):
+async def load_scripts(hass, config):
     """Load all python scripts in FOLDER."""
 
-    load_paths = [hass.config.path(FOLDER) + "/apps", hass.config.path(FOLDER)]
+    pyscript_dir = hass.config.path(FOLDER)
 
-    _LOGGER.debug("load_scripts: load_paths = %s", load_paths)
-
-    def glob_files(load_paths, match):
+    def glob_files(load_paths, config):
         source_files = []
-        for path in load_paths:
-            source_files += sorted(glob.glob(os.path.join(path, match)))
+        apps_config = config.get(DOMAIN, {}).get("apps", None)
+        for path, match, check_config in load_paths:
+            for this_path in sorted(glob.glob(os.path.join(pyscript_dir, path, match))):
+                rel_import_path = None
+                elts = this_path.split("/")
+                if match.find("/") < 0:
+                    # last entry without the .py
+                    mod_name = elts[-1][0:-3]
+                else:
+                    # 2nd last entry
+                    mod_name = elts[-2]
+                    rel_import_path = f"{path}/mod_name"
+                if path == "":
+                    global_ctx_name = f"file.{mod_name}"
+                else:
+                    global_ctx_name = f"{path}.{mod_name}"
+                if check_config:
+                    _LOGGER.debug("load_scripts: checking %s in %s", mod_name, apps_config)
+                    if not isinstance(apps_config, dict) or mod_name not in apps_config:
+                        _LOGGER.debug("load_scripts: skipping %s because config not present", this_path)
+                        continue
+                source_files.append([global_ctx_name, this_path, rel_import_path])
         return source_files
 
-    source_files = await hass.async_add_executor_job(glob_files, load_paths, "*.py")
+    load_paths = [
+        ["apps", "*.py", True],
+        ["apps", "*/__init__.py", True],
+        ["", "*.py", False],
+    ]
 
-    for source_file in sorted(source_files):
-        name = os.path.splitext(os.path.basename(source_file))[0]
-
-        global_ctx = GlobalContext(f"file.{name}", global_sym_table={}, manager=GlobalContextMgr)
-        global_ctx.set_auto_start(False)
-
+    source_files = await hass.async_add_executor_job(glob_files, load_paths, config)
+    for global_ctx_name, source_file, rel_import_path in source_files:
+        global_ctx = GlobalContext(
+            global_ctx_name, global_sym_table={}, manager=GlobalContextMgr, rel_import_path=rel_import_path
+        )
         await GlobalContextMgr.load_file(source_file, global_ctx)

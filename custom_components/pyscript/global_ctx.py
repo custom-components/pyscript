@@ -15,7 +15,7 @@ _LOGGER = logging.getLogger(LOGGER_PATH + ".global_ctx")
 class GlobalContext:
     """Define class for global variables and trigger context."""
 
-    def __init__(self, name, global_sym_table=None, manager=None):
+    def __init__(self, name, global_sym_table=None, manager=None, rel_import_path=None):
         """Initialize GlobalContext."""
         self.name = name
         self.global_sym_table = global_sym_table if global_sym_table else {}
@@ -25,6 +25,7 @@ class GlobalContext:
         self.manager = manager
         self.auto_start = False
         self.module = None
+        self.rel_import_path = rel_import_path
 
     def trigger_register(self, func):
         """Register a trigger function; return True if start now."""
@@ -50,11 +51,12 @@ class GlobalContext:
         self.triggers_delay_start = set()
 
     def stop(self):
-        """Stop all triggers."""
+        """Stop all triggers and auto_start."""
         for func in self.triggers:
             func.trigger_stop()
         self.triggers = set()
         self.triggers_delay_start = set()
+        self.set_auto_start(False)
 
     def get_name(self):
         """Return the global context name."""
@@ -68,27 +70,97 @@ class GlobalContext:
         """Return a new trigger info instance with the given args."""
         return TrigInfo(name, trig_args, self)
 
-    async def module_import(self, module_name):
-        """Import a module from the pyscript/modules folder."""
-        mod_ctx_name = f"module.{module_name}"
-        mod_ctx = self.manager.get(mod_ctx_name)
-        if not mod_ctx:
+    async def module_import(self, module_name, import_level):
+        """Import a pyscript module from the pyscript/modules or apps folder."""
 
-            def check_isfile(filepath):
-                return os.path.isfile(filepath)
+        pyscript_dir = Function.hass.config.path(FOLDER)
+        module_path = module_name.replace(".", "/")
+        filepaths = []
 
-            filepath = Function.hass.config.path(FOLDER) + f"/modules/{module_name}.py"
-            if await Function.hass.async_add_executor_job(check_isfile, filepath):
-                mod = ModuleType(module_name)
-                global_ctx = GlobalContext(mod_ctx_name, global_sym_table=mod.__dict__, manager=self.manager)
-                global_ctx.set_auto_start(True)
-                await self.manager.load_file(filepath, global_ctx)
-                global_ctx.module = mod
-                mod_ctx = self.manager.get(mod_ctx_name)
+        def find_first_file(filepaths):
+            for ctx_name, path, rel_path in filepaths:
+                abs_path = os.path.join(pyscript_dir, path)
+                if os.path.isfile(abs_path):
+                    return [ctx_name, abs_path, rel_path]
+            return None
 
-        if mod_ctx and mod_ctx.module:
-            return mod_ctx.module
-        return None
+        #
+        # first build a list of potential import files
+        #
+        if import_level > 0:
+            if self.rel_import_path is None:
+                raise ImportError("attempted relative import with no known parent package")
+            path = self.rel_import_path
+            ctx_name = self.name
+            for _ in range(import_level - 1):
+                path = os.path.basename(path)
+                idx = ctx_name.rfind(".")
+                if path.find("/") < 0 or idx < 0:
+                    raise ImportError("attempted relative import above parent package")
+                ctx_name = ctx_name[0:idx]
+            idx = ctx_name.rfind(".")
+            if idx >= 0:
+                ctx_name = f"{ctx_name[0:idx]}.{module_name}"
+            filepaths.append([ctx_name, f"{path}/{module_path}.py", path])
+            path += f"/{module_path}"
+            filepaths.append([f"{ctx_name}.__init__", f"{path}/__init__.py", path])
+            module_name = ctx_name[ctx_name.find(".") + 1 :]
+
+        else:
+            if self.rel_import_path is not None and self.rel_import_path.startswith("apps/"):
+                ctx_name = f"apps.{module_name}"
+                filepaths.append([ctx_name, f"apps/{module_path}.py", f"apps/{module_path}"])
+                filepaths.append(
+                    [f"{ctx_name}.__init__", f"apps/{module_path}/__init__.py", f"apps/{module_path}"]
+                )
+
+            ctx_name = f"modules.{module_name}"
+            filepaths.append([ctx_name, f"modules/{module_path}.py", None])
+            filepaths.append(
+                [f"{ctx_name}.__init__", f"modules/{module_path}/__init__.py", f"modules/{module_path}"]
+            )
+
+        #
+        # now see if we have loaded it already
+        #
+        for ctx_name, _, _ in filepaths:
+            mod_ctx = self.manager.get(ctx_name)
+            if mod_ctx and mod_ctx.module:
+                _LOGGER.debug(
+                    "module_import: returning existing module %s, ctx = %s, mod = %s",
+                    module_name,
+                    ctx_name,
+                    mod_ctx.module,
+                )
+                return [mod_ctx.module, None]
+
+        #
+        # not loaded already, so try to find and import it
+        #
+        _LOGGER.debug("module_import: for module %s, searching %s", module_name, filepaths)
+        file_info = await Function.hass.async_add_executor_job(find_first_file, filepaths)
+        if not file_info:
+            return [None, None]
+
+        [ctx_name, filepath, rel_import_path] = file_info
+
+        mod = ModuleType(module_name)
+        global_ctx = GlobalContext(
+            ctx_name, global_sym_table=mod.__dict__, manager=self.manager, rel_import_path=rel_import_path
+        )
+        global_ctx.set_auto_start(True)
+        error_ctx = await self.manager.load_file(filepath, global_ctx)
+        if error_ctx:
+            _LOGGER.debug(
+                "module_import: failed to load module %s, ctx = %s, path = %s",
+                module_name,
+                ctx_name,
+                filepath,
+            )
+            return [None, error_ctx]
+        global_ctx.module = mod
+        _LOGGER.debug("module_import: imported %s, ctx = %s, mod = %s", module_name, ctx_name, mod)
+        return [mod, None]
 
 
 class GlobalContextMgr:
@@ -185,7 +257,7 @@ class GlobalContextMgr:
 
     @classmethod
     async def load_file(cls, filepath, global_ctx):
-        """Load, parse and run the given script file."""
+        """Load, parse and run the given script file; returns error ast_ctx on error, or None if ok."""
 
         def read_file(path):
             try:
@@ -201,7 +273,7 @@ class GlobalContextMgr:
         source = await Function.hass.async_add_executor_job(read_file, filepath)
 
         if source is None:
-            return
+            return False
 
         ast_ctx = AstEval(global_ctx.get_name(), global_ctx)
         Function.install_ast_funcs(ast_ctx)
@@ -210,11 +282,12 @@ class GlobalContextMgr:
             exc = ast_ctx.get_exception_long()
             ast_ctx.get_logger().error(exc)
             global_ctx.stop()
-            return
+            return ast_ctx
         await ast_ctx.eval()
         exc = ast_ctx.get_exception_long()
         if exc is not None:
             ast_ctx.get_logger().error(exc)
             global_ctx.stop()
-            return
+            return ast_ctx
         cls.set(global_ctx.get_name(), global_ctx)
+        return None

@@ -61,11 +61,9 @@ hey, this is just an example.)
 
 .. note::
 
-   You’ll need to look at the log messages to see the output (unless you
-   are using Jupyter, in which case all log messages will be displayed,
-   independent of the log setting). The log message won’t be visible
-   unless the `Logger </integrations/logger/>`__ is enabled at least for
-   level ``info``, for example:
+   You’ll need to look at the log messages to see the output (unless you are using Jupyter, in which
+   case all log messages will be displayed, independent of the log setting). The log message won’t
+   be visible unless the ``Logger`` is enabled at least for level ``info``, for example:
 
    .. code:: yaml
 
@@ -73,6 +71,8 @@ hey, this is just an example.)
         default: info
         logs:
           custom_components.pyscript: info
+
+   In a Jupyter session all log messages are displayed, independent of the logger settings.
 
 An example using triggers
 -------------------------

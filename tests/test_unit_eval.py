@@ -923,7 +923,20 @@ evalTestsExceptions = [
         "def func(*a, b):\n    pass\nfunc(1, 2)",
         "Exception in test line 3 column 8: func() missing required keyword-only arguments",
     ],
+    [
+        "from .xyz import abc",
+        "Exception in test line 1 column 0: attempted relative import with no known parent package",
+    ],
+    [
+        "from ...xyz import abc",
+        "Exception in test line 1 column 0: attempted relative import with no known parent package",
+    ],
+    [
+        "from . import abc",
+        "Exception in test line 1 column 0: attempted relative import with no known parent package",
+    ],
     ["import asyncio", "Exception in test line 1 column 0: import of asyncio not allowed"],
+    ["import xyzabc123", "Exception in test line 1 column 0: import of xyzabc123 not allowed"],
     ["from asyncio import xyz", "Exception in test line 1 column 0: import from asyncio not allowed"],
     [
         """

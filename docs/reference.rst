@@ -12,13 +12,45 @@ if set, eg:
    pyscript:
      allow_all_imports: true
 
-At startup, pyscript looks in the ``<config>/pyscript`` folder for Python files which are any files
-ending in ``.py``. The ``<config>/pyscript`` folder can contain as many ``.py`` script files as you
-like. Each ``.py`` file can contain as many functions as you want. The file names themselves can be
-anything, so long as they have a ``.py`` extension. You might like to group related functions in one
-file.
+The settings and behavior of your code can be controlled by additional user-defined configuration
+settings.  All the pyscript configuration settings are available via the variable
+``pyscript.config`` (see `this section <#accessing-yaml-configuration>`__). The recommended
+structure is to have entries for each application you write stored under an ``apps`` entry.
+For example, applications ``my_app1`` and ``my_app2`` would be configured as:
 
-Like regular Python, functions within each script file can call each other, and can share global
+.. code:: yaml
+
+   pyscript:
+     allow_all_imports: true
+     apps:
+        my_app1:
+           # any settings for my_app1 go here
+        my_app2:
+           # any settings for my_app2 go here
+
+As explained below, this configuration parameter structure of ``apps`` with entries for each
+application by name is used to determine which application scripts are autoloaded. That's the
+only configuration structure that pyscript checks - any other parameters can be added and
+used as you like.
+
+At startup, pyscript loads the following files. It also unloads and reloads these files when
+the ``pyscript.reload`` service is called, and the ``yaml`` configuration is reloaded too:
+
+``<config>/pyscript/*.py``
+  all files with a ``.py`` suffix are autoloaded
+
+``<config>/pyscript/apps/<app_name>.py``
+  all files in the ``apps`` subdirectory with a ``.py`` suffix are autoloaded, provided ``app_name``
+  exists in the pyscript ``yaml`` configuration under ``apps`` (that allows each app to be disabled by
+  simply removing its configuration and reloading).
+
+``<config>/pyscript/apps/<app_name>/__init__.py``
+  every ``__init__.py`` file in a subdirectory in the ``apps`` subdirectory is autoloaded,
+  provided ``app_name`` exists in the pyscript ``yaml`` configuration under ``apps``.
+  This form is most convenient for sharing pyscript code, since all the files for one
+  application are stored in its own directory.
+
+Like regular Python, functions within one source file can call each other, and can share global
 variables (if necessary), but just within that one file. Each file has its own separate global
 context. Each Jupyter session also has its own separate global context, so functions, triggers,
 variables and services defined in each interactive session are isolated from the script files and
@@ -26,13 +58,22 @@ other Jupyter sessions. Pyscript provides some utility functions to switch globa
 allows an interactive Jupyter session to interact directly with functions and global variables
 created by a script file, or even another Jupyter session.
 
+The optional ``<config>/pyscript/modules`` subdirectory can contain modules (files with a ``.py``
+extension) or packages (directories that contain at least a ``__init__.py`` file) that can be
+imported by any other pyscript files, applications or modules. Any modules or packages
+imported from ``<config>/pyscript/modules`` are unloaded if you call the ``pyscript.reload``
+service. They are not autoloaded. Importing modules and packages from ``<config>/pyscript/modules``
+are not restricted if ``allow_all_imports`` is ``False``. Typically common functions or
+features would be implemented in a module or package, and then imported and used by scripts
+in ``<config>/pyscript`` or applications in ``<config>/pyscript/apps``.
+
 Even if you can’t directly call one function from another script file, HASS state variables are
 global and services can be called from any script file.
 
 Reloading the ``.py`` files is accomplished by calling the ``pyscript.reload`` service, which is the
 one built-in service (so you can’t create your own service with that name). All function
 definitions, services and triggers are re-created on ``reload``, except for any active Jupyter
-sessions.  Any currently running functions (ie, functions that have been triggered and are actively
+sessions. Any currently running functions (ie, functions that have been triggered and are actively
 executing Python code or waiting inside ``task.sleep()`` or ``task.wait_until()``) are not stopped
 by ``reload`` - they continue to run until they finish (return). You can terminate these running
 functions too on ``reload`` if you wish by calling ``task.unique()`` in the script file preamble
@@ -156,7 +197,7 @@ then to another type.
 
 If you specify ``@state_trigger("True")`` the state trigger will never occur. While that might seem
 counter-intuitive, the reason is that the expression will never be evaluated - it takes underlying
-state variables in the expression to change before the expression is ever evaluated.  Since this
+state variables in the expression to change before the expression is ever evaluated. Since this
 expression has no state variables, it will never be evaluated. You can achieve a state trigger on
 any value change with a decorator of the form:
 
@@ -232,7 +273,7 @@ with the following features:
 - The time can instead be ``sunrise``, ``sunset``, ``noon`` or ``midnight``.
 - The ``datetime`` can be followed by an optional offset
   of the form ``[+-]number{seconds|minutes|hours|days|weeks}`` and abbreviations ``{s|m|h|d|w}`` or
-  ``{sec|min|hr|day|week}`` can be used.  That allows things like ``sunrise + 30m`` to mean 30
+  ``{sec|min|hr|day|week}`` can be used. That allows things like ``sunrise + 30m`` to mean 30
   minutes after sunrise, or ``sunday sunset - 1h`` to mean an hour before sunset on Sundays. The
   ``number`` can be floating point. (Note, there is no i18n support for those offset abbreviations -
   they are in English.)
@@ -241,12 +282,12 @@ In ``@time_trigger``, each string specification ``time_spec`` can take one of fo
 
 - ``"startup"`` triggers on HASS start and reload.
 - ``"once(datetime)"`` triggers once on the date and time. If the year is
-  omitted, it triggers once per year on the date and time (eg, birthday).  If the date is just a day
+  omitted, it triggers once per year on the date and time (eg, birthday). If the date is just a day
   of week, it triggers once on that day of the week. If the date is omitted, it triggers once each
   day at the indicated time.
 - ``"period(datetime_start, interval, datetime_end)"`` or
   ``"period(datetime_start, interval)"`` triggers every interval starting at the starting datetime
-  and finishing at the optional ending datetime.  When there is no ending datetime, the periodic
+  and finishing at the optional ending datetime. When there is no ending datetime, the periodic
   trigger runs forever. The interval has the form ``number{sec|min|hours|days|weeks}`` (the same as
   datetime offset without the leading sign), and single-letter abbreviations can be used.
 - ``"cron(min hr dom mon dow)"`` triggers
@@ -285,7 +326,7 @@ specification:
        """This function runs automatically once on startup or reload"""
        pass
 
-The function is not re-started after it returns, unless a reload occurs.  Startup occurs when the
+The function is not re-started after it returns, unless a reload occurs. Startup occurs when the
 ``EVENT_HOMEASSISTANT_STARTED`` event is fired, which is after everything else is initialized and
 ready, so this function can call any services etc.
 
@@ -357,8 +398,8 @@ more examples of built-in and user events and how to create triggers for them.
 
 This decorator is equivalent to calling ``task.unique()`` at the start of the function when that
 function is triggered. Like all the decorators, if the function is called directly from another
-Python function, this decorator has no effect. See the ```task.unique()`` <#task-unique>`__
-description.
+Python function, this decorator has no effect. See `this section <#task-unique>`__ for more
+details.
 
 @state_active
 ^^^^^^^^^^^^^
@@ -403,7 +444,7 @@ Each argument specification can optionally start with ``not``, which inverts the
 range or cron specification. If you specify multiple arguments without ‘not’, they are logically
 or’ed together, meaning the active check is true if any of the (positive) time ranges are met. If
 you have several ``not`` arguments, they are logically and’ed together, so the active check will be
-true if the current time doesn’t match any of the “not” (negative) specifications.  ``@time_active``
+true if the current time doesn’t match any of the “not” (negative) specifications. ``@time_active``
 allows multiple arguments with and without ``not``. The condition will be met if the current time
 matches any of the positive arguments, and none of the negative arguments.
 
@@ -466,13 +507,13 @@ State variables
 
 State variables can be used and set just by using them as normal Python variables. However, there
 could be cases where you want to dynamically generate the variable name (eg, in a function or loop
-where the state variable name is computed dynamically).  These functions allow you to get and set a
+where the state variable name is computed dynamically). These functions allow you to get and set a
 variable using its string name. The set function also allows you to optionally set the attributes,
 which you can’t do if you are directly assigning to the variable:
 
 ``state.get(name)``
   Returns the value of the state variable given its string ``name``. A ``NameError`` exception
-  is thrown if the name doesn't exist.  If ``name`` is a string of the form ``DOMAIN.entity.attr``
+  is thrown if the name doesn't exist. If ``name`` is a string of the form ``DOMAIN.entity.attr``
   then the attribute ``attr`` of the state variable ``DOMAIN.entity`` is returned; an
   ``AttributeError`` exception is thrown if that attribute doesn't exist.
 ``state.get_attr(name)``
@@ -489,9 +530,9 @@ which you can’t do if you are directly assigning to the variable:
   value is set and the attributes are not changed. To clear the attributes, set
   ``new_attributes={}``.
 
-Note that in HASS, all state variable values are coerced into strings.  For example, if a state
+Note that in HASS, all state variable values are coerced into strings. For example, if a state
 variable has a numeric value, you might want to convert it to a numeric type (eg, using ``int()`` or
-``float()``).  Attributes keep their native type.
+``float()``). Attributes keep their native type.
 
 Service Calls
 ^^^^^^^^^^^^^
@@ -523,18 +564,19 @@ Five logging functions are provided, with increasing levels of severity:
 ``print(str)``
   same as ``log.debug(str)``; currently ``print`` doesn’t support other arguments.
 
-The `Logger </integrations/logger/>`__ component can be used to specify the logging level. Log
-messages below the configured level will not appear in the log. Each log message function uses a log
-name of the form:
+The ``Logger`` component can be used to specify the logging level. Log messages below the configured
+level will not appear in the log. Each log message function uses a log name of the form:
 
 .. code:: yaml
 
    custom_components.pyscript.file.FILENAME.FUNCNAME
 
 where ``FUNCNAME`` is the name of the top-level Python function (e.g., the one called by a trigger
-or service), defined in the script file ``FILENAME.py``. That allows you to set the log level for
-each Python top-level function separately if necessary. That setting also applies to any other
-Python functions that the top-level Python function calls. For example, these settings:
+or service), defined in the script file ``FILENAME.py``. See the XXXX
+
+That allows you to set the log level for each Python top-level function separately if necessary.
+That setting also applies to any other Python functions that the top-level Python function calls.
+For example, these settings:
 
 .. code:: yaml
 
@@ -574,7 +616,7 @@ global context will not affect another.
 or interactively using Jupyter. That causes any currently running functions (ie, functions that have
 already been triggered and are running Python code) that previously called ``task.unique`` with the
 same name to be terminated. Since any currently running functions are not terminated on reload, this
-is the mechanism you can use should you wish to terminate specific functions on reload.  If used
+is the mechanism you can use should you wish to terminate specific functions on reload. If used
 outside a function or interactively with Jupyter, calling ``task.unique`` with ``kill_me=True``
 causes ``task.unique`` to do nothing.
 
@@ -586,7 +628,7 @@ Task waiting
 ^^^^^^^^^^^^
 
 ``task.wait_until()``
-  allows functions to wait for events, using identical syntax to the decorators.  This can be
+  allows functions to wait for events, using identical syntax to the decorators. This can be
   helpful if at some point during execution of some logic you want to wait for some additional
   triggers.
 
@@ -600,7 +642,7 @@ It takes the following keyword arguments (all are optional):
   (when the setting is a two-element list) is an expression based on the event parameters.
 - ``timeout=None`` an overall timeout in seconds, which can be floating point.
 - ``state_check_now=True`` if set, ``task.wait_until()`` checks any ``state_trigger``
-  immediately to see if it is already ``True``, and will return immediately if so.  If
+  immediately to see if it is already ``True``, and will return immediately if so. If
   ``state_check_now=False``, ``task.wait_until()`` waits until a state variable change occurs,
   before checking the expression. Using ``True`` is safer to help avoid race conditions, although
   ``False`` makes ``task.wait_until()`` behave like ``@state_trigger``, which doesn’t check at
@@ -625,7 +667,7 @@ included in the ``dict`` - it will just contain ``trigger_type="state"``.
 
 Here’s an example. Whenever a door is opened, we want to do something if the door closes within 30
 seconds. If a timeout of more than 30 seconds elapses (ie, the door is still open), we want to do
-some other action.  We use a decorator trigger when the door is opened, and we use
+some other action. We use a decorator trigger when the door is opened, and we use
 ``task.wait_until`` to wait for either the door to close, or a timeout of 30 seconds to elapse. The
 return value tells which of the two events happened:
 
@@ -698,7 +740,7 @@ If you call any Python functions that do I/O or otherwise block, they need to be
 main event loop using ``task.executor``:
 
 ``task.executor(func, *args, **kwargs)``
-  Run the given function in a separate thread.  The first argument is the function to be called,
+  Run the given function in a separate thread. The first argument is the function to be called,
   followed by each of the positional or keyword arguments that function expects. The ``func``
   argument can only be a regular Python function, not a function defined in pyscript.
 
@@ -707,23 +749,53 @@ See `this section <#avoiding-event-loop-i-o>`__ for more information.
 Global Context
 ^^^^^^^^^^^^^^
 
-Each pyscript script file runs inside its own global context, which means their global variables and
-functions are isolated from each other.  Each Jupyter session also runs in its own global context.
-For a script file called ``FILENAME.py``, its global context is ``file.FILENAME``.  Each Jupyter
-global context name is ``jupyter_NNN`` where ``NNN`` is a unique integer starting at 0.
+Each pyscript file that is loaded, and each Jupyter session, runs inside its own global context,
+which means its global variables and functions are isolated from each other (unless they are a
+module or package that is explicitly imported). In normal use you don’t need to worry about global
+contexts. But for interactive debugging and development, you might want your Jupyter session to
+access variables and functions defined in a script file.
 
-In normal use you don’t need to worry about global contexts. But for interactive debugging and
-development, you might want your Jupyter session to access variables and functions defined in a
-script file.  Three functions are provided for getting, setting and listing the global contexts.
-That allows you to interactively change the global context during a Jupyter session. You could also
-use these functions in your script files, but that is strongly discouraged because it violates the
-name space isolation among the script files. Here are the functions:
+Here is the naming convention for each file's global context:
+
+  ======================================= ===========================
+  pyscript file path                      global context name
+  ======================================= ===========================
+  ``pyscript/FILE.py``                    ``file.FILE``
+  ``pyscript/modules/MODULE.py``          ``modules.MODULE``
+  ``pyscript/modules/MODULE/__init__.py`` ``modules.MODULE.__init__``
+  ``pyscript/modules/MODULE/FILE.py``     ``modules.MODULE.FILE``
+  ``pyscript/apps/APP.py``                ``apps.APP``
+  ``pyscript/apps/APP/__init__.py``       ``apps.APP.__init__``
+  ``pyscript/apps/APP/FILE.py``           ``apps.APP.FILE``
+  ======================================= ===========================
+
+The logging path uses the global context name, so you can customize logging verbosity for each
+global context, to the granularity of specific functions eg:
+
+.. code:: yaml
+
+   logger:
+     default: info
+     logs:
+       custom_components.pyscript.file: info
+       custom_components.pyscript.file.my_scripts.my_function: debug
+       custom_components.pyscript.apps.my_app: debug
+       custom_components.pyscript.apps.my_app.my_function: debug
+
+Each Jupyter global context name is ``jupyter_NNN`` where ``NNN`` is a unique integer starting at 0.
+
+On reload, all global contexts whose names starts with ``file.``, ``modules.`` or ``apps.`` are
+removed. As each file is reloaded, the corresponding global context is created.
+
+Three functions are provided for getting, setting and listing the global contexts. That allows
+you to interactively change the global context during a Jupyter session. You could also use these
+functions in your script files, but that is strongly discouraged because it violates the name
+space isolation among the script files. Here are the functions:
 
 ``pyscript.get_global_ctx()``
   returns the current global context name.
 ``pyscript.list_global_ctx()``
-  lists all the global contexts, with the current global context listed
-  first.
+  lists all the global contexts, with the current global context listed first.
 ``pyscript.set_global_ctx(new_ctx_name)``
   sets the current global context to the given name.
 
@@ -759,7 +831,7 @@ have other function and trigger definitions in another cell - they won't be affe
 function names are different), and they will only be replaced when you re-execute that other cell.
 
 When the Jupyter session is terminated, its global context is deleted, which means any trigger
-rules, functions, services and variables you created are deleted.  The pyscript Jupyter kernel is
+rules, functions, services and variables you created are deleted. The pyscript Jupyter kernel is
 intended as an interactive sandbox. As you finalize specific functions, triggers and automation
 logic, you should copy them to a pyscript script file, and then use the `pyscript.reload` service to
 load them. That ensures they will be loaded and run each time you re-start HASS.
@@ -776,23 +848,28 @@ old running function tasks are terminated when a new one is triggered. Then you 
 
 If you switch global contexts to a script file's context, and create some new variables, triggers,
 functions or services there, then those objects will survive the termination of your Jupyter
-session.  However, if you `reload` the scripts, then those newly-created objects will be removed.
+session. However, if you `reload` the scripts, then those newly-created objects will be removed.
 To make any additions or changes permanent (meaning they will be re-created on each `reload` or each
 time your restart HASS) then you should copy the changes or additions to one of your pyscript script
 files.
-
 
 Importing
 ^^^^^^^^^
 
 Pyscript supports importing two types of packages or modules:
 
-- Pyscript code can be put into modules and stored in the ``<config>/pyscript/modules`` folder.
+- Pyscript code can be put into modules or packages and stored in the ``<config>/pyscript/modules`` folder.
   Any pyscript code can import and use these modules or packages. These modules are not autoloaded
   on startup; they are only loaded when another script imports them. When you call the pyscript
   reload service, all imported modules are unloaded. Imports of pyscript modules and packages
   are not affected by the ``allow_all_imports`` setting - if a file is in the ``<config>/pyscript/modules``
   folder then it can be imported.
+  
+  Package-style layout is also supported where a PACKAGE is defined in
+  ``<config>/pyscript/modules/PACKAGE/__init__.py``, and that file can, in turn,
+  do relative imports of other files in that same directory. This form is most convenient for
+  sharing useful pyscript libraries, since all the files for one package are stored in its own
+  directory.
 
 - Installed Python packages can be imported. By default, pyscript only allows a short list of Python
   packages to be imported, for both security reasons and to reduce the risk that package functions
@@ -811,7 +888,7 @@ worry about the details. However, the performance will be much slower that regul
 which is typically compiled. Any Python packages you import will run at native, compiled speed.
 
 So if you plan to run large chunks of code in pyscript without needing any of the pypscript-specific
-features, you might consider putting them in a package and importing it instead.  That way it will
+features, you might consider putting them in a package and importing it instead. That way it will
 run at native compiled speed.
 
 One way to do that is in one of your pyscript script files, add this code:
@@ -823,7 +900,7 @@ One way to do that is in one of your pyscript script files, add this code:
     if "config/pyscript_module" not in sys.path:
         sys.path.append("config/pyscript_modules")
 
-This adds a new folder ``config/pyscript_modules`` to Python's module search path.  You can then add
+This adds a new folder ``config/pyscript_modules`` to Python's module search path. You can then add
 modules (files ending in ``.py``) to that folder, which will contain native python that is compiled
 when imported (note that none of the pyscript-specific features are available).
 
@@ -855,11 +932,11 @@ Here's an example:
         f3 = state_trigger_factory("test3", "on")
 
 This creates three trigger functions that fire when the given sensor ``input_boolean.testN`` is
-``on``.  If you re-assign or delete ``f1`` then that trigger will be destroyed, and the other two
+``on``. If you re-assign or delete ``f1`` then that trigger will be destroyed, and the other two
 will not be affected. If you repeatedly re-run this block of code in Jupyter the right thing will
 happen - each time it runs the old triggers are destroyed when the variables are re-assigned.
 
-Any data type could be used to maintain a reference to the trigger function.  For example
+Any data type could be used to maintain a reference to the trigger function. For example
 a list could be manually built:
 
 .. code:: python
@@ -907,13 +984,13 @@ when the ``dict`` entry is set, if that's the behavior you want.
 Accessing YAML configuration
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-Pyscript binds all of its ``yaml`` configuration to the variable ``pyscript.config``.  That
+Pyscript binds all of its ``yaml`` configuration to the variable ``pyscript.config``. That
 allows you to add configuration settings that can be processed by your pyscript code.
 
 One motivation is to allow pyscript apps to be developed and shared that can instantiate triggers
-and logic based on yaml configuration. That allows other users to use and configure your pyscript
-code without needing to edit or even understand it - they just need to add the corresponding
-``yaml`` configuration.
+and logic based on ``yaml`` configuration. That allows other users to use and configure your
+pyscript code without needing to edit or even understand it - they just need to add the
+corresponding ``yaml`` configuration.
 
 A recommended convention is to put the settings for a pyscript application called ``auto_lights``
 below an entry ``apps``. That entry could contain a list of settings (eg, for handling multiple
@@ -927,7 +1004,7 @@ and ``motion_light``:
    pyscript:
      allow_all_imports: true
      apps:
-       - auto_lights:
+       auto_lights:
          - room: living
            level: 60
            some_list:
@@ -938,7 +1015,7 @@ and ``motion_light``:
            some_list:
             - 1
             - 20
-       - motion_light:
+       motion_light:
          - sensor: rear_left
            light: rear_flood
          - sensor: side_yard
@@ -946,31 +1023,32 @@ and ``motion_light``:
          - sensor: front_patio
            light: front_porch
 
-The corresponding ``pyscript.config`` will be:
+The corresponding ``pyscript.config`` variable value will be:
 
 .. code:: python
 
    {
        "allow_all_imports": True,
-       "apps": [
-           {
-               "auto_lights": [
-                   {"room": "living", "level": 60, "some_list": [1, 20]},
-                   {"room": "dining", "level": 80, "some_list": [1, 20]},
-               ]
-           },
-           {
-               "motion_light": [
-                   {"sensor": "rear_left", "light": "rear_flood"},
-                   {"sensor": "side_yard", "light": "side_flood"},
-                   {"sensor": "front_patio", "light": "front_porch"},
-               ]
-           },
-       ],
+       "apps": {
+           "auto_lights": [
+               {"room": "living", "level": 60, "some_list": [1, 20]},
+               {"room": "dining", "level": 80, "some_list": [1, 20]},
+           ],
+           "motion_light": [
+               {"sensor": "rear_left", "light": "rear_flood"},
+               {"sensor": "side_yard", "light": "side_flood"},
+               {"sensor": "front_patio", "light": "front_porch"},
+           ],
+       },
    }
 
-Your application code can iterate over ``pyscript.config["apps"]["auto_lights"]``
-settings up the necessary triggers and application logic.
+Your application code for ``auto_lights`` would be in either
+
+- ``<config>/pyscript/apps/auto_lights.py``
+- ``<config>/pyscript/apps/auto_lights/__init__.py``
+
+It can simply iterate over ``pyscript.config["apps"]["auto_lights"]`` settings up the necessary
+triggers and application logic, eg:
 
 .. code:: python
 
@@ -983,8 +1061,7 @@ settings up the necessary triggers and application logic.
    for inst in pyscript.config["apps"]["auto_lights"]:
        setup_triggers(**inst)
 
-Validating the configuration can be done either manually or with the
-``voluptuous`` package.
+Validating the configuration can be done either manually or with the ``voluptuous`` package.
 
 Avoiding Event Loop I/O
 ^^^^^^^^^^^^^^^^^^^^^^^
@@ -1000,7 +1077,7 @@ the main event loop. That can be accomplished wrapping those function calls with
 ``task.executor`` function, which runs the function in a separate thread:
 
 ``task.executor(func, *args, **kwargs)``
-  Run the given function in a separate thread.  The first argument is the function to be called,
+  Run the given function in a separate thread. The first argument is the function to be called,
   followed by each of the positional or keyword arguments that function expects. The ``func``
   argument can only be a regular Python function, not a function defined in pyscript.
 

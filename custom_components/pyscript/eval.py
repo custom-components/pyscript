@@ -479,8 +479,8 @@ class EvalFunc:
     async def eval_decorators(self, ast_ctx):
         """Evaluate the function decorators arguments."""
         self.decorators = []
-        ast_ctx.code_str = self.code_str
-        ast_ctx.code_list = self.code_list
+        code_str, code_list = ast_ctx.code_str, ast_ctx.code_list
+        ast_ctx.code_str, ast_ctx.code_list = self.code_str, self.code_list
         for dec in self.func_def.decorator_list:
             if isinstance(dec, ast.Call) and isinstance(dec.func, ast.Name):
                 args = []
@@ -496,6 +496,7 @@ class EvalFunc:
                 self.decorators.append([dec.id, None, None])
             else:
                 _LOGGER.error("function %s has unexpected decorator type %s", self.name, dec)
+        ast_ctx.code_str, ast_ctx.code_list = code_str, code_list
 
     async def resolve_nonlocals(self, ast_ctx):
         """Tag local variables and resolve nonlocals."""
@@ -624,8 +625,8 @@ class EvalFunc:
                 sym_table[name] = EvalLocalVar(name)
         ast_ctx.sym_table_stack.append(ast_ctx.sym_table)
         ast_ctx.sym_table = sym_table
-        ast_ctx.code_str = self.code_str
-        ast_ctx.code_list = self.code_list
+        code_str, code_list = ast_ctx.code_str, ast_ctx.code_list
+        ast_ctx.code_str, ast_ctx.code_list = self.code_str, self.code_list
         self.exception = None
         self.exception_obj = None
         self.exception_long = None
@@ -642,6 +643,7 @@ class EvalFunc:
                 break
         ast_ctx.sym_table = ast_ctx.sym_table_stack.pop()
         ast_ctx.curr_func = prev_func
+        ast_ctx.code_str, ast_ctx.code_list = code_str, code_list
         return val
 
 
@@ -732,7 +734,12 @@ class AstEval:
     async def ast_import(self, arg):
         """Execute import."""
         for imp in arg.names:
-            mod = await self.global_ctx.module_import(imp.name)
+            mod, error_ctx = await self.global_ctx.module_import(imp.name, 0)
+            if error_ctx:
+                self.exception_obj = error_ctx.exception_obj
+                self.exception = error_ctx.exception
+                self.exception_long = error_ctx.exception_long
+                raise self.exception_obj
             if not mod:
                 if not self.allow_all_imports and imp.name not in ALLOWED_IMPORTS:
                     raise ModuleNotFoundError(f"import of {imp.name} not allowed")
@@ -744,7 +751,26 @@ class AstEval:
 
     async def ast_importfrom(self, arg):
         """Execute from X import Y."""
-        mod = await self.global_ctx.module_import(arg.module)
+        if arg.module is None:
+            # handle: "from . import xyz"
+            for imp in arg.names:
+                mod, error_ctx = await self.global_ctx.module_import(imp.name, arg.level)
+                if error_ctx:
+                    self.exception_obj = error_ctx.exception_obj
+                    self.exception = error_ctx.exception
+                    self.exception_long = error_ctx.exception_long
+                    raise self.exception_obj
+                if not mod:
+                    raise ModuleNotFoundError(f"module '{imp.name}' not found")
+                self.sym_table[imp.name if imp.asname is None else imp.asname] = mod
+            return
+        else:
+            mod, error_ctx = await self.global_ctx.module_import(arg.module, arg.level)
+            if error_ctx:
+                self.exception_obj = error_ctx.exception_obj
+                self.exception = error_ctx.exception
+                self.exception_long = error_ctx.exception_long
+                raise self.exception_obj
         if not mod:
             if not self.allow_all_imports and arg.module not in ALLOWED_IMPORTS:
                 raise ModuleNotFoundError(f"import from {arg.module} not allowed")
