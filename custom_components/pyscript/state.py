@@ -82,16 +82,23 @@ class State:
         if notify:
             _LOGGER.debug("state.update(%s, %s)", new_vars, func_args)
             for queue, var_names in notify.items():
-                await queue.put(["state", [cls.notify_var_get(var_names), func_args]])
+                await queue.put(["state", [cls.notify_var_get(var_names, new_vars), func_args]])
 
     @classmethod
-    def notify_var_get(cls, var_names):
+    def notify_var_get(cls, var_names, new_vars):
         """Return the most recent value of a state variable change."""
-        new_vars = {}
+        notify_vars = {}
         for var_name in var_names if var_names is not None else []:
             if var_name in cls.notify_var_last:
-                new_vars[var_name] = cls.notify_var_last[var_name]
-        return new_vars
+                notify_vars[var_name] = cls.notify_var_last[var_name]
+            elif var_name in new_vars:
+                notify_vars[var_name] = new_vars[var_name]
+            elif 1 <= var_name.count(".") <= 2 and not cls.exist(var_name):
+                notify_vars[var_name] = None
+        _LOGGER.debug(
+            "notify_var_get var_names=%s, new_vars=%s, notify_vars=%s", var_names, new_vars, notify_vars
+        )
+        return notify_vars
 
     @classmethod
     def set(cls, var_name, value, new_attributes=None, **kwargs):
@@ -117,7 +124,7 @@ class State:
         if len(parts) != 2 and len(parts) != 3:
             return False
         value = cls.hass.states.get(f"{parts[0]}.{parts[1]}")
-        return value and (len(parts) == 2 or value.attributes.get(parts[2]) is not None)
+        return value and (len(parts) == 2 or parts[2] in value.attributes)
 
     @classmethod
     def get(cls, var_name):
