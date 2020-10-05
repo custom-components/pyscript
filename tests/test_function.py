@@ -332,6 +332,7 @@ def func6(var_name=None, value=None):
     pyscript.done = [seq_num, var_name, pyscript.f6var1.attr1]
 
 @state_trigger("pyscript.f7var1 == '2' and pyscript.f7var1.old == '1'")
+@state_active("pyscript.f7var1 == '2' and pyscript.f7var1.old == '1' and pyscript.no_such_variable is None")
 def func7(var_name=None, value=None, old_value=None):
     global seq_num
 
@@ -340,6 +341,7 @@ def func7(var_name=None, value=None, old_value=None):
     pyscript.done = [seq_num, var_name, value, old_value]
 
 @state_trigger("pyscript.f8var1 == '2' and pyscript.f8var1.old == None")
+@state_active("pyscript.no_such_variable is None")
 def func8(var_name=None, value=None, old_value=None):
     global seq_num
 

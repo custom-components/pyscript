@@ -454,6 +454,7 @@ class TrigInfo:
         self.global_sym_table = trig_cfg.get("global_sym_table", {})
         self.notify_q = asyncio.Queue(0)
         self.active_expr = None
+        self.state_active_ident = None
         self.state_trig_expr = None
         self.state_trig_ident = None
         self.event_trig_expr = None
@@ -546,6 +547,9 @@ class TrigInfo:
                 if len(self.state_trig_ident) > 0:
                     State.notify_add(self.state_trig_ident, self.notify_q)
 
+            if self.active_expr:
+                self.state_active_ident = await self.active_expr.get_names()
+
             if self.event_trigger is not None:
                 _LOGGER.debug("trigger %s adding event_trigger %s", self.name, self.event_trigger[0])
                 Event.notify_add(self.event_trigger[0], self.notify_q)
@@ -591,6 +595,7 @@ class TrigInfo:
                 # check the trigger-specific expressions
                 #
                 trig_ok = True
+                new_vars = {}
                 if notify_type == "state":
                     new_vars, func_args = notify_info
 
@@ -613,7 +618,8 @@ class TrigInfo:
                 # now check the state and time active expressions
                 #
                 if trig_ok and self.active_expr:
-                    trig_ok = await self.active_expr.eval()
+                    active_vars = State.notify_var_get(self.state_active_ident, new_vars)
+                    trig_ok = await self.active_expr.eval(active_vars)
                     exc = self.active_expr.get_exception_long()
                     if exc is not None:
                         self.active_expr.get_logger().error(exc)
