@@ -72,8 +72,6 @@ hey, this is just an example.)
         logs:
           custom_components.pyscript: info
 
-   In a Jupyter session all log messages are displayed, independent of the logger settings.
-
 An example using triggers
 -------------------------
 

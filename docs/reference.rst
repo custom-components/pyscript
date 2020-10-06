@@ -4,7 +4,7 @@ Reference
 Configuration
 -------------
 
-Pyscript has one optional configuration variable that allows any Python package to be imported
+Pyscript has one optional configuration setting that allows any Python package to be imported
 if set, eg:
 
 .. code:: yaml
@@ -28,13 +28,12 @@ For example, applications ``my_app1`` and ``my_app2`` would be configured as:
         my_app2:
            # any settings for my_app2 go here
 
-As explained below, this configuration parameter structure of ``apps`` with entries for each
-application by name is used to determine which application scripts are autoloaded. That's the
-only configuration structure that pyscript checks - any other parameters can be added and
-used as you like.
+As explained below, the use of ``apps`` with entries for each application by name below,
+is used to determine which application scripts are autoloaded. That's the only configuration
+structure that pyscript checks - any other parameters can be added and used as you like.
 
 At startup, pyscript loads the following files. It also unloads and reloads these files when
-the ``pyscript.reload`` service is called, and the ``yaml`` configuration is reloaded too:
+the ``pyscript.reload`` service is called, which also reloads the ``yaml`` configuration.
 
 ``<config>/pyscript/*.py``
   all files with a ``.py`` suffix are autoloaded
@@ -110,8 +109,8 @@ Also, service names (which are called as functions) take priority over state var
 component has a state variable name that collides with one of its services, you’ll need to use
 ``state.get(name)`` to access that state variable.
 
-Accessing state variables don't exist will throw a ``NameError`` exception, and accessing an
-attribute that doesn't exist will throw a ``AttributeError`` exception.
+Accessing state variables that don't exist will throw a ``NameError`` exception, and accessing
+an attribute that doesn't exist will throw a ``AttributeError`` exception.
 
 Calling services
 ----------------
@@ -171,11 +170,11 @@ function.
 ``@state_trigger`` takes a single string ``str_expr`` that contains any expression based on one or
 more state variables, and evaluates to ``True`` or ``False`` (or non-zero or zero). Whenever the
 state variables mentioned in the expression change, the expression is evaluated and the trigger
-occurs if it evaluates to ``True`` (or non-zero). For each state variable, eg: ``domain.name``, the
-prior value if also available to the expression as ``domain.name.old`` in case you want to condition
-the trigger on the prior value too.
+occurs if it evaluates to ``True`` (or non-zero). For each state variable, eg: ``domain.name``,
+the prior value is also available to the expression as ``domain.name.old`` in case you want to
+condition the trigger on the prior value too.
 
-Note that all state variables have string values. So you’ll have to do comparisons against string
+All state variables in HASS have string values. So you’ll have to do comparisons against string
 values or cast the variable to an integer or float. These two examples are essentially equivalent
 (note the use of single quotes inside the outer double quotes):
 
@@ -187,19 +186,19 @@ values or cast the variable to an integer or float. These two examples are essen
 
    @state_trigger("int(domain.light_level) == 255 or int(domain.light2_level) == 0")
 
-although the second will give an exception if the variable string doesn’t represent a valid integer.
+although the second will throw an exception if the variable string doesn’t represent a valid integer.
 If you want numerical inequalities you should use the second form, since string lexicographic
 ordering is not the same as numeric ordering.
 
-You can also use state variable attributes in the trigger expression, with an indenfitier of the
+You can also use state variable attributes in the trigger expression, with an idenfitier of the
 form ``DOMAIN.name.attr``. Attributes maintain their original type, so there is no need to cast
 then to another type.
 
 If you specify ``@state_trigger("True")`` the state trigger will never occur. While that might seem
 counter-intuitive, the reason is that the expression will never be evaluated - it takes underlying
-state variables in the expression to change before the expression is ever evaluated. Since this
-expression has no state variables, it will never be evaluated. You can achieve a state trigger on
-any value change with a decorator of the form:
+state variables in the expression to change before the expression is evaluated. Since this
+expression has no state variables, it will never be evaluated. You can achieve a state trigger
+on any value change with a decorator of the form:
 
 .. code:: python
 
@@ -210,8 +209,8 @@ Because of operator short-circuiting, the expression evaluates to ``True`` witho
 value of ``domain.light_level``. So the result is a trigger whenever the state variable changes to
 any value. This idea can extend to multiple variables just by stringing them together.
 
-Note that if a state variable is set to the same value, HA doesn’t generate a state change event, so
-the ``@state_trigger`` condition will not be checked. It is only evaluated each time a state
+Note that if a state variable is set to the same value, HASS doesn’t generate a state change event,
+so the ``@state_trigger`` condition will not be checked. It is only evaluated each time a state
 variable changes to a new value.
 
 When the trigger occurs and the function is executed (meaning any active checks passed too), keyword
@@ -249,6 +248,13 @@ the keyword catch-all declaration instead:
 and all those values will simply get passed in into kwargs as a ``dict``. That’s the most useful
 form to use if you have multiple decorators, since each one passes different variables into the
 function (although all of them set ``trigger_type``).
+
+Inside ``str_expr``, undefined state variables, undefined state attributes, and undefined
+``.old`` variables evaluate to ``None``, rather than throwing an exception. The ``.old`` variable will
+be ``None`` the first time the state variable is set (since it has no prior value), and when the
+``str_expr`` is being evaluated because a different state variable changed (only the state variable
+change that caused ``str_expr`` to be evaluated gets its prior value in ``.old``; any other ``.old``
+variables will be ``None`` for that evaluation).
 
 @time_trigger
 ^^^^^^^^^^^^^
@@ -411,6 +417,14 @@ details.
 When any trigger occurs (whether time, state or event), the ``@state_active`` expression is
 evaluated. If it evaluates to ``False`` (or zero), the trigger is ignored and the trigger function
 is not called.
+
+If the trigger was caused by ``@state_trigger``, the prior value of the state variable that
+caused the trigger is available to ``str_expr`` with a ``.old`` suffix.
+
+Inside the ``str_expr``, undefined state variables, undefined state attributes, and undefined
+``.old`` variables evaluate to `None`, rather than throwing an exception. Any ``.old`` variable
+will be ``None`` if the trigger is not a state trigger or if a different state variable change
+cause the state trigger.
 
 @time_active
 ^^^^^^^^^^^^
@@ -910,7 +924,7 @@ Trigger Closures
 Pyscript supports trigger functions that are defined as closures, ie: functions defined inside
 another function. This allows you to easily create many similar trigger functions that might
 differ only in a couple of parameters (eg, a common function in different rooms or for each
-media set up). The trigger will be stopped when the function is no longer referenced in
+media setup). The trigger will be stopped when the function is no longer referenced in
 any scope. Typically the closure function is returned, and the return value is assigned
 to a variable. If that variable is re-assigned or deleted, the trigger function will be
 destroyed.
