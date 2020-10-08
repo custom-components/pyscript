@@ -422,9 +422,10 @@ If the trigger was caused by ``@state_trigger``, the prior value of the state va
 caused the trigger is available to ``str_expr`` with a ``.old`` suffix.
 
 Inside the ``str_expr``, undefined state variables, undefined state attributes, and undefined
-``.old`` variables evaluate to `None`, rather than throwing an exception. Any ``.old`` variable
-will be ``None`` if the trigger is not a state trigger or if a different state variable change
-cause the state trigger.
+``.old`` variables evaluate to ``None``, rather than throwing an exception. Any ``.old`` variable
+will be ``None`` if the trigger is not a state trigger, if a different state variable change
+caused the state trigger, or if the state variable that caused the trigger was set for the
+first time (so there is no prior value).
 
 @time_active
 ^^^^^^^^^^^^
