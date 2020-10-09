@@ -1,4 +1,4 @@
-"""Config flow for Vizio."""
+"""Config flow for pyscript."""
 import voluptuous as vol
 
 from homeassistant import config_entries
