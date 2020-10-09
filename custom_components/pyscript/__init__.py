@@ -28,11 +28,11 @@ from .jupyter_kernel import Kernel
 from .state import State
 from .trigger import TrigTime
 
+_LOGGER = logging.getLogger(LOGGER_PATH)
+
 PYSCRIPT_SCHEMA = vol.Schema(
     {vol.Optional(CONF_ALLOW_ALL_IMPORTS, default=False): cv.boolean}, extra=vol.ALLOW_EXTRA,
 )
-
-_LOGGER = logging.getLogger(LOGGER_PATH)
 
 CONFIG_SCHEMA = vol.Schema({DOMAIN: PYSCRIPT_SCHEMA}, extra=vol.ALLOW_EXTRA)
 
