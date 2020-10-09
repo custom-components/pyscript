@@ -1,10 +1,13 @@
 """Config flow for Vizio."""
-import copy
+import voluptuous as vol
 
 from homeassistant import config_entries
 
-from . import PYSCRIPT_SCHEMA
 from .const import CONF_ALLOW_ALL_IMPORTS, DOMAIN
+
+PYSCRIPT_SCHEMA = vol.Schema(
+    {vol.Optional(CONF_ALLOW_ALL_IMPORTS, default=False): bool}, extra=vol.ALLOW_EXTRA,
+)
 
 
 class PyscriptConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
@@ -16,9 +19,10 @@ class PyscriptConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     async def async_step_user(self, user_input):
         """Handle a flow initialized by the user."""
         if user_input is not None:
-            if await self.async_set_unique_id(unique_id=DOMAIN, raise_on_progress=True):
-                self.async_abort(reason="single_instance_allowed")
+            if len(self.hass.config_entries.async_entries(DOMAIN)) > 0:
+                return self.async_abort(reason="single_instance_allowed")
 
+            await self.async_set_unique_id(DOMAIN)
             return self.async_create_entry(title=DOMAIN, data=user_input)
 
         return self.async_show_form(step_id="user", data_schema=PYSCRIPT_SCHEMA)
@@ -33,7 +37,7 @@ class PyscriptConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             if entry.data.get(CONF_ALLOW_ALL_IMPORTS, False) != import_config.get(
                 CONF_ALLOW_ALL_IMPORTS, False
             ):
-                updated_data = copy.copy(entry.data)
+                updated_data = entry.data.copy()
                 updated_data[CONF_ALLOW_ALL_IMPORTS] = import_config.get(CONF_ALLOW_ALL_IMPORTS, False)
                 self.hass.config_entries.async_update_entry(entry=entry, data=updated_data)
                 await self.hass.config_entries.async_reload(entry.entry_id)
