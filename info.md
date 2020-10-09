@@ -23,8 +23,7 @@ See the documentation if you want to install pyscript manually.
 
 ## Configuration
 
-* Add `pyscript:` to `<config>/configuration.yaml`; there is one optional parameter (see docs)
-* Create the folder `<config>/pyscript`
+* Go to the Integrations menu in the Home Assistant Configuration UI and add `Pyscript Python scripting` from there, or add `pyscript:` to `<config>/configuration.yaml`; there is one optional parameter (see docs)
 * Add files with a suffix of `.py` in the folder `<config>/pyscript`.
 * Whenever you change a script file, make a `reload` service call to `pyscript`.
 * Watch the HASS log for `pyscript` errors and logger output from your scripts.

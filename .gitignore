@@ -3,4 +3,5 @@ icon
 venv
 hass-custom-pyscript.zip
 .coverage
+.vscode
 .*.swp
