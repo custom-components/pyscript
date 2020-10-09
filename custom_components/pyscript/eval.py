@@ -1708,6 +1708,10 @@ class AstEval:
                         for name in await self.get_target_names(item.optional_vars):
                             local_names.add(name)
                             names.add(name)
+            elif cls_name in {"ListComp", "DictComp", "SetComp"}:
+                target_vars, _ = await self.loopvar_scope_save(arg.generators)
+                for name in target_vars:
+                    local_names.add(name)
             elif cls_name == "Try":
                 for handler in arg.handlers:
                     if handler.name is not None:

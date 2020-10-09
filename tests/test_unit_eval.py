@@ -254,6 +254,12 @@ def no_op(i):
         "{f'{i}+{k}':i+k for i in range(3) for k in range(3) if k <= i}",
         {"0+0": 0, "1+0": 1, "1+1": 2, "2+0": 2, "2+1": 3, "2+2": 4},
     ],
+    ["def f(l=5): return [i for i in range(l)];\nf(6)", [0, 1, 2, 3, 4, 5]],
+    ["def f(l=5): return {i+j for i,j in zip(range(l), range(l))};\nf()", {0, 2, 4, 6, 8}],
+    [
+        "def f(l=5): return {i:j for i,j in zip(range(l), range(1,l+1))};\nf()",
+        {0: 1, 1: 2, 2: 3, 3: 4, 4: 5},
+    ],
     [
         """
 d = {"x": 1, "y": 2, "z": 3}
