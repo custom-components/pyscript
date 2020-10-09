@@ -65,8 +65,8 @@ async def wait_until_done(notify_q):
     return await asyncio.wait_for(notify_q.get(), timeout=4)
 
 
-async def test_setup_fails_on_no_dir(hass, caplog):
-    """Test we fail setup when no dir found."""
+async def test_setup_makedirs_on_no_dir(hass, caplog):
+    """Test setup calls os.makedirs when no dir found."""
     integration = loader.Integration(
         hass,
         "custom_components.pyscript",
@@ -76,11 +76,11 @@ async def test_setup_fails_on_no_dir(hass, caplog):
 
     with patch("homeassistant.loader.async_get_integration", return_value=integration), patch(
         "custom_components.pyscript.os.path.isdir", return_value=False
-    ):
+    ), patch("custom_components.pyscript.os.makedirs") as makedirs_call:
         res = await async_setup_component(hass, "pyscript", {DOMAIN: {}})
 
-    assert not res
-    assert "Folder pyscript not found in configuration folder" in caplog.text
+    assert res
+    assert makedirs_call.called
 
 
 async def test_service_exists(hass, caplog):

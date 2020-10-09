@@ -8,6 +8,7 @@ import os
 import voluptuous as vol
 
 from homeassistant.config import async_hass_config_yaml, async_process_component_config
+from homeassistant.config_entries import SOURCE_IMPORT
 from homeassistant.const import (
     EVENT_HOMEASSISTANT_STARTED,
     EVENT_HOMEASSISTANT_STOP,
@@ -18,7 +19,7 @@ from homeassistant.exceptions import HomeAssistantError
 import homeassistant.helpers.config_validation as cv
 from homeassistant.loader import async_get_integration, bind_hass
 
-from .const import DOMAIN, FOLDER, LOGGER_PATH, SERVICE_JUPYTER_KERNEL_START
+from .const import CONF_ALLOW_ALL_IMPORTS, DOMAIN, FOLDER, LOGGER_PATH, SERVICE_JUPYTER_KERNEL_START
 from .eval import AstEval
 from .event import Event
 from .function import Function
@@ -29,20 +30,27 @@ from .trigger import TrigTime
 
 _LOGGER = logging.getLogger(LOGGER_PATH)
 
-CONF_ALLOW_ALL_IMPORTS = "allow_all_imports"
-
-CONFIG_SCHEMA = vol.Schema(
-    {
-        DOMAIN: vol.Schema(
-            {vol.Optional(CONF_ALLOW_ALL_IMPORTS, default=False): cv.boolean}, extra=vol.ALLOW_EXTRA,
-        )
-    },
-    extra=vol.ALLOW_EXTRA,
+PYSCRIPT_SCHEMA = vol.Schema(
+    {vol.Optional(CONF_ALLOW_ALL_IMPORTS, default=False): cv.boolean}, extra=vol.ALLOW_EXTRA,
 )
+
+CONFIG_SCHEMA = vol.Schema({DOMAIN: PYSCRIPT_SCHEMA}, extra=vol.ALLOW_EXTRA)
 
 
 async def async_setup(hass, config):
-    """Initialize the pyscript component."""
+    """Component setup, run import config flow for each entry in config."""
+    if DOMAIN in config:
+        hass.async_create_task(
+            hass.config_entries.flow.async_init(
+                DOMAIN, context={"source": SOURCE_IMPORT}, data=config[DOMAIN]
+            )
+        )
+
+    return True
+
+
+async def async_setup_entry(hass, config_entry):
+    """Initialize the pyscript config entry."""
     Function.init(hass)
     Event.init(hass)
     TrigTime.init(hass)
@@ -52,19 +60,16 @@ async def async_setup(hass, config):
 
     pyscript_folder = hass.config.path(FOLDER)
 
-    def check_isdir(path):
-        return os.path.isdir(path)
-
-    if not await hass.async_add_executor_job(check_isdir, pyscript_folder):
-        _LOGGER.error("Folder %s not found in configuration folder", FOLDER)
-        return False
+    if not await hass.async_add_executor_job(os.path.isdir, pyscript_folder):
+        _LOGGER.debug("Folder %s not found in configuration folder, creating it", FOLDER)
+        await hass.async_add_executor_job(os.makedirs, pyscript_folder)
 
     hass.data.setdefault(DOMAIN, {})
-    hass.data[DOMAIN]["allow_all_imports"] = config[DOMAIN].get(CONF_ALLOW_ALL_IMPORTS)
+    hass.data[DOMAIN][CONF_ALLOW_ALL_IMPORTS] = config_entry.data.get(CONF_ALLOW_ALL_IMPORTS)
 
-    State.set_pyscript_config(config.get(DOMAIN, {}))
+    State.set_pyscript_config(config_entry.data)
 
-    await load_scripts(hass, config)
+    await load_scripts(hass, config_entry.data)
 
     async def reload_scripts_handler(call):
         """Handle reload service calls."""
@@ -173,6 +178,12 @@ async def async_setup(hass, config):
     hass.bus.async_listen(EVENT_HOMEASSISTANT_STARTED, start_triggers)
     hass.bus.async_listen(EVENT_HOMEASSISTANT_STOP, stop_triggers)
 
+    return True
+
+
+async def async_unload_entry(hass, config_entry):
+    """Unload a config entry."""
+    hass.data.pop(DOMAIN)
     return True
 
 

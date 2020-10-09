@@ -1,7 +1,7 @@
 {
   "domain": "pyscript",
   "name": "Pyscript Python scripting",
-  "config_flow": false,
+  "config_flow": true,
   "documentation": "https://github.com/custom-components/pyscript",
   "issue_tracker": "https://github.com/custom-components/pyscript/issues",
   "requirements": ["croniter==0.3.34"],

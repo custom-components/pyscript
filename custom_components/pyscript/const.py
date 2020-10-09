@@ -4,6 +4,8 @@ DOMAIN = "pyscript"
 
 FOLDER = "pyscript"
 
+CONF_ALLOW_ALL_IMPORTS = "allow_all_imports"
+
 SERVICE_JUPYTER_KERNEL_START = "jupyter_kernel_start"
 
 LOGGER_PATH = "custom_components.pyscript"

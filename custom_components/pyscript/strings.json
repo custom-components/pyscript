@@ -1,0 +1,18 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "pyscript",
+        "description": "Once you have created an entry, refer to the [docs](https://hacs-pyscript.readthedocs.io/en/latest/) to learn how to create scripts and functions.",
+        "data": {
+          "allow_all_imports": "Allow All Imports?"
+        }
+      }
+    },
+    "abort": {
+      "already_configured_service": "[%key:common::config_flow::abort::already_configured_service%]",
+      "single_instance_allowed": "[%key:common::config_flow::abort::single_instance_allowed%]",
+      "updated_entry": "This entry has already been setup but the configuration has been updated."
+    }
+  }
+}
