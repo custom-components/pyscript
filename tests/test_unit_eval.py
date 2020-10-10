@@ -338,6 +338,16 @@ def foo(arg=6):
     ],
     [
         """
+def func():
+    global x
+    x = 134
+func()
+x
+""",
+        134,
+    ],
+    [
+        """
 def foo0(arg=6):
     bar = 100
     bar2 = 1000
@@ -401,6 +411,19 @@ def foo0(arg=6):
 [foo0(), foo0(5), eval('bar'), eval('bar2')]
 """,
         [[106, 106, 1001], [105, 105, 1001], 50, 500],
+    ],
+    [
+        """
+def f():
+    def b():
+        return s+g
+    s = "hello "
+    return b
+b = f()
+g = "world"
+b()
+""",
+        "hello world",
     ],
     [
         """

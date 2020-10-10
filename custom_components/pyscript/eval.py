@@ -545,9 +545,10 @@ class EvalFunc:
                     self.local_sym_table[var_name] = sym_table[var_name]
                     break
             else:
-                val = await ast_ctx.ast_name(ast.Name(id=var_name, ctx=ast.Load()))
-                if isinstance(val, EvalName) and got_dot < 0:
-                    raise SyntaxError(f"no binding for nonlocal '{var_name}' found")
+                if var_name in nonlocal_names:
+                    val = await ast_ctx.ast_name(ast.Name(id=var_name, ctx=ast.Load()))
+                    if isinstance(val, EvalName) and got_dot < 0:
+                        raise SyntaxError(f"no binding for nonlocal '{var_name}' found")
 
     def get_decorators(self):
         """Return the function decorators."""
