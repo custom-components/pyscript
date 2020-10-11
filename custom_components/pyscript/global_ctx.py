@@ -126,18 +126,11 @@ class GlobalContext:
         for ctx_name, _, _ in filepaths:
             mod_ctx = self.manager.get(ctx_name)
             if mod_ctx and mod_ctx.module:
-                _LOGGER.debug(
-                    "module_import: returning existing module %s, ctx = %s, mod = %s",
-                    module_name,
-                    ctx_name,
-                    mod_ctx.module,
-                )
                 return [mod_ctx.module, None]
 
         #
         # not loaded already, so try to find and import it
         #
-        _LOGGER.debug("module_import: for module %s, searching %s", module_name, filepaths)
         file_info = await Function.hass.async_add_executor_job(find_first_file, filepaths)
         if not file_info:
             return [None, None]
@@ -151,7 +144,7 @@ class GlobalContext:
         global_ctx.set_auto_start(True)
         error_ctx = await self.manager.load_file(filepath, global_ctx)
         if error_ctx:
-            _LOGGER.debug(
+            _LOGGER.error(
                 "module_import: failed to load module %s, ctx = %s, path = %s",
                 module_name,
                 ctx_name,
@@ -159,7 +152,6 @@ class GlobalContext:
             )
             return [None, error_ctx]
         global_ctx.module = mod
-        _LOGGER.debug("module_import: imported %s, ctx = %s, mod = %s", module_name, ctx_name, mod)
         return [mod, None]
 
 

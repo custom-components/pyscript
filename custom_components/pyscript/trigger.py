@@ -527,7 +527,7 @@ class TrigInfo:
         """Start this trigger task."""
         if not self.task and self.setup_ok:
             self.task = Function.create_task(self.trigger_watch())
-            _LOGGER.debug("trigger %s is active %s", self.name, self.task)
+            _LOGGER.debug("trigger %s is active", self.name)
 
     async def trigger_watch(self):
         """Task that runs for each trigger, waiting for the next trigger and calling the function."""
