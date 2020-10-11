@@ -1,5 +1,5 @@
 """Config flow for pyscript."""
-from typing import Any, Dict, Optional
+from typing import Any, Dict
 
 import voluptuous as vol
 
@@ -18,7 +18,7 @@ class PyscriptConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     VERSION = 1
     CONNECTION_CLASS = config_entries.CONN_CLASS_LOCAL_PUSH
 
-    async def async_step_user(self, user_input: Optional[Dict[str, Any]] = None) -> None:
+    async def async_step_user(self, user_input: Dict[str, Any] = None) -> None:
         """Handle a flow initialized by the user."""
         if user_input is not None:
             if len(self.hass.config_entries.async_entries(DOMAIN)) > 0:
@@ -29,7 +29,7 @@ class PyscriptConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
         return self.async_show_form(step_id="user", data_schema=PYSCRIPT_SCHEMA)
 
-    async def async_step_import(self, import_config: Optional[Dict[str, Any]] = None) -> None:
+    async def async_step_import(self, import_config: Dict[str, Any] = None) -> None:
         """Import a config entry from configuration.yaml."""
         # Check if import config entry matches any existing config entries
         # so we can update it if necessary
