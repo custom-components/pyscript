@@ -534,10 +534,10 @@ class TrigInfo:
 
         try:
 
-            async def do_func_call(func, ast_ctx, task_unique, kwargs=None):
+            async def do_func_call(func, ast_ctx, task_unique, **kwargs):
                 if task_unique and self.task_unique_func:
                     await self.task_unique_func(task_unique)
-                await func.call(ast_ctx, kwargs=kwargs)
+                await func.call(ast_ctx, **kwargs)
                 if ast_ctx.get_exception_obj():
                     ast_ctx.get_logger().error(ast_ctx.get_exception_long())
 
@@ -656,7 +656,7 @@ class TrigInfo:
                     func_args,
                 )
                 Function.create_task(
-                    do_func_call(self.action, self.action_ast_ctx, self.task_unique, kwargs=func_args)
+                    do_func_call(self.action, self.action_ast_ctx, self.task_unique, **func_args)
                 )
 
         except asyncio.CancelledError:

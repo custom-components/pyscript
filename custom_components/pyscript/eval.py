@@ -188,6 +188,10 @@ class EvalLocalVar:
             raise NameError(f"name '{self.name}' is not defined")
         return getattr(self.value, attr)
 
+    def __repr__(self):
+        """Generate string with address and value."""
+        return f"EvalLocalVar @{hex(id(self))} = {self.value if self.defined else 'undefined'}"
+
 
 class EvalName:
     """Identifier that hasn't yet been resolved."""
@@ -350,7 +354,7 @@ class EvalFunc:
                         func_args.update(call.data)
 
                         async def do_service_call(func, ast_ctx, data):
-                            await func.call(ast_ctx, [], call.data)
+                            await func.call(ast_ctx, **call.data)
                             if ast_ctx.get_exception_obj():
                                 ast_ctx.get_logger().error(ast_ctx.get_exception_long())
 
@@ -575,7 +579,7 @@ class EvalFunc:
             if ast_ctx.exception_long is None:
                 ast_ctx.exception_long = ast_ctx.format_exc(err, arg.lineno, arg.col_offset)
 
-    async def call(self, ast_ctx, args=None, kwargs=None):
+    async def call(self, ast_ctx, *args, **kwargs):
         """Call the function with the given context and arguments."""
         sym_table = {}
         if args is None:
@@ -666,6 +670,19 @@ class EvalFuncVar:
     def __del__(self):
         """On deletion, stop any triggers for this function."""
         self.func.trigger_stop()
+
+
+class EvalFuncVarClassInst(EvalFuncVar):
+    """Class for a callable pyscript class instance function."""
+
+    def __init__(self, func, class_inst):
+        """Initialize instance with given EvalFunc function."""
+        super().__init__(func)
+        self.class_inst = class_inst
+
+    def call(self, ctx, *args, **kwargs):
+        """Call the EvalFunc function."""
+        return self.func.call(ctx, self.class_inst, *args, **kwargs)
 
 
 class AstEval:
@@ -858,19 +875,7 @@ class AstEval:
                 raise SyntaxError(f"{val.name()} statement outside loop")
         self.sym_table = self.sym_table_stack.pop()
 
-        for name, func in sym_table.items():
-            if not isinstance(func, EvalFuncVar):
-                continue
-
-            def class_func_factory(func):
-                async def class_func_wrapper(this_self, *args, **kwargs):
-                    method_args = [this_self, *args]
-                    return await func.call(self, method_args, kwargs)
-
-                return class_func_wrapper
-
-            sym_table[name] = class_func_factory(func.get_func())
-
+        sym_table["__init__evalfunc_wrap__"] = None
         if "__init__" in sym_table:
             sym_table["__init__evalfunc_wrap__"] = sym_table["__init__"]
             del sym_table["__init__"]
@@ -1017,7 +1022,7 @@ class AstEval:
                 )
             for ctx in ctx_list:
                 if ctx["target"]:
-                    value = await self.call_func(ctx["enter"], enter_attr, [ctx["manager"]], {})
+                    value = await self.call_func(ctx["enter"], enter_attr, ctx["manager"])
                     await self.recurse_assign(ctx["target"], value)
             for arg1 in arg.body:
                 val = await self.aeval(arg1)
@@ -1027,14 +1032,14 @@ class AstEval:
             hit_except = True
             exit_ok = True
             for ctx in reversed(ctx_list):
-                ret = await self.call_func(ctx["exit"], exit_attr, [ctx["manager"], *sys.exc_info()], {})
+                ret = await self.call_func(ctx["exit"], exit_attr, ctx["manager"], *sys.exc_info())
                 exit_ok = exit_ok and ret
             if not exit_ok:
                 raise
         finally:
             if not hit_except:
                 for ctx in reversed(ctx_list):
-                    await self.call_func(ctx["exit"], exit_attr, [ctx["manager"], None, None, None], {})
+                    await self.call_func(ctx["exit"], exit_attr, ctx["manager"], None, None, None)
         return val
 
     async def ast_asyncwith(self, arg):
@@ -1590,19 +1595,24 @@ class AstEval:
             func_name = func.get_name()
             func = func.get()
         _LOGGER.debug("%s: calling %s(%s, %s)", self.name, func_name, arg_str, kwargs)
-        return await self.call_func(func, func_name, args, kwargs)
+        return await self.call_func(func, func_name, *args, **kwargs)
 
-    async def call_func(self, func, func_name, args, kwargs):
+    async def call_func(self, func, func_name, *args, **kwargs):
         """Call a function with the given arguments."""
         if isinstance(func, EvalFuncVar):
-            return await func.get_func().call(self, args, kwargs)
+            return await func.call(self, *args, **kwargs)
         if inspect.isclass(func) and hasattr(func, "__init__evalfunc_wrap__"):
-            #
-            # since our __init__ function is async, create the class instance
-            # without arguments and then call the async __init__evalfunc_wrap__
-            #
             inst = func()
-            await inst.__init__evalfunc_wrap__(*args, **kwargs)
+            for name in inst.__dir__():
+                value = getattr(inst, name)
+                if type(value) is not EvalFuncVar:
+                    continue
+                setattr(inst, name, EvalFuncVarClassInst(value.get_func(), inst))
+            if getattr(func, "__init__evalfunc_wrap__") is not None:
+                #
+                # since our __init__ function is async, call the renamed one
+                #
+                await inst.__init__evalfunc_wrap__.call(self, *args, **kwargs)
             return inst
         if asyncio.iscoroutinefunction(func):
             return await func(*args, **kwargs)

@@ -52,7 +52,8 @@ disable=
   unused-argument,
   no-value-for-parameter,
   unsubscriptable-object,
-  wrong-import-order
+  wrong-import-order,
+  unidiomatic-typecheck
 enable=
   use-symbolic-message-instead
 
