@@ -782,13 +782,12 @@ class AstEval:
                     raise ModuleNotFoundError(f"module '{imp.name}' not found")
                 self.sym_table[imp.name if imp.asname is None else imp.asname] = mod
             return
-        else:
-            mod, error_ctx = await self.global_ctx.module_import(arg.module, arg.level)
-            if error_ctx:
-                self.exception_obj = error_ctx.exception_obj
-                self.exception = error_ctx.exception
-                self.exception_long = error_ctx.exception_long
-                raise self.exception_obj
+        mod, error_ctx = await self.global_ctx.module_import(arg.module, arg.level)
+        if error_ctx:
+            self.exception_obj = error_ctx.exception_obj
+            self.exception = error_ctx.exception
+            self.exception_long = error_ctx.exception_long
+            raise self.exception_obj
         if not mod:
             if not self.allow_all_imports and arg.module not in ALLOWED_IMPORTS:
                 raise ModuleNotFoundError(f"import from {arg.module} not allowed")

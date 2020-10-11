@@ -65,7 +65,7 @@ class Function:
                 "log.info": lambda ast_ctx: ast_ctx.get_logger().info,
                 "log.warning": lambda ast_ctx: ast_ctx.get_logger().warning,
                 "print": lambda ast_ctx: ast_ctx.get_logger().debug,
-                "task.unique": lambda ast_ctx: cls.task_unique_factory(ast_ctx),
+                "task.unique": cls.task_unique_factory,
             }
         )
 
