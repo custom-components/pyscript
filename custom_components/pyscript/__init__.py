@@ -209,14 +209,16 @@ async def load_scripts(hass, config):
                     rel_import_path = f"{path}/mod_name"
                 if path == "":
                     global_ctx_name = f"file.{mod_name}"
+                    fq_mod_name = mod_name
                 else:
                     global_ctx_name = f"{path}.{mod_name}"
+                    fq_mod_name = global_ctx_name
                 if check_config:
                     _LOGGER.debug("load_scripts: checking %s in %s", mod_name, apps_config)
                     if not isinstance(apps_config, dict) or mod_name not in apps_config:
                         _LOGGER.debug("load_scripts: skipping %s because config not present", this_path)
                         continue
-                source_files.append([global_ctx_name, this_path, rel_import_path])
+                source_files.append([global_ctx_name, this_path, rel_import_path, fq_mod_name])
         return source_files
 
     load_paths = [
@@ -226,8 +228,11 @@ async def load_scripts(hass, config):
     ]
 
     source_files = await hass.async_add_executor_job(glob_files, load_paths, config)
-    for global_ctx_name, source_file, rel_import_path in source_files:
+    for global_ctx_name, source_file, rel_import_path, fq_mod_name in source_files:
         global_ctx = GlobalContext(
-            global_ctx_name, global_sym_table={}, manager=GlobalContextMgr, rel_import_path=rel_import_path
+            global_ctx_name,
+            global_sym_table={"__name__": fq_mod_name},
+            manager=GlobalContextMgr,
+            rel_import_path=rel_import_path,
         )
         await GlobalContextMgr.load_file(source_file, global_ctx)

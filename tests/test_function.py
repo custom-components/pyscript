@@ -184,7 +184,7 @@ def func1(var_name=None, value=None):
 
     seq_num += 1
     log.info(f"func1 var = {var_name}, value = {value}")
-    pyscript.done = [seq_num, var_name, int(value), sqrt(1024)]
+    pyscript.done = [seq_num, var_name, int(value), sqrt(1024), __name__]
 
 @state_trigger("pyscript.f1var1 == '1' or pyscript.f2var2 == '2' or pyscript.no_such_var == '10' or pyscript.no_such_var.attr == 100")
 @state_active("pyscript.f2var3 == '3' and pyscript.f2var4 == '4'")
@@ -378,6 +378,7 @@ def func8(var_name=None, value=None, old_value=None):
         "pyscript.f1var1",
         1,
         32,
+        "hello",
     ]
     assert "func1 var = pyscript.f1var1, value = 1" in caplog.text
 
@@ -392,6 +393,7 @@ def func8(var_name=None, value=None, old_value=None):
         "pyscript.f1var1",
         1,
         32,
+        "hello",
     ]
 
     seq_num += 1
