@@ -457,8 +457,6 @@ class EvalFunc:
             return
 
         trig_args["action"] = self
-        trig_args["action_ast_ctx"] = AstEval(f"{self.global_ctx_name}.{self.name}", self.global_ctx)
-        Function.install_ast_funcs(trig_args["action_ast_ctx"])
         trig_args["global_sym_table"] = self.global_ctx.global_sym_table
 
         self.trigger = self.global_ctx.get_trig_info(f"{self.global_ctx_name}.{self.name}", trig_args)

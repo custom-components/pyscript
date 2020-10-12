@@ -448,7 +448,6 @@ class TrigInfo:
         self.time_active = trig_cfg.get("time_active", {}).get("args", None)
         self.task_unique = trig_cfg.get("task_unique", {}).get("args", None)
         self.task_unique_kwargs = trig_cfg.get("task_unique", {}).get("kwargs", None)
-        self.task_unique_func = None
         self.action = trig_cfg.get("action")
         self.action_ast_ctx = trig_cfg.get("action_ast_ctx")
         self.global_sym_table = trig_cfg.get("global_sym_table", {})
@@ -507,9 +506,6 @@ class TrigInfo:
                     return
             self.have_trigger = True
 
-        if self.task_unique:
-            self.task_unique_func = Function.task_unique_factory(self.action_ast_ctx)
-
         self.setup_ok = True
 
     def stop(self):
@@ -533,13 +529,6 @@ class TrigInfo:
         """Task that runs for each trigger, waiting for the next trigger and calling the function."""
 
         try:
-
-            async def do_func_call(func, ast_ctx, task_unique, **kwargs):
-                if task_unique and self.task_unique_func:
-                    await self.task_unique_func(task_unique)
-                await func.call(ast_ctx, **kwargs)
-                if ast_ctx.get_exception_obj():
-                    ast_ctx.get_logger().error(ast_ctx.get_exception_long())
 
             if self.state_trigger is not None:
                 self.state_trig_ident = await self.state_trig_expr.get_names()
@@ -655,8 +644,26 @@ class TrigInfo:
                     notify_type,
                     func_args,
                 )
+
+                async def do_func_call(func, ast_ctx, task_unique, task_unique_func, **kwargs):
+                    if task_unique and task_unique_func:
+                        await task_unique_func(task_unique)
+                    await func.call(ast_ctx, **kwargs)
+                    if ast_ctx.get_exception_obj():
+                        ast_ctx.get_logger().error(ast_ctx.get_exception_long())
+
+                action_ast_ctx = AstEval(
+                    f"{self.action.global_ctx_name}.{self.action.name}", self.action.global_ctx
+                )
+                Function.install_ast_funcs(action_ast_ctx)
+                task_unique_func = None
+                if self.task_unique:
+                    task_unique_func = Function.task_unique_factory(action_ast_ctx)
+
                 Function.create_task(
-                    do_func_call(self.action, self.action_ast_ctx, self.task_unique, **func_args)
+                    do_func_call(
+                        self.action, action_ast_ctx, self.task_unique, task_unique_func, **func_args
+                    )
                 )
 
         except asyncio.CancelledError:
