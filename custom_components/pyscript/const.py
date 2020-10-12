@@ -5,6 +5,7 @@ DOMAIN = "pyscript"
 FOLDER = "pyscript"
 
 CONF_ALLOW_ALL_IMPORTS = "allow_all_imports"
+CONF_ALL_KEYS = [CONF_ALLOW_ALL_IMPORTS, "apps"]
 
 SERVICE_JUPYTER_KERNEL_START = "jupyter_kernel_start"
 

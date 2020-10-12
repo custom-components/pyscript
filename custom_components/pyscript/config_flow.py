@@ -5,7 +5,7 @@ import voluptuous as vol
 
 from homeassistant import config_entries
 
-from .const import CONF_ALLOW_ALL_IMPORTS, DOMAIN
+from .const import CONF_ALL_KEYS, CONF_ALLOW_ALL_IMPORTS, DOMAIN
 
 PYSCRIPT_SCHEMA = vol.Schema(
     {vol.Optional(CONF_ALLOW_ALL_IMPORTS, default=False): bool}, extra=vol.ALLOW_EXTRA,
@@ -38,20 +38,15 @@ class PyscriptConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             entry = entries[0]
             updated_data = entry.data.copy()
 
-            # Update "allow_all_imports" if it has been changed
-            if entry.data.get(CONF_ALLOW_ALL_IMPORTS, False) != import_config.get(
-                CONF_ALLOW_ALL_IMPORTS, False
-            ):
-                updated_data[CONF_ALLOW_ALL_IMPORTS] = import_config.get(CONF_ALLOW_ALL_IMPORTS, False)
+            # Update key if it's value has been changed
+            for key in CONF_ALL_KEYS:
+                if entry.data.get(key) != import_config.get(key):
+                    if import_config.get(key) is not None:
+                        updated_data[key] = import_config[key]
+                    else:
+                        updated_data.pop(key)
 
-            # Update "apps" if it has been changed
-            if entry.data.get("apps") != import_config.get("apps"):
-                if import_config.get("apps"):
-                    updated_data["apps"] = import_config["apps"]
-                else:
-                    updated_data.pop("apps")
-
-            # Update and reload entry
+            # Update and reload entry if data needs to be updated
             if updated_data != entry.data:
                 self.hass.config_entries.async_update_entry(entry=entry, data=updated_data)
                 await self.hass.config_entries.async_reload(entry.entry_id)
