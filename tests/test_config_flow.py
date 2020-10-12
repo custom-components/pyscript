@@ -135,3 +135,42 @@ async def test_import_flow_no_update(hass):
 
     assert result["type"] == data_entry_flow.RESULT_TYPE_ABORT
     assert result["reason"] == "already_configured_service"
+
+
+async def test_import_flow_update_user(hass):
+    """Test import config flow update excludes `allow_all_imports` from being updated when updated entry was a user entry."""
+    result = await hass.config_entries.flow.async_init(
+        DOMAIN, context={"source": SOURCE_USER}, data=PYSCRIPT_SCHEMA({CONF_ALLOW_ALL_IMPORTS: True})
+    )
+
+    assert result["type"] == data_entry_flow.RESULT_TYPE_CREATE_ENTRY
+
+    result = await hass.config_entries.flow.async_init(
+        DOMAIN, context={"source": SOURCE_IMPORT}, data={"apps": {"test_app": {"param": 1}}}
+    )
+
+    assert result["type"] == data_entry_flow.RESULT_TYPE_ABORT
+    assert result["reason"] == "updated_entry"
+
+    hass.config_entries.async_entries(DOMAIN)[0].data == {
+        CONF_ALLOW_ALL_IMPORTS: True,
+        "apps": {"test_app": {"param": 1}},
+    }
+
+
+async def test_import_flow_update_import(hass):
+    """Test import config flow update includes `allow_all_imports` in update when updated entry was imported entry."""
+    result = await hass.config_entries.flow.async_init(
+        DOMAIN, context={"source": SOURCE_IMPORT}, data=PYSCRIPT_SCHEMA({CONF_ALLOW_ALL_IMPORTS: True})
+    )
+
+    assert result["type"] == data_entry_flow.RESULT_TYPE_CREATE_ENTRY
+
+    result = await hass.config_entries.flow.async_init(
+        DOMAIN, context={"source": SOURCE_IMPORT}, data={"apps": {"test_app": {"param": 1}}}
+    )
+
+    assert result["type"] == data_entry_flow.RESULT_TYPE_ABORT
+    assert result["reason"] == "updated_entry"
+
+    hass.config_entries.async_entries(DOMAIN)[0].data == {"apps": {"test_app": {"param": 1}}}
