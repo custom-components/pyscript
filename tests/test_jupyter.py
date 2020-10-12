@@ -6,7 +6,6 @@ from datetime import datetime as dt
 import hashlib
 import hmac
 import json
-import pathlib
 import uuid
 
 from custom_components.pyscript.const import DOMAIN
@@ -14,7 +13,6 @@ from custom_components.pyscript.jupyter_kernel import ZmqSocket
 import custom_components.pyscript.trigger as trigger
 from pytest_homeassistant.async_mock import mock_open, patch
 
-from homeassistant import loader
 from homeassistant.const import EVENT_HOMEASSISTANT_STARTED, EVENT_HOMEASSISTANT_STOP
 from homeassistant.setup import async_setup_component
 
@@ -112,18 +110,10 @@ async def setup_script(hass, now, source, no_connect=False):
     scripts = [
         "/some/config/dir/pyscripts/hello.py",
     ]
-    integration = loader.Integration(
-        hass,
-        "custom_components.pyscript",
-        pathlib.Path("custom_components/pyscript"),
-        {"name": "pyscript", "dependencies": [], "requirements": [], "domain": "automation"},
-    )
 
-    with patch("homeassistant.loader.async_get_integration", return_value=integration,), patch(
-        "custom_components.pyscript.os.path.isdir", return_value=True
-    ), patch("custom_components.pyscript.glob.iglob", return_value=scripts), patch(
-        "custom_components.pyscript.global_ctx.open", mock_open(read_data=source), create=True,
-    ), patch(
+    with patch("custom_components.pyscript.os.path.isdir", return_value=True), patch(
+        "custom_components.pyscript.glob.iglob", return_value=scripts
+    ), patch("custom_components.pyscript.global_ctx.open", mock_open(read_data=source), create=True,), patch(
         "custom_components.pyscript.trigger.dt_now", return_value=now
     ):
         assert await async_setup_component(hass, "pyscript", {DOMAIN: {}})

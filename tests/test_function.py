@@ -2,7 +2,6 @@
 from ast import literal_eval
 import asyncio
 from datetime import datetime as dt
-import pathlib
 import time
 
 from custom_components.pyscript.const import DOMAIN
@@ -11,7 +10,6 @@ import custom_components.pyscript.trigger as trigger
 import pytest
 from pytest_homeassistant.async_mock import MagicMock, Mock, mock_open, patch
 
-from homeassistant import loader
 from homeassistant.const import EVENT_HOMEASSISTANT_STARTED, EVENT_STATE_CHANGED
 from homeassistant.setup import async_setup_component
 
@@ -104,18 +102,10 @@ async def setup_script(hass, notify_q, now, source):
     scripts = [
         "/some/config/dir/pyscripts/hello.py",
     ]
-    integration = loader.Integration(
-        hass,
-        "custom_components.pyscript",
-        pathlib.Path("custom_components/pyscript"),
-        {"name": "pyscript", "dependencies": [], "requirements": [], "domain": "automation"},
-    )
 
-    with patch("homeassistant.loader.async_get_integration", return_value=integration), patch(
-        "custom_components.pyscript.os.path.isdir", return_value=True
-    ), patch("custom_components.pyscript.glob.iglob", return_value=scripts), patch(
-        "custom_components.pyscript.global_ctx.open", mock_open(read_data=source), create=True,
-    ), patch(
+    with patch("custom_components.pyscript.os.path.isdir", return_value=True), patch(
+        "custom_components.pyscript.glob.iglob", return_value=scripts
+    ), patch("custom_components.pyscript.global_ctx.open", mock_open(read_data=source), create=True,), patch(
         "custom_components.pyscript.trigger.dt_now", return_value=now
     ):
         assert await async_setup_component(hass, "pyscript", {DOMAIN: {}})
