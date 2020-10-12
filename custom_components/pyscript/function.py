@@ -107,28 +107,28 @@ class Function:
         async def task_unique(name, kill_me=False):
             """Implement task.unique()."""
             name = f"{ctx.get_global_ctx_name()}.{name}"
+            curr_task = asyncio.current_task()
             if name in cls.unique_name2task:
+                task = cls.unique_name2task[name]
                 if kill_me:
-                    #
-                    # it seems we can't cancel ourselves, so we
-                    # tell the repeaer task to cancel us
-                    #
-                    Function.task_cancel(asyncio.current_task())
-                    # wait to be canceled
-                    await asyncio.sleep(100000)
-                else:
-                    task = cls.unique_name2task[name]
-                    if task in cls.our_tasks:
-                        # only cancel tasks if they are ones we started
-                        try:
-                            task.cancel()
-                            await task
-                        except asyncio.CancelledError:
-                            pass
-            task = asyncio.current_task()
-            if task in cls.our_tasks:
-                cls.unique_name2task[name] = task
-                cls.unique_task2name[task] = name
+                    if task != curr_task:
+                        #
+                        # it seems we can't cancel ourselves, so we
+                        # tell the repeaer task to cancel us
+                        #
+                        Function.task_cancel(curr_task)
+                        # wait to be canceled
+                        await asyncio.sleep(100000)
+                elif task != curr_task and task in cls.our_tasks:
+                    # only cancel tasks if they are ones we started
+                    try:
+                        task.cancel()
+                        await task
+                    except asyncio.CancelledError:
+                        pass
+            if curr_task in cls.our_tasks:
+                cls.unique_name2task[name] = curr_task
+                cls.unique_task2name[curr_task] = name
 
         return task_unique
 

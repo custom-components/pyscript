@@ -75,6 +75,11 @@ def funcStartupSync():
     seq_num += 1
     log.info(f"funcStartupSync setting pyscript.done = {seq_num}")
     pyscript.done = seq_num
+    #
+    # stick around so the task.unique() still applies
+    #
+    task.unique("func6")
+    task.sleep(10000)
 
 @state_trigger("pyscript.f1var1 == '1'")
 def func1(var_name=None, value=None):
@@ -132,9 +137,8 @@ def func5():
     pyscript.done = [seq_num, "pyscript.f5var2"]
 
 
-@time_trigger("startup")
+@state_trigger("pyscript.f4var1 == '1'")
 def func6():
-    task.unique("func6")
     task.unique("func6", kill_me=True)
     # mess up the sequence numbers if task.unique fails to kill us
     pyscript.done = [999]
