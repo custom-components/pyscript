@@ -36,11 +36,23 @@ class PyscriptConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         entries = self.hass.config_entries.async_entries(DOMAIN)
         if entries:
             entry = entries[0]
+            updated_data = entry.data.copy()
+
+            # Update "allow_all_imports" if it has been changed
             if entry.data.get(CONF_ALLOW_ALL_IMPORTS, False) != import_config.get(
                 CONF_ALLOW_ALL_IMPORTS, False
             ):
-                updated_data = entry.data.copy()
                 updated_data[CONF_ALLOW_ALL_IMPORTS] = import_config.get(CONF_ALLOW_ALL_IMPORTS, False)
+
+            # Update "apps" if it has been changed
+            if entry.data.get("apps") != import_config.get("apps"):
+                if import_config.get("apps"):
+                    updated_data["apps"] = import_config["apps"]
+                else:
+                    updated_data.pop("apps")
+
+            # Update and reload entry
+            if updated_data != entry.data:
                 self.hass.config_entries.async_update_entry(entry=entry, data=updated_data)
                 await self.hass.config_entries.async_reload(entry.entry_id)
                 return self.async_abort(reason="updated_entry")

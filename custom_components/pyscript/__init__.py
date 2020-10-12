@@ -7,7 +7,7 @@ import os
 
 import voluptuous as vol
 
-from homeassistant.config import async_hass_config_yaml, async_process_component_config
+from homeassistant.config import async_hass_config_yaml
 from homeassistant.config_entries import SOURCE_IMPORT
 from homeassistant.const import (
     EVENT_HOMEASSISTANT_STARTED,
@@ -17,7 +17,7 @@ from homeassistant.const import (
 )
 from homeassistant.exceptions import HomeAssistantError
 import homeassistant.helpers.config_validation as cv
-from homeassistant.loader import async_get_integration, bind_hass
+from homeassistant.loader import bind_hass
 
 from .const import CONF_ALLOW_ALL_IMPORTS, DOMAIN, FOLDER, LOGGER_PATH, SERVICE_JUPYTER_KERNEL_START
 from .eval import AstEval
@@ -81,11 +81,14 @@ async def async_setup_entry(hass, config_entry):
             _LOGGER.error(err)
             return
 
-        integration = await async_get_integration(hass, DOMAIN)
+        # If data in config doesn't match config entry, trigger a config import
+        # so that the config entry can get updated
+        if DOMAIN in conf and conf[DOMAIN] != config_entry.data:
+            await hass.config_entries.flow.async_init(
+                DOMAIN, context={"source": SOURCE_IMPORT}, data=conf[DOMAIN]
+            )
 
-        config = await async_process_component_config(hass, conf, integration)
-
-        State.set_pyscript_config(config.get(DOMAIN, {}))
+        State.set_pyscript_config(config_entry.data)
 
         ctx_delete = {}
         for global_ctx_name, global_ctx in GlobalContextMgr.items():
@@ -97,7 +100,7 @@ async def async_setup_entry(hass, config_entry):
         for global_ctx_name, global_ctx in ctx_delete.items():
             await GlobalContextMgr.delete(global_ctx_name)
 
-        await load_scripts(hass, config)
+        await load_scripts(hass, config_entry.data)
 
         for global_ctx_name, global_ctx in GlobalContextMgr.items():
             idx = global_ctx_name.find(".")
@@ -188,14 +191,14 @@ async def async_unload_entry(hass, config_entry):
 
 
 @bind_hass
-async def load_scripts(hass, config):
+async def load_scripts(hass, data):
     """Load all python scripts in FOLDER."""
 
     pyscript_dir = hass.config.path(FOLDER)
 
-    def glob_files(load_paths, config):
+    def glob_files(load_paths, data):
         source_files = []
-        apps_config = config.get(DOMAIN, {}).get("apps", None)
+        apps_config = data.get("apps", None)
         for path, match, check_config in load_paths:
             for this_path in sorted(glob.glob(os.path.join(pyscript_dir, path, match))):
                 rel_import_path = None
@@ -227,7 +230,7 @@ async def load_scripts(hass, config):
         ["", "*.py", False],
     ]
 
-    source_files = await hass.async_add_executor_job(glob_files, load_paths, config)
+    source_files = await hass.async_add_executor_job(glob_files, load_paths, data)
     for global_ctx_name, source_file, rel_import_path, fq_mod_name in source_files:
         global_ctx = GlobalContext(
             global_ctx_name,
