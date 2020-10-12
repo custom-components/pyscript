@@ -59,7 +59,6 @@ class PyscriptConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             # Update and reload entry if data needs to be updated
             if updated_data != entry.data:
                 self.hass.config_entries.async_update_entry(entry=entry, data=updated_data)
-                await self.hass.config_entries.async_reload(entry.entry_id)
                 return self.async_abort(reason="updated_entry")
 
             return self.async_abort(reason="already_configured_service")
