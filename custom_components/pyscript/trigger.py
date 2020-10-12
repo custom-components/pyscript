@@ -449,7 +449,6 @@ class TrigInfo:
         self.task_unique = trig_cfg.get("task_unique", {}).get("args", None)
         self.task_unique_kwargs = trig_cfg.get("task_unique", {}).get("kwargs", None)
         self.action = trig_cfg.get("action")
-        self.action_ast_ctx = trig_cfg.get("action_ast_ctx")
         self.global_sym_table = trig_cfg.get("global_sym_table", {})
         self.notify_q = asyncio.Queue(0)
         self.active_expr = None
@@ -622,6 +621,14 @@ class TrigInfo:
                     )
                     continue
 
+                action_ast_ctx = AstEval(
+                    f"{self.action.global_ctx_name}.{self.action.name}", self.action.global_ctx
+                )
+                Function.install_ast_funcs(action_ast_ctx)
+                task_unique_func = None
+                if self.task_unique is not None:
+                    task_unique_func = Function.task_unique_factory(action_ast_ctx)
+
                 #
                 # check for @task_unique with kill_me=True
                 #
@@ -629,7 +636,7 @@ class TrigInfo:
                     self.task_unique is not None
                     and self.task_unique_kwargs
                     and self.task_unique_kwargs["kill_me"]
-                    and Function.unique_name_used(self.action_ast_ctx, self.task_unique)
+                    and Function.unique_name_used(action_ast_ctx, self.task_unique)
                 ):
                     _LOGGER.debug(
                         "trigger %s got %s trigger, @task_unique kill_me=True prevented new action",
@@ -651,14 +658,6 @@ class TrigInfo:
                     await func.call(ast_ctx, **kwargs)
                     if ast_ctx.get_exception_obj():
                         ast_ctx.get_logger().error(ast_ctx.get_exception_long())
-
-                action_ast_ctx = AstEval(
-                    f"{self.action.global_ctx_name}.{self.action.name}", self.action.global_ctx
-                )
-                Function.install_ast_funcs(action_ast_ctx)
-                task_unique_func = None
-                if self.task_unique:
-                    task_unique_func = Function.task_unique_factory(action_ast_ctx)
 
                 Function.create_task(
                     do_func_call(
