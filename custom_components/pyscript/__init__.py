@@ -81,15 +81,12 @@ async def async_setup_entry(hass, config_entry):
             _LOGGER.error(err)
             return
 
-        if DOMAIN in conf:
-            config = PYSCRIPT_SCHEMA(conf[DOMAIN])
+        config = PYSCRIPT_SCHEMA(conf.get(DOMAIN, {}))
 
-            # If data in config doesn't match config entry, trigger a config import
-            # so that the config entry can get updated
-            if config != config_entry.data:
-                await hass.config_entries.flow.async_init(
-                    DOMAIN, context={"source": SOURCE_IMPORT}, data=config
-                )
+        # If data in config doesn't match config entry, trigger a config import
+        # so that the config entry can get updated
+        if config != config_entry.data:
+            await hass.config_entries.flow.async_init(DOMAIN, context={"source": SOURCE_IMPORT}, data=config)
 
         State.set_pyscript_config(config_entry.data)
 
