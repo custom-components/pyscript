@@ -1,4 +1,5 @@
 """Config flow for pyscript."""
+import json
 from typing import Any, Dict
 
 import voluptuous as vol
@@ -32,6 +33,8 @@ class PyscriptConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
     async def async_step_import(self, import_config: Dict[str, Any] = None) -> Dict[str, Any]:
         """Import a config entry from configuration.yaml."""
+        import_config = json.loads(json.dumps(import_config))
+
         # Check if import config entry matches any existing config entries
         # so we can update it if necessary
         entries = self.hass.config_entries.async_entries(DOMAIN)
