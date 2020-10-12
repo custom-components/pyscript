@@ -75,8 +75,8 @@ async def test_import_flow(hass, pyscript_bypass_setup):
     assert result["type"] == data_entry_flow.RESULT_TYPE_CREATE_ENTRY
 
 
-async def test_import_flow_update_entry(hass):
-    """Test import config flow updates existing entry."""
+async def test_import_flow_update_allow_all_imports(hass):
+    """Test import config flow updates existing entry when `allow_all_imports` has changed."""
     result = await hass.config_entries.flow.async_init(
         DOMAIN, context={"source": SOURCE_IMPORT}, data=PYSCRIPT_SCHEMA({})
     )
@@ -86,6 +86,36 @@ async def test_import_flow_update_entry(hass):
     result = await hass.config_entries.flow.async_init(
         DOMAIN, context={"source": SOURCE_IMPORT}, data={CONF_ALLOW_ALL_IMPORTS: True}
     )
+
+    assert result["type"] == data_entry_flow.RESULT_TYPE_ABORT
+    assert result["reason"] == "updated_entry"
+
+
+async def test_import_flow_update_apps_from_none(hass):
+    """Test import config flow updates existing entry when `apps` has changed from None to something."""
+    result = await hass.config_entries.flow.async_init(
+        DOMAIN, context={"source": SOURCE_IMPORT}, data=PYSCRIPT_SCHEMA({})
+    )
+
+    assert result["type"] == data_entry_flow.RESULT_TYPE_CREATE_ENTRY
+
+    result = await hass.config_entries.flow.async_init(
+        DOMAIN, context={"source": SOURCE_IMPORT}, data={"apps": {"test_app": {"param": 1}}}
+    )
+
+    assert result["type"] == data_entry_flow.RESULT_TYPE_ABORT
+    assert result["reason"] == "updated_entry"
+
+
+async def test_import_flow_update_apps_to_none(hass):
+    """Test import config flow updates existing entry when `apps` has changed from something to None."""
+    result = await hass.config_entries.flow.async_init(
+        DOMAIN, context={"source": SOURCE_IMPORT}, data=PYSCRIPT_SCHEMA({"apps": {"test_app": {"param": 1}}})
+    )
+
+    assert result["type"] == data_entry_flow.RESULT_TYPE_CREATE_ENTRY
+
+    result = await hass.config_entries.flow.async_init(DOMAIN, context={"source": SOURCE_IMPORT}, data={})
 
     assert result["type"] == data_entry_flow.RESULT_TYPE_ABORT
     assert result["reason"] == "updated_entry"
