@@ -4,8 +4,9 @@ from typing import Any, Dict
 import voluptuous as vol
 
 from homeassistant import config_entries
+from homeassistant.config_entries import SOURCE_IMPORT
 
-from .const import CONF_ALL_KEYS, CONF_ALLOW_ALL_IMPORTS, DOMAIN
+from .const import CONF_ALLOW_ALL_IMPORTS, DOMAIN
 
 PYSCRIPT_SCHEMA = vol.Schema(
     {vol.Optional(CONF_ALLOW_ALL_IMPORTS, default=False): bool}, extra=vol.ALLOW_EXTRA,
@@ -38,13 +39,9 @@ class PyscriptConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             entry = entries[0]
             updated_data = entry.data.copy()
 
-            # Update key if it's value has been changed
-            for key in CONF_ALL_KEYS:
-                if entry.data.get(key) != import_config.get(key):
-                    if import_config.get(key) is not None:
-                        updated_data[key] = import_config[key]
-                    else:
-                        updated_data.pop(key)
+            for k, v in import_config.items():
+                if entry.source == SOURCE_IMPORT or k != CONF_ALLOW_ALL_IMPORTS:
+                    updated_data[k] = v
 
             # Update and reload entry if data needs to be updated
             if updated_data != entry.data:
