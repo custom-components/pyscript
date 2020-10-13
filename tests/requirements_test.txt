@@ -1,8 +1,9 @@
+coverage==5.2.1
 croniter>=0.3.34
 mock-open==1.4.0
 pre-commit
-pytest
+pytest==5.4.3
 pytest-cov>=2.9.0
-pytest-homeassistant
+pytest-homeassistant-custom-component==0.0.8
 pylint==2.6.0
 pylint-strict-informational==0.1

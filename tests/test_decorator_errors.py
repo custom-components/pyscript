@@ -5,7 +5,7 @@ from datetime import datetime as dt
 
 from custom_components.pyscript.const import DOMAIN
 import custom_components.pyscript.trigger as trigger
-from pytest_homeassistant.async_mock import mock_open, patch
+from pytest_homeassistant_custom_component.async_mock import mock_open, patch
 
 from homeassistant.const import EVENT_HOMEASSISTANT_STARTED, EVENT_STATE_CHANGED
 from homeassistant.setup import async_setup_component

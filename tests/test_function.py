@@ -8,7 +8,7 @@ from custom_components.pyscript.const import DOMAIN
 from custom_components.pyscript.function import Function
 import custom_components.pyscript.trigger as trigger
 import pytest
-from pytest_homeassistant.async_mock import MagicMock, Mock, mock_open, patch
+from pytest_homeassistant_custom_component.async_mock import MagicMock, Mock, mock_open, patch
 
 from homeassistant.const import EVENT_HOMEASSISTANT_STARTED, EVENT_STATE_CHANGED
 from homeassistant.setup import async_setup_component

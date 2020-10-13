@@ -4,7 +4,7 @@ import logging
 from custom_components.pyscript import PYSCRIPT_SCHEMA
 from custom_components.pyscript.const import CONF_ALLOW_ALL_IMPORTS, DOMAIN
 import pytest
-from pytest_homeassistant.async_mock import patch
+from pytest_homeassistant_custom_component.async_mock import patch
 
 from homeassistant import data_entry_flow
 from homeassistant.config_entries import SOURCE_IMPORT, SOURCE_USER

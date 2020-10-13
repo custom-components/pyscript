@@ -10,7 +10,7 @@ from custom_components.pyscript.function import Function
 from custom_components.pyscript.global_ctx import GlobalContextMgr
 from custom_components.pyscript.state import State
 import custom_components.pyscript.trigger as trigger
-from pytest_homeassistant.async_mock import mock_open, patch
+from pytest_homeassistant_custom_component.async_mock import mock_open, patch
 
 from homeassistant import loader
 from homeassistant.const import EVENT_HOMEASSISTANT_STARTED, EVENT_STATE_CHANGED

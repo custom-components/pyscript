@@ -5,7 +5,7 @@ from datetime import datetime as dt
 from custom_components.pyscript.function import Function
 from custom_components.pyscript.trigger import TrigTime
 import pytest
-from pytest_homeassistant.async_mock import patch
+from pytest_homeassistant_custom_component.async_mock import patch
 
 parseDateTimeTests = [
     ["2019/9/12 13:45", 0, dt(2019, 9, 12, 13, 45, 0, 0)],
