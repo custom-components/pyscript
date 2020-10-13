@@ -24,18 +24,10 @@ async def setup_script(hass, notify_q, now, source):
     scripts = [
         "/some/config/dir/pyscript/hello.py",
     ]
-    integration = loader.Integration(
-        hass,
-        "custom_components.pyscript",
-        pathlib.Path("custom_components/pyscript"),
-        {"name": "pyscript", "dependencies": [], "requirements": [], "domain": "automation"},
-    )
 
-    with patch("homeassistant.loader.async_get_integration", return_value=integration), patch(
-        "custom_components.pyscript.os.path.isdir", return_value=True
-    ), patch("custom_components.pyscript.glob.iglob", return_value=scripts), patch(
-        "custom_components.pyscript.global_ctx.open", mock_open(read_data=source), create=True,
-    ), patch(
+    with patch("custom_components.pyscript.os.path.isdir", return_value=True), patch(
+        "custom_components.pyscript.glob.iglob", return_value=scripts
+    ), patch("custom_components.pyscript.global_ctx.open", mock_open(read_data=source), create=True,), patch(
         "custom_components.pyscript.trigger.dt_now", return_value=now
     ), patch(
         "homeassistant.config.load_yaml_config_file", return_value={}
@@ -67,16 +59,9 @@ async def wait_until_done(notify_q):
 
 async def test_setup_makedirs_on_no_dir(hass, caplog):
     """Test setup calls os.makedirs when no dir found."""
-    integration = loader.Integration(
-        hass,
-        "custom_components.pyscript",
-        pathlib.Path("custom_components/pyscript"),
-        {"name": "pyscript", "dependencies": [], "requirements": [], "domain": "automation"},
-    )
-
-    with patch("homeassistant.loader.async_get_integration", return_value=integration), patch(
-        "custom_components.pyscript.os.path.isdir", return_value=False
-    ), patch("custom_components.pyscript.os.makedirs") as makedirs_call:
+    with patch("custom_components.pyscript.os.path.isdir", return_value=False), patch(
+        "custom_components.pyscript.os.makedirs"
+    ) as makedirs_call:
         res = await async_setup_component(hass, "pyscript", {DOMAIN: {}})
 
     assert res
@@ -237,7 +222,7 @@ fields:
         {"name": "pyscript", "dependencies": [], "requirements": [], "domain": "automation"},
     )
 
-    with patch("homeassistant.loader.async_get_integration", return_value=integration), patch(
+    with patch(
         "homeassistant.loader.async_get_custom_components", return_value={"pyscript": integration},
     ):
         descriptions = await async_get_all_descriptions(hass)
@@ -442,16 +427,10 @@ def func5(var_name=None, value=None):
         scripts = [
             "/some/config/dir/pyscript/hello.py",
         ]
-        integration = loader.Integration(
-            hass,
-            "custom_components.pyscript",
-            pathlib.Path("custom_components/pyscript"),
-            {"name": "pyscript", "dependencies": [], "requirements": [], "domain": "automation"},
-        )
 
-        with patch("homeassistant.loader.async_get_integration", return_value=integration), patch(
-            "custom_components.pyscript.os.path.isdir", return_value=True
-        ), patch("custom_components.pyscript.glob.iglob", return_value=scripts), patch(
+        with patch("custom_components.pyscript.os.path.isdir", return_value=True), patch(
+            "custom_components.pyscript.glob.iglob", return_value=scripts
+        ), patch(
             "custom_components.pyscript.global_ctx.open", mock_open(read_data=next_source), create=True,
         ), patch(
             "custom_components.pyscript.trigger.dt_now", return_value=now
