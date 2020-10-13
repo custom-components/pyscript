@@ -152,7 +152,7 @@ async def test_import_flow_update_user(hass):
     assert result["type"] == data_entry_flow.RESULT_TYPE_ABORT
     assert result["reason"] == "updated_entry"
 
-    hass.config_entries.async_entries(DOMAIN)[0].data == {
+    assert hass.config_entries.async_entries(DOMAIN)[0].data == {
         CONF_ALLOW_ALL_IMPORTS: True,
         "apps": {"test_app": {"param": 1}},
     }
@@ -173,4 +173,4 @@ async def test_import_flow_update_import(hass):
     assert result["type"] == data_entry_flow.RESULT_TYPE_ABORT
     assert result["reason"] == "updated_entry"
 
-    hass.config_entries.async_entries(DOMAIN)[0].data == {"apps": {"test_app": {"param": 1}}}
+    assert hass.config_entries.async_entries(DOMAIN)[0].data == {"apps": {"test_app": {"param": 1}}}

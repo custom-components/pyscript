@@ -45,9 +45,9 @@ class PyscriptConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
             # Update values for all keys, excluding `allow_all_imports` for entries
             # set up through the UI.
-            for k, v in import_config.items():
-                if entry.source == SOURCE_IMPORT or k != CONF_ALLOW_ALL_IMPORTS:
-                    updated_data[k] = v
+            for key, val in import_config.items():
+                if entry.source == SOURCE_IMPORT or key != CONF_ALLOW_ALL_IMPORTS:
+                    updated_data[key] = val
 
             # Remove values for all keys in entry.data that are not in the imported config,
             # excluding `allow_all_imports` for entries set up through the UI.
