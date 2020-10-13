@@ -1,5 +1,8 @@
 croniter>=0.3.34
+mock-open==1.4.0
 pre-commit
 pytest
 pytest-cov>=2.9.0
 pytest-homeassistant
+pylint==2.6.0
+pylint-strict-informational==0.1

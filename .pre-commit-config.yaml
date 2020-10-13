@@ -47,3 +47,11 @@ repos:
     rev: v1.23.0
     hooks:
       - id: yamllint
+  - repo: local
+    hooks:
+      - id: pylint
+        name: pylint
+        args: [-j 0]
+        entry: venv/bin/pylint
+        language: system
+        files: ^(custom_components|tests)/.+\.py$

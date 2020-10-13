@@ -32,3 +32,14 @@ jobs:
           python-version: "3.x"
       - run: python3 -m pip install -r tests/requirements_test.txt
       - run: pytest --cov=custom_components
+
+  pylint:
+    runs-on: "ubuntu-latest"
+    name: Run pylint
+    steps:
+      - uses: "actions/checkout@v2"
+      - uses: "actions/setup-python@v1"
+        with:
+          python-version: "3.x"
+      - run: python3 -m pip install -r tests/requirements_test.txt
+      - run: pylint custom_components/pyscript/*.py tests/*.py
