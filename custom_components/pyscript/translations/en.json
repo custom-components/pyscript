@@ -10,8 +10,8 @@
       }
     },
     "abort": {
-      "already_configured_service": "[%key:common::config_flow::abort::already_configured_service%]",
-      "single_instance_allowed": "[%key:common::config_flow::abort::single_instance_allowed%]",
+      "already_configured": "Already configured.",
+      "single_instance_allowed": "Already configured. Only a single configuration possible.",
       "updated_entry": "This entry has already been setup but the configuration has been updated."
     }
   }

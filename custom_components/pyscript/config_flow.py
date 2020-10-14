@@ -62,6 +62,6 @@ class PyscriptConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 self.hass.config_entries.async_update_entry(entry=entry, data=updated_data)
                 return self.async_abort(reason="updated_entry")
 
-            return self.async_abort(reason="already_configured_service")
+            return self.async_abort(reason="already_configured")
 
         return await self.async_step_user(user_input=import_config)
