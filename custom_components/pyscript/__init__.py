@@ -121,7 +121,9 @@ async def async_setup_entry(hass, config_entry):
         _LOGGER.debug("service call to jupyter_kernel_start: %s", call.data)
 
         global_ctx_name = GlobalContextMgr.new_name("jupyter_")
-        global_ctx = GlobalContext(global_ctx_name, global_sym_table={}, manager=GlobalContextMgr)
+        global_ctx = GlobalContext(
+            global_ctx_name, global_sym_table={"__name__": global_ctx_name}, manager=GlobalContextMgr
+        )
         global_ctx.set_auto_start(True)
 
         GlobalContextMgr.set(global_ctx_name, global_ctx)
