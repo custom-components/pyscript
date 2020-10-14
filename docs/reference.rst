@@ -1124,7 +1124,7 @@ The correct way is:
     resp = task.executor(requests.get, url)
 
 An even better solution to fetch a URL is to use a Python package that uses asyncio, in which case
-there is no need for ``task.executor``. In this case, ``aiohttp`` can be used (the `await` keyword
+there is no need for ``task.executor``. In this case, ``aiohttp`` can be used (the ``await`` keyword
 is optional in pyscript):
 
 .. code:: python
