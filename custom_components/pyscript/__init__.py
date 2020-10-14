@@ -217,7 +217,6 @@ async def load_scripts(hass, data):
                     global_ctx_name = f"{path}.{mod_name}"
                     fq_mod_name = global_ctx_name
                 if check_config:
-                    _LOGGER.debug("load_scripts: checking %s in %s", mod_name, apps_config)
                     if not isinstance(apps_config, dict) or mod_name not in apps_config:
                         _LOGGER.debug("load_scripts: skipping %s because config not present", this_path)
                         continue
