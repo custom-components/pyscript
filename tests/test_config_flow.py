@@ -134,7 +134,7 @@ async def test_import_flow_no_update(hass):
     )
 
     assert result["type"] == data_entry_flow.RESULT_TYPE_ABORT
-    assert result["reason"] == "already_configured_service"
+    assert result["reason"] == "already_configured"
 
 
 async def test_import_flow_update_user(hass):
