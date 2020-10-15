@@ -179,6 +179,8 @@ async def async_setup_entry(hass, config_entry):
             if not global_ctx_name.startswith("file."):
                 continue
             global_ctx.stop()
+        # tell reaper task to exit (after other tasks are cancelled)
+        Function.task_cancel(None)
 
     hass.bus.async_listen(EVENT_HOMEASSISTANT_STARTED, start_triggers)
     hass.bus.async_listen(EVENT_HOMEASSISTANT_STOP, stop_triggers)

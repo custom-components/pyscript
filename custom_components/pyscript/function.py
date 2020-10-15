@@ -78,6 +78,8 @@ class Function:
                 try:
                     try:
                         task = await reaper_q.get()
+                        if task is None:
+                            return
                         task.cancel()
                         await task
                     except asyncio.CancelledError:
