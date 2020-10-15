@@ -93,6 +93,12 @@ class Function:
         cls.task_cancel_repeaer = Function.create_task(task_cancel_reaper(cls.task_reaper_q))
 
     @classmethod
+    async def reaper_stop(cls):
+        """Tell the reaper task to exit by sending a special task None."""
+        cls.task_cancel(None)
+        await cls.task_cancel_repeaer
+
+    @classmethod
     async def async_sleep(cls, duration):
         """Implement task.sleep()."""
         await asyncio.sleep(float(duration))

@@ -175,12 +175,10 @@ async def async_setup_entry(hass, config_entry):
 
     async def stop_triggers(event):
         _LOGGER.debug("stopping triggers")
-        for global_ctx_name, global_ctx in GlobalContextMgr.items():
-            if not global_ctx_name.startswith("file."):
-                continue
+        for _, global_ctx in GlobalContextMgr.items():
             global_ctx.stop()
         # tell reaper task to exit (after other tasks are cancelled)
-        Function.task_cancel(None)
+        await Function.reaper_stop()
 
     hass.bus.async_listen(EVENT_HOMEASSISTANT_STARTED, start_triggers)
     hass.bus.async_listen(EVENT_HOMEASSISTANT_STOP, stop_triggers)
