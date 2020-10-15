@@ -65,7 +65,7 @@ async def async_setup_entry(hass, config_entry):
         await hass.async_add_executor_job(os.makedirs, pyscript_folder)
 
     hass.data.setdefault(DOMAIN, {})
-    hass.data[DOMAIN][CONF_ALLOW_ALL_IMPORTS] = config_entry.data.get(CONF_ALLOW_ALL_IMPORTS)
+    hass.data[DOMAIN] = config_entry
 
     State.set_pyscript_config(config_entry.data)
 

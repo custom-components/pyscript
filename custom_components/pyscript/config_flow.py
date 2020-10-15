@@ -5,7 +5,8 @@ from typing import Any, Dict
 import voluptuous as vol
 
 from homeassistant import config_entries
-from homeassistant.config_entries import SOURCE_IMPORT
+from homeassistant.config_entries import SOURCE_IMPORT, ConfigEntry
+from homeassistant.core import callback
 
 from .const import CONF_ALLOW_ALL_IMPORTS, DOMAIN
 
@@ -14,11 +15,51 @@ PYSCRIPT_SCHEMA = vol.Schema(
 )
 
 
+class PyscriptOptionsConfigFlow(config_entries.OptionsFlow):
+    """Handle a pyscript options flow."""
+
+    def __init__(self, config_entry: ConfigEntry) -> None:
+        """Initialize pyscript options flow."""
+        self.config_entry = config_entry
+
+    async def async_step_init(self, user_input: Dict[str, Any] = None) -> Dict[str, Any]:
+        """Manage the pyscript options."""
+        if self.config_entry.source == SOURCE_IMPORT:
+            return self.async_abort(reason="no_ui_configuration_allowed")
+
+        if user_input is None:
+            return self.async_show_form(
+                step_id="init",
+                data_schema=vol.Schema(
+                    {
+                        vol.Optional(
+                            CONF_ALLOW_ALL_IMPORTS, default=self.config_entry.data[CONF_ALLOW_ALL_IMPORTS],
+                        ): bool
+                    },
+                    extra=vol.ALLOW_EXTRA,
+                ),
+            )
+
+        if user_input[CONF_ALLOW_ALL_IMPORTS] != self.config_entry.data[CONF_ALLOW_ALL_IMPORTS]:
+            updated_data = self.config_entry.data.copy()
+            updated_data.update(user_input)
+            self.hass.config_entries.async_update_entry(entry=self.config_entry, data=updated_data)
+            return self.async_create_entry(title="", data={})
+
+        return self.async_abort(reason="no_update")
+
+
 class PyscriptConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     """Handle a pyscript config flow."""
 
     VERSION = 1
     CONNECTION_CLASS = config_entries.CONN_CLASS_LOCAL_PUSH
+
+    @staticmethod
+    @callback
+    def async_get_options_flow(config_entry: ConfigEntry) -> PyscriptOptionsConfigFlow:
+        """Get the options flow for this handler."""
+        return PyscriptOptionsConfigFlow(config_entry)
 
     async def async_step_user(self, user_input: Dict[str, Any] = None) -> Dict[str, Any]:
         """Handle a flow initialized by the user."""

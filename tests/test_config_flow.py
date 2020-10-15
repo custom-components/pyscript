@@ -174,3 +174,65 @@ async def test_import_flow_update_import(hass):
     assert result["reason"] == "updated_entry"
 
     assert hass.config_entries.async_entries(DOMAIN)[0].data == {"apps": {"test_app": {"param": 1}}}
+
+
+async def test_options_flow_import(hass):
+    """Test options flow aborts because configuration needs to be managed via configuration.yaml."""
+    result = await hass.config_entries.flow.async_init(
+        DOMAIN, context={"source": SOURCE_IMPORT}, data=PYSCRIPT_SCHEMA({CONF_ALLOW_ALL_IMPORTS: True})
+    )
+    await hass.async_block_till_done()
+    assert result["type"] == data_entry_flow.RESULT_TYPE_CREATE_ENTRY
+    entry = result["result"]
+
+    result = await hass.config_entries.options.async_init(entry.entry_id, data=None)
+
+    assert result["type"] == data_entry_flow.RESULT_TYPE_ABORT
+    assert result["reason"] == "no_ui_configuration_allowed"
+
+
+async def test_options_flow_user_change(hass):
+    """Test options flow updates config entry when options change."""
+    result = await hass.config_entries.flow.async_init(
+        DOMAIN, context={"source": SOURCE_USER}, data=PYSCRIPT_SCHEMA({CONF_ALLOW_ALL_IMPORTS: True})
+    )
+    await hass.async_block_till_done()
+    assert result["type"] == data_entry_flow.RESULT_TYPE_CREATE_ENTRY
+    entry = result["result"]
+
+    result = await hass.config_entries.options.async_init(entry.entry_id)
+
+    assert result["type"] == data_entry_flow.RESULT_TYPE_FORM
+    assert result["step_id"] == "init"
+
+    result = await hass.config_entries.options.async_configure(
+        result["flow_id"], user_input={CONF_ALLOW_ALL_IMPORTS: False}
+    )
+    await hass.async_block_till_done()
+
+    assert result["type"] == data_entry_flow.RESULT_TYPE_CREATE_ENTRY
+    assert result["title"] == ""
+
+    assert entry.data[CONF_ALLOW_ALL_IMPORTS] is False
+
+
+async def test_options_flow_user_no_change(hass):
+    """Test options flow aborts when options don't change."""
+    result = await hass.config_entries.flow.async_init(
+        DOMAIN, context={"source": SOURCE_USER}, data=PYSCRIPT_SCHEMA({CONF_ALLOW_ALL_IMPORTS: True})
+    )
+    await hass.async_block_till_done()
+    assert result["type"] == data_entry_flow.RESULT_TYPE_CREATE_ENTRY
+    entry = result["result"]
+
+    result = await hass.config_entries.options.async_init(entry.entry_id)
+
+    assert result["type"] == data_entry_flow.RESULT_TYPE_FORM
+    assert result["step_id"] == "init"
+
+    result = await hass.config_entries.options.async_configure(
+        result["flow_id"], user_input={CONF_ALLOW_ALL_IMPORTS: True}
+    )
+
+    assert result["type"] == data_entry_flow.RESULT_TYPE_ABORT
+    assert result["reason"] == "no_update"

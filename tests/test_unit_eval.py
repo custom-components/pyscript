@@ -1,9 +1,11 @@
 """Unit tests for Python interpreter."""
 
+from custom_components.pyscript.const import CONF_ALLOW_ALL_IMPORTS, DOMAIN
 from custom_components.pyscript.eval import AstEval
 from custom_components.pyscript.function import Function
 from custom_components.pyscript.global_ctx import GlobalContext, GlobalContextMgr
 from custom_components.pyscript.state import State
+from pytest_homeassistant_custom_component.common import MockConfigEntry
 
 evalTests = [
     ["1", 1],
@@ -882,6 +884,7 @@ async def run_one_test(test_data):
 
 async def test_eval(hass):
     """Test interpreter."""
+    hass.data[DOMAIN] = MockConfigEntry(domain=DOMAIN, data={CONF_ALLOW_ALL_IMPORTS: False})
     Function.init(hass)
     State.init(hass)
     State.register_functions()
@@ -1062,6 +1065,7 @@ async def run_one_test_exception(test_data):
 
 async def test_eval_exceptions(hass):
     """Test interpreter exceptions."""
+    hass.data[DOMAIN] = MockConfigEntry(domain=DOMAIN, data={CONF_ALLOW_ALL_IMPORTS: False})
     Function.init(hass)
     State.init(hass)
     State.register_functions()
