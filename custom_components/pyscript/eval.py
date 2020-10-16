@@ -16,7 +16,7 @@ import yaml
 from homeassistant.const import SERVICE_RELOAD
 from homeassistant.helpers.service import async_set_service_schema
 
-from .const import ALLOWED_IMPORTS, DOMAIN, LOGGER_PATH, SERVICE_JUPYTER_KERNEL_START
+from .const import ALLOWED_IMPORTS, CONF_ALLOW_ALL_IMPORTS, DOMAIN, LOGGER_PATH, SERVICE_JUPYTER_KERNEL_START
 from .function import Function
 from .state import State
 
@@ -721,7 +721,7 @@ class AstEval:
         self.logger_handlers = set()
         self.logger = None
         self.set_logger_name(logger_name if logger_name is not None else self.name)
-        self.allow_all_imports = Function.hass.data.get(DOMAIN, {}).get("allow_all_imports", False)
+        self.config_entry = Function.hass.data.get(DOMAIN, {})
 
     async def ast_not_implemented(self, arg, *args):
         """Raise NotImplementedError exception for unimplemented AST types."""
@@ -769,7 +769,10 @@ class AstEval:
                 self.exception_long = error_ctx.exception_long
                 raise self.exception_obj
             if not mod:
-                if not self.allow_all_imports and imp.name not in ALLOWED_IMPORTS:
+                if (
+                    not self.config_entry.data.get(CONF_ALLOW_ALL_IMPORTS, False)
+                    and imp.name not in ALLOWED_IMPORTS
+                ):
                     raise ModuleNotFoundError(f"import of {imp.name} not allowed")
                 if imp.name not in sys.modules:
                     mod = await Function.hass.async_add_executor_job(importlib.import_module, imp.name)
@@ -799,7 +802,10 @@ class AstEval:
             self.exception_long = error_ctx.exception_long
             raise self.exception_obj
         if not mod:
-            if not self.allow_all_imports and arg.module not in ALLOWED_IMPORTS:
+            if (
+                not self.config_entry.data.get(CONF_ALLOW_ALL_IMPORTS, False)
+                and arg.module not in ALLOWED_IMPORTS
+            ):
                 raise ModuleNotFoundError(f"import from {arg.module} not allowed")
             if arg.module not in sys.modules:
                 mod = await Function.hass.async_add_executor_job(importlib.import_module, arg.module)
