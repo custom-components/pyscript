@@ -21,11 +21,13 @@ class PyscriptOptionsConfigFlow(config_entries.OptionsFlow):
     def __init__(self, config_entry: ConfigEntry) -> None:
         """Initialize pyscript options flow."""
         self.config_entry = config_entry
+        self._show_form = False
 
     async def async_step_init(self, user_input: Dict[str, Any] = None) -> Dict[str, Any]:
         """Manage the pyscript options."""
         if self.config_entry.source == SOURCE_IMPORT:
-            return self.async_abort(reason="no_ui_configuration_allowed")
+            self._show_form = True
+            return await self.async_step_no_ui_configuration_allowed()
 
         if user_input is None:
             return self.async_show_form(
@@ -46,7 +48,26 @@ class PyscriptOptionsConfigFlow(config_entries.OptionsFlow):
             self.hass.config_entries.async_update_entry(entry=self.config_entry, data=updated_data)
             return self.async_create_entry(title="", data={})
 
-        return self.async_abort(reason="no_update")
+        self._show_form = True
+        return await self.async_step_no_update()
+
+    async def async_step_no_ui_configuration_allowed(
+        self, user_input: Dict[str, Any] = None
+    ) -> Dict[str, Any]:
+        """Tell user no UI configuration is allowed."""
+        if self._show_form:
+            self._show_form = False
+            return self.async_show_form(step_id="no_ui_configuration_allowed", data_schema=vol.Schema({}))
+
+        return self.async_create_entry(title="", data={})
+
+    async def async_step_no_update(self, user_input: Dict[str, Any] = None) -> Dict[str, Any]:
+        """Tell user no update to process."""
+        if self._show_form:
+            self._show_form = False
+            return self.async_show_form(step_id="no_update", data_schema=vol.Schema({}))
+
+        return self.async_create_entry(title="", data={})
 
 
 class PyscriptConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):

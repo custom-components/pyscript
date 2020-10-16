@@ -22,11 +22,15 @@
         "data": {
           "allow_all_imports": "Allow All Imports?"
         }
+      },
+      "no_ui_configuration_allowed": {
+        "title": "No UI configuration allowed",
+        "description": "This entry was created via `configuration.yaml`, so all configuration parameters must be updated there. The [`pyscript.reload`](developer-tools/service) service will allow you to apply the changes you make to `configuration.yaml` without restarting your Home Assistant instance."
+      },
+      "no_update": {
+        "title": "No update needed",
+        "description": "There is nothing to update."
       }
-    },
-    "abort": {
-      "no_ui_configuration_allowed": "This entry was created via `configuration.yaml`, so all configuration parameters must be updated there. The [`pyscript.reload`](developer-tools/service) service will allow you to apply the changes you make to `configuration.yaml` without restarting your Home Assistant instance.",
-      "no_update": "There is nothing to update."
     }
   }
 }

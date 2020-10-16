@@ -187,8 +187,13 @@ async def test_options_flow_import(hass):
 
     result = await hass.config_entries.options.async_init(entry.entry_id, data=None)
 
-    assert result["type"] == data_entry_flow.RESULT_TYPE_ABORT
-    assert result["reason"] == "no_ui_configuration_allowed"
+    assert result["type"] == data_entry_flow.RESULT_TYPE_FORM
+    assert result["step_id"] == "no_ui_configuration_allowed"
+
+    result = await hass.config_entries.options.async_configure(result["flow_id"], user_input=None)
+
+    assert result["type"] == data_entry_flow.RESULT_TYPE_CREATE_ENTRY
+    assert result["title"] == ""
 
 
 async def test_options_flow_user_change(hass):
@@ -234,5 +239,10 @@ async def test_options_flow_user_no_change(hass):
         result["flow_id"], user_input={CONF_ALLOW_ALL_IMPORTS: True}
     )
 
-    assert result["type"] == data_entry_flow.RESULT_TYPE_ABORT
-    assert result["reason"] == "no_update"
+    assert result["type"] == data_entry_flow.RESULT_TYPE_FORM
+    assert result["step_id"] == "no_update"
+
+    result = await hass.config_entries.options.async_configure(result["flow_id"], user_input=None)
+
+    assert result["type"] == data_entry_flow.RESULT_TYPE_CREATE_ENTRY
+    assert result["title"] == ""
