@@ -176,7 +176,7 @@ def func1(var_name=None, value=None):
     log.info(f"func1 var = {var_name}, value = {value}")
     pyscript.done = [seq_num, var_name, int(value), sqrt(1024), __name__]
 
-@state_trigger("pyscript.f1var1 == '1' or pyscript.f2var2 == '2' or pyscript.no_such_var == '10' or pyscript.no_such_var.attr == 100")
+@state_trigger("pyscript.f1var1 == '1'", "pyscript.f2var2 == '2'", "pyscript.no_such_var == '10'", "pyscript.no_such_var.attr == 100")
 @state_active("pyscript.f2var3 == '3' and pyscript.f2var4 == '4'")
 def func2(var_name=None, value=None):
     global seq_num
@@ -305,7 +305,7 @@ def func4(trigger_type=None, event_type=None, **kwargs):
     #
     "xyz" + 123
 
-@state_trigger("True or pyscript.f5var1")
+@state_trigger("pyscript.f5var1")
 def func5(var_name=None, value=None):
     global seq_num
 
@@ -491,6 +491,10 @@ def func8(var_name=None, value=None, old_value=None):
     assert literal_eval(await wait_until_done(notify_q)) == [seq_num, "pyscript.f5var1", "0"]
 
     seq_num += 1
+    hass.states.async_set("pyscript.f5var1", "")
+    assert literal_eval(await wait_until_done(notify_q)) == [seq_num, "pyscript.f5var1", ""]
+
+    seq_num += 1
     hass.states.async_remove("pyscript.f5var1")
     assert literal_eval(await wait_until_done(notify_q)) == [seq_num, "pyscript.f5var1", None]
 
@@ -540,7 +544,7 @@ def func_startup_sync(trigger_type=None, trigger_time=None):
 
 def factory(trig_value):
 
-    @state_trigger(f"pyscript.var1 == '{trig_value}' or 100 <= int(pyscript.var1) <= 101")
+    @state_trigger(f"pyscript.var1 == '{trig_value}'", "100 <= int(pyscript.var1) <= 101")
     def func_trig(var_name=None, value=None):
         global seq_num, f
         if value == '100':

@@ -95,9 +95,6 @@ class State:
                 notify_vars[var_name] = new_vars[var_name]
             elif 1 <= var_name.count(".") <= 2 and not cls.exist(var_name):
                 notify_vars[var_name] = None
-        _LOGGER.debug(
-            "notify_var_get var_names=%s, new_vars=%s, notify_vars=%s", var_names, new_vars, notify_vars
-        )
         return notify_vars
 
     @classmethod
@@ -115,6 +112,7 @@ class State:
             new_attributes = new_attributes.copy()
             new_attributes.update(kwargs)
         _LOGGER.debug("setting %s = %s, attr = %s", var_name, value, new_attributes)
+        cls.notify_var_last[var_name] = str(value)
         cls.hass.states.async_set(var_name, value, new_attributes)
 
     @classmethod

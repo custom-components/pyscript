@@ -21,6 +21,9 @@ from .state import State
 _LOGGER = logging.getLogger(LOGGER_PATH + ".trigger")
 
 
+STATE_RE = re.compile(r"[a-zA-Z]\w*\.[a-zA-Z]\w*$")
+
+
 def dt_now():
     """Return current time."""
     return dt.datetime.now()
@@ -101,32 +104,57 @@ class TrigTime:
                 await asyncio.sleep(timeout)
                 return {"trigger_type": "timeout"}
             return {"trigger_type": "none"}
-        state_trig_ident = None
-        state_trig_expr = None
+        state_trig_ident = set()
+        state_trig_ident_any = set()
+        state_trig_eval = None
         event_trig_expr = None
         exc = None
         notify_q = asyncio.Queue(0)
         if state_trigger is not None:
-            state_trig_expr = AstEval(
-                f"{ast_ctx.name} state_trigger",
-                ast_ctx.get_global_ctx(),
-                logger_name=ast_ctx.get_logger_name(),
-            )
-            Function.install_ast_funcs(state_trig_expr)
-            state_trig_expr.parse(state_trigger)
-            exc = state_trig_expr.get_exception_obj()
-            if exc is not None:
-                raise exc
+            state_trig = []
+            if isinstance(state_trigger, str):
+                state_trigger = [state_trigger]
+            elif isinstance(state_trigger, set):
+                state_trigger = list(state_trigger)
             #
-            # check straight away to see if the condition is met (to avoid race conditions)
+            # separate out the entries that are just state var names, which mean trigger
+            # on any change (no expr)
             #
-            state_trig_ok = await state_trig_expr.eval()
-            exc = state_trig_expr.get_exception_obj()
-            if exc is not None:
-                raise exc
-            if state_trig_ok:
-                return {"trigger_type": "state"}
-            state_trig_ident = await state_trig_expr.get_names()
+            for trig in state_trigger:
+                if STATE_RE.match(trig):
+                    state_trig_ident_any.add(trig)
+                else:
+                    state_trig.append(trig)
+
+            if len(state_trig) > 0:
+                if len(state_trig) == 1:
+                    state_trig_expr = state_trig[0]
+                else:
+                    state_trig_expr = f"any([{', '.join(state_trig)}])"
+                state_trig_eval = AstEval(
+                    f"{ast_ctx.name} state_trigger",
+                    ast_ctx.get_global_ctx(),
+                    logger_name=ast_ctx.get_logger_name(),
+                )
+                Function.install_ast_funcs(state_trig_eval)
+                state_trig_eval.parse(state_trig_expr)
+                state_trig_ident = await state_trig_eval.get_names()
+                exc = state_trig_eval.get_exception_obj()
+                if exc is not None:
+                    raise exc
+
+            state_trig_ident.update(state_trig_ident_any)
+            if state_trig_eval:
+                #
+                # check straight away to see if the condition is met (to avoid race conditions)
+                #
+                state_trig_ok = await state_trig_eval.eval(State.notify_var_get(state_trig_ident, {}))
+                exc = state_trig_eval.get_exception_obj()
+                if exc is not None:
+                    raise exc
+                if state_trig_ok:
+                    return {"trigger_type": "state"}
+
             _LOGGER.debug(
                 "trigger %s wait_until: watching vars %s", ast_ctx.name, state_trig_ident,
             )
@@ -145,7 +173,7 @@ class TrigTime:
                 event_trig_expr.parse(event_trigger[1])
                 exc = event_trig_expr.get_exception_obj()
                 if exc is not None:
-                    if state_trig_ident:
+                    if len(state_trig_ident) > 0:
                         State.notify_del(state_trig_ident, notify_q)
                     raise exc
             Event.notify_add(event_trigger[0], notify_q)
@@ -191,11 +219,19 @@ class TrigTime:
                             ret["trigger_time"] = time_next
                     break
             if notify_type == "state":
-                new_vars = notify_info[0] if notify_info else None
-                state_trig_ok = await state_trig_expr.eval(new_vars)
-                exc = state_trig_expr.get_exception_obj()
-                if exc is not None:
-                    break
+                if notify_info:
+                    new_vars, func_args = notify_info
+                else:
+                    new_vars, func_args = None, {}
+
+                state_trig_ok = False
+                if func_args.get("var_name", "") in state_trig_ident_any:
+                    state_trig_ok = True
+                elif state_trig_eval:
+                    state_trig_ok = await state_trig_eval.eval(new_vars)
+                    exc = state_trig_eval.get_exception_obj()
+                    if exc is not None:
+                        break
                 if state_trig_ok:
                     ret = notify_info[1] if notify_info else None
                     break
@@ -215,7 +251,7 @@ class TrigTime:
                     "trigger %s wait_until got unexpected queue message %s", ast_ctx.name, notify_type,
                 )
 
-        if state_trig_ident:
+        if len(state_trig_ident) > 0:
             State.notify_del(state_trig_ident, notify_q)
         if event_trigger is not None:
             Event.notify_del(event_trigger[0], notify_q)
@@ -454,7 +490,9 @@ class TrigInfo:
         self.active_expr = None
         self.state_active_ident = None
         self.state_trig_expr = None
+        self.state_trig_eval = None
         self.state_trig_ident = None
+        self.state_trig_ident_any = set()
         self.event_trig_expr = None
         self.have_trigger = False
         self.setup_ok = False
@@ -481,15 +519,36 @@ class TrigInfo:
             self.run_on_startup = True
 
         if self.state_trigger is not None:
-            self.state_trig_expr = AstEval(
-                f"{self.name} @state_trigger()", self.global_ctx, logger_name=self.name
-            )
-            Function.install_ast_funcs(self.state_trig_expr)
-            self.state_trig_expr.parse(self.state_trigger)
-            exc = self.state_trig_expr.get_exception_long()
-            if exc is not None:
-                self.state_trig_expr.get_logger().error(exc)
-                return
+            state_trig = []
+            for triggers in self.state_trigger:
+                if isinstance(triggers, str):
+                    triggers = [triggers]
+                elif isinstance(triggers, set):
+                    triggers = list(triggers)
+                #
+                # separate out the entries that are just state var names, which mean trigger
+                # on any change (no expr)
+                #
+                for trig in triggers:
+                    if STATE_RE.match(trig):
+                        self.state_trig_ident_any.add(trig)
+                    else:
+                        state_trig.append(trig)
+
+            if len(state_trig) > 0:
+                if len(state_trig) == 1:
+                    self.state_trig_expr = state_trig[0]
+                else:
+                    self.state_trig_expr = f"any([{', '.join(state_trig)}])"
+                self.state_trig_eval = AstEval(
+                    f"{self.name} @state_trigger()", self.global_ctx, logger_name=self.name
+                )
+                Function.install_ast_funcs(self.state_trig_eval)
+                self.state_trig_eval.parse(self.state_trig_expr)
+                exc = self.state_trig_eval.get_exception_long()
+                if exc is not None:
+                    self.state_trig_eval.get_logger().error(exc)
+                    return
             self.have_trigger = True
 
         if self.event_trigger is not None:
@@ -530,7 +589,10 @@ class TrigInfo:
         try:
 
             if self.state_trigger is not None:
-                self.state_trig_ident = await self.state_trig_expr.get_names()
+                self.state_trig_ident = set()
+                if self.state_trig_eval:
+                    self.state_trig_ident = await self.state_trig_eval.get_names()
+                self.state_trig_ident.update(self.state_trig_ident_any)
                 _LOGGER.debug("trigger %s: watching vars %s", self.name, self.state_trig_ident)
                 if len(self.state_trig_ident) > 0:
                     State.notify_add(self.state_trig_ident, self.notify_q)
@@ -587,11 +649,14 @@ class TrigInfo:
                 if notify_type == "state":
                     new_vars, func_args = notify_info
 
-                    if self.state_trig_expr:
-                        trig_ok = await self.state_trig_expr.eval(new_vars)
-                        exc = self.state_trig_expr.get_exception_long()
-                        if exc is not None:
-                            self.state_trig_expr.get_logger().error(exc)
+                    if func_args["var_name"] not in self.state_trig_ident_any:
+                        if self.state_trig_eval:
+                            trig_ok = await self.state_trig_eval.eval(new_vars)
+                            exc = self.state_trig_eval.get_exception_long()
+                            if exc is not None:
+                                self.state_trig_eval.get_logger().error(exc)
+                                trig_ok = False
+                        else:
                             trig_ok = False
 
                 elif notify_type == "event":

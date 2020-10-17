@@ -384,15 +384,26 @@ class EvalFunc:
         # strings
         #
         arg_check = {
-            "event_trigger": {1, 2},
-            "state_active": {1},
-            "state_trigger": {1},
-            "task_unique": {1},
-            "time_active": {"*"},
-            "time_trigger": {"*"},
+            "event_trigger": {"arg_cnt": {1, 2}},
+            "state_active": {"arg_cnt": {1}},
+            "state_trigger": {"arg_cnt": {"*"}, "type": {list, set}},
+            "task_unique": {"arg_cnt": {1}},
+            "time_active": {"arg_cnt": {"*"}},
+            "time_trigger": {"arg_cnt": {0, "*"}},
         }
-        for dec_name, arg_cnt in arg_check.items():
-            if dec_name not in trig_args or trig_args[dec_name]["args"] is None:
+        for dec_name, arg_info in arg_check.items():
+            arg_cnt = arg_info["arg_cnt"]
+            if dec_name not in trig_args:
+                continue
+            if trig_args[dec_name]["args"] is None:
+                if 0 not in arg_cnt:
+                    self.logger.error(
+                        "%s defined in %s: decorator @%s needs at least one argument; ignoring decorator",
+                        self.name,
+                        self.global_ctx_name,
+                        dec_name,
+                    )
+                    del trig_args[dec_name]
                 continue
             if "*" not in arg_cnt and len(trig_args[dec_name]["args"]) not in arg_cnt:
                 self.logger.error(
@@ -405,18 +416,30 @@ class EvalFunc:
                     " or ".join([str(cnt) for cnt in sorted(arg_cnt)]),
                 )
                 del trig_args[dec_name]
-                break
+                continue
             for arg_num, arg in enumerate(trig_args[dec_name]["args"]):
-                if not isinstance(arg, str):
-                    self.logger.error(
-                        "%s defined in %s: decorator @%s argument %d should be a string; ignoring decorator",
-                        self.name,
-                        self.global_ctx_name,
-                        dec_name,
-                        arg_num + 1,
-                    )
-                    del trig_args[dec_name]
-                    break
+                if isinstance(arg, str):
+                    continue
+                mesg = "string"
+                if "type" in arg_info:
+                    if type(arg) in arg_info["type"]:
+                        for val in arg:
+                            if not isinstance(val, str):
+                                break
+                        else:
+                            continue
+                        for ok_type in arg_info["type"]:
+                            mesg += f", or {ok_type.__name__}"
+                self.logger.error(
+                    "%s defined in %s: decorator @%s argument %d should be a %s; ignoring decorator",
+                    self.name,
+                    self.global_ctx_name,
+                    dec_name,
+                    arg_num + 1,
+                    mesg,
+                )
+                del trig_args[dec_name]
+                continue
             if arg_cnt == {1}:
                 trig_args[dec_name]["args"] = trig_args[dec_name]["args"][0]
 

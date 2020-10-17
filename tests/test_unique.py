@@ -71,6 +71,16 @@ def funcStartupSync():
     task.unique("func6")
     task.sleep(10000)
 
+@state_trigger("pyscript.f0var1 == '1'")
+def func0(var_name=None, value=None):
+    global seq_num
+
+    seq_num += 1
+    pyscript.done = [seq_num, var_name]
+    result = task.wait_until(state_trigger=["pyscript.f0var2"])
+    seq_num += 1
+    pyscript.done = [seq_num, var_name, result]
+
 @state_trigger("pyscript.f1var1 == '1'")
 def func1(var_name=None, value=None):
     global seq_num
@@ -93,7 +103,7 @@ def func2(var_name=None, value=None):
     log.info(f"func2 var = {var_name}, value = {value}")
     task.unique("func2")
     while 1:
-        task.wait_until(state_trigger="pyscript.f2var1 == '2'")
+        task.wait_until(state_trigger=["pyscript.f2var1 == '2'", "pyscript.no_such_var == '5'", "pyscript.no_such_var2"])
         pyscript.f2var1 = 0
         pyscript.done = [mySeqNum, var_name]
 
@@ -113,7 +123,7 @@ def func4():
 
     seq_num += 1
     pyscript.done = [seq_num, "pyscript.f4var1"]
-    res = task.wait_until(state_trigger="pyscript.f4var2 == '1'")
+    res = task.wait_until(state_trigger=["False", "False", "pyscript.f4var2 == '1'"])
     pyscript.done = [seq_num, "pyscript.f4var2"]
 
 @state_trigger("pyscript.f5var1 == '1'")
@@ -146,6 +156,10 @@ def func6():
     # fire event to startup triggers, and handshake when they are running
     hass.bus.async_fire(EVENT_HOMEASSISTANT_STARTED)
     assert literal_eval(await wait_until_done(notify_q)) == seq_num
+
+    seq_num += 1
+    hass.states.async_set("pyscript.f0var1", 1)
+    assert literal_eval(await wait_until_done(notify_q)) == [seq_num, "pyscript.f0var1"]
 
     seq_num += 1
     hass.states.async_set("pyscript.f1var1", 1)
@@ -235,4 +249,15 @@ def func6():
     assert literal_eval(await wait_until_done(notify_q)) == [
         seq_num,
         "pyscript.f5var2",
+    ]
+
+    #
+    # now go back to func0, which is waiting on any change to pyscript.f0var2
+    #
+    seq_num += 1
+    hass.states.async_set("pyscript.f0var2", 1)
+    assert literal_eval(await wait_until_done(notify_q)) == [
+        seq_num,
+        "pyscript.f0var1",
+        {"old_value": None, "trigger_type": "state", "value": "1", "var_name": "pyscript.f0var2"},
     ]

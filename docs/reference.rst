@@ -165,14 +165,18 @@ function.
 
 .. code:: python
 
-    @state_trigger(str_expr)
+    @state_trigger(str_expr, ...)
 
-``@state_trigger`` takes a single string ``str_expr`` that contains any expression based on one or
+``@state_trigger`` takes one or more string arguments that contain any expression based on one or
 more state variables, and evaluates to ``True`` or ``False`` (or non-zero or zero). Whenever the
 state variables mentioned in the expression change, the expression is evaluated and the trigger
 occurs if it evaluates to ``True`` (or non-zero). For each state variable, eg: ``domain.name``,
 the prior value is also available to the expression as ``domain.name.old`` in case you want to
 condition the trigger on the prior value too.
+
+Multiple arguments are logically "or"ed together, so the trigger occurs if any of the expressions
+evaluate to ``True``. Any argument can alternatively be be a list or set of strings, and they are
+treated the same as multiple arguments by "or"ing them together.
 
 All state variables in HASS have string values. So you’ll have to do comparisons against string
 values or cast the variable to an integer or float. These two examples are essentially equivalent
@@ -194,20 +198,15 @@ You can also use state variable attributes in the trigger expression, with an id
 form ``DOMAIN.name.attr``. Attributes maintain their original type, so there is no need to cast
 then to another type.
 
-If you specify ``@state_trigger("True")`` the state trigger will never occur. While that might seem
-counter-intuitive, the reason is that the expression will never be evaluated - it takes underlying
-state variables in the expression to change before the expression is evaluated. Since this
-expression has no state variables, it will never be evaluated. You can achieve a state trigger
-on any value change with a decorator of the form:
+You can specify a state trigger on any change with a string that is just the state variable name:
 
 .. code:: python
 
-   @state_trigger("True or domain.light_level")
+   @state_trigger("domain.light_level")
 
-The reason this works is that the expression is evaluated every time ``domain.light_level`` changes.
-Because of operator short-circuiting, the expression evaluates to ``True`` without even checking the
-value of ``domain.light_level``. So the result is a trigger whenever the state variable changes to
-any value. This idea can extend to multiple variables just by stringing them together.
+The trigger can include arguments with any mixture of string expressions (that are evaluated
+when any of the underlying state variable change) and string state variable names (that trigger
+whenever that variable changes).
 
 Note that if a state variable is set to the same value, HASS doesn’t generate a state change event,
 so the ``@state_trigger`` condition will not be checked. It is only evaluated each time a state
@@ -649,7 +648,8 @@ Task waiting
 
 It takes the following keyword arguments (all are optional):
 
-- ``state_trigger=None`` can be set to a string just like ``@state_trigger``.
+- ``state_trigger=None`` can be set to a string just like ``@state_trigger``, or it can be
+  a list of strings that are logically "or"ed together.
 - ``time_trigger=None`` can be set to a string or list of strings with
   datetime specifications, just like ``@time_trigger``.
 - ``event_trigger=None`` can be set to a string or list of two strings, just like

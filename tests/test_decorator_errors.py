@@ -94,12 +94,12 @@ def func4():
 def func5():
     pass
 
-@state_trigger("True or pyscript.var1")
+@state_trigger("False", ["False", "False", "pyscript.var1"])
 @state_active("1 / pyscript.var1")
 def func6():
     pass
 
-@state_trigger("pyscript.var7")
+@state_trigger("False", "False", ["pyscript.var7"])
 def func7():
     global seq_num
 
@@ -120,6 +120,23 @@ def func7():
 
     seq_num += 1
     pyscript.done = seq_num
+
+@state_trigger
+def func8():
+    pass
+
+@event_trigger
+def func9():
+    pass
+
+@state_trigger([None])
+def func10():
+    pass
+
+@state_trigger(False)
+def func11():
+    pass
+
 
 @state_trigger("pyscript.var_done")
 def func_wrapup():
@@ -185,3 +202,19 @@ TypeError: unsupported operand type(s) for /: 'int' and 'str'"""
     assert "invalid syntax (file.hello.func7 state_trigger, line 1)" in caplog.text
     assert "invalid syntax (file.hello.func7 event_trigger, line 1)" in caplog.text
     assert 'can only concatenate str (not "int") to str' in caplog.text
+    assert (
+        "func8 defined in file.hello: decorator @state_trigger needs at least one argument; ignoring decorator"
+        in caplog.text
+    )
+    assert (
+        "func9 defined in file.hello: decorator @event_trigger needs at least one argument; ignoring decorator"
+        in caplog.text
+    )
+    assert (
+        "func10 defined in file.hello: decorator @state_trigger argument 1 should be a string, or list, or set; ignoring decorator"
+        in caplog.text
+    )
+    assert (
+        "func11 defined in file.hello: decorator @state_trigger argument 1 should be a string; ignoring decorator"
+        in caplog.text
+    )
