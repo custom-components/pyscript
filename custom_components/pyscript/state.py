@@ -2,6 +2,8 @@
 
 import logging
 
+from homeassistant.helpers.restore_state import RestoreStateData
+
 from .const import LOGGER_PATH
 from .function import Function
 
@@ -98,7 +100,7 @@ class State:
         return notify_vars
 
     @classmethod
-    def set(cls, var_name, value, new_attributes=None, **kwargs):
+    async def set(cls, var_name, value, new_attributes=None, **kwargs):
         """Set a state variable and optional attributes in hass."""
         if var_name.count(".") != 1:
             raise NameError(f"invalid name {var_name} (should be 'domain.entity')")
@@ -113,6 +115,12 @@ class State:
             new_attributes.update(kwargs)
         _LOGGER.debug("setting %s = %s, attr = %s", var_name, value, new_attributes)
         cls.notify_var_last[var_name] = str(value)
+
+        if var_name.startswith("pyscript."):
+            # have this var tracked for restore
+            restore_data = await RestoreStateData.async_get_instance(cls.hass)
+            restore_data.async_restore_entity_added(var_name)
+
         cls.hass.states.async_set(var_name, value, new_attributes)
 
     @classmethod

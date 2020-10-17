@@ -17,6 +17,7 @@ from homeassistant.const import (
 )
 from homeassistant.exceptions import HomeAssistantError
 import homeassistant.helpers.config_validation as cv
+from homeassistant.helpers.restore_state import RestoreStateData
 from homeassistant.loader import bind_hass
 
 from .const import CONF_ALLOW_ALL_IMPORTS, DOMAIN, FOLDER, LOGGER_PATH, SERVICE_JUPYTER_KERNEL_START
@@ -39,6 +40,7 @@ CONFIG_SCHEMA = vol.Schema({DOMAIN: PYSCRIPT_SCHEMA}, extra=vol.ALLOW_EXTRA)
 
 async def async_setup(hass, config):
     """Component setup, run import config flow for each entry in config."""
+    await restore_state(hass)
     if DOMAIN in config:
         hass.async_create_task(
             hass.config_entries.flow.async_init(
@@ -47,6 +49,15 @@ async def async_setup(hass, config):
         )
 
     return True
+
+
+async def restore_state(hass):
+    """Restores the persisted pyscript state."""
+    restore_data = await RestoreStateData.async_get_instance(hass)
+    for entity_id, value in restore_data.last_states.items():
+        if entity_id.startswith("pyscript."):
+            last_state = value.state
+            hass.states.async_set(entity_id, last_state.state, last_state.attributes)
 
 
 async def async_setup_entry(hass, config_entry):
