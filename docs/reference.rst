@@ -175,7 +175,7 @@ the prior value is also available to the expression as ``domain.name.old`` in ca
 condition the trigger on the prior value too.
 
 Multiple arguments are logically "or"ed together, so the trigger occurs if any of the expressions
-evaluate to ``True``. Any argument can alternatively be be a list or set of strings, and they are
+evaluate to ``True``. Any argument can alternatively be a list or set of strings, and they are
 treated the same as multiple arguments by "or"ing them together.
 
 All state variables in HASS have string values. So you’ll have to do comparisons against string
@@ -205,7 +205,7 @@ You can specify a state trigger on any change with a string that is just the sta
    @state_trigger("domain.light_level")
 
 The trigger can include arguments with any mixture of string expressions (that are evaluated
-when any of the underlying state variable change) and string state variable names (that trigger
+when any of the underlying state variables change) and string state variable names (that trigger
 whenever that variable changes).
 
 Note that if a state variable is set to the same value, HASS doesn’t generate a state change event,

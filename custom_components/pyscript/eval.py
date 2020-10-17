@@ -428,8 +428,9 @@ class EvalFunc:
                                 break
                         else:
                             continue
-                        for ok_type in arg_info["type"]:
-                            mesg += f", or {ok_type.__name__}"
+                        mesg += ", or " + ", or ".join(
+                            sorted([ok_type.__name__ for ok_type in arg_info["type"]])
+                        )
                 self.logger.error(
                     "%s defined in %s: decorator @%s argument %d should be a %s; ignoring decorator",
                     self.name,
