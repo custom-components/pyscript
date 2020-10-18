@@ -134,14 +134,21 @@ class State:
             cls.persisted_vars.add(var_name)
 
     @classmethod
-    async def persist(cls, var_name, default_value=None):
+    async def persist(cls, var_name, default_value=None, default_attributes=None):
         """Ensures a pyscript domain state variable is persisted."""
         if var_name.count(".") != 1 or not var_name.startswith("pyscript."):
             raise NameError(f"invalid name {var_name} (should be 'pyscript.entity')")
 
         await cls.register_persist(var_name)
-        if default_value is not None and not cls.exist(var_name):
-            await cls.set(var_name, default_value)
+        exists = cls.exist(var_name)
+
+        if not exists and default_value is not None:
+            await cls.set(var_name, default_value, default_attributes)
+        elif exists and default_attributes is not None:
+            # Patch the attributes with new values if necessary
+            current = cls.hass.states.get(var_name)
+            new_attributes = {k: v for (k, v) in default_attributes.items() if k not in current.attributes}
+            await cls.set(var_name, current.state, **new_attributes)
 
     @classmethod
     async def persist_prefix(cls, prefix):
