@@ -92,14 +92,15 @@ you need their numeric value.
 
 State variables have attributes that can be accessed by adding the name of the attribute, as in
 ``DOMAIN.name.attr``. The attribute names and their meaning depend on the component that sets them,
-so you will need to look at the State tab in the Developer Tools to see the available attributes.
+so you will need to look at the State tab in the Developer Tools to see the available attributes. It is also
+possible to set these attributes using ``DOMAIN.name.attr = value``.
 
 Starting in version 0.21, when you set a state variable, the existing attributes are not affected
 (they were previously removed).
 
 In cases where you need to compute the name of the state variable dynamically, or you need to set or
-get the state attributes, you can use the built-in functions ``state.get()``, ``state.get_attr()``
-and ``state.set()``; see below.
+get the state attributes, you can use the built-in functions ``state.get()``, ``state.get_attr()``,
+``state.set_attr()`` and ``state.set()``; see below.
 
 The function ``state.names(domain=None)`` returns a list of all state variable names (ie,
 ``entity_id``\ s) of a domain. If ``domain`` is not specified, it returns all HASS state
@@ -536,13 +537,16 @@ which you can’t do if you are directly assigning to the variable:
 ``state.names(domain=None)``
   Returns a list of all state variable names (ie, ``entity_id``\ s) of a
   domain. If ``domain`` is not specified, it returns all HASS state variable (``entity_id``) names.
-``state.set(name, value, new_attributes=None, **kwargs)``
+``state.set(name, value=None, new_attributes=None, **kwargs)``
   Sets the state variable to the given value, with the optional attributes. The optional 3rd
   argument, ``new_attributes``, should be a ``dict`` and it will overwrite all the existing
   attributes if specified. If instead attributes are specified using keyword arguments, then other
   attributes will not be affected. If no optional arguments are provided, just the state variable
-  value is set and the attributes are not changed. To clear the attributes, set
+  value is set and the attributes are not changed. If no value is provided, just the state arguments
+  are set. To clear the attributes, set
   ``new_attributes={}``.
+``state.set_attr(name, value)``
+  Sets the state variable attribute to the given value. The name should look like ``DOMAIN.entity.attr``
 
 Note that in HASS, all state variable values are coerced into strings. For example, if a state
 variable has a numeric value, you might want to convert it to a numeric type (eg, using ``int()`` or
