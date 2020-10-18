@@ -1167,9 +1167,15 @@ class AstEval:
                 return
             if not isinstance(var_name, str):
                 raise NotImplementedError(f"unknown lhs type {lhs} (got {var_name}) in assign")
-            if var_name.find(".") >= 0:
+            dot_count = var_name.count(".")
+            if dot_count == 1:
                 State.set(var_name, val)
                 return
+            if dot_count == 2:
+                State.set_attr(var_name, val)
+                return
+            if dot_count > 0:
+                raise NotImplementedError("variable names may contain at most 2 dots")
             if self.curr_func and var_name in self.curr_func.global_names:
                 self.global_sym_table[var_name] = val
                 return

@@ -98,12 +98,19 @@ class State:
         return notify_vars
 
     @classmethod
-    def set(cls, var_name, value, new_attributes=None, **kwargs):
+    def set(cls, var_name, value=None, new_attributes=None, **kwargs):
         """Set a state variable and optional attributes in hass."""
         if var_name.count(".") != 1:
             raise NameError(f"invalid name {var_name} (should be 'domain.entity')")
-        if new_attributes is None:
+
+        state_value = None
+        if value is None or new_attributes is None:
             state_value = cls.hass.states.get(var_name)
+
+        if value is None and state_value:
+            value = state_value.state
+
+        if new_attributes is None:
             if state_value:
                 new_attributes = state_value.attributes
             else:
@@ -114,6 +121,18 @@ class State:
         _LOGGER.debug("setting %s = %s, attr = %s", var_name, value, new_attributes)
         cls.notify_var_last[var_name] = str(value)
         cls.hass.states.async_set(var_name, value, new_attributes)
+
+    @classmethod
+    def set_attr(cls, var_attr_name, value):
+        """Set a state variable's attribute in hass."""
+        parts = var_attr_name.split(".")
+        if len(parts) != 3:
+            raise NameError(f"invalid name {var_attr_name} (should be 'domain.entity.attr')")
+
+        state_var_name = f"{parts[0]}.{parts[1]}"
+        attr_name = parts[2]
+
+        cls.set(state_var_name, **{attr_name: value})
 
     @classmethod
     def exist(cls, var_name):
@@ -186,6 +205,7 @@ class State:
         functions = {
             "state.get": cls.get,
             "state.set": cls.set,
+            "state.set_attr": cls.set_attr,
             "state.names": cls.names,
             "state.get_attr": cls.get_attr,
             "pyscript.config": cls.pyscript_config,
