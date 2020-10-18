@@ -36,6 +36,11 @@ class State:
     #
     pyscript_config = {}
 
+    #
+    # pyscript vars which have already been registered as persisted
+    #
+    persisted_vars = set()
+
     def __init__(self):
         """Warn on State instantiation."""
         _LOGGER.error("State class is not meant to be instantiated")
@@ -46,7 +51,7 @@ class State:
         cls.hass = hass
 
     @classmethod
-    def notify_add(cls, var_names, queue):
+    async def notify_add(cls, var_names, queue):
         """Register to notify state variables changes to be sent to queue."""
 
         for var_name in var_names if isinstance(var_names, set) else {var_names}:
@@ -57,6 +62,7 @@ class State:
             if state_var_name not in cls.notify:
                 cls.notify[state_var_name] = {}
             cls.notify[state_var_name][queue] = var_names
+            await cls.register_persist(state_var_name)
 
     @classmethod
     def notify_del(cls, var_names, queue):
@@ -116,12 +122,26 @@ class State:
         _LOGGER.debug("setting %s = %s, attr = %s", var_name, value, new_attributes)
         cls.notify_var_last[var_name] = str(value)
 
-        if var_name.startswith("pyscript."):
-            # have this var tracked for restore
+        await cls.register_persist(var_name)
+        cls.hass.states.async_set(var_name, value, new_attributes)
+
+    @classmethod
+    async def register_persist(cls, var_name):
+        """Persists a pyscript state variable using RestoreState."""
+        if var_name.startswith("pyscript.") and var_name not in cls.persisted_vars:
             restore_data = await RestoreStateData.async_get_instance(cls.hass)
             restore_data.async_restore_entity_added(var_name)
+            cls.persisted_vars.add(var_name)
 
-        cls.hass.states.async_set(var_name, value, new_attributes)
+    @classmethod
+    async def persist(cls, var_name, default_value=None):
+        """Ensures a pyscript domain state variable is persisted."""
+        if var_name.count(".") != 1 or not var_name.startswith("pyscript."):
+            raise NameError(f"invalid name {var_name} (should be 'pyscript.entity')")
+
+        await cls.register_persist(var_name)
+        if default_value is not None and not cls.exist(var_name):
+            await cls.set(var_name, default_value)
 
     @classmethod
     def exist(cls, var_name):
@@ -133,12 +153,13 @@ class State:
         return value and (len(parts) == 2 or parts[2] in value.attributes)
 
     @classmethod
-    def get(cls, var_name):
+    async def get(cls, var_name):
         """Get a state variable value or attribute from hass."""
         parts = var_name.split(".")
         if len(parts) != 2 and len(parts) != 3:
             raise NameError(f"invalid name '{var_name}' (should be 'domain.entity')")
         value = cls.hass.states.get(f"{parts[0]}.{parts[1]}")
+        await cls.register_persist(var_name)
         if not value:
             raise NameError(f"name '{parts[0]}.{parts[1]}' is not defined")
         if len(parts) == 2:
@@ -148,11 +169,12 @@ class State:
         return value.attributes.get(parts[2])
 
     @classmethod
-    def get_attr(cls, var_name):
+    async def get_attr(cls, var_name):
         """Return a dict of attributes for a state variable."""
         if var_name.count(".") != 1:
             raise NameError(f"invalid name {var_name} (should be 'domain.entity')")
         value = cls.hass.states.get(var_name)
+        await cls.register_persist(var_name)
         if not value:
             return None
         return value.attributes.copy()
@@ -196,6 +218,7 @@ class State:
             "state.set": cls.set,
             "state.names": cls.names,
             "state.get_attr": cls.get_attr,
+            "state.persist": cls.persist,
             "pyscript.config": cls.pyscript_config,
         }
         Function.register(functions)

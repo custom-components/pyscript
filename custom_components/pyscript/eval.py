@@ -1307,7 +1307,7 @@ class AstEval:
             # a two-dot name for state.attr needs to exist
             #
             if num_dots == 1 or (num_dots == 2 and State.exist(arg.id)):
-                return State.get(arg.id)
+                return await State.get(arg.id)
             #
             # Couldn't find it, so return just the name wrapped in EvalName to
             # distinguish from a string variable value.  This is to support
