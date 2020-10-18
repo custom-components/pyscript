@@ -144,6 +144,16 @@ class State:
             await cls.set(var_name, default_value)
 
     @classmethod
+    async def persist_prefix(cls, prefix):
+        """Ensures all pyscript domain state variable with prefix are persisted."""
+        if prefix.count(".") != 1 or not prefix.startswith("pyscript."):
+            raise NameError(f"invalid prefix {prefix} (should be 'pyscript.entity')")
+
+        for name in await cls.names("pyscript"):
+            if name.startswith(prefix):
+                await cls.register_persist(name)
+
+    @classmethod
     def exist(cls, var_name):
         """Check if a state variable value or attribute exists in hass."""
         parts = var_name.split(".")
@@ -219,6 +229,7 @@ class State:
             "state.names": cls.names,
             "state.get_attr": cls.get_attr,
             "state.persist": cls.persist,
+            "state.persist_prefix": cls.persist_prefix,
             "pyscript.config": cls.pyscript_config,
         }
         Function.register(functions)
