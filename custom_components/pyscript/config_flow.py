@@ -7,7 +7,6 @@ import voluptuous as vol
 from homeassistant import config_entries
 from homeassistant.config_entries import SOURCE_IMPORT, ConfigEntry
 from homeassistant.core import callback
-import homeassistant.helpers.config_validation as cv
 
 from .const import CONF_ALLOW_ALL_IMPORTS, CONF_HASS_IS_GLOBAL, DOMAIN
 
@@ -15,8 +14,8 @@ CONF_BOOL_ALL = {CONF_ALLOW_ALL_IMPORTS, CONF_HASS_IS_GLOBAL}
 
 PYSCRIPT_SCHEMA = vol.Schema(
     {
-        vol.Optional(CONF_ALLOW_ALL_IMPORTS, default=False): cv.boolean,
-        vol.Optional(CONF_HASS_IS_GLOBAL, default=False): cv.boolean,
+        vol.Optional(CONF_ALLOW_ALL_IMPORTS, default=False): bool,
+        vol.Optional(CONF_HASS_IS_GLOBAL, default=False): bool,
     },
     extra=vol.ALLOW_EXTRA,
 )
@@ -41,7 +40,7 @@ class PyscriptOptionsConfigFlow(config_entries.OptionsFlow):
                 step_id="init",
                 data_schema=vol.Schema(
                     {
-                        vol.Optional(name, default=self.config_entry.data.get(name, False)): cv.boolean
+                        vol.Optional(name, default=self.config_entry.data.get(name, False)): bool
                         for name in CONF_BOOL_ALL
                     },
                     extra=vol.ALLOW_EXTRA,
