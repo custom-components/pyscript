@@ -21,7 +21,7 @@ with much of HASS by looking at state variables, calling services etc.
 
 ## Documentation
 
-Here is the [pyscript documentation](https://hacs-pyscript.readthedocs.io/en/latest).
+Here is the [pyscript documentation](https://hacs-pyscript.readthedocs.io/en/stable).
 
 For more information about the Jupyter kernel, see the [README](https://github.com/craigbarratt/hass-pyscript-jupyter/blob/master/README.md).
 There is also a [Jupyter notebook tutorial](https://nbviewer.jupyter.org/github/craigbarratt/hass-pyscript-jupyter/blob/master/pyscript_tutorial.ipynb),
@@ -78,7 +78,7 @@ for setting up a development environment and running tests.
 
 ## Useful Links
 
-* [Documentation](https://hacs-pyscript.readthedocs.io/en/latest)
+* [Documentation](https://hacs-pyscript.readthedocs.io/en/stable)
 * [Issues](https://github.com/custom-components/pyscript/issues)
 * [Wiki](https://github.com/custom-components/pyscript/wiki)
 * [GitHub repository](https://github.com/custom-components/pyscript) (please add a star if you like pyscript!)
