@@ -159,7 +159,7 @@ class TrigTime:
                 "trigger %s wait_until: watching vars %s", ast_ctx.name, state_trig_ident,
             )
             if len(state_trig_ident) > 0:
-                State.notify_add(state_trig_ident, notify_q)
+                await State.notify_add(state_trig_ident, notify_q)
         if event_trigger is not None:
             if isinstance(event_trigger, str):
                 event_trigger = [event_trigger]
@@ -595,7 +595,7 @@ class TrigInfo:
                 self.state_trig_ident.update(self.state_trig_ident_any)
                 _LOGGER.debug("trigger %s: watching vars %s", self.name, self.state_trig_ident)
                 if len(self.state_trig_ident) > 0:
-                    State.notify_add(self.state_trig_ident, self.notify_q)
+                    await State.notify_add(self.state_trig_ident, self.notify_q)
 
             if self.active_expr:
                 self.state_active_ident = await self.active_expr.get_names()

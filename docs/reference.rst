@@ -564,6 +564,16 @@ Note that in HASS, all state variable values are coerced into strings. For examp
 variable has a numeric value, you might want to convert it to a numeric type (eg, using ``int()`` or
 ``float()``). Attributes keep their native type.
 
+Persistent State
+^^^^^^^^^^^^^^^^
+
+This method is provided to indicate that a particular entity_id should be persisted. This is only effective for entitys in the `pyscript` domain.
+
+``state.persist(entity_id, default_value=None, default_attributes=None)``
+  Indicates that the entity named in `entity_id` should be persisted. Optionally, a default value and default attributes can be provided.
+
+
+
 Service Calls
 ^^^^^^^^^^^^^
 
@@ -1204,3 +1214,46 @@ is optional in pyscript):
         async with session.get(url) as resp:
             print(resp.status)
             print(resp.text())
+
+Persistent State
+^^^^^^^^^^^^^^^^
+
+Pyscript has the ability to persist state in the `pyscript.` domain. This means that setting an entity like `pyscript.test` will cause it to be restored to its previous state when Home Assistant is restarted.
+
+This can be done in any of the usual ways to set the state of an `entity_id`:
+
+.. code:: python
+
+   set.state('pyscript.test', 'on')
+
+   pyscript.test = 'on'
+
+Attributes can be included:
+
+.. code:: python
+
+   set.state('pyscript.test', 'on', friendly_name="Test", device_class="motion")
+
+   pyscript.test = 'on'
+   pyscript.test.friendly_name = 'Test'
+   pyscript.test.device_class = 'motion'
+
+In order to ensure that the state of a particular entity persists, you need to request persistence explicitly. This must be done in a code location that will be certain to run at startup. Generally, this means outside of trigger functions.
+
+
+.. code:: python
+
+   state.persist('pyscript.last_light_on')
+
+   @state_trigger('binary_sensor.motion == "on"')
+   def turn_on_lights():
+     light.turn_on('light.overhead')
+     pyscript.last_light_on = "light.overhead"
+
+With this in place, `state.persist()` will be called every time this script is parsed, ensuring this particular state will persist. 
+
+
+   
+
+  
+  

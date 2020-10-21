@@ -1168,7 +1168,7 @@ class AstEval:
             if not isinstance(var_name, str):
                 raise NotImplementedError(f"unknown lhs type {lhs} (got {var_name}) in assign")
             if var_name.find(".") >= 0:
-                State.set(var_name, val)
+                await State.set(var_name, val)
                 return
             if self.curr_func and var_name in self.curr_func.global_names:
                 self.global_sym_table[var_name] = val
@@ -1307,7 +1307,7 @@ class AstEval:
             # a two-dot name for state.attr needs to exist
             #
             if num_dots == 1 or (num_dots == 2 and State.exist(arg.id)):
-                return State.get(arg.id)
+                return await State.get(arg.id)
             #
             # Couldn't find it, so return just the name wrapped in EvalName to
             # distinguish from a string variable value.  This is to support
