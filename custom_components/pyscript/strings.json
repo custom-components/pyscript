@@ -5,7 +5,8 @@
         "title": "pyscript",
         "description": "Once you have created an entry, refer to the [docs](https://hacs-pyscript.readthedocs.io/en/latest/) to learn how to create scripts and functions.",
         "data": {
-          "allow_all_imports": "Allow All Imports?"
+          "allow_all_imports": "Allow All Imports?",
+          "hass_is_global": "Access hass as a global variable?"
         }
       }
     },
@@ -20,7 +21,8 @@
       "init": {
         "title": "Update pyscript configuration",
         "data": {
-          "allow_all_imports": "Allow All Imports?"
+          "allow_all_imports": "Allow All Imports?",
+          "hass_is_global": "Access hass as a global variable?"
         }
       },
       "no_ui_configuration_allowed": {

@@ -4,7 +4,7 @@ import logging
 import os
 from types import ModuleType
 
-from .const import FOLDER, LOGGER_PATH
+from .const import CONF_HASS_IS_GLOBAL, DOMAIN, FOLDER, LOGGER_PATH
 from .eval import AstEval
 from .function import Function
 from .trigger import TrigInfo
@@ -26,6 +26,12 @@ class GlobalContext:
         self.auto_start = False
         self.module = None
         self.rel_import_path = rel_import_path
+        config_entry = Function.hass.data.get(DOMAIN, {})
+        if config_entry.data.get(CONF_HASS_IS_GLOBAL, False):
+            #
+            # expose hass as a global variable if configured
+            #
+            self.global_sym_table["hass"] = Function.hass
 
     def trigger_register(self, func):
         """Register a trigger function; return True if start now."""
