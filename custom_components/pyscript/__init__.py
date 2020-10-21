@@ -20,7 +20,14 @@ import homeassistant.helpers.config_validation as cv
 from homeassistant.helpers.restore_state import RestoreStateData
 from homeassistant.loader import bind_hass
 
-from .const import CONF_ALLOW_ALL_IMPORTS, DOMAIN, FOLDER, LOGGER_PATH, SERVICE_JUPYTER_KERNEL_START
+from .const import (
+    CONF_ALLOW_ALL_IMPORTS,
+    CONF_HASS_IS_GLOBAL,
+    DOMAIN,
+    FOLDER,
+    LOGGER_PATH,
+    SERVICE_JUPYTER_KERNEL_START,
+)
 from .eval import AstEval
 from .event import Event
 from .function import Function
@@ -32,7 +39,11 @@ from .trigger import TrigTime
 _LOGGER = logging.getLogger(LOGGER_PATH)
 
 PYSCRIPT_SCHEMA = vol.Schema(
-    {vol.Optional(CONF_ALLOW_ALL_IMPORTS, default=False): cv.boolean}, extra=vol.ALLOW_EXTRA,
+    {
+        vol.Optional(CONF_ALLOW_ALL_IMPORTS, default=False): cv.boolean,
+        vol.Optional(CONF_HASS_IS_GLOBAL, default=False): cv.boolean,
+    },
+    extra=vol.ALLOW_EXTRA,
 )
 
 CONFIG_SCHEMA = vol.Schema({DOMAIN: PYSCRIPT_SCHEMA}, extra=vol.ALLOW_EXTRA)

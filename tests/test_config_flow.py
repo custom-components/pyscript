@@ -2,7 +2,7 @@
 import logging
 
 from custom_components.pyscript import PYSCRIPT_SCHEMA
-from custom_components.pyscript.const import CONF_ALLOW_ALL_IMPORTS, DOMAIN
+from custom_components.pyscript.const import CONF_ALLOW_ALL_IMPORTS, CONF_HASS_IS_GLOBAL, DOMAIN
 import pytest
 from pytest_homeassistant_custom_component.async_mock import patch
 
@@ -30,7 +30,9 @@ async def test_user_flow_minimum_fields(hass):
 
     assert result["type"] == data_entry_flow.RESULT_TYPE_CREATE_ENTRY
     assert CONF_ALLOW_ALL_IMPORTS in result["data"]
+    assert CONF_HASS_IS_GLOBAL in result["data"]
     assert not result["data"][CONF_ALLOW_ALL_IMPORTS]
+    assert not result["data"][CONF_HASS_IS_GLOBAL]
 
 
 async def test_user_flow_all_fields(hass):
@@ -42,24 +44,29 @@ async def test_user_flow_all_fields(hass):
     assert result["step_id"] == "user"
 
     result = await hass.config_entries.flow.async_configure(
-        result["flow_id"], user_input={CONF_ALLOW_ALL_IMPORTS: True}
+        result["flow_id"], user_input={CONF_ALLOW_ALL_IMPORTS: True, CONF_HASS_IS_GLOBAL: True}
     )
 
     assert result["type"] == data_entry_flow.RESULT_TYPE_CREATE_ENTRY
     assert CONF_ALLOW_ALL_IMPORTS in result["data"]
     assert result["data"][CONF_ALLOW_ALL_IMPORTS]
+    assert result["data"][CONF_HASS_IS_GLOBAL]
 
 
 async def test_user_already_configured(hass):
     """Test service is already configured during user setup."""
     result = await hass.config_entries.flow.async_init(
-        DOMAIN, context={"source": SOURCE_USER}, data={CONF_ALLOW_ALL_IMPORTS: True}
+        DOMAIN,
+        context={"source": SOURCE_USER},
+        data={CONF_ALLOW_ALL_IMPORTS: True, CONF_HASS_IS_GLOBAL: True},
     )
 
     assert result["type"] == data_entry_flow.RESULT_TYPE_CREATE_ENTRY
 
     result = await hass.config_entries.flow.async_init(
-        DOMAIN, context={"source": SOURCE_USER}, data={CONF_ALLOW_ALL_IMPORTS: True}
+        DOMAIN,
+        context={"source": SOURCE_USER},
+        data={CONF_ALLOW_ALL_IMPORTS: True, CONF_HASS_IS_GLOBAL: True},
     )
 
     assert result["type"] == data_entry_flow.RESULT_TYPE_ABORT
@@ -84,7 +91,9 @@ async def test_import_flow_update_allow_all_imports(hass):
     assert result["type"] == data_entry_flow.RESULT_TYPE_CREATE_ENTRY
 
     result = await hass.config_entries.flow.async_init(
-        DOMAIN, context={"source": SOURCE_IMPORT}, data={CONF_ALLOW_ALL_IMPORTS: True}
+        DOMAIN,
+        context={"source": SOURCE_IMPORT},
+        data={CONF_ALLOW_ALL_IMPORTS: True, CONF_HASS_IS_GLOBAL: True},
     )
 
     assert result["type"] == data_entry_flow.RESULT_TYPE_ABORT
@@ -140,7 +149,9 @@ async def test_import_flow_no_update(hass):
 async def test_import_flow_update_user(hass):
     """Test import config flow update excludes `allow_all_imports` from being updated when updated entry was a user entry."""
     result = await hass.config_entries.flow.async_init(
-        DOMAIN, context={"source": SOURCE_USER}, data=PYSCRIPT_SCHEMA({CONF_ALLOW_ALL_IMPORTS: True})
+        DOMAIN,
+        context={"source": SOURCE_USER},
+        data=PYSCRIPT_SCHEMA({CONF_ALLOW_ALL_IMPORTS: True, CONF_HASS_IS_GLOBAL: True}),
     )
 
     assert result["type"] == data_entry_flow.RESULT_TYPE_CREATE_ENTRY
@@ -154,6 +165,7 @@ async def test_import_flow_update_user(hass):
 
     assert hass.config_entries.async_entries(DOMAIN)[0].data == {
         CONF_ALLOW_ALL_IMPORTS: True,
+        CONF_HASS_IS_GLOBAL: True,
         "apps": {"test_app": {"param": 1}},
     }
 
@@ -161,7 +173,9 @@ async def test_import_flow_update_user(hass):
 async def test_import_flow_update_import(hass):
     """Test import config flow update includes `allow_all_imports` in update when updated entry was imported entry."""
     result = await hass.config_entries.flow.async_init(
-        DOMAIN, context={"source": SOURCE_IMPORT}, data=PYSCRIPT_SCHEMA({CONF_ALLOW_ALL_IMPORTS: True})
+        DOMAIN,
+        context={"source": SOURCE_IMPORT},
+        data=PYSCRIPT_SCHEMA({CONF_ALLOW_ALL_IMPORTS: True, CONF_HASS_IS_GLOBAL: True}),
     )
 
     assert result["type"] == data_entry_flow.RESULT_TYPE_CREATE_ENTRY
@@ -179,7 +193,9 @@ async def test_import_flow_update_import(hass):
 async def test_options_flow_import(hass):
     """Test options flow aborts because configuration needs to be managed via configuration.yaml."""
     result = await hass.config_entries.flow.async_init(
-        DOMAIN, context={"source": SOURCE_IMPORT}, data=PYSCRIPT_SCHEMA({CONF_ALLOW_ALL_IMPORTS: True})
+        DOMAIN,
+        context={"source": SOURCE_IMPORT},
+        data=PYSCRIPT_SCHEMA({CONF_ALLOW_ALL_IMPORTS: True, CONF_HASS_IS_GLOBAL: True}),
     )
     await hass.async_block_till_done()
     assert result["type"] == data_entry_flow.RESULT_TYPE_CREATE_ENTRY
@@ -199,7 +215,9 @@ async def test_options_flow_import(hass):
 async def test_options_flow_user_change(hass):
     """Test options flow updates config entry when options change."""
     result = await hass.config_entries.flow.async_init(
-        DOMAIN, context={"source": SOURCE_USER}, data=PYSCRIPT_SCHEMA({CONF_ALLOW_ALL_IMPORTS: True})
+        DOMAIN,
+        context={"source": SOURCE_USER},
+        data=PYSCRIPT_SCHEMA({CONF_ALLOW_ALL_IMPORTS: True, CONF_HASS_IS_GLOBAL: True}),
     )
     await hass.async_block_till_done()
     assert result["type"] == data_entry_flow.RESULT_TYPE_CREATE_ENTRY
@@ -211,7 +229,7 @@ async def test_options_flow_user_change(hass):
     assert result["step_id"] == "init"
 
     result = await hass.config_entries.options.async_configure(
-        result["flow_id"], user_input={CONF_ALLOW_ALL_IMPORTS: False}
+        result["flow_id"], user_input={CONF_ALLOW_ALL_IMPORTS: False, CONF_HASS_IS_GLOBAL: False}
     )
     await hass.async_block_till_done()
 
@@ -219,12 +237,15 @@ async def test_options_flow_user_change(hass):
     assert result["title"] == ""
 
     assert entry.data[CONF_ALLOW_ALL_IMPORTS] is False
+    assert entry.data[CONF_HASS_IS_GLOBAL] is False
 
 
 async def test_options_flow_user_no_change(hass):
     """Test options flow aborts when options don't change."""
     result = await hass.config_entries.flow.async_init(
-        DOMAIN, context={"source": SOURCE_USER}, data=PYSCRIPT_SCHEMA({CONF_ALLOW_ALL_IMPORTS: True})
+        DOMAIN,
+        context={"source": SOURCE_USER},
+        data=PYSCRIPT_SCHEMA({CONF_ALLOW_ALL_IMPORTS: True, CONF_HASS_IS_GLOBAL: True}),
     )
     await hass.async_block_till_done()
     assert result["type"] == data_entry_flow.RESULT_TYPE_CREATE_ENTRY
@@ -236,7 +257,7 @@ async def test_options_flow_user_no_change(hass):
     assert result["step_id"] == "init"
 
     result = await hass.config_entries.options.async_configure(
-        result["flow_id"], user_input={CONF_ALLOW_ALL_IMPORTS: True}
+        result["flow_id"], user_input={CONF_ALLOW_ALL_IMPORTS: True, CONF_HASS_IS_GLOBAL: True}
     )
 
     assert result["type"] == data_entry_flow.RESULT_TYPE_FORM

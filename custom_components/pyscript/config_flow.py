@@ -8,10 +8,16 @@ from homeassistant import config_entries
 from homeassistant.config_entries import SOURCE_IMPORT, ConfigEntry
 from homeassistant.core import callback
 
-from .const import CONF_ALLOW_ALL_IMPORTS, DOMAIN
+from .const import CONF_ALLOW_ALL_IMPORTS, CONF_HASS_IS_GLOBAL, DOMAIN
+
+CONF_BOOL_ALL = {CONF_ALLOW_ALL_IMPORTS, CONF_HASS_IS_GLOBAL}
 
 PYSCRIPT_SCHEMA = vol.Schema(
-    {vol.Optional(CONF_ALLOW_ALL_IMPORTS, default=False): bool}, extra=vol.ALLOW_EXTRA,
+    {
+        vol.Optional(CONF_ALLOW_ALL_IMPORTS, default=False): bool,
+        vol.Optional(CONF_HASS_IS_GLOBAL, default=False): bool,
+    },
+    extra=vol.ALLOW_EXTRA,
 )
 
 
@@ -34,15 +40,17 @@ class PyscriptOptionsConfigFlow(config_entries.OptionsFlow):
                 step_id="init",
                 data_schema=vol.Schema(
                     {
-                        vol.Optional(
-                            CONF_ALLOW_ALL_IMPORTS, default=self.config_entry.data[CONF_ALLOW_ALL_IMPORTS],
-                        ): bool
+                        vol.Optional(name, default=self.config_entry.data.get(name, False)): bool
+                        for name in CONF_BOOL_ALL
                     },
                     extra=vol.ALLOW_EXTRA,
                 ),
             )
 
-        if user_input[CONF_ALLOW_ALL_IMPORTS] != self.config_entry.data[CONF_ALLOW_ALL_IMPORTS]:
+        if any(
+            name not in self.config_entry.data or user_input[name] != self.config_entry.data[name]
+            for name in CONF_BOOL_ALL
+        ):
             updated_data = self.config_entry.data.copy()
             updated_data.update(user_input)
             self.hass.config_entries.async_update_entry(entry=self.config_entry, data=updated_data)
@@ -108,15 +116,13 @@ class PyscriptConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             # Update values for all keys, excluding `allow_all_imports` for entries
             # set up through the UI.
             for key, val in import_config.items():
-                if entry.source == SOURCE_IMPORT or key != CONF_ALLOW_ALL_IMPORTS:
+                if entry.source == SOURCE_IMPORT or key not in CONF_BOOL_ALL:
                     updated_data[key] = val
 
             # Remove values for all keys in entry.data that are not in the imported config,
             # excluding `allow_all_imports` for entries set up through the UI.
             for key in entry.data:
-                if (
-                    entry.source == SOURCE_IMPORT or key != CONF_ALLOW_ALL_IMPORTS
-                ) and key not in import_config:
+                if (entry.source == SOURCE_IMPORT or key not in CONF_BOOL_ALL) and key not in import_config:
                     updated_data.pop(key)
 
             # Update and reload entry if data needs to be updated

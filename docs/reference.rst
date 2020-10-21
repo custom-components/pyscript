@@ -4,18 +4,34 @@ Reference
 Configuration
 -------------
 
-Pyscript has one optional configuration setting that allows any Python package to be imported
-if set, eg:
+Pyscript can be configured using the UI, or via yaml. To use the UI, go to the
+Configuration -> Integrations page and selection "+" to add ``Pyscript Python scripting``.
+After that, you can change the settings anytime by selecting Options under Pyscript
+in the Configuration page.
+
+Alternatively, for yaml configuration, add ``pyscript:`` to ``<config>/configuration.yaml``.
+You can't mix these two methods - your initial choice determines how you should update
+these settings later.  If you want to switch configuration methods you will need to
+uninstall and reinstall pyscript.
+
+Pyscript has two optional configuration parameters that allow any python package to be
+imported and exposes the ``hass`` variable as a global (both options default to ``false``).
+In `<config>/configuration.yaml``:
 
 .. code:: yaml
 
    pyscript:
      allow_all_imports: true
+     hass_is_global: true
 
-The settings and behavior of your code can be controlled by additional user-defined configuration
-settings.  All the pyscript configuration settings are available via the variable
-``pyscript.config`` (see `this section <#accessing-yaml-configuration>`__). The recommended
-structure is to have entries for each application you write stored under an ``apps`` entry.
+The settings and behavior of your code can be controlled by additional user-defined yaml
+configuration settings.  If you configured pyscript using the UI flow, you can still
+add additional configuration settings via yaml.  Since they are free-form (no fixed
+schema) there is no UI configuration available for these additional settings.
+
+All the pyscript configuration settings are available via the variable ``pyscript.config``
+(see `this section <#accessing-yaml-configuration>`__). The recommended structure is
+to have entries for each application you write stored under an ``apps`` entry.
 For example, applications ``my_app1`` and ``my_app2`` would be configured as:
 
 .. code:: yaml
@@ -1087,6 +1103,58 @@ triggers and application logic, eg:
        setup_triggers(**inst)
 
 Validating the configuration can be done either manually or with the ``voluptuous`` package.
+
+Access to Hass
+^^^^^^^^^^^^^^
+
+If the ``hass_is_global`` configuration setting is set (default is off), then the variable ``hass``
+is available as a global variable in all pyscript contexts. That provides significant flexiblity
+in accessing HASS internals for cases where pyscript doesn't provide some binding or access.
+
+Ideally you should only use ``hass`` for read-only access. However, you do need a good understanding
+of ``hass`` internals and objects if you try to call functions or update anything. With great power
+comes great responsibility!
+
+For example, you can access configuration settings like ``hass.config.latitude`` or ``hass.config.time_zone``.
+
+You can use ``hass`` to compute sunrise and sunset times using the same method HASS does, eg:
+
+.. code:: python
+
+   import homeassistant.helpers.sun as sun
+   import datetime
+
+   location = sun.get_astral_location(hass)
+   sunrise = location.sunrise(datetime.datetime.today()).replace(tzinfo=None)
+   sunset = location.sunset(datetime.datetime.today()).replace(tzinfo=None)
+   print(f"today sunrise = {sunrise}, sunset = {sunset}")
+
+Here's another method that uses the installed version of ``astral`` directly, rather than the HASS
+helper function.  It's a bit more crytpic since it's a very old version of ``astral``, but you can
+see how the HASS configuration values are used:
+
+.. code:: python
+
+   import astral
+   import datetime
+
+   here = astral.Location(
+       (
+           "",
+           "",
+           hass.config.latitude,
+           hass.config.longitude,
+           str(hass.config.time_zone),
+           hass.config.elevation,
+       )
+   )
+   sunrise = here.sunrise(datetime.datetime.today()).replace(tzinfo=None)
+   sunset = here.sunset(datetime.datetime.today()).replace(tzinfo=None)
+   print(f"today sunrise = {sunrise}, sunset = {sunset}")
+
+If there are particular HASS internals that you think many pyscript users would find useful,
+consider making a feature request or PR so it becomes a built-in feature in pyscript, rather
+than requiring users to always have to delve into ``hass``.
 
 Avoiding Event Loop I/O
 ^^^^^^^^^^^^^^^^^^^^^^^
