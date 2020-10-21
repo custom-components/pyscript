@@ -62,7 +62,6 @@ class State:
             if state_var_name not in cls.notify:
                 cls.notify[state_var_name] = {}
             cls.notify[state_var_name][queue] = var_names
-            await cls.register_persist(state_var_name)
 
     @classmethod
     def notify_del(cls, var_names, queue):
@@ -122,7 +121,6 @@ class State:
         _LOGGER.debug("setting %s = %s, attr = %s", var_name, value, new_attributes)
         cls.notify_var_last[var_name] = str(value)
 
-        await cls.register_persist(var_name)
         cls.hass.states.async_set(var_name, value, new_attributes)
 
     @classmethod
@@ -151,16 +149,6 @@ class State:
             await cls.set(var_name, current.state, **new_attributes)
 
     @classmethod
-    async def persist_prefix(cls, prefix):
-        """Ensures all pyscript domain state variable with prefix are persisted."""
-        if prefix.count(".") != 1 or not prefix.startswith("pyscript."):
-            raise NameError(f"invalid prefix {prefix} (should be 'pyscript.entity')")
-
-        for name in await cls.names("pyscript"):
-            if name.startswith(prefix):
-                await cls.register_persist(name)
-
-    @classmethod
     def exist(cls, var_name):
         """Check if a state variable value or attribute exists in hass."""
         parts = var_name.split(".")
@@ -176,7 +164,6 @@ class State:
         if len(parts) != 2 and len(parts) != 3:
             raise NameError(f"invalid name '{var_name}' (should be 'domain.entity')")
         value = cls.hass.states.get(f"{parts[0]}.{parts[1]}")
-        await cls.register_persist(var_name)
         if not value:
             raise NameError(f"name '{parts[0]}.{parts[1]}' is not defined")
         if len(parts) == 2:
@@ -191,7 +178,6 @@ class State:
         if var_name.count(".") != 1:
             raise NameError(f"invalid name {var_name} (should be 'domain.entity')")
         value = cls.hass.states.get(var_name)
-        await cls.register_persist(var_name)
         if not value:
             return None
         return value.attributes.copy()

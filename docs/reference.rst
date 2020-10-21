@@ -551,12 +551,11 @@ variable has a numeric value, you might want to convert it to a numeric type (eg
 Persistent State
 ^^^^^^^^^^^^^^^^
 
-Two methods are provided to explicitly indicate that a particular entity_id should be persisted.
+This method is provided to indicate that a particular entity_id should be persisted. This is only effective for entitys in the `pyscript` domain.
 
 ``state.persist(entity_id, default_value=None)``
   Indicates that the entity named in `entity_id` should be persisted. Optionally, a default value can be provided.
-``state.persist_prefix(entity_prefix)``
-  Indicates that all entity_ids starting with the provided prefix should be persisted.
+
 
 
 Service Calls
@@ -1171,56 +1170,8 @@ Attributes can be included:
    pyscript.test.friendly_name = 'Test'
    pyscript.test.device_class = 'motion'
 
-In order to ensure that the state of a particular entity persists, you need to be certain that your Pyscript code "accesses" it in some way _every_ time Home Assistant is restarted. The following methods are considered to be accessing the persistent state.
+In order to ensure that the state of a particular entity persists, you need to request persistence explicitly. This must be done in a code location that will be certain to run at startup. Generally, this means outside of trigger functions.
 
-1) Use it in a `@state_trigger`:
-
-.. code:: python
-
-   @state_trigger('pyscript.test == "on"')
-   def my_function():
-     log.info('pyscript.test was set to "on"')
-
-
-2) Set a state
-
-.. code:: python
-
-   pyscript.test = "on"
-
-   state.set('pyscript.test', 'on')
-
-
-3) Read a state
-
-.. code:: python
-
-   if pyscript.test == "on":
-     log.info('pyscript.test is "on"')
-
-   test_value = state.get('pyscript.test')
-   log.info(f'The test value is {test_value}')
-
-4) Use the explicit persistence methods
-
-.. code:: python
-
-   state.persist('pyscript.test', default_value="on")
-
-   state.persist_prefix('pyscript.test_')
-
-Be aware that there are cases where it may seem the entity will be persisted, but, in actuality it will not. Consider the following example:
-
-.. code:: python
-
-   @state_trigger('binary_sensor.motion == "on"')
-   def turn_on_lights():
-     light.turn_on('light.overhead')
-     pyscript.last_light_on = "light.overhead"
-
-In this example, while the state is being set with `pyscript.last_light_on = "light.overhead"`, there is no guarantee that this particular `@state_trigger` will fire. If it doesn't fire, then the set action is never taken. If the set action doesn't happen before Home Assistant is restarted, then this entity will no longer persist.
-
-In order to ensure persistence in these cases, it is advised to use the explict syntax.
 
 .. code:: python
 
