@@ -222,7 +222,6 @@ class State:
             "state.names": cls.names,
             "state.get_attr": cls.get_attr,
             "state.persist": cls.persist,
-            "state.persist_prefix": cls.persist_prefix,
             "pyscript.config": cls.pyscript_config,
         }
         Function.register(functions)
