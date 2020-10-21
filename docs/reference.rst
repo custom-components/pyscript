@@ -569,8 +569,8 @@ Persistent State
 
 This method is provided to indicate that a particular entity_id should be persisted. This is only effective for entitys in the `pyscript` domain.
 
-``state.persist(entity_id, default_value=None)``
-  Indicates that the entity named in `entity_id` should be persisted. Optionally, a default value can be provided.
+``state.persist(entity_id, default_value=None, default_attributes=None)``
+  Indicates that the entity named in `entity_id` should be persisted. Optionally, a default value and default attributes can be provided.
 
 
 
