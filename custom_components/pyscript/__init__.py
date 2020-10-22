@@ -211,6 +211,9 @@ async def async_unload_entry(hass, config_entry):
     # Unload scripts
     await unload_scripts()
 
+    # tell reaper task to exit (after other tasks are cancelled)
+    await Function.reaper_stop()
+
     # Unsubscribe from listeners
     for unsub_listener in hass.data[DOMAIN][UNSUB_LISTENERS]:
         unsub_listener()

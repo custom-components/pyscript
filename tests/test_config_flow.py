@@ -12,14 +12,14 @@ from homeassistant.config_entries import SOURCE_IMPORT, SOURCE_USER
 _LOGGER = logging.getLogger(__name__)
 
 
-@pytest.fixture(name="pyscript_bypass_setup", autouse=True)
+@pytest.fixture(name="pyscript_bypass_setup")
 def pyscript_bypass_setup_fixture():
     """Mock component setup."""
     with patch("custom_components.pyscript.async_setup_entry", return_value=True):
         yield
 
 
-async def test_user_flow_minimum_fields(hass):
+async def test_user_flow_minimum_fields(hass, pyscript_bypass_setup):
     """Test user config flow with minimum fields."""
     # test form shows
     result = await hass.config_entries.flow.async_init(DOMAIN, context={"source": SOURCE_USER})
@@ -35,7 +35,7 @@ async def test_user_flow_minimum_fields(hass):
     assert not result["data"][CONF_HASS_IS_GLOBAL]
 
 
-async def test_user_flow_all_fields(hass):
+async def test_user_flow_all_fields(hass, pyscript_bypass_setup):
     """Test user config flow with all fields."""
     # test form shows
     result = await hass.config_entries.flow.async_init(DOMAIN, context={"source": SOURCE_USER})
@@ -53,7 +53,7 @@ async def test_user_flow_all_fields(hass):
     assert result["data"][CONF_HASS_IS_GLOBAL]
 
 
-async def test_user_already_configured(hass):
+async def test_user_already_configured(hass, pyscript_bypass_setup):
     """Test service is already configured during user setup."""
     result = await hass.config_entries.flow.async_init(
         DOMAIN,
@@ -82,7 +82,7 @@ async def test_import_flow(hass, pyscript_bypass_setup):
     assert result["type"] == data_entry_flow.RESULT_TYPE_CREATE_ENTRY
 
 
-async def test_import_flow_update_allow_all_imports(hass):
+async def test_import_flow_update_allow_all_imports(hass, pyscript_bypass_setup):
     """Test import config flow updates existing entry when `allow_all_imports` has changed."""
     result = await hass.config_entries.flow.async_init(
         DOMAIN, context={"source": SOURCE_IMPORT}, data=PYSCRIPT_SCHEMA({})
@@ -100,7 +100,7 @@ async def test_import_flow_update_allow_all_imports(hass):
     assert result["reason"] == "updated_entry"
 
 
-async def test_import_flow_update_apps_from_none(hass):
+async def test_import_flow_update_apps_from_none(hass, pyscript_bypass_setup):
     """Test import config flow updates existing entry when `apps` has changed from None to something."""
     result = await hass.config_entries.flow.async_init(
         DOMAIN, context={"source": SOURCE_IMPORT}, data=PYSCRIPT_SCHEMA({})
@@ -116,7 +116,7 @@ async def test_import_flow_update_apps_from_none(hass):
     assert result["reason"] == "updated_entry"
 
 
-async def test_import_flow_update_apps_to_none(hass):
+async def test_import_flow_update_apps_to_none(hass, pyscript_bypass_setup):
     """Test import config flow updates existing entry when `apps` has changed from something to None."""
     result = await hass.config_entries.flow.async_init(
         DOMAIN, context={"source": SOURCE_IMPORT}, data=PYSCRIPT_SCHEMA({"apps": {"test_app": {"param": 1}}})
@@ -130,7 +130,7 @@ async def test_import_flow_update_apps_to_none(hass):
     assert result["reason"] == "updated_entry"
 
 
-async def test_import_flow_no_update(hass):
+async def test_import_flow_no_update(hass, pyscript_bypass_setup):
     """Test import config flow doesn't update existing entry when data is same."""
     result = await hass.config_entries.flow.async_init(
         DOMAIN, context={"source": SOURCE_IMPORT}, data=PYSCRIPT_SCHEMA({})
@@ -146,7 +146,7 @@ async def test_import_flow_no_update(hass):
     assert result["reason"] == "already_configured"
 
 
-async def test_import_flow_update_user(hass):
+async def test_import_flow_update_user(hass, pyscript_bypass_setup):
     """Test import config flow update excludes `allow_all_imports` from being updated when updated entry was a user entry."""
     result = await hass.config_entries.flow.async_init(
         DOMAIN,
@@ -170,7 +170,7 @@ async def test_import_flow_update_user(hass):
     }
 
 
-async def test_import_flow_update_import(hass):
+async def test_import_flow_update_import(hass, pyscript_bypass_setup):
     """Test import config flow update includes `allow_all_imports` in update when updated entry was imported entry."""
     result = await hass.config_entries.flow.async_init(
         DOMAIN,
@@ -190,7 +190,7 @@ async def test_import_flow_update_import(hass):
     assert hass.config_entries.async_entries(DOMAIN)[0].data == {"apps": {"test_app": {"param": 1}}}
 
 
-async def test_options_flow_import(hass):
+async def test_options_flow_import(hass, pyscript_bypass_setup):
     """Test options flow aborts because configuration needs to be managed via configuration.yaml."""
     result = await hass.config_entries.flow.async_init(
         DOMAIN,
@@ -212,7 +212,7 @@ async def test_options_flow_import(hass):
     assert result["title"] == ""
 
 
-async def test_options_flow_user_change(hass):
+async def test_options_flow_user_change(hass, pyscript_bypass_setup):
     """Test options flow updates config entry when options change."""
     result = await hass.config_entries.flow.async_init(
         DOMAIN,
@@ -240,7 +240,7 @@ async def test_options_flow_user_change(hass):
     assert entry.data[CONF_HASS_IS_GLOBAL] is False
 
 
-async def test_options_flow_user_no_change(hass):
+async def test_options_flow_user_no_change(hass, pyscript_bypass_setup):
     """Test options flow aborts when options don't change."""
     result = await hass.config_entries.flow.async_init(
         DOMAIN,
@@ -267,3 +267,19 @@ async def test_options_flow_user_no_change(hass):
 
     assert result["type"] == data_entry_flow.RESULT_TYPE_CREATE_ENTRY
     assert result["title"] == ""
+
+
+async def test_config_entry_reload(hass):
+    """Test that config entry reload does not duplicate listeners."""
+    result = await hass.config_entries.flow.async_init(
+        DOMAIN,
+        context={"source": SOURCE_USER},
+        data=PYSCRIPT_SCHEMA({CONF_ALLOW_ALL_IMPORTS: True, CONF_HASS_IS_GLOBAL: True}),
+    )
+    await hass.async_block_till_done()
+    assert result["type"] == data_entry_flow.RESULT_TYPE_CREATE_ENTRY
+    entry = result["result"]
+    listeners = hass.bus.async_listeners()
+    await hass.config_entries.async_reload(entry.entry_id)
+    await hass.async_block_till_done()
+    assert listeners == hass.bus.async_listeners()
