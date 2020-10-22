@@ -4,7 +4,7 @@ import logging
 import os
 from types import ModuleType
 
-from .const import CONF_HASS_IS_GLOBAL, DOMAIN, FOLDER, LOGGER_PATH
+from .const import CONF_HASS_IS_GLOBAL, CONFIG_ENTRY, DOMAIN, FOLDER, LOGGER_PATH
 from .eval import AstEval
 from .function import Function
 from .trigger import TrigInfo
@@ -26,7 +26,7 @@ class GlobalContext:
         self.auto_start = False
         self.module = None
         self.rel_import_path = rel_import_path
-        config_entry = Function.hass.data.get(DOMAIN, {})
+        config_entry = Function.hass.data.get(DOMAIN, {}).get(CONFIG_ENTRY, {})
         if config_entry.data.get(CONF_HASS_IS_GLOBAL, False):
             #
             # expose hass as a global variable if configured

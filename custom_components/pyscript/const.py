@@ -2,6 +2,9 @@
 
 DOMAIN = "pyscript"
 
+CONFIG_ENTRY = "config_entry"
+UNSUB_LISTENERS = "unsub_listeners"
+
 FOLDER = "pyscript"
 
 CONF_ALLOW_ALL_IMPORTS = "allow_all_imports"

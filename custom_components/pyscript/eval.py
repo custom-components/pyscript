@@ -16,7 +16,14 @@ import yaml
 from homeassistant.const import SERVICE_RELOAD
 from homeassistant.helpers.service import async_set_service_schema
 
-from .const import ALLOWED_IMPORTS, CONF_ALLOW_ALL_IMPORTS, DOMAIN, LOGGER_PATH, SERVICE_JUPYTER_KERNEL_START
+from .const import (
+    ALLOWED_IMPORTS,
+    CONF_ALLOW_ALL_IMPORTS,
+    CONFIG_ENTRY,
+    DOMAIN,
+    LOGGER_PATH,
+    SERVICE_JUPYTER_KERNEL_START,
+)
 from .function import Function
 from .state import State
 
@@ -745,7 +752,7 @@ class AstEval:
         self.logger_handlers = set()
         self.logger = None
         self.set_logger_name(logger_name if logger_name is not None else self.name)
-        self.config_entry = Function.hass.data.get(DOMAIN, {})
+        self.config_entry = Function.hass.data.get(DOMAIN, {}).get(CONFIG_ENTRY, {})
 
     async def ast_not_implemented(self, arg, *args):
         """Raise NotImplementedError exception for unimplemented AST types."""
