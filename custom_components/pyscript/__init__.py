@@ -73,8 +73,45 @@ async def restore_state(hass):
             hass.states.async_set(entity_id, last_state.state, last_state.attributes)
 
 
+async def update_yaml_config(hass, config_entry):
+    """Update the yaml config."""
+    try:
+        conf = await async_hass_config_yaml(hass)
+    except HomeAssistantError as err:
+        _LOGGER.error(err)
+        return
+
+    config = PYSCRIPT_SCHEMA(conf.get(DOMAIN, {}))
+
+    #
+    # If data in config doesn't match config entry, trigger a config import
+    # so that the config entry can get updated
+    #
+    if config != config_entry.data:
+        await hass.config_entries.flow.async_init(DOMAIN, context={"source": SOURCE_IMPORT}, data=config)
+
+
+def start_global_contexts():
+    """Start all the file and apps global contexts."""
+    start_list = []
+    for global_ctx_name, global_ctx in GlobalContextMgr.items():
+        idx = global_ctx_name.find(".")
+        if idx < 0 or global_ctx_name[0:idx] not in {"file", "apps"}:
+            continue
+        global_ctx.set_auto_start(True)
+        start_list.append(global_ctx)
+    for global_ctx in start_list:
+        global_ctx.start()
+
+
 async def async_setup_entry(hass, config_entry):
     """Initialize the pyscript config entry."""
+    if Function.hass:
+        #
+        # reload yaml if this isn't the first time (ie, on reload)
+        #
+        await update_yaml_config(hass, config_entry)
+
     Function.init(hass)
     Event.init(hass)
     TrigTime.init(hass)
@@ -83,7 +120,6 @@ async def async_setup_entry(hass, config_entry):
     GlobalContextMgr.init()
 
     pyscript_folder = hass.config.path(FOLDER)
-
     if not await hass.async_add_executor_job(os.path.isdir, pyscript_folder):
         _LOGGER.debug("Folder %s not found in configuration folder, creating it", FOLDER)
         await hass.async_add_executor_job(os.makedirs, pyscript_folder)
@@ -100,36 +136,14 @@ async def async_setup_entry(hass, config_entry):
         """Handle reload service calls."""
         _LOGGER.debug("reload: yaml, reloading scripts, and restarting")
 
-        try:
-            conf = await async_hass_config_yaml(hass)
-        except HomeAssistantError as err:
-            _LOGGER.error(err)
-            return
-
-        config = PYSCRIPT_SCHEMA(conf.get(DOMAIN, {}))
-
-        # If data in config doesn't match config entry, trigger a config import
-        # so that the config entry can get updated
-        if config != config_entry.data:
-            await hass.config_entries.flow.async_init(DOMAIN, context={"source": SOURCE_IMPORT}, data=config)
-
+        await update_yaml_config(hass, config_entry)
         State.set_pyscript_config(config_entry.data)
 
         await unload_scripts()
 
         await load_scripts(hass, config_entry.data)
 
-        for global_ctx_name, global_ctx in GlobalContextMgr.items():
-            idx = global_ctx_name.find(".")
-            if idx < 0 or global_ctx_name[0:idx] not in {"file", "apps"}:
-                continue
-            global_ctx.set_auto_start(True)
-
-        for global_ctx_name, global_ctx in GlobalContextMgr.items():
-            idx = global_ctx_name.find(".")
-            if idx < 0 or global_ctx_name[0:idx] not in {"file", "apps"}:
-                continue
-            global_ctx.start()
+        start_global_contexts()
 
     hass.services.async_register(DOMAIN, SERVICE_RELOAD, reload_scripts_handler)
 
@@ -176,32 +190,22 @@ async def async_setup_entry(hass, config_entry):
         }
         await State.update(new_vars, func_args)
 
-    async def start_triggers(event):
-        _LOGGER.debug("adding state changed listener and starting triggers")
+    async def hass_started(event):
+        _LOGGER.debug("adding state changed listener and starting global contexts")
         hass.data[DOMAIN][UNSUB_LISTENERS].append(hass.bus.async_listen(EVENT_STATE_CHANGED, state_changed))
-        for global_ctx_name, global_ctx in GlobalContextMgr.items():
-            idx = global_ctx_name.find(".")
-            if idx < 0 or global_ctx_name[0:idx] not in {"file", "apps"}:
-                continue
-            global_ctx.set_auto_start(True)
-        for global_ctx_name, global_ctx in GlobalContextMgr.items():
-            idx = global_ctx_name.find(".")
-            if idx < 0 or global_ctx_name[0:idx] not in {"file", "apps"}:
-                continue
-            global_ctx.start()
+        start_global_contexts()
 
-    async def stop_triggers(event):
-        _LOGGER.debug("stopping triggers")
-        for _, global_ctx in GlobalContextMgr.items():
-            global_ctx.stop()
+    async def hass_stop(event):
+        _LOGGER.debug("stopping global contexts")
+        await unload_scripts(unload_all=True)
         # tell reaper task to exit (after other tasks are cancelled)
         await Function.reaper_stop()
 
     # Store callbacks to event listeners so we can unsubscribe on unload
     hass.data[DOMAIN][UNSUB_LISTENERS].append(
-        hass.bus.async_listen(EVENT_HOMEASSISTANT_STARTED, start_triggers)
+        hass.bus.async_listen(EVENT_HOMEASSISTANT_STARTED, hass_started)
     )
-    hass.data[DOMAIN][UNSUB_LISTENERS].append(hass.bus.async_listen(EVENT_HOMEASSISTANT_STOP, stop_triggers))
+    hass.data[DOMAIN][UNSUB_LISTENERS].append(hass.bus.async_listen(EVENT_HOMEASSISTANT_STOP, hass_stop))
 
     return True
 
@@ -211,9 +215,6 @@ async def async_unload_entry(hass, config_entry):
     # Unload scripts
     await unload_scripts()
 
-    # tell reaper task to exit (after other tasks are cancelled)
-    await Function.reaper_stop()
-
     # Unsubscribe from listeners
     for unsub_listener in hass.data[DOMAIN][UNSUB_LISTENERS]:
         unsub_listener()
@@ -222,13 +223,14 @@ async def async_unload_entry(hass, config_entry):
     return True
 
 
-async def unload_scripts():
-    """Unload all scripts from GlobalContextMgr."""
+async def unload_scripts(unload_all=False):
+    """Unload all scripts from GlobalContextMgr with given name prefixes."""
     ctx_delete = {}
     for global_ctx_name, global_ctx in GlobalContextMgr.items():
-        idx = global_ctx_name.find(".")
-        if idx < 0 or global_ctx_name[0:idx] not in {"file", "apps", "modules"}:
-            continue
+        if not unload_all:
+            idx = global_ctx_name.find(".")
+            if idx < 0 or global_ctx_name[0:idx] not in {"file", "apps", "modules"}:
+                continue
         global_ctx.stop()
         ctx_delete[global_ctx_name] = global_ctx
     for global_ctx_name, global_ctx in ctx_delete.items():

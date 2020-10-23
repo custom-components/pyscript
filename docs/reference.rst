@@ -6,8 +6,9 @@ Configuration
 
 Pyscript can be configured using the UI, or via yaml. To use the UI, go to the
 Configuration -> Integrations page and selection "+" to add ``Pyscript Python scripting``.
-After that, you can change the settings anytime by selecting Options under Pyscript
-in the Configuration page.
+After that, you can change the settings anytime by selecting "Options" under Pyscript
+in the Configuration page. You will need to select "reload" under Pyscript, or call
+the ``pyscript.reload`` service for the new settings to take effect.
 
 Alternatively, for yaml configuration, add ``pyscript:`` to ``<config>/configuration.yaml``.
 You can't mix these two methods - your initial choice determines how you should update
@@ -16,7 +17,8 @@ uninstall and reinstall pyscript.
 
 Pyscript has two optional configuration parameters that allow any python package to be
 imported and exposes the ``hass`` variable as a global (both options default to ``false``).
-In `<config>/configuration.yaml``:
+Assuming you didn't use the UI to configure pyscript, these can be set
+in `<config>/configuration.yaml``:
 
 .. code:: yaml
 
@@ -43,6 +45,10 @@ For example, applications ``my_app1`` and ``my_app2`` would be configured as:
            # any settings for my_app1 go here
         my_app2:
            # any settings for my_app2 go here
+
+Note that if you used the UI flow to configure pyscript, the ``allow_all_imports`` and
+`hass_is_global`` configuration settings will be ignored in the yaml file.  In that case
+you should omit them from the yaml, and just use yaml for pycript app configuration.
 
 As explained below, the use of ``apps`` with entries for each application by name below,
 is used to determine which application scripts are autoloaded. That's the only configuration
@@ -86,11 +92,12 @@ Even if you can’t directly call one function from another script file, HASS st
 global and services can be called from any script file.
 
 Reloading the ``.py`` files is accomplished by calling the ``pyscript.reload`` service, which is the
-one built-in service (so you can’t create your own service with that name). All function
-definitions, services and triggers are re-created on ``reload``, except for any active Jupyter
-sessions. Any currently running functions (ie, functions that have been triggered and are actively
-executing Python code or waiting inside ``task.sleep()`` or ``task.wait_until()``) are not stopped
-by ``reload`` - they continue to run until they finish (return). You can terminate these running
+one built-in service (so you can’t create your own service with that name). You can also reload by
+selecting Configuration -> Integrations -> Pyscript -> reload in the UI.  All function definitions,
+services and triggers are re-created on ``reload``, except for any active Jupyter sessions. Any
+currently running functions (ie, functions that have been triggered and are actively executing
+Python code or waiting inside ``task.sleep()`` or ``task.wait_until()``) are not stopped by
+``reload`` - they continue to run until they finish (return). You can terminate these running
 functions too on ``reload`` if you wish by calling ``task.unique()`` in the script file preamble
 (ie, outside any function definition), so it is executed on load and reload, which will terminate
 any running functions that have previously called ``task.unique()`` with the same argument.
@@ -98,6 +105,8 @@ any running functions that have previously called ``task.unique()`` with the sam
 
 State Variables
 ---------------
+
+These are typically called entities or ``entity_id`` in HASS.
 
 State variables can be accessed in any Python code simply by name. State variables (also called
 ``entity_id``) are of the form ``DOMAIN.name``, where ``DOMAIN`` is typically the name of the
@@ -567,12 +576,14 @@ variable has a numeric value, you might want to convert it to a numeric type (eg
 Persistent State
 ^^^^^^^^^^^^^^^^
 
-This method is provided to indicate that a particular entity_id should be persisted. This is only effective for entitys in the `pyscript` domain.
+This function specifies that a the state variable ``entity_id`` should be persisted (ie, its value
+and attributes are preserved across HASS restarts). This only applies to entities in the ``pyscript``
+domain (ie, name starts with ``pyscript.``).
 
 ``state.persist(entity_id, default_value=None, default_attributes=None)``
-  Indicates that the entity named in `entity_id` should be persisted. Optionally, a default value and default attributes can be provided.
-
-
+  Indicates that the entity ``entity_id`` should be persisted. Optionally, a default value and
+  default attributes (a ``dict``) can be specified, which are applied to the entity if it doesn't
+  exist or doesn't have any attributes respectively.
 
 Service Calls
 ^^^^^^^^^^^^^
@@ -1218,28 +1229,10 @@ is optional in pyscript):
 Persistent State
 ^^^^^^^^^^^^^^^^
 
-Pyscript has the ability to persist state in the `pyscript.` domain. This means that setting an entity like `pyscript.test` will cause it to be restored to its previous state when Home Assistant is restarted.
-
-This can be done in any of the usual ways to set the state of an `entity_id`:
-
-.. code:: python
-
-   set.state('pyscript.test', 'on')
-
-   pyscript.test = 'on'
-
-Attributes can be included:
-
-.. code:: python
-
-   set.state('pyscript.test', 'on', friendly_name="Test", device_class="motion")
-
-   pyscript.test = 'on'
-   pyscript.test.friendly_name = 'Test'
-   pyscript.test.device_class = 'motion'
-
-In order to ensure that the state of a particular entity persists, you need to request persistence explicitly. This must be done in a code location that will be certain to run at startup. Generally, this means outside of trigger functions.
-
+Pyscript has the ability to persist state variables in the ``pyscript.`` domain, meaning their
+values and attributes are preserved across HASS restarts.  To specify that the value of a particular
+entity persists, you need to request persistence explicitly. This must be done in a code location
+that will be certain to run at startup.
 
 .. code:: python
 
@@ -1250,10 +1243,5 @@ In order to ensure that the state of a particular entity persists, you need to r
      light.turn_on('light.overhead')
      pyscript.last_light_on = "light.overhead"
 
-With this in place, `state.persist()` will be called every time this script is parsed, ensuring this particular state will persist. 
-
-
-   
-
-  
-  
+With this in place, ``state.persist()`` will be called every time this script is parsed, ensuring the
+``pyscript.last_light_on`` state variable state will persist between HASS restarts.

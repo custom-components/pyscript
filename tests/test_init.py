@@ -61,7 +61,7 @@ async def test_setup_makedirs_on_no_dir(hass, caplog):
     """Test setup calls os.makedirs when no dir found."""
     with patch("custom_components.pyscript.os.path.isdir", return_value=False), patch(
         "custom_components.pyscript.os.makedirs"
-    ) as makedirs_call:
+    ) as makedirs_call, patch("homeassistant.config.load_yaml_config_file", return_value={}):
         res = await async_setup_component(hass, "pyscript", {DOMAIN: {}})
 
     assert res

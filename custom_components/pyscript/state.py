@@ -125,7 +125,7 @@ class State:
 
     @classmethod
     async def register_persist(cls, var_name):
-        """Persists a pyscript state variable using RestoreState."""
+        """Register pyscript state variable to be persisted with RestoreState."""
         if var_name.startswith("pyscript.") and var_name not in cls.persisted_vars:
             restore_data = await RestoreStateData.async_get_instance(cls.hass)
             restore_data.async_restore_entity_added(var_name)
@@ -133,7 +133,7 @@ class State:
 
     @classmethod
     async def persist(cls, var_name, default_value=None, default_attributes=None):
-        """Ensures a pyscript domain state variable is persisted."""
+        """Persist a pyscript domain state variable, and update with optional defaults."""
         if var_name.count(".") != 1 or not var_name.startswith("pyscript."):
             raise NameError(f"invalid name {var_name} (should be 'pyscript.entity')")
 

@@ -120,16 +120,16 @@ def func12()
         print(f"glob_side_effect: path={path}, path_re={path_re}, result={result}")
         return result
 
+    conf = {"apps": {"world": {}}}
     with patch("custom_components.pyscript.os.path.isdir", return_value=True), patch(
         "custom_components.pyscript.glob.iglob"
     ) as mock_glob, patch("builtins.open", mock_open), patch(
-        "homeassistant.config.load_yaml_config_file", return_value={}
+        "homeassistant.config.load_yaml_config_file", return_value={"pyscript": conf}
     ), patch(
         "os.path.isfile"
     ) as mock_isfile:
         mock_isfile.side_effect = isfile_side_effect
         mock_glob.side_effect = glob_side_effect
-        conf = {"apps": {"world": {}}}
         assert await async_setup_component(hass, "pyscript", {DOMAIN: conf})
 
     notify_q = asyncio.Queue(0)

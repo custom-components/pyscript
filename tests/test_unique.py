@@ -21,6 +21,8 @@ async def setup_script(hass, notify_q, now, source):
         "custom_components.pyscript.glob.iglob", return_value=scripts
     ), patch("custom_components.pyscript.global_ctx.open", mock_open(read_data=source), create=True,), patch(
         "custom_components.pyscript.trigger.dt_now", return_value=now
+    ), patch(
+        "homeassistant.config.load_yaml_config_file", return_value={}
     ):
         assert await async_setup_component(hass, "pyscript", {DOMAIN: {}})
 

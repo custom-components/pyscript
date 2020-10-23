@@ -41,6 +41,11 @@ class Function:
     #
     ast_functions = {}
 
+    #
+    # task id of the task that cancel and waits for other tasks
+    #
+    task_cancel_repeaer = None
+
     def __init__(self):
         """Warn on Function instantiation."""
         _LOGGER.error("Function class is not meant to be instantiated")
@@ -89,14 +94,18 @@ class Function:
                 except Exception:
                     _LOGGER.error("task_cancel_reaper: got exception %s", traceback.format_exc(-1))
 
-        cls.task_reaper_q = asyncio.Queue(0)
-        cls.task_cancel_repeaer = Function.create_task(task_cancel_reaper(cls.task_reaper_q))
+        if not cls.task_cancel_repeaer:
+            cls.task_reaper_q = asyncio.Queue(0)
+            cls.task_cancel_repeaer = Function.create_task(task_cancel_reaper(cls.task_reaper_q))
 
     @classmethod
     async def reaper_stop(cls):
         """Tell the reaper task to exit by sending a special task None."""
-        cls.task_cancel(None)
-        await cls.task_cancel_repeaer
+        if cls.task_cancel_repeaer:
+            cls.task_cancel(None)
+            await cls.task_cancel_repeaer
+            cls.task_cancel_repeaer = None
+            cls.task_reaper_q = None
 
     @classmethod
     async def async_sleep(cls, duration):
