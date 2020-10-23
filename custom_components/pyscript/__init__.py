@@ -23,10 +23,12 @@ from homeassistant.loader import bind_hass
 from .const import (
     CONF_ALLOW_ALL_IMPORTS,
     CONF_HASS_IS_GLOBAL,
+    CONFIG_ENTRY,
     DOMAIN,
     FOLDER,
     LOGGER_PATH,
     SERVICE_JUPYTER_KERNEL_START,
+    UNSUB_LISTENERS,
 )
 from .eval import AstEval
 from .event import Event
@@ -87,7 +89,8 @@ async def async_setup_entry(hass, config_entry):
         await hass.async_add_executor_job(os.makedirs, pyscript_folder)
 
     hass.data.setdefault(DOMAIN, {})
-    hass.data[DOMAIN] = config_entry
+    hass.data[DOMAIN][CONFIG_ENTRY] = config_entry
+    hass.data[DOMAIN][UNSUB_LISTENERS] = []
 
     State.set_pyscript_config(config_entry.data)
 
@@ -112,15 +115,7 @@ async def async_setup_entry(hass, config_entry):
 
         State.set_pyscript_config(config_entry.data)
 
-        ctx_delete = {}
-        for global_ctx_name, global_ctx in GlobalContextMgr.items():
-            idx = global_ctx_name.find(".")
-            if idx < 0 or global_ctx_name[0:idx] not in {"file", "apps", "modules"}:
-                continue
-            global_ctx.stop()
-            ctx_delete[global_ctx_name] = global_ctx
-        for global_ctx_name, global_ctx in ctx_delete.items():
-            await GlobalContextMgr.delete(global_ctx_name)
+        await unload_scripts()
 
         await load_scripts(hass, config_entry.data)
 
@@ -183,7 +178,7 @@ async def async_setup_entry(hass, config_entry):
 
     async def start_triggers(event):
         _LOGGER.debug("adding state changed listener and starting triggers")
-        hass.bus.async_listen(EVENT_STATE_CHANGED, state_changed)
+        hass.data[DOMAIN][UNSUB_LISTENERS].append(hass.bus.async_listen(EVENT_STATE_CHANGED, state_changed))
         for global_ctx_name, global_ctx in GlobalContextMgr.items():
             idx = global_ctx_name.find(".")
             if idx < 0 or global_ctx_name[0:idx] not in {"file", "apps"}:
@@ -202,16 +197,42 @@ async def async_setup_entry(hass, config_entry):
         # tell reaper task to exit (after other tasks are cancelled)
         await Function.reaper_stop()
 
-    hass.bus.async_listen(EVENT_HOMEASSISTANT_STARTED, start_triggers)
-    hass.bus.async_listen(EVENT_HOMEASSISTANT_STOP, stop_triggers)
+    # Store callbacks to event listeners so we can unsubscribe on unload
+    hass.data[DOMAIN][UNSUB_LISTENERS].append(
+        hass.bus.async_listen(EVENT_HOMEASSISTANT_STARTED, start_triggers)
+    )
+    hass.data[DOMAIN][UNSUB_LISTENERS].append(hass.bus.async_listen(EVENT_HOMEASSISTANT_STOP, stop_triggers))
 
     return True
 
 
 async def async_unload_entry(hass, config_entry):
     """Unload a config entry."""
+    # Unload scripts
+    await unload_scripts()
+
+    # tell reaper task to exit (after other tasks are cancelled)
+    await Function.reaper_stop()
+
+    # Unsubscribe from listeners
+    for unsub_listener in hass.data[DOMAIN][UNSUB_LISTENERS]:
+        unsub_listener()
+
     hass.data.pop(DOMAIN)
     return True
+
+
+async def unload_scripts():
+    """Unload all scripts from GlobalContextMgr."""
+    ctx_delete = {}
+    for global_ctx_name, global_ctx in GlobalContextMgr.items():
+        idx = global_ctx_name.find(".")
+        if idx < 0 or global_ctx_name[0:idx] not in {"file", "apps", "modules"}:
+            continue
+        global_ctx.stop()
+        ctx_delete[global_ctx_name] = global_ctx
+    for global_ctx_name, global_ctx in ctx_delete.items():
+        await GlobalContextMgr.delete(global_ctx_name)
 
 
 @bind_hass
