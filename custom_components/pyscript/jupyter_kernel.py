@@ -242,7 +242,7 @@ class Kernel:
         self.console.setFormatter(formatter)
 
         # match alphanum or "." at end of line
-        self.completion_re = re.compile(r".*?([\w.]*)$")
+        self.completion_re = re.compile(r".*?([\w.]*)$", re.DOTALL)
 
         # see if line ends in a ":", with optional whitespace and comment
         # note: this doesn't detect if we are inside a quoted string...

@@ -269,6 +269,14 @@ async def test_jupyter_kernel_msgs(hass, caplog):
     assert reply["header"]["msg_type"] == "complete_reply"
     assert reply["content"]["matches"] == ["while"]
 
+    #
+    # test completions
+    #
+    code = "1+2\n3+4\nwhi"
+    reply = await shell_msg(sock, "complete_request", {"code": code, "cursor_pos": len(code)})
+    assert reply["header"]["msg_type"] == "complete_reply"
+    assert reply["content"]["matches"] == ["while"]
+
     code = "pyscr"
     reply = await shell_msg(sock, "complete_request", {"code": code, "cursor_pos": len(code)})
     assert reply["header"]["msg_type"] == "complete_reply"
