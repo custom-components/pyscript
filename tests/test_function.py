@@ -149,7 +149,7 @@ async def test_state_trigger(hass, caplog):
     await setup_script(
         hass,
         notify_q,
-        [dt(2020, 7, 1, 10, 59, 59, 999999), dt(2020, 7, 1, 11, 59, 59, 999999)],
+        [dt(2020, 7, 1, 10, 59, 59, 999998), dt(2020, 7, 1, 11, 59, 59, 999998)],
         """
 
 from math import sqrt
@@ -160,7 +160,9 @@ seq_num = 0
 # Instead of just a bare @time_trigger, do a real time trigger.
 # The first value of now() causes func_startup_sync() to start almost
 # immediately.  The remaining values of now() are all and hour later at
-# 11:59:59.999999, so this trigger won't happen again for another 24 hours.
+# 11:59:59.999998, so this trigger won't happen again for another 24 hours.
+# (we don't use 11:59:59.999999 because of a bug in croniter.match();
+# see https://github.com/taichino/croniter/issues/151)
 #
 @time_trigger("once(2020/07/01 11:00:00)")
 def func_startup_sync(trigger_type=None, trigger_time=None):
@@ -308,6 +310,7 @@ def func4(trigger_type=None, event_type=None, **kwargs):
     "xyz" + 123
 
 @state_trigger("pyscript.f5var1")
+@time_active("cron(* * * * *)")
 def func5(var_name=None, value=None):
     global seq_num
 
@@ -556,7 +559,7 @@ async def test_trigger_closures(hass, caplog):
     await setup_script(
         hass,
         notify_q,
-        [dt(2020, 7, 1, 10, 59, 59, 999999), dt(2020, 7, 1, 11, 59, 59, 999999)],
+        [dt(2020, 7, 1, 10, 59, 59, 999998), dt(2020, 7, 1, 11, 59, 59, 999998)],
         """
 
 seq_num = 0
