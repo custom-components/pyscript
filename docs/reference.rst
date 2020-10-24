@@ -456,12 +456,15 @@ first time (so there is no prior value).
 
 .. code:: python
 
-    @time_active(time_spec, ...)
+    @time_active(time_spec, ..., hold_off=None)
 
-``@time_active`` takes one or more strings that specify time-based ranges. When any trigger occurs
+``@time_active`` takes zero or more strings that specify time-based ranges. When any trigger occurs
 (whether time, state or event), each time range specification is checked. If the current time
 doesn’t fall within any range specified, the trigger is ignored and the trigger function is not
-called.
+called. The optional ``hold_off`` setting in seconds (floating point ok) will ignore any triggers
+that are within that amount of time from the last successful one. Think of this as making the trigger
+inactive for that number of seconds immediately following each successful trigger. This can be used
+for rate-limiting trigger events or debouncing a noisy sensor.
 
 Each string specification ``time_spec`` can take two forms:
 

@@ -316,6 +316,7 @@ def func5(var_name=None, value=None):
     pyscript.done = [seq_num, var_name, value]
 
 @state_trigger("pyscript.f6var1.attr1 == 123")
+@time_active("not range(2019/1/1, 2019/1/2)")
 def func6(var_name=None, value=None):
     global seq_num
 
@@ -332,13 +333,22 @@ def func7(var_name=None, value=None, old_value=None):
     log.info(f"func7 var = {var_name}, value = {value}")
     pyscript.done = [seq_num, var_name, value, old_value]
 
-@state_trigger("pyscript.f8var1 == '2' and pyscript.f8var1.old == None")
-@state_active("pyscript.no_such_variable is None")
-def func8(var_name=None, value=None, old_value=None):
+@state_trigger("pyscript.f8var1 == '2'")
+@time_active(hold_off=10000)
+def func8(var_name=None, value=None):
     global seq_num
 
     seq_num += 1
     log.info(f"func8 var = {var_name}, value = {value}")
+    pyscript.done = [seq_num, var_name, value]
+
+@state_trigger("pyscript.f9var1 == '2' and pyscript.f9var1.old == None")
+@state_active("pyscript.no_such_variable is None")
+def func9(var_name=None, value=None, old_value=None):
+    global seq_num
+
+    seq_num += 1
+    log.info(f"func9 var = {var_name}, value = {value}")
     pyscript.done = [seq_num, var_name, value, old_value]
 """,
     )
@@ -519,11 +529,24 @@ def func8(var_name=None, value=None, old_value=None):
     assert literal_eval(await wait_until_done(notify_q)) == [seq_num, "pyscript.f7var1", "2", "1"]
 
     #
-    # check that state_var.old is None first time
+    # check that hold_off prevents multiple triggers
     #
     seq_num += 1
     hass.states.async_set("pyscript.f8var1", 2)
-    assert literal_eval(await wait_until_done(notify_q)) == [seq_num, "pyscript.f8var1", "2", None]
+    hass.states.async_set("pyscript.f8var1", 0)
+    hass.states.async_set("pyscript.f8var1", 2)
+    hass.states.async_set("pyscript.f8var1", 0)
+    hass.states.async_set("pyscript.f8var1", 2)
+    hass.states.async_set("pyscript.f8var1", 0)
+    hass.states.async_set("pyscript.f8var1", 2)
+    assert literal_eval(await wait_until_done(notify_q)) == [seq_num, "pyscript.f8var1", "2"]
+
+    #
+    # check that state_var.old is None first time
+    #
+    seq_num += 1
+    hass.states.async_set("pyscript.f9var1", 2)
+    assert literal_eval(await wait_until_done(notify_q)) == [seq_num, "pyscript.f9var1", "2", None]
 
 
 async def test_trigger_closures(hass, caplog):

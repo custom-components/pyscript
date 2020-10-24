@@ -482,6 +482,7 @@ class TrigInfo:
         self.event_trigger = trig_cfg.get("event_trigger", {}).get("args", None)
         self.state_active = trig_cfg.get("state_active", {}).get("args", None)
         self.time_active = trig_cfg.get("time_active", {}).get("args", None)
+        self.time_active_kwargs = trig_cfg.get("time_active", {}).get("kwargs", None)
         self.task_unique = trig_cfg.get("task_unique", {}).get("args", None)
         self.task_unique_kwargs = trig_cfg.get("task_unique", {}).get("kwargs", None)
         self.action = trig_cfg.get("action")
@@ -604,6 +605,8 @@ class TrigInfo:
                 _LOGGER.debug("trigger %s adding event_trigger %s", self.name, self.event_trigger[0])
                 Event.notify_add(self.event_trigger[0], self.notify_q)
 
+            last_trigger_time = None
+
             while True:
                 timeout = None
                 notify_info = None
@@ -710,6 +713,20 @@ class TrigInfo:
                     )
                     continue
 
+                if (
+                    self.time_active_kwargs
+                    and "hold_off" in self.time_active_kwargs
+                    and last_trigger_time is not None
+                    and time.monotonic() < last_trigger_time + self.time_active_kwargs["hold_off"]
+                ):
+                    _LOGGER.debug(
+                        "trigger %s got %s trigger, but less than %s seconds since last trigger, so skipping",
+                        notify_type,
+                        self.name,
+                        self.time_active_kwargs["hold_off"],
+                    )
+                    continue
+
                 _LOGGER.debug(
                     "trigger %s got %s trigger, running action (kwargs = %s)",
                     self.name,
@@ -723,6 +740,8 @@ class TrigInfo:
                     await func.call(ast_ctx, **kwargs)
                     if ast_ctx.get_exception_obj():
                         ast_ctx.get_logger().error(ast_ctx.get_exception_long())
+
+                last_trigger_time = time.monotonic()
 
                 Function.create_task(
                     do_func_call(

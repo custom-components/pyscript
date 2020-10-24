@@ -395,7 +395,7 @@ class EvalFunc:
             "state_active": {"arg_cnt": {1}},
             "state_trigger": {"arg_cnt": {"*"}, "type": {list, set}},
             "task_unique": {"arg_cnt": {1}},
-            "time_active": {"arg_cnt": {"*"}},
+            "time_active": {"arg_cnt": {0, "*"}},
             "time_trigger": {"arg_cnt": {0, "*"}},
         }
         for dec_name, arg_info in arg_check.items():
@@ -453,6 +453,7 @@ class EvalFunc:
 
         kwarg_check = {
             "task_unique": {"kill_me"},
+            "time_active": {"hold_off"},
         }
         for dec_name in trig_args:
             if dec_name not in kwarg_check and "kwargs" in trig_args[dec_name]:
