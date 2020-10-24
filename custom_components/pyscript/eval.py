@@ -1951,7 +1951,7 @@ class AstEval:
             if name in self.global_sym_table:
                 var = self.global_sym_table[name]
                 try:
-                    for attr in var.__dir__():
+                    for attr in var.__dict__:
                         if attr.lower().startswith(attr_root) and (attr_root != "" or attr[0:1] != "_"):
                             words.add(f"{name}.{attr}")
                 except Exception:
