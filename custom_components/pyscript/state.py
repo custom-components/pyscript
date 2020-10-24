@@ -155,7 +155,9 @@ class State:
         if len(parts) != 2 and len(parts) != 3:
             return False
         value = cls.hass.states.get(f"{parts[0]}.{parts[1]}")
-        return value and (len(parts) == 2 or parts[2] in value.attributes)
+        return value and (
+            len(parts) == 2 or parts[2] in value.attributes or parts[2] in {"last_changed", "last_updated"}
+        )
 
     @classmethod
     async def get(cls, var_name):
@@ -168,6 +170,10 @@ class State:
             raise NameError(f"name '{parts[0]}.{parts[1]}' is not defined")
         if len(parts) == 2:
             return value.state
+        if parts[2] == "last_changed":
+            return value.last_changed
+        if parts[2] == "last_updated":
+            return value.last_updated
         if parts[2] not in value.attributes:
             raise AttributeError(f"state '{parts[0]}.{parts[1]}' has no attribute '{parts[2]}'")
         return value.attributes.get(parts[2])
@@ -196,7 +202,7 @@ class State:
             value = cls.hass.states.get(name)
             if value:
                 attr_root = root[last_period + 1 :]
-                for attr_name in value.attributes.keys():
+                for attr_name in set(value.attributes.keys()).union({"last_changed", "last_updated"}):
                     if attr_name.lower().startswith(attr_root):
                         words.add(f"{name}.{attr_name}")
         elif num_period < 2:

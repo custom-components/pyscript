@@ -572,9 +572,26 @@ which you can’t do if you are directly assigning to the variable:
   value is set and the attributes are not changed. To clear the attributes, set
   ``new_attributes={}``.
 
+Two special attribute values are available when you use a variable directly as ``DOMAIN.entity.attr``
+or call ``state.get("DOMAIN.entity.attr")``:
+- ``last_changed`` is the last UTC time the state value was changed (not the attributes)
+- ``last_updated`` is the last UTC time the state entity was updated
+
+Note that these two values take precedence over any entity attributes that have the same name. If an
+entity has attributes with those names and you need to access them, use `state.get_attr(name)``.
+If you need to compute how many seconds ago the ``binary_sensor.test1`` state changed, you could
+do this:
+
+.. code:: python
+
+   from datetime import datetime as dt
+   from datetime import timezone as timezone
+
+   num_seconds_ago = (dt.now(tz=timezone.utc) - binary_sensor.test1.last_changed).total_seconds()
+
 Note that in HASS, all state variable values are coerced into strings. For example, if a state
-variable has a numeric value, you might want to convert it to a numeric type (eg, using ``int()`` or
-``float()``). Attributes keep their native type.
+variable has a numeric value, you might want to convert it to a numeric type (eg, using ``int()``
+or ``float()``). Attributes keep their native type.
 
 Persistent State
 ^^^^^^^^^^^^^^^^

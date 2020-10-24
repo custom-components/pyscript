@@ -331,7 +331,8 @@ def func7(var_name=None, value=None, old_value=None):
 
     seq_num += 1
     log.info(f"func7 var = {var_name}, value = {value}")
-    pyscript.done = [seq_num, var_name, value, old_value]
+    secs = (pyscript.f7var1.last_updated - pyscript.f7var1.last_changed).total_seconds()
+    pyscript.done = [seq_num, var_name, value, old_value, secs]
 
 @state_trigger("pyscript.f8var1 == '2'")
 @time_active(hold_off=10000)
@@ -526,7 +527,7 @@ def func9(var_name=None, value=None, old_value=None):
     hass.states.async_set("pyscript.f7var1", 2)
     hass.states.async_set("pyscript.f7var1", 1)
     hass.states.async_set("pyscript.f7var1", 2)
-    assert literal_eval(await wait_until_done(notify_q)) == [seq_num, "pyscript.f7var1", "2", "1"]
+    assert literal_eval(await wait_until_done(notify_q)) == [seq_num, "pyscript.f7var1", "2", "1", 0.0]
 
     #
     # check that hold_off prevents multiple triggers
