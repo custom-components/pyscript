@@ -47,7 +47,7 @@ For example, applications ``my_app1`` and ``my_app2`` would be configured as:
            # any settings for my_app2 go here
 
 Note that if you used the UI flow to configure pyscript, the ``allow_all_imports`` and
-`hass_is_global`` configuration settings will be ignored in the yaml file.  In that case
+``hass_is_global`` configuration settings will be ignored in the yaml file.  In that case
 you should omit them from the yaml, and just use yaml for pycript app configuration.
 
 As explained below, the use of ``apps`` with entries for each application by name below,
@@ -939,7 +939,7 @@ event loop. That allows many of the "magic" features to be implemented without t
 worry about the details. However, the performance will be much slower that regular Python code,
 which is typically compiled. Any Python packages you import will run at native, compiled speed.
 
-So if you plan to run large chunks of code in pyscript without needing any of the pypscript-specific
+So if you plan to run large chunks of code in pyscript without needing any of the pyscript-specific
 features, you might consider putting them in a package and importing it instead. That way it will
 run at native compiled speed.
 
