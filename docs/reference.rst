@@ -102,7 +102,6 @@ functions too on ``reload`` if you wish by calling ``task.unique()`` in the scri
 (ie, outside any function definition), so it is executed on load and reload, which will terminate
 any running functions that have previously called ``task.unique()`` with the same argument.
 
-
 State Variables
 ---------------
 
@@ -119,9 +118,6 @@ State variables have attributes that can be accessed by adding the name of the a
 ``DOMAIN.name.attr``. The attribute names and their meaning depend on the component that sets them,
 so you will need to look at the State tab in the Developer Tools to see the available attributes.
 
-Starting in version 0.21, when you set a state variable, the existing attributes are not affected
-(they were previously removed).
-
 In cases where you need to compute the name of the state variable dynamically, or you need to set or
 get the state attributes, you can use the built-in functions ``state.get()``, ``state.get_attr()``
 and ``state.set()``; see below.
@@ -135,7 +131,26 @@ component has a state variable name that collides with one of its services, you�
 ``state.get(name)`` to access that state variable.
 
 Accessing state variables that don't exist will throw a ``NameError`` exception, and accessing
-an attribute that doesn't exist will throw a ``AttributeError`` exception.
+an attribute that doesn't exist will throw a ``AttributeError`` exception. One exception (!)
+to this that in a ``@state_trigger`` expression, undefined state variables will evaluate to
+``None`` instead of throwing an exception.
+
+Two virtual attribute values are available when you use a variable directly as ``DOMAIN.entity.attr``
+or call ``state.get("DOMAIN.entity.attr")``:
+- ``last_changed`` is the last UTC time the state value was changed (not the attributes)
+- ``last_updated`` is the last UTC time the state entity was updated
+
+Note that these two values take precedence over any entity attributes that have the same name. If an
+entity has attributes with those names and you need to access them, use ``state.get_attr(name)``.
+If you need to compute how many seconds ago the ``binary_sensor.test1`` state changed, you could
+do this:
+
+.. code:: python
+
+   from datetime import datetime as dt
+   from datetime import timezone as timezone
+
+   num_seconds_ago = (dt.now(tz=timezone.utc) - binary_sensor.test1.last_changed).total_seconds()
 
 Calling services
 ----------------
@@ -190,7 +205,7 @@ function.
 
 .. code:: python
 
-    @state_trigger(str_expr, ...)
+    @state_trigger(str_expr, ..., state_hold=None)
 
 ``@state_trigger`` takes one or more string arguments that contain any expression based on one or
 more state variables, and evaluates to ``True`` or ``False`` (or non-zero or zero). Whenever the
@@ -198,6 +213,13 @@ state variables mentioned in the expression change, the expression is evaluated 
 occurs if it evaluates to ``True`` (or non-zero). For each state variable, eg: ``domain.name``,
 the prior value is also available to the expression as ``domain.name.old`` in case you want to
 condition the trigger on the prior value too.
+
+The optional ``state_hold`` is a numeric duration is seconds. If specified, the state trigger
+delays executing the trigger function for this amount of time. If the state trigger expression
+changes to ``False`` during that time, the trigger is canceled and a wait for a new trigger
+begins. If the state trigger expression changes, but is still ``True`` then the ``state_hold``
+time is not restarted - the trigger will still occur that number of seconds after the first
+state trigger.
 
 Multiple arguments are logically "or"ed together, so the trigger occurs if any of the expressions
 evaluate to ``True``. Any argument can alternatively be a list or set of strings, and they are
@@ -228,6 +250,11 @@ You can specify a state trigger on any change with a string that is just the sta
 .. code:: python
 
    @state_trigger("domain.light_level")
+
+If you use this form, there's no point in also specifying ``state_hold`` since the expression
+is always True whenever the state variable changes - there is no way for it to evaluate
+to ``False`` and to re-start the trigger process. If you do specify ``state_hold`` in this
+case it will simply delay the trigger by the specified time.
 
 The trigger can include arguments with any mixture of string expressions (that are evaluated
 when any of the underlying state variables change) and string state variable names (that trigger
@@ -272,6 +299,12 @@ the keyword catch-all declaration instead:
 and all those values will simply get passed in into kwargs as a ``dict``. That’s the most useful
 form to use if you have multiple decorators, since each one passes different variables into the
 function (although all of them set ``trigger_type``).
+
+If ``state_hold`` is specified, the arguments to the trigger function reflect the variable change
+that cause the first trigger, not any subsequent ones during the ``state_hold`` period. Also, if
+the ``@time_active`` or ``@state_active`` decorators are used, they will be evaluated after the
+``state_hold`` period, but with the initial trigger variable value (ie, the value that caused
+the initial trigger).
 
 Inside ``str_expr``, undefined state variables, undefined state attributes, and undefined
 ``.old`` variables evaluate to ``None``, rather than throwing an exception. The ``.old`` variable will
@@ -428,7 +461,7 @@ more examples of built-in and user events and how to create triggers for them.
 
 This decorator is equivalent to calling ``task.unique()`` at the start of the function when that
 function is triggered. Like all the decorators, if the function is called directly from another
-Python function, this decorator has no effect. See `this section <#task-unique>`__ for more
+Python function, this decorator has no effect. See `this section <#task-unique-function>`__ for more
 details.
 
 @state_active
@@ -440,7 +473,12 @@ details.
 
 When any trigger occurs (whether time, state or event), the ``@state_active`` expression is
 evaluated. If it evaluates to ``False`` (or zero), the trigger is ignored and the trigger function
-is not called.
+is not called. This decorator is roughly equivalent to starting the trigger function with an
+``if`` statement with the ``str_expr`` (the minor difference is that this decorator uses the
+``@state_trigger`` variable value, if present, when evalauting ``str_expr``, whereas an
+``if`` statement at the start of the function uses its current value, which might be different
+if the state variable was changed immediately after the trigger, and the ``.old`` value is
+not available).
 
 If the trigger was caused by ``@state_trigger``, the prior value of the state variable that
 caused the trigger is available to ``str_expr`` with a ``.old`` suffix.
@@ -461,8 +499,8 @@ first time (so there is no prior value).
 ``@time_active`` takes zero or more strings that specify time-based ranges. When any trigger occurs
 (whether time, state or event), each time range specification is checked. If the current time
 doesn’t fall within any range specified, the trigger is ignored and the trigger function is not
-called. The optional ``hold_off`` setting in seconds (floating point ok) will ignore any triggers
-that are within that amount of time from the last successful one. Think of this as making the trigger
+called. The optional numeric ``hold_off`` setting in seconds will ignore any triggers that are
+within that amount of time from the last successful one. Think of this as making the trigger
 inactive for that number of seconds immediately following each successful trigger. This can be used
 for rate-limiting trigger events or debouncing a noisy sensor.
 
@@ -544,6 +582,8 @@ interpreted as a method or class function acting on that variable. That's the sa
 Python - for example if you set ``bytes`` to some value, then the ``bytes.fromhex()`` class method
 is no longer available in the current scope.
 
+.. _State Variable Functions:
+
 State variables
 ^^^^^^^^^^^^^^^
 
@@ -564,6 +604,13 @@ which you can’t do if you are directly assigning to the variable:
 ``state.names(domain=None)``
   Returns a list of all state variable names (ie, ``entity_id``\ s) of a
   domain. If ``domain`` is not specified, it returns all HASS state variable (``entity_id``) names.
+``state.persist(entity_id, default_value=None, default_attributes=None)``
+  Indicates that the entity ``entity_id`` should be persisted. Optionally, a default value and
+  default attributes (a ``dict``) can be specified, which are applied to the entity if it doesn't
+  exist or doesn't have any attributes respectively.  "Persist" mean its value and attributes
+  are preserved across HASS restarts. This only applies to entities in the ``pyscript``
+  domain (ie, name starts with ``pyscript.``). See `this section <#persistent-state>`__ for
+  more information
 ``state.set(name, value, new_attributes=None, **kwargs)``
   Sets the state variable to the given value, with the optional attributes. The optional 3rd
   argument, ``new_attributes``, should be a ``dict`` and it will overwrite all the existing
@@ -572,38 +619,9 @@ which you can’t do if you are directly assigning to the variable:
   value is set and the attributes are not changed. To clear the attributes, set
   ``new_attributes={}``.
 
-Two special attribute values are available when you use a variable directly as ``DOMAIN.entity.attr``
-or call ``state.get("DOMAIN.entity.attr")``:
-- ``last_changed`` is the last UTC time the state value was changed (not the attributes)
-- ``last_updated`` is the last UTC time the state entity was updated
-
-Note that these two values take precedence over any entity attributes that have the same name. If an
-entity has attributes with those names and you need to access them, use `state.get_attr(name)``.
-If you need to compute how many seconds ago the ``binary_sensor.test1`` state changed, you could
-do this:
-
-.. code:: python
-
-   from datetime import datetime as dt
-   from datetime import timezone as timezone
-
-   num_seconds_ago = (dt.now(tz=timezone.utc) - binary_sensor.test1.last_changed).total_seconds()
-
 Note that in HASS, all state variable values are coerced into strings. For example, if a state
 variable has a numeric value, you might want to convert it to a numeric type (eg, using ``int()``
 or ``float()``). Attributes keep their native type.
-
-Persistent State
-^^^^^^^^^^^^^^^^
-
-This function specifies that a the state variable ``entity_id`` should be persisted (ie, its value
-and attributes are preserved across HASS restarts). This only applies to entities in the ``pyscript``
-domain (ie, name starts with ``pyscript.``).
-
-``state.persist(entity_id, default_value=None, default_attributes=None)``
-  Indicates that the entity ``entity_id`` should be persisted. Optionally, a default value and
-  default attributes (a ``dict``) can be specified, which are applied to the entity if it doesn't
-  exist or doesn't have any attributes respectively.
 
 Service Calls
 ^^^^^^^^^^^^^
@@ -671,6 +689,8 @@ Task sleep
   sleeps for the indicated number of seconds, which can be floating point. Do not import ``time``
   and use ``time.sleep()`` - that will block lots of other activity.
 
+.. _Task unique function:
+
 Task unique
 ^^^^^^^^^^^
 
@@ -721,7 +741,16 @@ It takes the following keyword arguments (all are optional):
   startup. However, if you use the default of ``True``, and your function will call
   ``task.wait_until()`` again, it’s recommended you set that state variable to some other value
   immediately after ``task.wait_until()`` returns. Otherwise the next call will also return
-  immediately.
+  immediately. Note that entries in ``state_trigger`` that are plain state variable names
+  (which mean trigger on any change) are ignored during this initial check; only expressions
+  are evaluated.
+- ``state_hold=None`` is an optional numeric duration is seconds. If specified, any ``state_trigger``
+  delays returning for this amount of time. If the state trigger expression changes to ``False``
+  during that time, the trigger is canceled and a wait for a new trigger begins. If the state
+  trigger expression changes, but is still ``True`` then the ``state_hold`` time is not
+  restarted - ``task.wait_until() will return that number of seconds after the first state
+  trigger (unless a different trigger type or a ``timeout`` occurs first). This setting also
+  applies to the initial check when ``state_check_now=True``.
 
 When a trigger occurs, the return value is a ``dict`` containing the same keyword values that are
 passed into the function when the corresponding decorator trigger occurs. There will always be a key
@@ -1264,4 +1293,6 @@ that will be certain to run at startup.
      pyscript.last_light_on = "light.overhead"
 
 With this in place, ``state.persist()`` will be called every time this script is parsed, ensuring the
-``pyscript.last_light_on`` state variable state will persist between HASS restarts.
+``pyscript.last_light_on`` state variable state will persist between HASS restarts. If ``state.persist``
+is not called on a particular state variable before HASS stops, then that state variable will not be
+preserved on the next start.

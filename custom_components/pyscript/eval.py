@@ -454,6 +454,7 @@ class EvalFunc:
         kwarg_check = {
             "task_unique": {"kill_me"},
             "time_active": {"hold_off"},
+            "state_trigger": {"state_hold"},
         }
         for dec_name in trig_args:
             if dec_name not in kwarg_check and "kwargs" in trig_args[dec_name]:

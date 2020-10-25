@@ -222,7 +222,7 @@ def func4(trigger_type=None, event_type=None, **kwargs):
     state.set("pyscript.setVar1", 1 + int(state.get("pyscript.setVar1")), {"attr1": 456, "attr2": 987})
 
     seq_num += 1
-    res = task.wait_until(state_trigger="pyscript.f4var2 == '10'", timeout=10)
+    res = task.wait_until(state_trigger=["False", "pyscript.xyznotset", "pyscript.f4var2 == '10'"], timeout=10, state_hold=1e-6)
     log.info(f"func4 trigger_type = {res}")
     pyscript.done = [seq_num, res, pyscript.setVar1, pyscript.setVar1.attr1, state.get("pyscript.setVar1.attr2"),
     pyscript.setVar2, state.get("pyscript.setVar3")]
@@ -238,9 +238,10 @@ def func4(trigger_type=None, event_type=None, **kwargs):
 
     seq_num += 1
     #
-    # this should pick up the trigger interval at noon
+    # this should pick up the trigger interval at noon, and not trigger immediately
+    # due to the state change because of the state_hold
     #
-    res = task.wait_until(time_trigger="period(2020/07/01 11:00, 1 hour)", timeout=10)
+    res = task.wait_until(time_trigger="period(2020/07/01 11:00, 1 hour)", timeout=10, state_trigger="pyscript.f4var2 == '10'", state_hold=10000)
     log.info(f"func4 trigger_type = {res}")
     pyscript.done = [seq_num, res["trigger_type"], str(res["trigger_time"])]
 
@@ -249,7 +250,7 @@ def func4(trigger_type=None, event_type=None, **kwargs):
     # cron triggers at 10am, 11am, noon, 1pm, 2pm, 3pm, so this
     # should trigger at noon.
     #
-    res = task.wait_until(time_trigger="cron(0 10-15 * * *)", timeout=10)
+    res = task.wait_until(time_trigger="cron(0 10-15 * * *)", timeout=10, state_trigger="pyscript.f4var2 == '10'", state_hold=10000)
     log.info(f"func4 trigger_type = {res}")
     pyscript.done = [seq_num, res["trigger_type"], str(res["trigger_time"])]
 
@@ -258,7 +259,7 @@ def func4(trigger_type=None, event_type=None, **kwargs):
     # also add some month and day ranges; should still trigger at noon
     # on 7/1.
     #
-    res = task.wait_until(time_trigger="cron(0 10-15 1-5 6,7 *)", timeout=10)
+    res = task.wait_until(time_trigger="cron(0 10-15 1-5 6,7 *)", timeout=10, state_trigger="pyscript.f4var2 == '15'")
     log.info(f"func4 trigger_type = {res}")
     pyscript.done = [seq_num, res["trigger_type"], str(res["trigger_time"])]
 
@@ -277,6 +278,24 @@ def func4(trigger_type=None, event_type=None, **kwargs):
     # that isn't true
     #
     res = task.wait_until(state_trigger="pyscript.f4var2 == '20'", timeout=1e-6)
+    log.info(f"func4 trigger_type = {res}")
+    pyscript.done = [seq_num, res]
+
+    seq_num += 1
+    #
+    # make sure a short timeout works when there is a state trigger that is true
+    # immediately but is waiting for state_hold
+    #
+    res = task.wait_until(state_trigger="pyscript.f4var2 == '10'", timeout=1e-6, state_hold=1)
+    log.info(f"func4 trigger_type = {res}")
+    pyscript.done = [seq_num, res]
+
+    seq_num += 1
+    #
+    # make sure a short timeout works when there is a state trigger that while
+    # true isn't checked immediately
+    #
+    res = task.wait_until(state_trigger="pyscript.f4var2 == '11'", timeout=1e-6, state_check_now=False)
     log.info(f"func4 trigger_type = {res}")
     pyscript.done = [seq_num, res]
 
@@ -318,7 +337,7 @@ def func5(var_name=None, value=None):
     log.info(f"func5 var = {var_name}, value = {value}")
     pyscript.done = [seq_num, var_name, value]
 
-@state_trigger("pyscript.f6var1.attr1 == 123")
+@state_trigger("pyscript.f6var1.attr1 == 123", state_hold=1e-6)
 @time_active("not range(2019/1/1, 2019/1/2)")
 def func6(var_name=None, value=None):
     global seq_num
@@ -344,6 +363,14 @@ def func8(var_name=None, value=None):
 
     seq_num += 1
     log.info(f"func8 var = {var_name}, value = {value}")
+    pyscript.done = [seq_num, var_name, value]
+
+@state_trigger("pyscript.f8bvar1 == '30'", state_hold=100000)
+def func8b(var_name=None, value=None):
+    global seq_num
+
+    seq_num += 1
+    log.info(f"func8b var = {var_name}, value = {value}")
     pyscript.done = [seq_num, var_name, value]
 
 @state_trigger("pyscript.f9var1 == '2' and pyscript.f9var1.old == None")
@@ -480,9 +507,9 @@ def func9(var_name=None, value=None, old_value=None):
     assert literal_eval(hass.states.get("pyscript.setVar3").state) == {"foo": "bar"}
 
     #
-    # check for the four time triggers, three timeouts and two none
+    # check for the four time triggers, five timeouts and two none
     #
-    for trig_type in ["time"] * 4 + ["timeout"] * 3 + ["none"] * 2:
+    for trig_type in ["time"] * 4 + ["timeout"] * 5 + ["none"] * 2:
         seq_num += 1
         if trig_type == "time":
             assert literal_eval(await wait_until_done(notify_q)) == [
@@ -544,6 +571,16 @@ def func9(var_name=None, value=None, old_value=None):
     hass.states.async_set("pyscript.f8var1", 0)
     hass.states.async_set("pyscript.f8var1", 2)
     assert literal_eval(await wait_until_done(notify_q)) == [seq_num, "pyscript.f8var1", "2"]
+
+    #
+    # check that state_hold prevents any triggers that don't remain True
+    #
+    hass.states.async_set("pyscript.f8bvar1", 30)
+    hass.states.async_set("pyscript.f8bvar1", 31)
+    hass.states.async_set("pyscript.f8bvar1", 30)
+    hass.states.async_set("pyscript.f8bvar1", 31)
+    hass.states.async_set("pyscript.f8bvar1", 30)
+    hass.states.async_set("pyscript.f8bvar1", 31)
 
     #
     # check that state_var.old is None first time
