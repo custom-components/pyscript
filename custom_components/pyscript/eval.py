@@ -701,13 +701,13 @@ class EvalFuncVar:
         """Initialize instance with given EvalFunc function."""
         self.func = func
 
-    def call(self, ctx, *args, **kwargs):
-        """Call the EvalFunc function."""
-        return self.func.call(ctx, *args, **kwargs)
-
     def get_func(self):
         """Return the EvalFunc function."""
         return self.func
+
+    async def call(self, ast_ctx, *args, **kwargs):
+        """Call the EvalFunc function."""
+        return await self.func.call(ast_ctx, *args, **kwargs)
 
     def __del__(self):
         """On deletion, stop any triggers for this function."""
@@ -722,9 +722,26 @@ class EvalFuncVarClassInst(EvalFuncVar):
         super().__init__(func)
         self.class_inst = class_inst
 
-    def call(self, ctx, *args, **kwargs):
+    async def call(self, ast_ctx, *args, **kwargs):
         """Call the EvalFunc function."""
-        return self.func.call(ctx, self.class_inst, *args, **kwargs)
+        return await self.func.call(ast_ctx, self.class_inst, *args, **kwargs)
+
+
+class EvalFuncVarAstCtx:
+    """Class for a callable pyscript function with ast context."""
+
+    def __init__(self, ast_ctx, eval_func_var):
+        """Initialize instance with given EvalFunc function."""
+        self.eval_func_var = eval_func_var
+        self.ast_ctx = ast_ctx
+
+    async def call(self, ast_ctx, *args, **kwargs):
+        """Call the EvalFunc function."""
+        return await self.eval_func_var.call(ast_ctx, *args, **kwargs)
+
+    async def __call__(self, *args, **kwargs):
+        """Call the EvalFunc function using our saved ast ctx."""
+        return await self.eval_func_var.call(self.ast_ctx, *args, **kwargs)
 
 
 class AstEval:
@@ -770,6 +787,8 @@ class AstEval:
             val = await getattr(self, name, self.ast_not_implemented)(arg)
             if undefined_check and isinstance(val, EvalName):
                 raise NameError(f"name '{val.name}' is not defined")
+            if isinstance(val, EvalFuncVar):
+                return EvalFuncVarAstCtx(self, val)
             return val
         except Exception as err:
             if not self.exception_obj:
@@ -1646,7 +1665,7 @@ class AstEval:
 
     async def call_func(self, func, func_name, *args, **kwargs):
         """Call a function with the given arguments."""
-        if isinstance(func, EvalFuncVar):
+        if isinstance(func, (EvalFuncVar, EvalFuncVarAstCtx)):
             return await func.call(self, *args, **kwargs)
         if inspect.isclass(func) and hasattr(func, "__init__evalfunc_wrap__"):
             inst = func()
