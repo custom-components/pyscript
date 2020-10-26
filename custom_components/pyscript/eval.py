@@ -42,12 +42,12 @@ BUILTIN_EXCLUDE = {
 }
 
 
-def ast_eval_exec_factory(ast_ctx, str_type):
+def ast_eval_exec_factory(ast_ctx, mode):
     """Generate a function that executes eval() or exec() with given ast_ctx."""
 
     async def eval_func(arg_str, eval_globals=None, eval_locals=None):
         eval_ast = AstEval(ast_ctx.name, ast_ctx.global_ctx)
-        eval_ast.parse(arg_str, f"{str_type}()")
+        eval_ast.parse(arg_str, f"{mode}()", mode=mode)
         if eval_ast.exception_obj:
             raise eval_ast.exception_obj
         eval_ast.local_sym_table = ast_ctx.local_sym_table
@@ -1116,6 +1116,10 @@ class AstEval:
     async def ast_pass(self, arg):
         """Execute pass statement."""
 
+    async def ast_expression(self, arg):
+        """Execute expression statement."""
+        return await self.aeval(arg.body)
+
     async def ast_expr(self, arg):
         """Execute expression statement."""
         return await self.aeval(arg.value)
@@ -1843,7 +1847,7 @@ class AstEval:
             )
         return names
 
-    def parse(self, code_str, filename=None):
+    def parse(self, code_str, filename=None, mode="exec"):
         """Parse the code_str source code into an AST tree."""
         self.exception = None
         self.exception_obj = None
@@ -1861,7 +1865,7 @@ class AstEval:
             else:
                 self.code_str = code_str
                 self.code_list = []
-            self.ast = ast.parse(self.code_str, filename=self.filename)
+            self.ast = ast.parse(self.code_str, filename=self.filename, mode=mode)
             return True
         except SyntaxError as err:
             self.exception_obj = err

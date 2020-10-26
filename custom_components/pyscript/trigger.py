@@ -143,7 +143,7 @@ class TrigTime:
                     logger_name=ast_ctx.get_logger_name(),
                 )
                 Function.install_ast_funcs(state_trig_eval)
-                state_trig_eval.parse(state_trig_expr)
+                state_trig_eval.parse(state_trig_expr, mode="eval")
                 state_trig_ident = await state_trig_eval.get_names()
                 exc = state_trig_eval.get_exception_obj()
                 if exc is not None:
@@ -185,7 +185,7 @@ class TrigTime:
                     logger_name=ast_ctx.get_logger_name(),
                 )
                 Function.install_ast_funcs(event_trig_expr)
-                event_trig_expr.parse(event_trigger[1])
+                event_trig_expr.parse(event_trigger[1], mode="eval")
                 exc = event_trig_expr.get_exception_obj()
                 if exc is not None:
                     if len(state_trig_ident) > 0:
@@ -561,7 +561,7 @@ class TrigInfo:
                 f"{self.name} @state_active()", self.global_ctx, logger_name=self.name
             )
             Function.install_ast_funcs(self.active_expr)
-            self.active_expr.parse(self.state_active)
+            self.active_expr.parse(self.state_active, mode="eval")
             exc = self.active_expr.get_exception_long()
             if exc is not None:
                 self.active_expr.get_logger().error(exc)
@@ -602,7 +602,7 @@ class TrigInfo:
                     f"{self.name} @state_trigger()", self.global_ctx, logger_name=self.name
                 )
                 Function.install_ast_funcs(self.state_trig_eval)
-                self.state_trig_eval.parse(self.state_trig_expr)
+                self.state_trig_eval.parse(self.state_trig_expr, mode="eval")
                 exc = self.state_trig_eval.get_exception_long()
                 if exc is not None:
                     self.state_trig_eval.get_logger().error(exc)
@@ -615,7 +615,7 @@ class TrigInfo:
                     f"{self.name} @event_trigger()", self.global_ctx, logger_name=self.name,
                 )
                 Function.install_ast_funcs(self.event_trig_expr)
-                self.event_trig_expr.parse(self.event_trigger[1])
+                self.event_trig_expr.parse(self.event_trigger[1], mode="eval")
                 exc = self.event_trig_expr.get_exception_long()
                 if exc is not None:
                     self.event_trig_expr.get_logger().error(exc)

@@ -84,7 +84,7 @@ def func2():
     pass
 
 @state_trigger("True")
-@state_active("z + ")
+@state_active("z = 1")
 def func3():
     pass
 
@@ -167,7 +167,10 @@ def func_wrapup():
     hass.states.async_set("pyscript.var_done", 1)
     assert literal_eval(await wait_until_done(notify_q)) == seq_num
 
-    assert "SyntaxError: invalid syntax (file.hello.func1 @state_trigger(), line 1)" in caplog.text
+    assert (
+        "SyntaxError: unexpected EOF while parsing (file.hello.func1 @state_trigger(), line 1)"
+        in caplog.text
+    )
     assert (
         "SyntaxError: unexpected EOF while parsing (file.hello.func2 @event_trigger(), line 1)"
         in caplog.text
@@ -201,8 +204,7 @@ TypeError: unsupported operand type(s) for /: 'int' and 'str'"""
         in caplog.text
     )
 
-    assert "invalid syntax (file.hello.func7 state_trigger, line 1)" in caplog.text
-    assert "invalid syntax (file.hello.func7 event_trigger, line 1)" in caplog.text
+    assert "unexpected EOF while parsing (file.hello.func7 state_trigger, line 1)" in caplog.text
     assert 'can only concatenate str (not "int") to str' in caplog.text
     assert (
         "func8 defined in file.hello: decorator @state_trigger needs at least one argument; ignoring decorator"
