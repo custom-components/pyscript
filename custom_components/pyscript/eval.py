@@ -1872,7 +1872,10 @@ class AstEval:
             self.lineno = err.lineno
             self.col_offset = err.offset - 1
             self.exception = f"syntax error {err}"
-            self.exception_long = self.format_exc(err, self.lineno, self.col_offset)
+            if err.filename == self.filename:
+                self.exception_long = self.format_exc(err, self.lineno, self.col_offset)
+            else:
+                self.exception_long = self.format_exc(err, 1, self.col_offset, code_list=[err.text])
             return False
         except asyncio.CancelledError:
             raise
@@ -1884,15 +1887,17 @@ class AstEval:
             self.exception_long = self.format_exc(err)
             return False
 
-    def format_exc(self, exc, lineno=None, col_offset=None, short=False):
+    def format_exc(self, exc, lineno=None, col_offset=None, short=False, code_list=None):
         """Format an multi-line exception message using lineno if available."""
+        if code_list is None:
+            code_list = self.code_list
         if lineno is not None:
             if short:
                 mesg = f"In <{self.filename}> line {lineno}:\n"
-                mesg += "    " + self.code_list[lineno - 1]
+                mesg += "    " + code_list[lineno - 1]
             else:
                 mesg = f"Exception in <{self.filename}> line {lineno}:\n"
-                mesg += "    " + self.code_list[lineno - 1] + "\n"
+                mesg += "    " + code_list[lineno - 1] + "\n"
                 if col_offset is not None:
                     mesg += "    " + " " * col_offset + "^\n"
                 mesg += f"{type(exc).__name__}: {exc}"

@@ -919,6 +919,8 @@ evalTestsExceptions = [
         "import math; math.sinXYZ",
         "Exception in test line 1 column 13: module 'math' has no attribute 'sinXYZ'",
     ],
+    ["f'xxx{'", "syntax error f-string: expecting '}' (test, line 1)"],
+    ["f'xxx{foo() i}'", "syntax error invalid syntax (<fstring>, line 1)"],
     ["del xx", "Exception in test line 1 column 0: name 'xx' is not defined"],
     ["return", "Exception in test line 1 column 0: return statement outside function"],
     ["break", "Exception in test line 1 column 0: break statement outside loop"],
