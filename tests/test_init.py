@@ -14,6 +14,7 @@ from pytest_homeassistant_custom_component.async_mock import mock_open, patch
 
 from homeassistant import loader
 from homeassistant.const import EVENT_HOMEASSISTANT_STARTED, EVENT_STATE_CHANGED
+from homeassistant.core import Context
 from homeassistant.helpers.service import async_get_all_descriptions
 from homeassistant.setup import async_setup_component
 
@@ -259,11 +260,11 @@ async def test_service_run(hass, caplog):
         """
 
 @service
-def func1(arg1=1, arg2=2):
+def func1(arg1=1, arg2=2, context=None):
     x = 1
     x = 2 * x + 3
     log.info(f"this is func1 x = {x}, arg1 = {arg1}, arg2 = {arg2}")
-    pyscript.done = [x, arg1, arg2]
+    pyscript.done = [x, arg1, arg2, str(context)]
 
 @service
 def func2(**kwargs):
@@ -272,6 +273,7 @@ def func2(**kwargs):
     log.info(f"this is func1 x = {x}, kwargs = {kwargs}")
     has2 = service.has_service("pyscript", "func2")
     has3 = service.has_service("pyscript", "func3")
+    del kwargs["context"]
     pyscript.done = [x, kwargs, has2, has3]
 
 @service
@@ -284,34 +286,42 @@ def call_service(domain=None, name=None, **kwargs):
 
 """,
     )
-    await hass.services.async_call("pyscript", "func1", {})
+    context = Context(user_id="1234", parent_id="5678", id="8901")
+    await hass.services.async_call("pyscript", "func1", {}, context=context)
     ret = await wait_until_done(notify_q)
-    assert literal_eval(ret) == [5, 1, 2]
+    assert literal_eval(ret) == [5, 1, 2, str(context)]
     assert "this is func1 x = 5" in caplog.text
 
+    await hass.services.async_call("pyscript", "func1", {"arg1": 10}, context=context)
+    ret = await wait_until_done(notify_q)
+    assert literal_eval(ret) == [5, 10, 2, str(context)]
+
     await hass.services.async_call(
-        "pyscript", "call_service", {"domain": "pyscript", "name": "func1", "arg1": "string1"},
+        "pyscript",
+        "call_service",
+        {"domain": "pyscript", "name": "func1", "arg1": "string1"},
+        context=context,
     )
     ret = await wait_until_done(notify_q)
-    assert literal_eval(ret) == [5, "string1", 2]
+    assert literal_eval(ret) == [5, "string1", 2, str(context)]
 
-    await hass.services.async_call("pyscript", "func1", {"arg1": "string1", "arg2": 123})
+    await hass.services.async_call("pyscript", "func1", {"arg1": "string1", "arg2": 123}, context=context)
     ret = await wait_until_done(notify_q)
-    assert literal_eval(ret) == [5, "string1", 123]
+    assert literal_eval(ret) == [5, "string1", 123, str(context)]
 
     await hass.services.async_call("pyscript", "call_service", {"domain": "pyscript", "name": "func2"})
     ret = await wait_until_done(notify_q)
-    assert literal_eval(ret) == [5, {}, 1, 0]
+    assert literal_eval(ret) == [5, {"trigger_type": "service"}, 1, 0]
 
     await hass.services.async_call(
         "pyscript", "call_service", {"domain": "pyscript", "name": "func2", "arg1": "string1"},
     )
     ret = await wait_until_done(notify_q)
-    assert literal_eval(ret) == [5, {"arg1": "string1"}, 1, 0]
+    assert literal_eval(ret) == [5, {"trigger_type": "service", "arg1": "string1"}, 1, 0]
 
     await hass.services.async_call("pyscript", "func2", {"arg1": "string1", "arg2": 123})
     ret = await wait_until_done(notify_q)
-    assert literal_eval(ret) == [5, {"arg1": "string1", "arg2": 123}, 1, 0]
+    assert literal_eval(ret) == [5, {"trigger_type": "service", "arg1": "string1", "arg2": 123}, 1, 0]
 
 
 async def test_reload(hass, caplog):

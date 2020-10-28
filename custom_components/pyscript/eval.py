@@ -357,11 +357,12 @@ class EvalFunc:
                         Function.install_ast_funcs(ast_ctx)
                         func_args = {
                             "trigger_type": "service",
+                            "context": call.context,
                         }
                         func_args.update(call.data)
 
                         async def do_service_call(func, ast_ctx, data):
-                            await func.call(ast_ctx, **call.data)
+                            await func.call(ast_ctx, **data)
                             if ast_ctx.get_exception_obj():
                                 ast_ctx.get_logger().error(ast_ctx.get_exception_long())
 

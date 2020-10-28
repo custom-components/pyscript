@@ -2,8 +2,8 @@
 
 import logging
 
-from homeassistant.helpers.restore_state import RestoreStateData
 from homeassistant.core import Context
+from homeassistant.helpers.restore_state import RestoreStateData
 
 from .const import LOGGER_PATH
 from .function import Function
