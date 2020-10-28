@@ -5,6 +5,8 @@ import functools
 import logging
 import traceback
 
+from homeassistant.core import Context
+
 from .const import LOGGER_PATH
 
 _LOGGER = logging.getLogger(LOGGER_PATH + ".function")
@@ -170,7 +172,12 @@ class Function:
     @classmethod
     async def service_call(cls, domain, name, **kwargs):
         """Implement service.call()."""
-        await cls.hass.services.async_call(domain, name, kwargs)
+        if "context" in kwargs and isinstance(kwargs["context"], Context):
+            context = kwargs["context"]
+            del kwargs["context"]
+            await cls.hass.services.async_call(domain, name, kwargs, context=context)
+        else:
+            await cls.hass.services.async_call(domain, name, kwargs)
 
     @classmethod
     async def service_completions(cls, root):

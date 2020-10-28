@@ -35,10 +35,10 @@ class Event:
     async def event_listener(cls, event):
         """Listen callback for given event which updates any notifications."""
 
-        _LOGGER.debug("event_listener(%s)", event)
         func_args = {
             "trigger_type": "event",
             "event_type": event.event_type,
+            "context": event.context,
         }
         func_args.update(event.data)
         await cls.update(event.event_type, func_args)

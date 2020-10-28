@@ -81,6 +81,7 @@ def func0(var_name=None, value=None):
     pyscript.done = [seq_num, var_name]
     result = task.wait_until(state_trigger=["pyscript.f0var2"])
     seq_num += 1
+    result["context"] = {"user_id": result["context"].user_id, "parent_id": result["context"].parent_id, "id": "1234"}
     pyscript.done = [seq_num, var_name, result]
 
 @state_trigger("pyscript.f1var1 == '1'")
@@ -258,8 +259,15 @@ def func6():
     #
     seq_num += 1
     hass.states.async_set("pyscript.f0var2", 1)
+    context = {"user_id": None, "parent_id": None, "id": "1234"}
     assert literal_eval(await wait_until_done(notify_q)) == [
         seq_num,
         "pyscript.f0var1",
-        {"old_value": None, "trigger_type": "state", "value": "1", "var_name": "pyscript.f0var2"},
+        {
+            "old_value": None,
+            "trigger_type": "state",
+            "value": "1",
+            "var_name": "pyscript.f0var2",
+            "context": context,
+        },
     ]

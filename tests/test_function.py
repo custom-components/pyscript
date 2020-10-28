@@ -200,6 +200,7 @@ def func3(trigger_type=None, event_type=None, **kwargs):
     seq_num += 1
     log.info(f"func3 trigger_type = {trigger_type}, event_type = {event_type}, event_data = {kwargs}")
     exec_test = task.executor(sum, range(5))
+    kwargs["context"] = {"user_id": kwargs["context"].user_id, "parent_id": kwargs["context"].parent_id, "id": "1234"}
     pyscript.done = [seq_num, trigger_type, event_type, kwargs, exec_test]
 
 @event_trigger("test_event4", "arg1 == 20 and arg2 == 30")
@@ -209,6 +210,8 @@ def func4(trigger_type=None, event_type=None, **kwargs):
     seq_num += 1
     res = task.wait_until(event_trigger=["test_event4b", "arg1 == 25 and arg2 == 35"], timeout=10)
     log.info(f"func4 trigger_type = {res}, event_type = {event_type}, event_data = {kwargs}")
+    kwargs["context"] = {"user_id": kwargs["context"].user_id, "parent_id": kwargs["context"].parent_id, "id": "1234"}
+    res["context"] = kwargs["context"]
     pyscript.done = [seq_num, res, event_type, kwargs]
 
     seq_num += 1
@@ -224,6 +227,7 @@ def func4(trigger_type=None, event_type=None, **kwargs):
     seq_num += 1
     res = task.wait_until(state_trigger=["False", "pyscript.xyznotset", "pyscript.f4var2 == '10'"], timeout=10, state_hold=1e-6)
     log.info(f"func4 trigger_type = {res}")
+    res["context"] = {"user_id": res["context"].user_id, "parent_id": res["context"].parent_id, "id": "1234"}
     pyscript.done = [seq_num, res, pyscript.setVar1, pyscript.setVar1.attr1, state.get("pyscript.setVar1.attr2"),
     pyscript.setVar2, state.get("pyscript.setVar3")]
 
@@ -440,6 +444,8 @@ def func9(var_name=None, value=None, old_value=None):
     ]
     assert "func2 var = pyscript.f2var2, value = 2" in caplog.text
 
+    context = {"user_id": None, "parent_id": None, "id": "1234"}
+
     seq_num += 1
     hass.bus.async_fire("test_event3", {"arg1": 12, "arg2": 34})
     hass.bus.async_fire("test_event3", {"arg1": 20, "arg2": 29})
@@ -449,7 +455,7 @@ def func9(var_name=None, value=None, old_value=None):
         seq_num,
         "event",
         "test_event3",
-        {"arg1": 20, "arg2": 30},
+        {"arg1": 20, "arg2": 30, "context": context},
         10,
     ]
 
@@ -467,12 +473,15 @@ def func9(var_name=None, value=None, old_value=None):
         "event_type": "test_event4b",
         "arg1": 25,
         "arg2": 35,
+        "context": context,
     }
-    assert literal_eval(await wait_until_done(notify_q)) == [
+    ret = await wait_until_done(notify_q)
+    print(f"test_event4b ret = {ret}")
+    assert literal_eval(ret) == [
         seq_num,
         trig,
         "test_event4",
-        {"arg1": 20, "arg2": 30},
+        {"arg1": 20, "arg2": 30, "context": context},
     ]
 
     seq_num += 1
@@ -492,6 +501,7 @@ def func9(var_name=None, value=None, old_value=None):
         "var_name": "pyscript.f4var2",
         "value": "10",
         "old_value": "2",
+        "context": context,
     }
     result = literal_eval(await wait_until_done(notify_q))
     assert result[0] == seq_num
