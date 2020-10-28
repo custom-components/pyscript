@@ -39,6 +39,7 @@ class Event:
         func_args = {
             "trigger_type": "event",
             "event_type": event.event_type,
+            "context": event.context,
         }
         func_args.update(event.data)
         await cls.update(event.event_type, func_args)
