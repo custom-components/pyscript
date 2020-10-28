@@ -117,7 +117,12 @@ class Function:
     @classmethod
     async def event_fire(cls, event_type, **kwargs):
         """Implement event.fire()."""
-        cls.hass.bus.async_fire(event_type, kwargs)
+        if "context" in kwargs and isinstance(kwargs["context"], Context):
+            context = kwargs["context"]
+            del kwargs["context"]
+            cls.hass.bus.async_fire(event_type, kwargs, context=context)
+        else:
+            cls.hass.bus.async_fire(event_type, kwargs)
 
     @classmethod
     def task_unique_factory(cls, ctx):

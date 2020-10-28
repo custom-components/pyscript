@@ -3,6 +3,7 @@
 import logging
 
 from homeassistant.helpers.restore_state import RestoreStateData
+from homeassistant.core import Context
 
 from .const import LOGGER_PATH
 from .function import Function
@@ -115,13 +116,19 @@ class State:
                 new_attributes = state_value.attributes
             else:
                 new_attributes = {}
+
+        context = None
+        if "context" in kwargs and isinstance(kwargs["context"], Context):
+            context = kwargs["context"]
+            del kwargs["context"]
+
         if kwargs:
             new_attributes = new_attributes.copy()
             new_attributes.update(kwargs)
         _LOGGER.debug("setting %s = %s, attr = %s", var_name, value, new_attributes)
         cls.notify_var_last[var_name] = str(value)
 
-        cls.hass.states.async_set(var_name, value, new_attributes)
+        cls.hass.states.async_set(var_name, value, new_attributes, context=context)
 
     @classmethod
     async def register_persist(cls, var_name):
