@@ -4,7 +4,7 @@ import asyncio
 from datetime import datetime as dt
 import time
 
-from custom_components.pyscript.const import DOMAIN
+from custom_components.pyscript.const import CONF_ALLOW_ALL_IMPORTS, DOMAIN
 from custom_components.pyscript.function import Function
 import custom_components.pyscript.trigger as trigger
 import pytest
@@ -108,9 +108,9 @@ async def setup_script(hass, notify_q, now, source):
     ), patch("custom_components.pyscript.global_ctx.open", mock_open(read_data=source), create=True,), patch(
         "custom_components.pyscript.trigger.dt_now", return_value=now
     ), patch(
-        "homeassistant.config.load_yaml_config_file", return_value={}
+        "homeassistant.config.load_yaml_config_file", return_value={DOMAIN: {CONF_ALLOW_ALL_IMPORTS: True}}
     ):
-        assert await async_setup_component(hass, "pyscript", {DOMAIN: {}})
+        assert await async_setup_component(hass, "pyscript", {DOMAIN: {CONF_ALLOW_ALL_IMPORTS: True}})
 
     #
     # I'm not sure how to run the mock all the time, so just force the dt_now()
@@ -153,6 +153,7 @@ async def test_state_trigger(hass, caplog):
         """
 
 from math import sqrt
+from homeassistant.core import Context
 
 seq_num = 0
 
@@ -191,7 +192,8 @@ def func2(var_name=None, value=None):
 
 @event_trigger("fire_event")
 def fire_event(**kwargs):
-    event.fire(kwargs["new_event"], arg1=kwargs["arg1"], arg2=kwargs["arg2"])
+    context = Context(user_id="1234", parent_id="5678", id="8901")
+    event.fire(kwargs["new_event"], arg1=kwargs["arg1"], arg2=kwargs["arg2"], context=context)
 
 @event_trigger("test_event3", "arg1 == 20 and arg2 == 30")
 def func3(trigger_type=None, event_type=None, **kwargs):
@@ -200,7 +202,10 @@ def func3(trigger_type=None, event_type=None, **kwargs):
     seq_num += 1
     log.info(f"func3 trigger_type = {trigger_type}, event_type = {event_type}, event_data = {kwargs}")
     exec_test = task.executor(sum, range(5))
-    kwargs["context"] = {"user_id": kwargs["context"].user_id, "parent_id": kwargs["context"].parent_id, "id": "1234"}
+    if len(kwargs["context"].id) <= 8:
+        kwargs["context"] = {"user_id": kwargs["context"].user_id, "parent_id": kwargs["context"].parent_id, "id": kwargs["context"].id}
+    else:
+        kwargs["context"] = {"user_id": kwargs["context"].user_id, "parent_id": kwargs["context"].parent_id, "id": "1234"}
     pyscript.done = [seq_num, trigger_type, event_type, kwargs, exec_test]
 
 @event_trigger("test_event4", "arg1 == 20 and arg2 == 30")
@@ -444,7 +449,7 @@ def func9(var_name=None, value=None, old_value=None):
     ]
     assert "func2 var = pyscript.f2var2, value = 2" in caplog.text
 
-    context = {"user_id": None, "parent_id": None, "id": "1234"}
+    context = {"user_id": "1234", "parent_id": "5678", "id": "8901"}
 
     seq_num += 1
     hass.bus.async_fire("test_event3", {"arg1": 12, "arg2": 34})
@@ -458,6 +463,8 @@ def func9(var_name=None, value=None, old_value=None):
         {"arg1": 20, "arg2": 30, "context": context},
         10,
     ]
+
+    context = {"user_id": None, "parent_id": None, "id": "1234"}
 
     seq_num += 1
     hass.states.async_set("pyscript.f4var2", 2)
