@@ -137,6 +137,7 @@ to this that in a ``@state_trigger`` expression, undefined state variables will 
 
 Two virtual attribute values are available when you use a variable directly as ``DOMAIN.entity.attr``
 or call ``state.get("DOMAIN.entity.attr")``:
+
 - ``last_changed`` is the last UTC time the state value was changed (not the attributes)
 - ``last_updated`` is the last UTC time the state entity was updated
 
@@ -661,7 +662,8 @@ level will not appear in the log. Each log message function uses a log name of t
    custom_components.pyscript.file.FILENAME.FUNCNAME
 
 where ``FUNCNAME`` is the name of the top-level Python function (e.g., the one called by a trigger
-or service), defined in the script file ``FILENAME.py``. See the XXXX
+or service), defined in the script file ``FILENAME.py``. See the `Global Context <#global-context>`__
+section to see the logging path for other cases.
 
 That allows you to set the log level for each Python top-level function separately if necessary.
 That setting also applies to any other Python functions that the top-level Python function calls.
@@ -1296,3 +1298,42 @@ With this in place, ``state.persist()`` will be called every time this script is
 ``pyscript.last_light_on`` state variable state will persist between HASS restarts. If ``state.persist``
 is not called on a particular state variable before HASS stops, then that state variable will not be
 preserved on the next start.
+
+Language Limitations
+^^^^^^^^^^^^^^^^^^^^
+
+Pyscript implements a Python interpreter in a fully-async manner, which means it can run safely in the
+main HASS event loop.
+
+The language coverage is relatively complete, but it's quite possible there are discrepancies with Python
+in certain cases.  If so, please report them.
+
+Here are some areas where pyscript differs from real Python:
+
+- The pyscript-specific function names and state names that contain a period are treated as plain
+  identifiers that contain a period, rather than an attribute (to the right of the period) of an object
+  (to the left of the period). For example, while ``pyscript.reload`` and ``state.get`` are functions, ``pyscript``
+  and ``state`` aren't defined. However, if you set ``pyscript`` or ``state`` to some value (ie: assign them
+  as a variable), then ``pyscript.reload`` and ``state.get`` are now treated as accessing those attributes
+  in the ``pyscript`` or ``state`` object, rather than calls to the builtin functions, which are no longer
+  available. That's similar to regular Python, where if you set ``bytes`` to some value, the ``bytes.fromhex``
+  function is no longer available.
+- Since pyscript is async, it detects whether functions are real or async, and calls them in the
+  correct manner. So it's not necessary to use ``async`` and ``await`` in pyscript code - they are optional.
+- All pyscript functions are async. So if you call a Python module that takes a pyscript function as
+  a callback argument, that argument is an async function, not a normal function.  So a Python module
+  won't be able to call that pyscript function unless it uses ``await``, which requires that function to
+  be declared ``async``. Unless the Python module is designed to support async callbacks, it is not
+  currently possible to have Python modules and packages call pyscript functions. The workaround is
+  to move your callbacks from pyscript and make them native Python functions; see `Importing <#importing>`__.
+
+A handful of language features are not supported:
+
+- generators and the ``yield`` statement; these are difficult to implement in an interpreter.
+- function decorators, beyond the builtin ones, are not yet supported.  If there is interest, support
+  for function decorators could be added.  Additionally, the builtin function decorators aren't
+  functions that can be called and used in-line. There is a feature request to add this.
+
+Pyscript can call Python modules and packages, so you can always write your own native Python code
+(eg, if you need a generator or other unsupported feature) that can be called by psycript
+(see `Importing <#importing>`__ for how to create and import native Python modules in pyscript).

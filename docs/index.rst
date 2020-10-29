@@ -20,6 +20,7 @@ Contents
    tutorial
    reference
    contributing
+   release_history
    useful_links
 
 .. |GitHub Release| image:: https://img.shields.io/github/release/custom-components/pyscript.svg?style=for-the-badge
