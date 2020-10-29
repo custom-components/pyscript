@@ -831,7 +831,7 @@ class TrigInfo:
                 if "context" in func_args and isinstance(func_args["context"], Context):
                     hass_context = Context(parent_id=func_args["context"].id)
                 else:
-                    hass_context = Context()
+                    hass_context = None
 
                 # Fire an event indicating that pyscript is running
                 # Note: the event must have an entity_id for logbook to work correctly.
@@ -851,7 +851,7 @@ class TrigInfo:
                 async def do_func_call(func, ast_ctx, task_unique, task_unique_func, hass_context, **kwargs):
                     # Store HASS Context for this Task
                     Function.store_hass_context(hass_context)
-                    
+
                     if task_unique and task_unique_func:
                         await task_unique_func(task_unique)
                     await func.call(ast_ctx, **kwargs)

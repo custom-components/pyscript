@@ -125,10 +125,8 @@ class Function:
         if "context" in kwargs and isinstance(kwargs["context"], Context):
             context = kwargs["context"]
             del kwargs["context"]
-        elif curr_task in cls.task2context:
-            context = cls.task2context[curr_task]
         else:
-            context = Context()
+            context = cls.task2context.get(curr_task, None)
 
         cls.hass.bus.async_fire(event_type, kwargs, context=context)
 
@@ -195,10 +193,8 @@ class Function:
         if "context" in kwargs and isinstance(kwargs["context"], Context):
             context = kwargs["context"]
             del kwargs["context"]
-        elif curr_task in cls.task2context:
-            context = cls.task2context[curr_task]
         else:
-            context = Context()
+            context = cls.task2context.get(curr_task, None)
 
         await cls.hass.services.async_call(domain, name, kwargs, context=context)
 
@@ -261,10 +257,8 @@ class Function:
             if "context" in kwargs and isinstance(kwargs["context"], Context):
                 context = kwargs["context"]
                 del kwargs["context"]
-            elif curr_task in cls.task2context:
-                context = cls.task2context[curr_task]
             else:
-                context = Context()
+                context = cls.task2context.get(curr_task, None)
 
             await cls.hass.services.async_call(domain, service, kwargs, context=context)
 

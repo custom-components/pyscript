@@ -122,10 +122,8 @@ class State:
         if "context" in kwargs and isinstance(kwargs["context"], Context):
             context = kwargs["context"]
             del kwargs["context"]
-        elif curr_task in Function.task2context:
-            context = Function.task2context[curr_task]
         else:
-            context = Context()
+            context = Function.task2context.get(curr_task, None)
 
         if kwargs:
             new_attributes = new_attributes.copy()
