@@ -134,6 +134,7 @@ class Function:
 
     @classmethod
     def store_hass_context(cls, hass_context):
+        """Store a context against the running task."""
         curr_task = asyncio.current_task()
         cls.task2context[curr_task] = hass_context
 
