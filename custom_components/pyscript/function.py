@@ -239,7 +239,12 @@ class Function:
             return None
 
         async def service_call(*args, **kwargs):
-            await cls.hass.services.async_call(domain, service, kwargs)
+            if "context" in kwargs and isinstance(kwargs["context"], Context):
+                context = kwargs["context"]
+                del kwargs["context"]
+                await cls.hass.services.async_call(domain, service, kwargs, context=context)
+            else:
+                await cls.hass.services.async_call(domain, service, kwargs)
 
         return service_call
 
