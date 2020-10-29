@@ -665,11 +665,18 @@ class EvalFunc:
             # switch to the global symbol table in the global context
             # where the function was defined
             #
-            prev_sym_table = [ast_ctx.global_sym_table, ast_ctx.sym_table, ast_ctx.sym_table_stack]
+            prev_sym_table = [
+                ast_ctx.global_sym_table,
+                ast_ctx.sym_table,
+                ast_ctx.sym_table_stack,
+                ast_ctx.global_ctx,
+            ]
             ast_ctx.global_sym_table = self.global_ctx.get_global_sym_table()
             ast_ctx.sym_table_stack = [ast_ctx.global_sym_table]
+            ast_ctx.global_ctx = self.global_ctx
         else:
             ast_ctx.sym_table_stack.append(ast_ctx.sym_table)
+            prev_sym_table = None
         ast_ctx.sym_table = sym_table
         code_str, code_list = ast_ctx.code_str, ast_ctx.code_list
         ast_ctx.code_str, ast_ctx.code_list = self.code_str, self.code_list
@@ -689,8 +696,13 @@ class EvalFunc:
                 break
         ast_ctx.curr_func = prev_func
         ast_ctx.code_str, ast_ctx.code_list = code_str, code_list
-        if ast_ctx.global_ctx != self.global_ctx:
-            ast_ctx.global_sym_table, ast_ctx.sym_table, ast_ctx.sym_table_stack = prev_sym_table
+        if prev_sym_table is not None:
+            (
+                ast_ctx.global_sym_table,
+                ast_ctx.sym_table,
+                ast_ctx.sym_table_stack,
+                ast_ctx.global_ctx,
+            ) = prev_sym_table
         else:
             ast_ctx.sym_table = ast_ctx.sym_table_stack.pop()
         return val
