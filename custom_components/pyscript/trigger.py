@@ -11,6 +11,7 @@ import time
 from croniter import croniter
 
 import homeassistant.helpers.sun as sun
+from homeassistant.core import Context
 
 from .const import LOGGER_PATH
 from .eval import AstEval
@@ -826,6 +827,20 @@ class TrigInfo:
                     )
                     continue
 
+                # Create new HASS Context with incoming as parent
+                if "context" in func_args and isinstance(func_args["context"], Context):
+                    hass_context = Context(parent_id=func_args["context"].id)
+                else:
+                    hass_context = Context()
+
+                # Fire an event indicating that pyscript is running
+                # Note: the event must have an entity_id for logbook to work correctly.
+                ev_name = self.name.replace(".", "_")
+                ev_entity_id = f"pyscript.{ev_name}"
+
+                event_data = dict(name=ev_name, entity_id=ev_entity_id, func_args=func_args)
+                Function.hass.bus.async_fire("pyscript_running", event_data, context=hass_context)
+
                 _LOGGER.debug(
                     "trigger %s got %s trigger, running action (kwargs = %s)",
                     self.name,
@@ -833,7 +848,10 @@ class TrigInfo:
                     func_args,
                 )
 
-                async def do_func_call(func, ast_ctx, task_unique, task_unique_func, **kwargs):
+                async def do_func_call(func, ast_ctx, task_unique, task_unique_func, hass_context, **kwargs):
+                    # Store HASS Context for this Task
+                    Function.store_hass_context(hass_context)
+                    
                     if task_unique and task_unique_func:
                         await task_unique_func(task_unique)
                     await func.call(ast_ctx, **kwargs)
@@ -844,7 +862,12 @@ class TrigInfo:
 
                 Function.create_task(
                     do_func_call(
-                        self.action, action_ast_ctx, self.task_unique, task_unique_func, **func_args
+                        self.action,
+                        action_ast_ctx,
+                        self.task_unique,
+                        task_unique_func,
+                        hass_context,
+                        **func_args,
                     )
                 )
 
