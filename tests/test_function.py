@@ -1,4 +1,5 @@
 """Test the pyscript component."""
+
 from ast import literal_eval
 import asyncio
 from datetime import datetime as dt
@@ -173,7 +174,7 @@ def func_startup_sync(trigger_type=None, trigger_time=None):
     log.info(f"func_startup_sync setting pyscript.done = {seq_num}, trigger_type = {trigger_type}, trigger_time = {trigger_time}")
     pyscript.done = seq_num
 
-@state_trigger("pyscript.f1var1 == '1'")
+@state_trigger("pyscript.f1var1 == '1'", state_check_now=True)
 def func1(var_name=None, value=None):
     global seq_num
 
@@ -355,7 +356,7 @@ def func6(var_name=None, value=None):
     log.info(f"func6 var = {var_name}, value = {value}")
     pyscript.done = [seq_num, var_name, pyscript.f6var1.attr1]
 
-@state_trigger("pyscript.f7var1 == '2' and pyscript.f7var1.old == '1'")
+@state_trigger("pyscript.f7var1 == '2' and pyscript.f7var1.old == '1'", state_check_now=True)
 @state_active("pyscript.f7var1 == '2' and pyscript.f7var1.old == '1' and pyscript.no_such_variable is None")
 def func7(var_name=None, value=None, old_value=None):
     global seq_num
@@ -365,7 +366,7 @@ def func7(var_name=None, value=None, old_value=None):
     secs = (pyscript.f7var1.last_updated - pyscript.f7var1.last_changed).total_seconds()
     pyscript.done = [seq_num, var_name, value, old_value, secs]
 
-@state_trigger("pyscript.f8var1 == '2'")
+@state_trigger("pyscript.f8var1 == '2'", state_check_now=True)
 @time_active(hold_off=10000)
 def func8(var_name=None, value=None):
     global seq_num
@@ -681,3 +682,44 @@ f = [factory(50), factory(51), factory(52), factory(53), factory(54)]
         seq_num += 1
         hass.states.async_set("pyscript.var1", 101)
         assert literal_eval(await wait_until_done(notify_q)) == seq_num
+
+
+async def test_state_trigger_check_now(hass, caplog):
+    """Test state trigger."""
+    notify_q = asyncio.Queue(0)
+
+    hass.states.async_set("pyscript.fstartup", 1)
+
+    await setup_script(
+        hass,
+        notify_q,
+        [dt(2020, 7, 1, 10, 59, 59, 999998), dt(2020, 7, 1, 11, 59, 59, 999998)],
+        """
+
+from math import sqrt
+from homeassistant.core import Context
+
+seq_num = 0
+
+pyscript.fstartup = 1
+
+@state_trigger("pyscript.fstartup == '1'", state_check_now=True)
+def func_startup_sync(trigger_type=None, var_name=None):
+    global seq_num
+
+    seq_num += 1
+    log.info(f"func_startup_sync setting pyscript.done={seq_num}, trigger_type={trigger_type}, var_name={var_name}")
+    pyscript.done = [seq_num, trigger_type, var_name]
+""",
+    )
+    seq_num = 0
+
+    seq_num += 1
+    # fire event to start triggers, and handshake when they are running
+    hass.bus.async_fire(EVENT_HOMEASSISTANT_STARTED)
+    assert literal_eval(await wait_until_done(notify_q)) == [seq_num, "state", None]
+
+    seq_num += 1
+    hass.states.async_set("pyscript.fstartup", 0)
+    hass.states.async_set("pyscript.fstartup", 1)
+    assert literal_eval(await wait_until_done(notify_q)) == [seq_num, "state", "pyscript.fstartup"]

@@ -535,7 +535,9 @@ class TrigInfo:
         self.global_ctx = global_ctx
         self.trig_cfg = trig_cfg
         self.state_trigger = trig_cfg.get("state_trigger", {}).get("args", None)
-        self.state_hold_dur = trig_cfg.get("state_trigger", {}).get("kwargs", {}).get("state_hold", None)
+        self.state_trigger_kwargs = trig_cfg.get("state_trigger", {}).get("kwargs", {})
+        self.state_hold_dur = self.state_trigger_kwargs.get("state_hold", None)
+        self.state_check_now = self.state_trigger_kwargs.get("state_check_now", False)
         self.time_trigger = trig_cfg.get("time_trigger", {}).get("args", None)
         self.event_trigger = trig_cfg.get("event_trigger", {}).get("args", None)
         self.state_active = trig_cfg.get("state_active", {}).get("args", None)
@@ -677,8 +679,20 @@ class TrigInfo:
                     #
                     # first time only - skip waiting for other triggers
                     #
+                    notify_type = "startup"
                     notify_info = {"trigger_type": "time", "trigger_time": None}
                     self.run_on_startup = False
+                elif self.state_check_now:
+                    #
+                    # first time only - skip wait and check state trigger
+                    #
+                    notify_type = "state"
+                    if self.state_trig_ident:
+                        notify_vars = State.notify_var_get(self.state_trig_ident, {})
+                    else:
+                        notify_vars = {}
+                    notify_info = [notify_vars, {"trigger_type": notify_type}]
+                    self.state_check_now = False
                 else:
                     if self.time_trigger:
                         now = dt_now()
@@ -725,7 +739,7 @@ class TrigInfo:
                 elif notify_type == "state":
                     new_vars, func_args = notify_info
 
-                    if func_args["var_name"] not in self.state_trig_ident_any:
+                    if "var_name" not in func_args or func_args["var_name"] not in self.state_trig_ident_any:
                         if self.state_trig_eval:
                             trig_ok = await self.state_trig_eval.eval(new_vars)
                             exc = self.state_trig_eval.get_exception_long()

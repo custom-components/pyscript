@@ -206,7 +206,7 @@ function.
 
 .. code:: python
 
-    @state_trigger(str_expr, ..., state_hold=None)
+    @state_trigger(str_expr, ..., state_hold=None, state_check_now=False)
 
 ``@state_trigger`` takes one or more string arguments that contain any expression based on one or
 more state variables, and evaluates to ``True`` or ``False`` (or non-zero or zero). Whenever the
@@ -215,12 +215,21 @@ occurs if it evaluates to ``True`` (or non-zero). For each state variable, eg: `
 the prior value is also available to the expression as ``domain.name.old`` in case you want to
 condition the trigger on the prior value too.
 
-The optional ``state_hold`` is a numeric duration is seconds. If specified, the state trigger
-delays executing the trigger function for this amount of time. If the state trigger expression
-changes to ``False`` during that time, the trigger is canceled and a wait for a new trigger
-begins. If the state trigger expression changes, but is still ``True`` then the ``state_hold``
-time is not restarted - the trigger will still occur that number of seconds after the first
-state trigger.
+Optional arguments are:
+
+``state_hold=None``
+  A numeric duration in seconds that delays executing the trigger function for this amount of time.
+  If the state trigger expression changes back to ``False`` during that time, the trigger is
+  canceled and a wait for a new trigger begins. If the state trigger expression changes, but is
+  still ``True`` then the ``state_hold`` time is not restarted - the trigger will still occur
+  that number of seconds after the first state trigger.
+
+``state_check_now=False``
+  If set, the ``@state_trigger`` expression is evaluated immediately when the trigger function
+  is defined (typically at startup), and the trigger occurs if the expression evaluates
+  to ``True`` or non-zero. Normally the expression is only evaluated when a state variable
+  changes, and not when the trigger function is first defined. This option is the same as
+  in the ``task.wait_until`` function, except the default value is ``True`` in that case.
 
 Multiple arguments are logically "or"ed together, so the trigger occurs if any of the expressions
 evaluate to ``True``. Any argument can alternatively be a list or set of strings, and they are
@@ -300,6 +309,19 @@ the keyword catch-all declaration instead:
 and all those values will simply get passed in into kwargs as a ``dict``. That’s the most useful
 form to use if you have multiple decorators, since each one passes different variables into the
 function (although all of them set ``trigger_type``).
+
+If ``state_check_now`` is set to ``True`` and the trigger occurs during its immediate check, since
+there is no underlying state variable change, the trigger function is called with only this arguments:
+
+.. code:: python
+
+   kwargs = {
+       "trigger_type": "state",
+   }
+
+If the trigger function uses ``var_name==None`` as a keyword argument, it can check if it is ``None``
+to determined whether it was called immediately or not. Similarly, if it uses the ``kwargs``
+form, if can check if ``var_name`` is in ``kwargs``.
 
 If ``state_hold`` is specified, the arguments to the trigger function reflect the variable change
 that cause the first trigger, not any subsequent ones during the ``state_hold`` period. Also, if
