@@ -27,6 +27,10 @@ class Function:
     unique_name2task = {}
 
     #
+    # Mappings of task id to hass contexts
+    task2context = {}
+
+    #
     # Set of tasks that are running
     #
     our_tasks = set()
@@ -117,12 +121,20 @@ class Function:
     @classmethod
     async def event_fire(cls, event_type, **kwargs):
         """Implement event.fire()."""
+        curr_task = asyncio.current_task()
         if "context" in kwargs and isinstance(kwargs["context"], Context):
             context = kwargs["context"]
             del kwargs["context"]
-            cls.hass.bus.async_fire(event_type, kwargs, context=context)
         else:
-            cls.hass.bus.async_fire(event_type, kwargs)
+            context = cls.task2context.get(curr_task, None)
+
+        cls.hass.bus.async_fire(event_type, kwargs, context=context)
+
+    @classmethod
+    def store_hass_context(cls, hass_context):
+        """Store a context against the running task."""
+        curr_task = asyncio.current_task()
+        cls.task2context[curr_task] = hass_context
 
     @classmethod
     def task_unique_factory(cls, ctx):
@@ -177,12 +189,14 @@ class Function:
     @classmethod
     async def service_call(cls, domain, name, **kwargs):
         """Implement service.call()."""
+        curr_task = asyncio.current_task()
         if "context" in kwargs and isinstance(kwargs["context"], Context):
             context = kwargs["context"]
             del kwargs["context"]
-            await cls.hass.services.async_call(domain, name, kwargs, context=context)
         else:
-            await cls.hass.services.async_call(domain, name, kwargs)
+            context = cls.task2context.get(curr_task, None)
+
+        await cls.hass.services.async_call(domain, name, kwargs, context=context)
 
     @classmethod
     async def service_completions(cls, root):
@@ -239,7 +253,14 @@ class Function:
             return None
 
         async def service_call(*args, **kwargs):
-            await cls.hass.services.async_call(domain, service, kwargs)
+            curr_task = asyncio.current_task()
+            if "context" in kwargs and isinstance(kwargs["context"], Context):
+                context = kwargs["context"]
+                del kwargs["context"]
+            else:
+                context = cls.task2context.get(curr_task, None)
+
+            await cls.hass.services.async_call(domain, service, kwargs, context=context)
 
         return service_call
 
@@ -261,6 +282,8 @@ class Function:
             if task in cls.unique_task2name:
                 del cls.unique_name2task[cls.unique_task2name[task]]
                 del cls.unique_task2name[task]
+            if task in cls.task2context:
+                del cls.task2context[task]
             cls.our_tasks.discard(task)
 
     @classmethod

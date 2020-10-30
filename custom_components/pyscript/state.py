@@ -1,5 +1,6 @@
 """Handles state variable access and change notification."""
 
+import asyncio
 import logging
 
 from homeassistant.core import Context
@@ -117,10 +118,12 @@ class State:
             else:
                 new_attributes = {}
 
-        context = None
+        curr_task = asyncio.current_task()
         if "context" in kwargs and isinstance(kwargs["context"], Context):
             context = kwargs["context"]
             del kwargs["context"]
+        else:
+            context = Function.task2context.get(curr_task, None)
 
         if kwargs:
             new_attributes = new_attributes.copy()
