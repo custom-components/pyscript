@@ -663,7 +663,7 @@ level will not appear in the log. Each log message function uses a log name of t
 
 where ``FUNCNAME`` is the name of the top-level Python function (e.g., the one called by a trigger
 or service), defined in the script file ``FILENAME.py``. See the `Global Context <#global-context>`__
-section to see the logging path for other cases.
+section for the logging paths for other cases.
 
 That allows you to set the log level for each Python top-level function separately if necessary.
 That setting also applies to any other Python functions that the top-level Python function calls.
@@ -919,8 +919,16 @@ Without Jupyter, the pyscript workflow involves editing scripts in the ``<config
 and calling the ``pyscript.reload`` service to reload the code. You will need to look at the log
 file for error messages (eg, syntax errors), or log output from your code.
 
-A much better alternative is to use Jupyter notebook to interactively deveop and test functions,
-triggers and services.
+The ``pyscript.reload`` service takes an optional parameter ``global_ctx`` which specifies the name
+of a specific global context to reload; all others are unaffected. For example, specifying
+``file.example`` will just reload ``example.py``, and ``apps.my_app1`` will just reload
+``apps/my_app1.py`` or ``apps/my_app1/__init__.py``.  See the `Global Context <#global-context>`__
+section for the mapping of file or app names to global context names. Specifying ``global_ctx``
+makes it convenient to just reload the script file or application you are developing without
+affecting the others.
+
+A much better alternative to repeatedly modifying a script file and reloading it is to use Jupyter
+notebook to interactively deveop and test functions, triggers and services.
 
 Jupyter auto-completion (with `<TAB>`) is supported in Jupyter notebook, console and lab. It should
 work after you have typed at least the first character. After you hit `<TAB>` you should see a list

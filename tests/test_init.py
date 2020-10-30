@@ -447,7 +447,22 @@ def func5(var_name=None, value=None):
         ), patch(
             "homeassistant.config.load_yaml_config_file", return_value={}
         ):
-            await hass.services.async_call("pyscript", "reload", {}, blocking=True)
+            reload_param = {}
+            if i % 2 == 1:
+                #
+                # on alternate times, just reload the specific file we are testing with
+                #
+                reload_param = {"global_ctx": "file.hello"}
+            await hass.services.async_call("pyscript", "reload", reload_param, blocking=True)
+            if i % 3 == 0:
+                #
+                # reload a file that doesn't exist; will log error and do nothing
+                #
+                await hass.services.async_call(
+                    "pyscript", "reload", {"global_ctx": "file.nosuchfile"}, blocking=True
+                )
+
+    assert "pyscript.reload: no global context 'file.nosuchfile' to reload" in caplog.text
 
 
 async def test_misc_errors(hass, caplog):

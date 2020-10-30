@@ -10,8 +10,8 @@ import time
 
 from croniter import croniter
 
-import homeassistant.helpers.sun as sun
 from homeassistant.core import Context
+import homeassistant.helpers.sun as sun
 
 from .const import LOGGER_PATH
 from .eval import AstEval

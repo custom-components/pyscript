@@ -2,6 +2,10 @@
 
 reload:
   description: Reload all available pyscripts and restart triggers
+  fields:
+    global_ctx:
+      description: only reload this specific global context (file or app)
+      example: file.example
 
 jupyter_kernel_start:
   description: Start a jupyter kernel for interactive use; called by Jupyter front end

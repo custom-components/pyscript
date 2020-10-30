@@ -1,9 +1,9 @@
 """Describe logbook events."""
+import logging
+
 from homeassistant.core import callback
 
 from .const import DOMAIN
-
-import logging
 
 _LOGGER = logging.getLogger(__name__)
 

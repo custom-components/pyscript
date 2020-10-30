@@ -91,13 +91,16 @@ async def update_yaml_config(hass, config_entry):
         await hass.config_entries.flow.async_init(DOMAIN, context={"source": SOURCE_IMPORT}, data=config)
 
 
-def start_global_contexts():
+def start_global_contexts(global_ctx_only=None):
     """Start all the file and apps global contexts."""
     start_list = []
     for global_ctx_name, global_ctx in GlobalContextMgr.items():
         idx = global_ctx_name.find(".")
         if idx < 0 or global_ctx_name[0:idx] not in {"file", "apps"}:
             continue
+        if global_ctx_only is not None:
+            if global_ctx_name != global_ctx_only and not global_ctx_name.startswith(global_ctx_only + "."):
+                continue
         global_ctx.set_auto_start(True)
         start_list.append(global_ctx)
     for global_ctx in start_list:
@@ -139,11 +142,17 @@ async def async_setup_entry(hass, config_entry):
         await update_yaml_config(hass, config_entry)
         State.set_pyscript_config(config_entry.data)
 
-        await unload_scripts()
+        global_ctx_only = call.data.get("global_ctx", None)
 
-        await load_scripts(hass, config_entry.data)
+        if global_ctx_only is not None and not GlobalContextMgr.get(global_ctx_only):
+            _LOGGER.error("pyscript.reload: no global context '%s' to reload", global_ctx_only)
+            return
 
-        start_global_contexts()
+        await unload_scripts(global_ctx_only=global_ctx_only)
+
+        await load_scripts(hass, config_entry.data, global_ctx_only=global_ctx_only)
+
+        start_global_contexts(global_ctx_only=global_ctx_only)
 
     hass.services.async_register(DOMAIN, SERVICE_RELOAD, reload_scripts_handler)
 
@@ -224,13 +233,16 @@ async def async_unload_entry(hass, config_entry):
     return True
 
 
-async def unload_scripts(unload_all=False):
+async def unload_scripts(global_ctx_only=None, unload_all=False):
     """Unload all scripts from GlobalContextMgr with given name prefixes."""
     ctx_delete = {}
     for global_ctx_name, global_ctx in GlobalContextMgr.items():
         if not unload_all:
             idx = global_ctx_name.find(".")
             if idx < 0 or global_ctx_name[0:idx] not in {"file", "apps", "modules"}:
+                continue
+        if global_ctx_only is not None:
+            if global_ctx_name != global_ctx_only and not global_ctx_name.startswith(global_ctx_only + "."):
                 continue
         global_ctx.stop()
         ctx_delete[global_ctx_name] = global_ctx
@@ -239,7 +251,7 @@ async def unload_scripts(unload_all=False):
 
 
 @bind_hass
-async def load_scripts(hass, data):
+async def load_scripts(hass, data, global_ctx_only=None):
     """Load all python scripts in FOLDER."""
 
     pyscript_dir = hass.config.path(FOLDER)
@@ -279,6 +291,9 @@ async def load_scripts(hass, data):
 
     source_files = await hass.async_add_executor_job(glob_files, load_paths, data)
     for global_ctx_name, source_file, rel_import_path, fq_mod_name in source_files:
+        if global_ctx_only is not None:
+            if global_ctx_name != global_ctx_only and not global_ctx_name.startswith(global_ctx_only + "."):
+                continue
         global_ctx = GlobalContext(
             global_ctx_name,
             global_sym_table={"__name__": fq_mod_name},
