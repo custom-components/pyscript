@@ -831,7 +831,7 @@ class TrigInfo:
                 if "context" in func_args and isinstance(func_args["context"], Context):
                     hass_context = Context(parent_id=func_args["context"].id)
                 else:
-                    hass_context = None
+                    hass_context = Context()
 
                 # Fire an event indicating that pyscript is running
                 # Note: the event must have an entity_id for logbook to work correctly.
