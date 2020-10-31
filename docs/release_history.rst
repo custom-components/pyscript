@@ -33,6 +33,9 @@ The new features since 0.32 in master include:
   event firing and service calls. Proposal and PR by @dlashua (#50, #60).
 - Logbook now supported using ``context`` and informational message based on trigger type. Proposal and PR by
   @dlashua (#50, #62).
+- Required Python packages can be specified in ``requirements.txt`` files at the top-level pyscript
+  directory, and each module's or app's directory. Those files are read and any missing packages are
+  installed on HASS startup and pyscript reload. Contributed by @raman325 (#66, #68, #69).
 
 The bug fixes since 0.32 in master include:
 

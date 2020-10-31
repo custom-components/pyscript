@@ -1046,6 +1046,35 @@ This adds a new folder ``config/pyscript_modules`` to Python's module search pat
 modules (files ending in ``.py``) to that folder, which will contain native python that is compiled
 when imported (note that none of the pyscript-specific features are available).
 
+Pyscript can install required Python packages if they are missing. Depending on how you run HASS
+(eg, using a minimal Docker container) it might not be convenient to manually install Python packages
+using `pip`. If your pyscript code requires particular Python packages that are not already installed
+by HASS, add a ``requirements.txt`` file the ``<config>/pyscript`` directory. This file lists each
+required package one per line, with an optional version if you require a specific version or minimum
+version of that package, eg:
+
+.. code::
+
+   # this is a comment
+   aiohttp
+   amazing_stuff>=3.1
+   another_package==5.1.2
+
+Each app's or module's directory (assuming they use the directory-form of a package) can also
+contain an optional ``requirements.txt`` file:
+
+- ``<config>/pyscript/modules/PACKAGE_NAME/requirements.txt``
+- ``<config>/pyscript/apps/APP_NAME/requirements.txt``
+
+That allows you to specify the specific requirements for each pyscript module or app. If you release
+or share your module or app, all its code and requirements are self-contained, and any user can
+simply install the files in that directory and the requirements will be checked on the next
+start of HASS or reload of pyscript.
+
+If a required package version differs from the installed one, no change is made since it's likely
+HASS has a requirement that pyscript should not change. In that case a warning message will be
+logged and the requirement will be skipped.
+
 Trigger Closures
 ^^^^^^^^^^^^^^^^
 
