@@ -269,53 +269,52 @@ async def unload_scripts(global_ctx_only=None, unload_all=False):
 @bind_hass
 async def install_requirements(hass):
     """Install missing requirements from requirements.txt."""
-    requirements_path = os.path.join(hass.config.path(FOLDER), "requirements.txt")
+    for root in ("", "apps/*", "modules/*"):
+        for requirements_path in glob.glob(os.path.join(hass.config.path(FOLDER), root, "requirements.txt")):
+            with open(requirements_path, "r") as requirements_file:
+                requirements_to_install = []
+                for pkg in requirements_file.readlines():
+                    # Remove inline comments which are accepted by pip but not by Home
+                    # Assistant's installation method.
+                    # https://rosettacode.org/wiki/Strip_comments_from_a_string#Python
+                    i = pkg.find("#")
+                    if i >= 0:
+                        pkg = pkg[:i]
+                    pkg = pkg.strip()
 
-    if os.path.exists(requirements_path):
-        with open(requirements_path, "r") as requirements_file:
-            requirements_to_install = []
-            for pkg in requirements_file.readlines():
-                # Remove inline comments which are accepted by pip but not by Home
-                # Assistant's installation method.
-                # https://rosettacode.org/wiki/Strip_comments_from_a_string#Python
-                i = pkg.find("#")
-                if i >= 0:
-                    pkg = pkg[:i]
-                pkg = pkg.strip()
+                    try:
+                        # Attempt to get version of package. Do nothing if it's found since
+                        # we want to use the version that's already installed to be safe
+                        requirement = pkg_resources.Requirement.parse(pkg)
+                        requirement_installed_version = installed_version(requirement.project_name)
 
-                try:
-                    # Attempt to get version of package. Do nothing if it's found since
-                    # we want to use the version that's already installed to be safe
-                    requirement = pkg_resources.Requirement.parse(pkg)
-                    requirement_installed_version = installed_version(requirement.project_name)
-
-                    if requirement_installed_version in requirement:
-                        _LOGGER.debug("`%s` already found", requirement.project_name)
-                    else:
-                        _LOGGER.warning(
-                            (
-                                "`%s` already found but found version `%s` does not"
-                                " match requirement. Keeping found version."
-                            ),
-                            requirement.project_name,
-                            requirement_installed_version,
-                        )
-                except PackageNotFoundError:
-                    # Since package wasn't found, add it to installation list
-                    _LOGGER.debug("%s not found, adding it to package installation list", pkg)
-                    requirements_to_install.append(pkg)
-                except ValueError:
-                    # Not valid requirements line so it can be skipped
-                    _LOGGER.debug("Ignoring `%s` because it is not a valid package", pkg)
-            if requirements_to_install:
-                _LOGGER.info(
-                    "Installing the following packages from %s: %s",
-                    requirements_path,
-                    ", ".join(requirements_to_install),
-                )
-                await async_process_requirements(hass, DOMAIN, requirements_to_install)
-            else:
-                _LOGGER.debug("All packages in %s are already available", requirements_path)
+                        if requirement_installed_version in requirement:
+                            _LOGGER.debug("`%s` already found", requirement.project_name)
+                        else:
+                            _LOGGER.warning(
+                                (
+                                    "`%s` already found but found version `%s` does not"
+                                    " match requirement. Keeping found version."
+                                ),
+                                requirement.project_name,
+                                requirement_installed_version,
+                            )
+                    except PackageNotFoundError:
+                        # Since package wasn't found, add it to installation list
+                        _LOGGER.debug("%s not found, adding it to package installation list", pkg)
+                        requirements_to_install.append(pkg)
+                    except ValueError:
+                        # Not valid requirements line so it can be skipped
+                        _LOGGER.debug("Ignoring `%s` because it is not a valid package", pkg)
+                if requirements_to_install:
+                    _LOGGER.info(
+                        "Installing the following packages from %s: %s",
+                        requirements_path,
+                        ", ".join(requirements_to_install),
+                    )
+                    await async_process_requirements(hass, DOMAIN, requirements_to_install)
+                else:
+                    _LOGGER.debug("All packages in %s are already available", requirements_path)
 
 
 @bind_hass
