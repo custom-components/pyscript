@@ -688,7 +688,8 @@ async def test_state_trigger_check_now(hass, caplog):
     """Test state trigger."""
     notify_q = asyncio.Queue(0)
 
-    hass.states.async_set("pyscript.fstartup", 1)
+    hass.states.async_set("pyscript.fstartup0", 1)
+    hass.states.async_set("pyscript.fstartup2", 0)
 
     await setup_script(
         hass,
@@ -699,27 +700,42 @@ async def test_state_trigger_check_now(hass, caplog):
 from math import sqrt
 from homeassistant.core import Context
 
-seq_num = 0
+# should trigger immediately
+@state_trigger("pyscript.fstartup0 == '1'", state_check_now=True)
+def func_startup_sync0(trigger_type=None, var_name=None):
+    log.info(f"func_startup_sync0 setting pyscript.done=0, trigger_type={trigger_type}, var_name={var_name}")
+    pyscript.done = [0, trigger_type, var_name]
 
-pyscript.fstartup = 1
+# should trigger immediately
+@state_trigger("pyscript.fstartup2 == '0'", state_check_now=True)
+def func_startup_sync1(trigger_type=None, var_name=None):
+    log.info(f"func_startup_sync1 setting pyscript.done=1, trigger_type={trigger_type}, var_name={var_name}")
+    pyscript.done = [1, trigger_type, var_name]
 
-@state_trigger("pyscript.fstartup == '1'", state_check_now=True)
-def func_startup_sync(trigger_type=None, var_name=None):
-    global seq_num
-
-    seq_num += 1
-    log.info(f"func_startup_sync setting pyscript.done={seq_num}, trigger_type={trigger_type}, var_name={var_name}")
-    pyscript.done = [seq_num, trigger_type, var_name]
+# shouldn't trigger immediately
+@state_trigger("pyscript.fstartup2 == '1'", state_check_now=True)
+def func_startup_sync2(trigger_type=None, var_name=None):
+    log.info(f"func_startup_sync2 setting pyscript.done=2, trigger_type={trigger_type}, var_name={var_name}")
+    pyscript.done = [2, trigger_type, var_name]
 """,
     )
-    seq_num = 0
 
-    seq_num += 1
-    # fire event to start triggers, and handshake when they are running
     hass.bus.async_fire(EVENT_HOMEASSISTANT_STARTED)
-    assert literal_eval(await wait_until_done(notify_q)) == [seq_num, "state", None]
+    #
+    # we should get two results, although they could be in any order
+    #
+    results = [None, None]
+    for _ in range(2):
+        res = literal_eval(await wait_until_done(notify_q))
+        results[res[0]] = res
 
-    seq_num += 1
-    hass.states.async_set("pyscript.fstartup", 0)
-    hass.states.async_set("pyscript.fstartup", 1)
-    assert literal_eval(await wait_until_done(notify_q)) == [seq_num, "state", "pyscript.fstartup"]
+    assert results == [[0, "state", None], [1, "state", None]]
+
+    for _ in range(2):
+        hass.states.async_set("pyscript.fstartup2", 10)
+        hass.states.async_set("pyscript.fstartup2", 1)
+        assert literal_eval(await wait_until_done(notify_q)) == [2, "state", "pyscript.fstartup2"]
+
+        hass.states.async_set("pyscript.fstartup0", 0)
+        hass.states.async_set("pyscript.fstartup0", 1)
+        assert literal_eval(await wait_until_done(notify_q)) == [0, "state", "pyscript.fstartup0"]

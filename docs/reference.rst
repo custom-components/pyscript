@@ -227,6 +227,9 @@ Optional arguments are:
   to ``True`` or non-zero. Normally the expression is only evaluated when a state variable
   changes, and not when the trigger function is first defined. This option is the same as
   in the ``task.wait_until`` function, except the default value is ``True`` in that case.
+  Note that if you specify ``state_check_now=True``, entries in ``state_trigger`` that are
+  plain state variable names (which mean trigger on any change) are ignored during the initial
+  check - only expressions are checked.
 
 ``state_hold=None``
   A numeric duration in seconds that delays executing the trigger function for this amount of time.
@@ -761,8 +764,8 @@ It takes the following keyword arguments (all are optional):
   immediately to see if it is already ``True``, and will return immediately if so. If
   ``state_check_now=False``, ``task.wait_until()`` waits until a state variable change occurs,
   before checking the expression. Using ``True`` is safer to help avoid race conditions, although
-  ``False`` makes ``task.wait_until()`` behave like ``@state_trigger``, which doesn’t check at
-  startup. However, if you use the default of ``True``, and your function will call
+  ``False`` makes ``task.wait_until()`` behave like ``@state_trigger``, which by default doesn’t check
+  at startup. However, if you use the default of ``True``, and your function will call
   ``task.wait_until()`` again, it’s recommended you set that state variable to some other value
   immediately after ``task.wait_until()`` returns. Otherwise the next call will also return
   immediately. Note that entries in ``state_trigger`` that are plain state variable names
