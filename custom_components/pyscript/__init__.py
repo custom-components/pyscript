@@ -307,7 +307,9 @@ async def install_requirements(hass):
                 # Attempt to get version of package. Do nothing if it's found since
                 # we want to use the version that's already installed to be safe
                 requirement = pkg_resources.Requirement.parse(pkg)
-                requirement_installed_version = installed_version(requirement.project_name)
+                requirement_installed_version = await hass.async_add_executor_job(
+                    installed_version, requirement.project_name
+                )
 
                 if requirement_installed_version in requirement:
                     _LOGGER.debug("`%s` already found", requirement.project_name)
