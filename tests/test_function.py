@@ -110,6 +110,16 @@ async def setup_script(hass, notify_q, now, source):
         "custom_components.pyscript.trigger.dt_now", return_value=now
     ), patch(
         "homeassistant.config.load_yaml_config_file", return_value={DOMAIN: {CONF_ALLOW_ALL_IMPORTS: True}}
+    ), patch(
+        "custom_components.pyscript.load_all_requirement_lines",
+        return_value={
+            "/some/config/dir/pyscript/requirements.txt": [
+                "pytube==9.7.0\n",
+                "# another test comment\n",
+                "pykakasi==2.0.1 # test comment\n",
+                "\n",
+            ]
+        },
     ):
         assert await async_setup_component(hass, "pyscript", {DOMAIN: {CONF_ALLOW_ALL_IMPORTS: True}})
 
