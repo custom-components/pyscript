@@ -14,6 +14,9 @@ SERVICE_JUPYTER_KERNEL_START = "jupyter_kernel_start"
 
 LOGGER_PATH = "custom_components.pyscript"
 
+REQUIREMENTS_FILE = "requirements.txt"
+REQUIREMENTS_PATHS = ("", "apps/*", "modules/*")
+
 ALLOWED_IMPORTS = {
     "black",
     "cmath",
