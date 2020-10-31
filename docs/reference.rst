@@ -320,7 +320,7 @@ there is no underlying state variable change, the trigger function is called wit
    }
 
 If the trigger function uses ``var_name==None`` as a keyword argument, it can check if it is ``None``
-to determined whether it was called immediately or not. Similarly, if it uses the ``kwargs``
+to determine whether it was called immediately or not. Similarly, if it uses the ``kwargs``
 form, if can check if ``var_name`` is in ``kwargs``.
 
 If ``state_hold`` is specified, the arguments to the trigger function reflect the variable change
