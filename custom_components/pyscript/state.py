@@ -126,12 +126,19 @@ class State:
         return notify_vars
 
     @classmethod
-    async def set(cls, var_name, value, new_attributes=None, **kwargs):
+    async def set(cls, var_name, value=None, new_attributes=None, **kwargs):
         """Set a state variable and optional attributes in hass."""
         if var_name.count(".") != 1:
             raise NameError(f"invalid name {var_name} (should be 'domain.entity')")
-        if new_attributes is None:
+
+        state_value = None
+        if value is None or new_attributes is None:
             state_value = cls.hass.states.get(var_name)
+
+        if value is None and state_value:
+            value = state_value.state
+
+        if new_attributes is None:
             if state_value:
                 new_attributes = state_value.attributes
             else:
@@ -151,6 +158,15 @@ class State:
         cls.notify_var_last[var_name] = str(value)
 
         cls.hass.states.async_set(var_name, value, new_attributes, context=context)
+
+    @classmethod
+    async def setattr(cls, var_attr_name, value):
+        """Set a state variable's attribute in hass."""
+        parts = var_attr_name.split(".")
+        if len(parts) != 3:
+            raise NameError(f"invalid name {var_attr_name} (should be 'domain.entity.attr')")
+
+        await cls.set(f"{parts[0]}.{parts[1]}", **{parts[2]: value})
 
     @classmethod
     async def register_persist(cls, var_name):
@@ -253,7 +269,7 @@ class State:
         return value.attributes.get(parts[2])
 
     @classmethod
-    async def get_attr(cls, var_name):
+    async def getattr(cls, var_name):
         """Return a dict of attributes for a state variable."""
         if var_name.count(".") != 1:
             raise NameError(f"invalid name {var_name} (should be 'domain.entity')")
@@ -303,8 +319,10 @@ class State:
         functions = {
             "state.get": cls.get,
             "state.set": cls.set,
+            "state.setattr": cls.setattr,
             "state.names": cls.names,
-            "state.get_attr": cls.get_attr,
+            "state.getattr": cls.getattr,
+            "state.get_attr": cls.getattr,  # deprecated form; to be removed
             "state.persist": cls.persist,
             "pyscript.config": cls.pyscript_config,
         }

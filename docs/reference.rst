@@ -117,10 +117,11 @@ you need their numeric value.
 State variables have attributes that can be accessed by adding the name of the attribute, as in
 ``DOMAIN.name.attr``. The attribute names and their meaning depend on the component that sets them,
 so you will need to look at the State tab in the Developer Tools to see the available attributes.
+You can set an attribute directly by assigning ``DOMAIN.name.attr = value``.
 
 In cases where you need to compute the name of the state variable dynamically, or you need to set or
-get the state attributes, you can use the built-in functions ``state.get()``, ``state.get_attr()``
-and ``state.set()``; see below.
+get all the state attributes, you can use the built-in functions ``state.get()``, ``state.getattr()``,
+``state.set()`` and ``state.setattr()``; see `State Functions <#state-variable-functions>`__.
 
 The function ``state.names(domain=None)`` returns a list of all state variable names (ie,
 ``entity_id``\ s) of a domain. If ``domain`` is not specified, it returns all HASS state
@@ -142,7 +143,7 @@ or call ``state.get("DOMAIN.entity.attr")``:
 - ``last_updated`` is the last UTC time the state entity was updated
 
 Note that these two values take precedence over any entity attributes that have the same name. If an
-entity has attributes with those names and you need to access them, use ``state.get_attr(name)``.
+entity has attributes with those names and you need to access them, use ``state.getattr(name)``.
 If you need to compute how many seconds ago the ``binary_sensor.test1`` state changed, you could
 do this:
 
@@ -624,9 +625,10 @@ which you can’t do if you are directly assigning to the variable:
   is thrown if the name doesn't exist. If ``name`` is a string of the form ``DOMAIN.entity.attr``
   then the attribute ``attr`` of the state variable ``DOMAIN.entity`` is returned; an
   ``AttributeError`` exception is thrown if that attribute doesn't exist.
-``state.get_attr(name)``
-  Returns a ``dict`` of attribute values for the state variable, or ``None``
-  if it doesn’t exist
+``state.getattr(name)``
+  Returns a ``dict`` of attribute values for the state variable, or ``None`` if it doesn’t exist.
+  In pyscript versions 0.32 and earlier, this function was ``state.get_attr()``. That deprecated
+  name is still supported, but will be removed in a future version.
 ``state.names(domain=None)``
   Returns a list of all state variable names (ie, ``entity_id``\ s) of a
   domain. If ``domain`` is not specified, it returns all HASS state variable (``entity_id``) names.
@@ -637,13 +639,17 @@ which you can’t do if you are directly assigning to the variable:
   are preserved across HASS restarts. This only applies to entities in the ``pyscript``
   domain (ie, name starts with ``pyscript.``). See `this section <#persistent-state>`__ for
   more information
-``state.set(name, value, new_attributes=None, **kwargs)``
+``state.set(name, value=None, new_attributes=None, **kwargs)``
   Sets the state variable to the given value, with the optional attributes. The optional 3rd
   argument, ``new_attributes``, should be a ``dict`` and it will overwrite all the existing
-  attributes if specified. If instead attributes are specified using keyword arguments, then other
-  attributes will not be affected. If no optional arguments are provided, just the state variable
-  value is set and the attributes are not changed. To clear the attributes, set
-  ``new_attributes={}``.
+  attributes if specified. If instead attributes are specified using keyword arguments, then
+  just those attributes will be set and other attributes will not be affected. If no optional
+  arguments are provided, just the state variable value is set and the attributes are not changed.
+  If no value is provided, just the state attributes are set and the value isn't changed.
+  To clear all the attributes, set ``new_attributes={}``.
+``state.setattr(name, value)``
+  Sets a state variable attribute to the given value. The ``name`` should fully specify the
+  state variable and attribute as a string in the form ``DOMAIN.entity.attr``.
 
 Note that in HASS, all state variable values are coerced into strings. For example, if a state
 variable has a numeric value, you might want to convert it to a numeric type (eg, using ``int()``

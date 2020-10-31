@@ -139,17 +139,41 @@ evalTests = [
     [
         """
 state.set("pyscript.var1", 100, attr1=1, attr2=3.5)
-chk1 = [pyscript.var1.attr1, pyscript.var1.attr2]
+chk = [[pyscript.var1.attr1, pyscript.var1.attr2]]
 pyscript.var1 += "xyz"
-chk2 = [pyscript.var1.attr1, pyscript.var1.attr2]
+chk.append([pyscript.var1.attr1, pyscript.var1.attr2])
 state.set("pyscript.var1", 200, attr3 = 'abc')
-chk3 = [pyscript.var1.attr1, pyscript.var1.attr2, pyscript.var1.attr3]
-chk4 = state.get_attr("pyscript.var1")
+chk.append([pyscript.var1.attr1, pyscript.var1.attr2, pyscript.var1.attr3])
+chk.append(state.getattr("pyscript.var1"))
 state.set("pyscript.var1", pyscript.var1, {})
-chk5 = state.get_attr("pyscript.var1")
-[chk1, chk2, chk3, chk4, chk5]
+chk.append(state.getattr("pyscript.var1"))
+state.set("pyscript.var1", pyscript.var1, new_attributes={"attr2": 8.5, "attr3": "xyz"})
+chk.append(state.getattr("pyscript.var1"))
+pyscript.var1.attr2 = "abc"
+chk.append(state.getattr("pyscript.var1"))
+state.set("pyscript.var1", attr1=123)
+state.set("pyscript.var1", attr3="def")
+chk.append(state.getattr("pyscript.var1"))
+pyscript.var1.attr4 = 987
+chk.append(state.getattr("pyscript.var1"))
+state.set("pyscript.var1", new_attributes={"attr2": 9.5, "attr3": "xyz"})
+chk.append(state.getattr("pyscript.var1"))
+chk.append(pyscript.var1)
+chk
 """,
-        [[1, 3.5], [1, 3.5], [1, 3.5, "abc"], {"attr1": 1, "attr2": 3.5, "attr3": "abc"}, {}],
+        [
+            [1, 3.5],
+            [1, 3.5],
+            [1, 3.5, "abc"],
+            {"attr1": 1, "attr2": 3.5, "attr3": "abc"},
+            {},
+            {"attr2": 8.5, "attr3": "xyz"},
+            {"attr2": "abc", "attr3": "xyz"},
+            {"attr1": 123, "attr2": "abc", "attr3": "def"},
+            {"attr1": 123, "attr2": "abc", "attr3": "def", "attr4": 987},
+            {"attr2": 9.5, "attr3": "xyz"},
+            "200",
+        ],
     ],
     ["eval('1+2')", 3],
     ["x = 5; eval('2 * x')", 10],

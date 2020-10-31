@@ -1212,9 +1212,17 @@ class AstEval:
                 return
             if not isinstance(var_name, str):
                 raise NotImplementedError(f"unknown lhs type {lhs} (got {var_name}) in assign")
-            if var_name.find(".") >= 0:
+            dot_count = var_name.count(".")
+            if dot_count == 1:
                 await State.set(var_name, val)
                 return
+            if dot_count == 2:
+                await State.setattr(var_name, val)
+                return
+            if dot_count > 0:
+                raise NameError(
+                    f"invalid name '{var_name}' (should be 'domain.entity' or 'domain.entity.attr'"
+                )
             if self.curr_func and var_name in self.curr_func.global_names:
                 self.global_sym_table[var_name] = val
                 return
