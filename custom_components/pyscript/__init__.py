@@ -147,7 +147,7 @@ async def async_setup_entry(hass, config_entry):
 
     State.set_pyscript_config(config_entry.data)
 
-    await install_requirements(hass)
+    await hass.async_add_executor_job(install_requirements, hass)
     await load_scripts(hass, config_entry.data)
 
     async def reload_scripts_handler(call):
@@ -165,7 +165,7 @@ async def async_setup_entry(hass, config_entry):
 
         await unload_scripts(global_ctx_only=global_ctx_only)
 
-        await install_requirements(hass)
+        await hass.async_add_executor_job(install_requirements, hass)
         await load_scripts(hass, config_entry.data, global_ctx_only=global_ctx_only)
 
         start_global_contexts(global_ctx_only=global_ctx_only)
@@ -292,7 +292,7 @@ async def install_requirements(hass):
                     if requirement_installed_version in requirement:
                         _LOGGER.debug("`%s` already found", requirement.project_name)
                     else:
-                        _LOGGER.debug(
+                        _LOGGER.warning(
                             (
                                 "`%s` already found but found version `%s` does not"
                                 " match requirement. Keeping found version."
@@ -308,12 +308,14 @@ async def install_requirements(hass):
                     # Not valid requirements line so it can be skipped
                     _LOGGER.debug("Ignoring `%s` because it is not a valid package", pkg)
             if requirements_to_install:
-                _LOGGER.info("Installing the following packages: %s", ", ".join(requirements_to_install))
+                _LOGGER.info(
+                    "Installing the following packages from %s: %s",
+                    requirements_path,
+                    ", ".join(requirements_to_install),
+                )
                 await async_process_requirements(hass, DOMAIN, requirements_to_install)
             else:
-                _LOGGER.info("All requirements are already available.")
-    else:
-        _LOGGER.info("No requirements.txt found so nothing to install.")
+                _LOGGER.debug("All packages in %s are already available", requirements_path)
 
 
 @bind_hass
