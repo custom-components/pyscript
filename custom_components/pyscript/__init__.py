@@ -4,7 +4,9 @@ import glob
 import json
 import logging
 import os
+import sys
 
+import pkg_resources
 import voluptuous as vol
 
 from homeassistant.config import async_hass_config_yaml
@@ -19,6 +21,7 @@ from homeassistant.exceptions import HomeAssistantError
 import homeassistant.helpers.config_validation as cv
 from homeassistant.helpers.restore_state import RestoreStateData
 from homeassistant.loader import bind_hass
+from homeassistant.requirements import async_process_requirements
 
 from .const import (
     CONF_ALLOW_ALL_IMPORTS,
@@ -37,6 +40,17 @@ from .global_ctx import GlobalContext, GlobalContextMgr
 from .jupyter_kernel import Kernel
 from .state import State
 from .trigger import TrigTime
+
+if sys.version_info[:2] >= (3, 8):
+    from importlib.metadata import (  # pylint: disable=no-name-in-module,import-error
+        PackageNotFoundError,
+        version,
+    )
+else:
+    from importlib_metadata import (  # pylint: disable=import-error
+        PackageNotFoundError,
+        version,
+    )
 
 _LOGGER = logging.getLogger(LOGGER_PATH)
 
@@ -133,6 +147,7 @@ async def async_setup_entry(hass, config_entry):
 
     State.set_pyscript_config(config_entry.data)
 
+    await install_requirements(hass)
     await load_scripts(hass, config_entry.data)
 
     async def reload_scripts_handler(call):
@@ -150,6 +165,7 @@ async def async_setup_entry(hass, config_entry):
 
         await unload_scripts(global_ctx_only=global_ctx_only)
 
+        await install_requirements(hass)
         await load_scripts(hass, config_entry.data, global_ctx_only=global_ctx_only)
 
         start_global_contexts(global_ctx_only=global_ctx_only)
@@ -248,6 +264,55 @@ async def unload_scripts(global_ctx_only=None, unload_all=False):
         ctx_delete[global_ctx_name] = global_ctx
     for global_ctx_name, global_ctx in ctx_delete.items():
         await GlobalContextMgr.delete(global_ctx_name)
+
+
+@bind_hass
+async def install_requirements(hass):
+    """Install missing requirements from requirements.txt."""
+    requirements_path = os.path.join(hass.config.path(FOLDER), "requirements.txt")
+
+    if os.path.exists(requirements_path):
+        with open(requirements_path, "r") as requirements_file:
+            requirements_to_install = []
+            for pkg in requirements_file.readlines():
+                # Remove inline comments which are accepted by pip but not by Home
+                # Assistant's installation method.
+                # https://rosettacode.org/wiki/Strip_comments_from_a_string#Python
+                i = pkg.find("#")
+                if i >= 0:
+                    pkg = pkg[:i].strip()
+
+                try:
+                    # Attempt to get version of package. Do nothing if it's found since
+                    # we want to use the version that's already installed to be safe
+                    requirement = pkg_resources.Requirement.parse(pkg)
+                    requirement_installed_version = version(requirement.project_name)
+
+                    if requirement_installed_version in requirement:
+                        _LOGGER.debug("`%s` already found", requirement.project_name)
+                    else:
+                        _LOGGER.debug(
+                            (
+                                "`%s` already found but found version `%s` does not"
+                                " match requirement. Keeping found version."
+                            ),
+                            requirement.project_name,
+                            requirement_installed_version,
+                        )
+                except PackageNotFoundError:
+                    # Since package wasn't found, add it to installation list
+                    _LOGGER.debug("%s not found, adding it to package installation list", pkg)
+                    requirements_to_install.append(pkg)
+                except ValueError:
+                    # Not valid requirements line so it can be skipped
+                    _LOGGER.debug("Ignoring `%s` because it is not a valid package", pkg)
+            if requirements_to_install:
+                _LOGGER.info("Installing the following packages: %s", ",".join(requirements_to_install))
+                await async_process_requirements(hass, DOMAIN, requirements_to_install)
+            else:
+                _LOGGER.info("All requirements are already available.")
+    else:
+        _LOGGER.info("No requirements.txt found so nothing to install.")
 
 
 @bind_hass
