@@ -482,3 +482,27 @@ async def test_misc_errors(hass, caplog):
     assert "State class is not meant to be instantiated" in caplog.text
     assert "Event class is not meant to be instantiated" in caplog.text
     assert "TrigTime class is not meant to be instantiated" in caplog.text
+
+
+async def test_install_requirements(hass):
+    """Test install_requirements function."""
+    requirements = """
+pytube==9.7.0
+# another test comment
+pykakasi==2.0.1 # test comment
+
+"""
+
+    with patch("os.path.exists", return_value=True), patch(
+        "custom_components.pyscript.async_hass_config_yaml", return_value={}
+    ), patch("custom_components.pyscript.open", mock_open(read_data=requirements), create=True,), patch(
+        "custom_components.pyscript.async_process_requirements"
+    ) as install_requirements:
+        await setup_script(hass, None, dt(2020, 7, 1, 11, 59, 59, 999999), "")
+        assert install_requirements.call_args[0][2] == ["pytube==9.7.0", "pykakasi==2.0.1"]
+        install_requirements.reset_mock()
+        # Because in tests, packages are not installed, we fake that they are
+        # installed so we can test that we don't attempt to install them
+        with patch("custom_components.pyscript.installed_version", return_value="2.0.1"):
+            await hass.services.async_call("pyscript", "reload", {}, blocking=True)
+            assert not install_requirements.called

@@ -44,12 +44,12 @@ from .trigger import TrigTime
 if sys.version_info[:2] >= (3, 8):
     from importlib.metadata import (  # pylint: disable=no-name-in-module,import-error
         PackageNotFoundError,
-        version,
+        version as installed_version,
     )
 else:
     from importlib_metadata import (  # pylint: disable=import-error
         PackageNotFoundError,
-        version,
+        version as installed_version,
     )
 
 _LOGGER = logging.getLogger(LOGGER_PATH)
@@ -280,13 +280,14 @@ async def install_requirements(hass):
                 # https://rosettacode.org/wiki/Strip_comments_from_a_string#Python
                 i = pkg.find("#")
                 if i >= 0:
-                    pkg = pkg[:i].strip()
+                    pkg = pkg[:i]
+                pkg = pkg.strip()
 
                 try:
                     # Attempt to get version of package. Do nothing if it's found since
                     # we want to use the version that's already installed to be safe
                     requirement = pkg_resources.Requirement.parse(pkg)
-                    requirement_installed_version = version(requirement.project_name)
+                    requirement_installed_version = installed_version(requirement.project_name)
 
                     if requirement_installed_version in requirement:
                         _LOGGER.debug("`%s` already found", requirement.project_name)
@@ -307,7 +308,7 @@ async def install_requirements(hass):
                     # Not valid requirements line so it can be skipped
                     _LOGGER.debug("Ignoring `%s` because it is not a valid package", pkg)
             if requirements_to_install:
-                _LOGGER.info("Installing the following packages: %s", ",".join(requirements_to_install))
+                _LOGGER.info("Installing the following packages: %s", ", ".join(requirements_to_install))
                 await async_process_requirements(hass, DOMAIN, requirements_to_install)
             else:
                 _LOGGER.info("All requirements are already available.")
