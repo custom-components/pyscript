@@ -118,15 +118,8 @@ async def setup_script(hass, now, source, no_connect=False):
     ), patch(
         "homeassistant.config.load_yaml_config_file", return_value={}
     ), patch(
-        "custom_components.pyscript.load_all_requirement_lines",
-        return_value={
-            "/some/config/dir/pyscript/requirements.txt": [
-                "pytube==9.7.0\n",
-                "# another test comment\n",
-                "pykakasi==2.0.1 # test comment\n",
-                "\n",
-            ]
-        },
+        "custom_components.pyscript.process_all_requirements",
+        return_value={"/some/config/dir/pyscript/requirements.txt": ["pytube==2.0.1", "pykakasi==2.0.1"]},
     ):
         assert await async_setup_component(hass, "pyscript", {DOMAIN: {}})
 
