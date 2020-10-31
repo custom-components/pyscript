@@ -272,25 +272,21 @@ async def unload_scripts(global_ctx_only=None, unload_all=False):
 
 
 @bind_hass
-def load_all_requirement_lines(hass, requirements_paths, requirements_file):
-    """Load all lines from requirements_file located in requirements_paths."""
-    all_requirements = {}
+def process_all_requirements(hass, requirements_paths, requirements_file):
+    """
+    Load all lines from requirements_file located in requirements_paths.
+
+    Returns files and a list of packages, if any, that need to be installed.
+    """
+    all_requirements_to_process = {}
     for root in requirements_paths:
         for requirements_path in glob.glob(os.path.join(hass.config.path(FOLDER), root, requirements_file)):
             with open(requirements_path, "r") as requirements_fp:
-                all_requirements[requirements_path] = requirements_fp.readlines()
+                all_requirements_to_process[requirements_path] = requirements_fp.readlines()
 
-    return all_requirements
-
-
-@bind_hass
-async def install_requirements(hass):
-    """Install missing requirements from requirements.txt."""
-    all_requirements = await hass.async_add_executor_job(
-        load_all_requirement_lines, hass, REQUIREMENTS_PATHS, REQUIREMENTS_FILE
-    )
-    requirements_to_install = []
-    for requirements_path, pkg_lines in all_requirements.items():
+    all_requirements_to_install = {}
+    for requirements_path, pkg_lines in all_requirements_to_process.items():
+        all_requirements_to_install[requirements_path] = []
         for pkg in pkg_lines:
             # Remove inline comments which are accepted by pip but not by Home
             # Assistant's installation method.
@@ -323,10 +319,22 @@ async def install_requirements(hass):
             except PackageNotFoundError:
                 # Since package wasn't found, add it to installation list
                 _LOGGER.debug("%s not found, adding it to package installation list", pkg)
-                requirements_to_install.append(pkg)
+                all_requirements_to_install[requirements_path].append(pkg)
             except ValueError:
                 # Not valid requirements line so it can be skipped
                 _LOGGER.debug("Ignoring `%s` because it is not a valid package", pkg)
+
+    return all_requirements_to_install
+
+
+@bind_hass
+async def install_requirements(hass):
+    """Install missing requirements from requirements.txt."""
+    all_requirements = await hass.async_add_executor_job(
+        process_all_requirements, hass, REQUIREMENTS_PATHS, REQUIREMENTS_FILE
+    )
+
+    for requirements_path, requirements_to_install in all_requirements.items():
         if requirements_to_install:
             _LOGGER.info(
                 "Installing the following packages from %s: %s",
