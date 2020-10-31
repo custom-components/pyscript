@@ -215,14 +215,11 @@ occurs if it evaluates to ``True`` (or non-zero). For each state variable, eg: `
 the prior value is also available to the expression as ``domain.name.old`` in case you want to
 condition the trigger on the prior value too.
 
-Optional arguments are:
+Multiple ``str_expr`` arguments are logically "or"ed together, so the trigger occurs if any of the
+expressions evaluate to ``True``. Any argument can alternatively be a list or set of strings, and
+they are treated the same as multiple arguments by "or"ing them together.
 
-``state_hold=None``
-  A numeric duration in seconds that delays executing the trigger function for this amount of time.
-  If the state trigger expression changes back to ``False`` during that time, the trigger is
-  canceled and a wait for a new trigger begins. If the state trigger expression changes, but is
-  still ``True`` then the ``state_hold`` time is not restarted - the trigger will still occur
-  that number of seconds after the first state trigger.
+Optional arguments are:
 
 ``state_check_now=False``
   If set, the ``@state_trigger`` expression is evaluated immediately when the trigger function
@@ -231,9 +228,12 @@ Optional arguments are:
   changes, and not when the trigger function is first defined. This option is the same as
   in the ``task.wait_until`` function, except the default value is ``True`` in that case.
 
-Multiple arguments are logically "or"ed together, so the trigger occurs if any of the expressions
-evaluate to ``True``. Any argument can alternatively be a list or set of strings, and they are
-treated the same as multiple arguments by "or"ing them together.
+``state_hold=None``
+  A numeric duration in seconds that delays executing the trigger function for this amount of time.
+  If the state trigger expression changes back to ``False`` during that time, the trigger is
+  canceled and a wait for a new trigger begins. If the state trigger expression changes, but is
+  still ``True`` then the ``state_hold`` time is not restarted - the trigger will still occur
+  that number of seconds after the first state trigger.
 
 All state variables in HASS have string values. So you’ll have to do comparisons against string
 values or cast the variable to an integer or float. These two examples are essentially equivalent
@@ -262,7 +262,7 @@ You can specify a state trigger on any change with a string that is just the sta
    @state_trigger("domain.light_level")
 
 If you use this form, there's no point in also specifying ``state_hold`` since the expression
-is always True whenever the state variable changes - there is no way for it to evaluate
+is always ``True`` whenever the state variable changes - there is no way for it to evaluate
 to ``False`` and to re-start the trigger process. If you do specify ``state_hold`` in this
 case it will simply delay the trigger by the specified time.
 
@@ -311,7 +311,7 @@ form to use if you have multiple decorators, since each one passes different var
 function (although all of them set ``trigger_type``).
 
 If ``state_check_now`` is set to ``True`` and the trigger occurs during its immediate check, since
-there is no underlying state variable change, the trigger function is called with only this arguments:
+there is no underlying state variable change, the trigger function is called with only this argument:
 
 .. code:: python
 
