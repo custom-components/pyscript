@@ -5,6 +5,7 @@ import logging
 
 from homeassistant.core import Context
 from homeassistant.helpers.restore_state import RestoreStateData
+from homeassistant.helpers.service import async_get_all_descriptions
 
 from .const import LOGGER_PATH
 from .function import Function
@@ -43,6 +44,11 @@ class State:
     #
     persisted_vars = set()
 
+    #
+    # other parameters of all services that have "entity_id" as a parameter
+    #
+    service2args = {}
+
     def __init__(self):
         """Warn on State instantiation."""
         _LOGGER.error("State class is not meant to be instantiated")
@@ -51,6 +57,19 @@ class State:
     def init(cls, hass):
         """Initialize State."""
         cls.hass = hass
+
+    @classmethod
+    async def get_service_params(cls):
+        """Get parameters for all services."""
+        cls.service2args = {}
+        all_services = await async_get_all_descriptions(cls.hass)
+        for domain in all_services:
+            cls.service2args[domain] = {}
+            for service, desc in all_services[domain].items():
+                if "entity_id" not in desc["fields"]:
+                    continue
+                cls.service2args[domain][service] = set(desc["fields"].keys())
+                cls.service2args[domain][service].discard("entity_id")
 
     @classmethod
     async def notify_add(cls, var_names, queue):
@@ -165,25 +184,70 @@ class State:
         if len(parts) != 2 and len(parts) != 3:
             return False
         value = cls.hass.states.get(f"{parts[0]}.{parts[1]}")
-        return value and (
-            len(parts) == 2 or parts[2] in value.attributes or parts[2] in {"last_changed", "last_updated"}
-        )
+        if value is None:
+            return False
+        if (
+            len(parts) == 2
+            or (parts[0] in cls.service2args and parts[2] in cls.service2args[parts[0]])
+            or parts[2] in value.attributes
+            or parts[2] in {"last_changed", "last_updated"}
+        ):
+            return True
+        return False
 
     @classmethod
     async def get(cls, var_name):
         """Get a state variable value or attribute from hass."""
         parts = var_name.split(".")
         if len(parts) != 2 and len(parts) != 3:
-            raise NameError(f"invalid name '{var_name}' (should be 'domain.entity')")
+            raise NameError(f"invalid name '{var_name}' (should be 'domain.entity' or 'domain.entity.attr')")
         value = cls.hass.states.get(f"{parts[0]}.{parts[1]}")
         if not value:
             raise NameError(f"name '{parts[0]}.{parts[1]}' is not defined")
+        #
+        # simplest case is just the state value
+        #
         if len(parts) == 2:
             return value.state
+        #
+        # handle virtual attributes
+        #
         if parts[2] == "last_changed":
             return value.last_changed
         if parts[2] == "last_updated":
             return value.last_updated
+        #
+        # see if this is a service that has an entity_id parameter
+        #
+        if parts[0] in cls.service2args and parts[2] in cls.service2args[parts[0]]:
+            params = cls.service2args[parts[0]][parts[2]]
+
+            def service_call_factory(domain, service, entity_id, params):
+                async def service_call(*args, **kwargs):
+                    curr_task = asyncio.current_task()
+                    if "context" in kwargs and isinstance(kwargs["context"], Context):
+                        context = kwargs["context"]
+                        del kwargs["context"]
+                    else:
+                        context = Function.task2context.get(curr_task, None)
+
+                    kwargs["entity_id"] = entity_id
+                    if len(args) == 1 and len(params) == 1:
+                        #
+                        # with just a single parameter and positional argument, create the keyword setting
+                        #
+                        [param_name] = params
+                        kwargs[param_name] = args[0]
+                    elif len(args) != 0:
+                        raise TypeError(f"service {domain}.{service} takes no positional arguments")
+                    await cls.hass.services.async_call(domain, service, kwargs, context=context)
+
+                return service_call
+
+            return service_call_factory(parts[0], parts[2], f"{parts[0]}.{parts[1]}", params)
+        #
+        # finally see if it is an attribute
+        #
         if parts[2] not in value.attributes:
             raise AttributeError(f"state '{parts[0]}.{parts[1]}' has no attribute '{parts[2]}'")
         return value.attributes.get(parts[2])
@@ -202,7 +266,8 @@ class State:
     def completions(cls, root):
         """Return possible completions of state variables."""
         words = set()
-        num_period = root.count(".")
+        parts = root.split(".")
+        num_period = len(parts) - 1
         if num_period == 2:
             #
             # complete state attributes
@@ -212,7 +277,10 @@ class State:
             value = cls.hass.states.get(name)
             if value:
                 attr_root = root[last_period + 1 :]
-                for attr_name in set(value.attributes.keys()).union({"last_changed", "last_updated"}):
+                attrs = set(value.attributes.keys()).union({"last_changed", "last_updated"})
+                if parts[0] in cls.service2args:
+                    attrs.update(set(cls.service2args[parts[0]].keys()))
+                for attr_name in attrs:
                     if attr_name.lower().startswith(attr_root):
                         words.add(f"{name}.{attr_name}")
         elif num_period < 2:

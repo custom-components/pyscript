@@ -252,17 +252,22 @@ class Function:
         if not cls.service_has_service(domain, service):
             return None
 
-        async def service_call(*args, **kwargs):
-            curr_task = asyncio.current_task()
-            if "context" in kwargs and isinstance(kwargs["context"], Context):
-                context = kwargs["context"]
-                del kwargs["context"]
-            else:
-                context = cls.task2context.get(curr_task, None)
+        def service_call_factory(domain, service):
+            async def service_call(*args, **kwargs):
+                curr_task = asyncio.current_task()
+                if "context" in kwargs and isinstance(kwargs["context"], Context):
+                    context = kwargs["context"]
+                    del kwargs["context"]
+                else:
+                    context = cls.task2context.get(curr_task, None)
 
-            await cls.hass.services.async_call(domain, service, kwargs, context=context)
+                if len(args) != 0:
+                    raise (TypeError, f"service {domain}.{service} takes no positional arguments")
+                await cls.hass.services.async_call(domain, service, kwargs, context=context)
 
-        return service_call
+            return service_call
+
+        return service_call_factory(domain, service)
 
     @classmethod
     async def run_coro(cls, coro):

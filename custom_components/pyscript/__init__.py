@@ -142,6 +142,8 @@ async def async_setup_entry(hass, config_entry):
         await update_yaml_config(hass, config_entry)
         State.set_pyscript_config(config_entry.data)
 
+        await State.get_service_params()
+
         global_ctx_only = call.data.get("global_ctx", None)
 
         if global_ctx_only is not None and not GlobalContextMgr.get(global_ctx_only):
@@ -202,6 +204,7 @@ async def async_setup_entry(hass, config_entry):
 
     async def hass_started(event):
         _LOGGER.debug("adding state changed listener and starting global contexts")
+        await State.get_service_params()
         hass.data[DOMAIN][UNSUB_LISTENERS].append(hass.bus.async_listen(EVENT_STATE_CHANGED, state_changed))
         start_global_contexts()
 
