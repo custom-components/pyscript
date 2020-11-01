@@ -20,11 +20,11 @@ The new features since 0.32 in master include:
   from @swazrgb and @dlashua (#48).
 - The ``hass`` object is available in all pyscript global contexts if the ``hass_is_global`` configuration parameter
   is true (default false). This allows access to HASS internals that might not be otherwise exposed by pyscript.
-  Use with caution. PR #51.
+  Use with caution (#51).
 - Improvements to UI config flow, including allows parameters to be updated, and the UI reload now works the same
   as the ``pyscript.reload`` service call, submitted by @raman325 (#53)
-- State variables now support virtual attributes last_changed and last_updated for the UTC time when state values
-  or any attribute was last changed.
+- State variables now support virtual attributes ``last_changed`` and ``last_updated`` for the UTC time when state
+  values or any attribute was last changed.
 - ``@state_trigger`` and ``task.wait_until`` now have an optional ``state_hold`` duration in seconds that requires
   the state trigger to remain true for that period of time. The trigger occurs after that time elapses. If the state
   trigger changes to false before the time expires, the process of waiting for a new trigger starts over.
@@ -38,6 +38,13 @@ The new features since 0.32 in master include:
 - Required Python packages can be specified in ``requirements.txt`` files at the top-level pyscript
   directory, and each module's or app's directory. Those files are read and any missing packages are
   installed on HASS startup and pyscript reload. Contributed by @raman325 (#66, #68, #69).
+- State variable attributes can be set by direct assignment, eg: ``DOMAIN.name.attr = value``. A
+  equivalent new function ``state.setattr()`` allows a specific attribute to be set.
+- The ``state.get_attr()`` function has been renamed ``state.getattr()``. The old function is
+  still available and will be removed in some future release.
+- Entities ``DOMAIN.ENTITY`` now support a virtual method ``SERVICE`` (eg, ``DOMAIN.ENTITY.SERVICE()``)
+  that calls a service ``DOMAIN.SERVICE`` for any service that has an ``entity_id`` parameter.
+  Proposed @dlashua (#64).
 
 The bug fixes since 0.32 in master include:
 

@@ -136,8 +136,39 @@ an attribute that doesn't exist will throw a ``AttributeError`` exception. One e
 to this that in a ``@state_trigger`` expression, undefined state variables will evaluate to
 ``None`` instead of throwing an exception.
 
-Two virtual attribute values are available when you use a variable directly as ``DOMAIN.entity.attr``
-or call ``state.get("DOMAIN.entity.attr")``:
+State variables also support virtual methods that are service calls with that ``entity_id``.
+For any state variable ``DOMAIN.ENTITY``, any services registered by ``DOMAIN``, eg:
+``DOMAIN.SERVICE``, that have an ``entity_id`` parameter can be called as a method
+``DOMAIN.ENTITY.SERVICE()``. Each of these statements are equivalent:
+
+.. code:: python
+
+   service.call("DOMAIN", "SERVICE", entity_id="DOMAIN.ENTITY", other_param=123)
+   DOMAIN.SERVICE(entity_id="DOMAIN.ENTITY", other_param=123)
+   DOMAIN.ENTITY.SERVICE(other_param=123)
+
+In the case the service has only one other parameter in addition to ``entity_id``, a further
+shorthand is that the method can be called with just a positional, rather than keyword parameter.
+So if the service only takes two parameters, ``entity_id`` and ``other_param``, this additional
+form is equivalent to each of the above statements:
+
+.. code:: python
+
+   DOMAIN.ENTITY.SERVICE(123)
+
+Here's an example using ``input_number``, assuming it has been configured to create an entity
+``input_number.test``. These statements all do the same thing (and the last one works because
+``set_value`` only takes on other parameter):
+
+.. code:: python
+
+   service.call("input_number", "set_value", entity_id="input_number.test", value=13)
+   input_number.set_value(entity_id="input_number.test", value=13)
+   input_number.test.set_value(value=13)
+   input_number.test.set_value(13)
+
+Two additional virtual attribute values are available when you use a variable directly as
+``DOMAIN.entity.attr`` or call ``state.get("DOMAIN.entity.attr")``:
 
 - ``last_changed`` is the last UTC time the state value was changed (not the attributes)
 - ``last_updated`` is the last UTC time the state entity was updated
