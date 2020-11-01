@@ -1,10 +1,12 @@
-Release History
-===============
+New Features
+============
 
 The releases and releae notes are available on `GitHub <https://github.com/custom-components/pyscript/releases>`__.
 Use HACS to install different versions of pyscript.
 
 You can also install the master (head of tree) version from GitHub, either using HACS or manually.
+Because pyscript has quite a few unit tests, generally master should work ok. But it's not guaranteed
+to work at any random time.
 
 The latest release is 0.32, released on October 21, 2020.  Here is the `stable documentation <https://hacs-pyscript.readthedocs.io/en/stable>`__
 for that release.
