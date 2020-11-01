@@ -44,7 +44,7 @@ The new features since 0.32 in master include:
   still available and will be removed in some future release.
 - Entities ``DOMAIN.ENTITY`` now support a virtual method ``SERVICE`` (eg, ``DOMAIN.ENTITY.SERVICE()``)
   that calls a service ``DOMAIN.SERVICE`` for any service that has an ``entity_id`` parameter.
-  Proposed @dlashua (#64).
+  Proposed by @dlashua (#64).
 
 The bug fixes since 0.32 in master include:
 

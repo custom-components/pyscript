@@ -148,7 +148,7 @@ For any state variable ``DOMAIN.ENTITY``, any services registered by ``DOMAIN``,
    DOMAIN.ENTITY.SERVICE(other_param=123)
 
 In the case the service has only one other parameter in addition to ``entity_id``, a further
-shorthand is that the method can be called with just a positional, rather than keyword parameter.
+shorthand is that the method can be called with just a positional, rather than keyword, argument.
 So if the service only takes two parameters, ``entity_id`` and ``other_param``, this additional
 form is equivalent to each of the above statements:
 
@@ -158,7 +158,7 @@ form is equivalent to each of the above statements:
 
 Here's an example using ``input_number``, assuming it has been configured to create an entity
 ``input_number.test``. These statements all do the same thing (and the last one works because
-``set_value`` only takes on other parameter):
+``set_value`` only takes one other parameter):
 
 .. code:: python
 
@@ -173,8 +173,6 @@ Two additional virtual attribute values are available when you use a variable di
 - ``last_changed`` is the last UTC time the state value was changed (not the attributes)
 - ``last_updated`` is the last UTC time the state entity was updated
 
-Note that these two values take precedence over any entity attributes that have the same name. If an
-entity has attributes with those names and you need to access them, use ``state.getattr(name)``.
 If you need to compute how many seconds ago the ``binary_sensor.test1`` state changed, you could
 do this:
 
@@ -184,6 +182,10 @@ do this:
    from datetime import timezone as timezone
 
    num_seconds_ago = (dt.now(tz=timezone.utc) - binary_sensor.test1.last_changed).total_seconds()
+
+Note that these virtual attributes and methods take precedence over any entity attributes that
+have the same name. If an entity has attributes with those names and you need to access them,
+use ``state.getattr(name)``.
 
 Calling services
 ----------------

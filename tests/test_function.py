@@ -5,7 +5,7 @@ import asyncio
 from datetime import datetime as dt
 import time
 
-from custom_components.pyscript.const import CONF_ALLOW_ALL_IMPORTS, DOMAIN
+from custom_components.pyscript.const import CONF_ALLOW_ALL_IMPORTS, CONF_HASS_IS_GLOBAL, DOMAIN
 from custom_components.pyscript.function import Function
 import custom_components.pyscript.trigger as trigger
 import pytest
@@ -98,23 +98,25 @@ async def test_service_completions(root, expected, hass, services):  # pylint: d
         assert words == expected
 
 
-async def setup_script(hass, notify_q, now, source):
+async def setup_script(hass, notify_q, now, source, config=None):
     """Initialize and load the given pyscript."""
     scripts = [
         "/some/config/dir/pyscripts/hello.py",
     ]
 
+    if not config:
+        config = {DOMAIN: {CONF_ALLOW_ALL_IMPORTS: True}}
     with patch("custom_components.pyscript.os.path.isdir", return_value=True), patch(
         "custom_components.pyscript.glob.iglob", return_value=scripts
     ), patch("custom_components.pyscript.global_ctx.open", mock_open(read_data=source), create=True,), patch(
         "custom_components.pyscript.trigger.dt_now", return_value=now
     ), patch(
-        "homeassistant.config.load_yaml_config_file", return_value={DOMAIN: {CONF_ALLOW_ALL_IMPORTS: True}}
+        "homeassistant.config.load_yaml_config_file", return_value=config
     ), patch(
         "custom_components.pyscript.process_all_requirements",
         return_value={"/some/config/dir/pyscript/requirements.txt": ["pytube==2.0.1", "pykakasi==2.0.1"]},
     ):
-        assert await async_setup_component(hass, "pyscript", {DOMAIN: {CONF_ALLOW_ALL_IMPORTS: True}})
+        assert await async_setup_component(hass, "pyscript", config)
 
     #
     # I'm not sure how to run the mock all the time, so just force the dt_now()
@@ -742,3 +744,64 @@ def func_startup_sync2(trigger_type=None, var_name=None):
         hass.states.async_set("pyscript.fstartup0", 0)
         hass.states.async_set("pyscript.fstartup0", 1)
         assert literal_eval(await wait_until_done(notify_q)) == [0, "state", "pyscript.fstartup0"]
+
+
+async def test_state_methods(hass, caplog):
+    """Test state methods that call services."""
+    notify_q = asyncio.Queue(0)
+
+    await setup_script(
+        hass,
+        notify_q,
+        [dt(2020, 7, 1, 12, 0, 0, 0)],
+        """
+
+seq_num = 0
+
+@time_trigger("startup")
+def func_startup():
+    pyscript.var1 = 10
+    pyscript.var1.set(20)
+    pyscript.var1.set(value=30)
+    pyscript.var1.incr()
+    pyscript.var1.incr()
+    pyscript.var1.set_add(val1=10, val2=40)
+    #
+    # this will generate an exception
+    #
+    pyscript.var1.set_add(10)
+
+@service
+def set(entity_id=None, value=None):
+    global seq_num
+
+    seq_num += 1
+    state.set(entity_id, value)
+    pyscript.done = [seq_num, entity_id, state.get(entity_id)]
+
+@service
+def incr(entity_id=None):
+    global seq_num
+
+    seq_num += 1
+    state.set(entity_id, int(state.get(entity_id)) + 1)
+    pyscript.done = [seq_num, entity_id, state.get(entity_id)]
+
+@service
+def set_add(entity_id=None, val1=None, val2=None):
+    global seq_num
+
+    seq_num += 1
+    state.set(entity_id, val1 + val2)
+    pyscript.done = [seq_num, entity_id, state.get(entity_id), type(hass).__name__]
+
+""",
+        config={DOMAIN: {CONF_ALLOW_ALL_IMPORTS: True, CONF_HASS_IS_GLOBAL: True}},
+    )
+    hass.bus.async_fire(EVENT_HOMEASSISTANT_STARTED)
+    assert literal_eval(await wait_until_done(notify_q)) == [1, "pyscript.var1", "20"]
+    assert literal_eval(await wait_until_done(notify_q)) == [2, "pyscript.var1", "30"]
+    assert literal_eval(await wait_until_done(notify_q)) == [3, "pyscript.var1", "31"]
+    assert literal_eval(await wait_until_done(notify_q)) == [4, "pyscript.var1", "32"]
+    assert literal_eval(await wait_until_done(notify_q)) == [5, "pyscript.var1", "50", "HomeAssistant"]
+    assert "TypeError: service pyscript.set_add takes no positional arguments" in caplog.text
