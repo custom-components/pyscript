@@ -8,7 +8,7 @@ from homeassistant import config_entries
 from homeassistant.config_entries import SOURCE_IMPORT, ConfigEntry
 from homeassistant.core import callback
 
-from .const import CONF_ALLOW_ALL_IMPORTS, CONF_HASS_IS_GLOBAL, DOMAIN
+from .const import CONF_ALLOW_ALL_IMPORTS, CONF_HASS_IS_GLOBAL, CONF_INSTALLED_PACKAGES, DOMAIN
 
 CONF_BOOL_ALL = {CONF_ALLOW_ALL_IMPORTS, CONF_HASS_IS_GLOBAL}
 
@@ -122,7 +122,11 @@ class PyscriptConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             # Remove values for all keys in entry.data that are not in the imported config,
             # excluding `allow_all_imports` for entries set up through the UI.
             for key in entry.data:
-                if (entry.source == SOURCE_IMPORT or key not in CONF_BOOL_ALL) and key not in import_config:
+                if (
+                    (entry.source == SOURCE_IMPORT or key not in CONF_BOOL_ALL)
+                    and key != CONF_INSTALLED_PACKAGES
+                    and key not in import_config
+                ):
                     updated_data.pop(key)
 
             # Update and reload entry if data needs to be updated

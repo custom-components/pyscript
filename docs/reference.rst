@@ -1096,7 +1096,7 @@ version of that package, eg:
 Each app's or module's directory (assuming they use the directory-form of a package) can also
 contain an optional ``requirements.txt`` file:
 
-- ``<config>/pyscript/modules/PACKAGE_NAME/requirements.txt``
+- ``<config>/pyscript/modules/my-package-name/requirements.txt``
 - ``<config>/pyscript/apps/APP_NAME/requirements.txt``
 
 That allows you to specify the specific requirements for each pyscript module or app. If you release

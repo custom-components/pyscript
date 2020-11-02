@@ -1,0 +1,7 @@
+# Comment
+my-package-name==2.0.0
+my-package-name==0.2.2
+my-package-name==2.0.1
+>
+my-package-name-alternate==2.0.1 # Comment
+my-package-name-alternate
