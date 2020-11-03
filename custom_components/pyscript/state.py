@@ -77,9 +77,13 @@ class State:
 
         for var_name in var_names if isinstance(var_names, set) else {var_names}:
             parts = var_name.split(".")
-            if len(parts) != 2 and len(parts) != 3:
+            if len(parts) == 2:
+                state_var_name = f"{parts[0]}.{parts[1]}"
+            elif len(parts) == 3:
+                state_var_name = f"{parts[0]}.{parts[1]}.{parts[2]}"
+            else:
                 continue
-            state_var_name = f"{parts[0]}.{parts[1]}"
+
             if state_var_name not in cls.notify:
                 cls.notify[state_var_name] = {}
             cls.notify[state_var_name][queue] = var_names

@@ -210,15 +210,48 @@ async def async_setup_entry(hass, config_entry):
         else:
             new_val = event.data["new_state"].state
         old_val = event.data["old_state"].state if event.data["old_state"] else None
+
+        if old_val != new_val:
+            val_change = False
+        else:
+            val_change = True
+
         new_vars = {var_name: new_val, f"{var_name}.old": old_val}
         func_args = {
             "trigger_type": "state",
             "var_name": var_name,
             "value": new_val,
             "old_value": old_val,
+            "change": val_change,
             "context": event.context,
         }
         await State.update(new_vars, func_args)
+
+        if "new_state" not in event.data or event.data["new_state"] is None:
+            return
+
+        for attribute in event.data["new_state"].attributes:
+            new_val = event.data["new_state"].attributes[attribute]
+            if "old_state" in event.data and attribute in event.data["old_state"].attributes:
+                old_val = event.data["old_state"].attributes[attribute]
+            else:
+                old_val = None
+
+            if old_val != new_val:
+                val_change = False
+            else:
+                val_change = True
+
+            new_vars = {f"{var_name}.{attribute}": new_val, f"{var_name}.old.{attribute}": old_val}
+            func_args = {
+                "trigger_type": "state",
+                "var_name": f"{var_name}.{attribute}",
+                "value": new_val,
+                "old_value": old_val,
+                "change": val_change,
+                "context": event.context,
+            }
+            await State.update(new_vars, func_args)
 
     async def hass_started(event):
         _LOGGER.debug("adding state changed listener and starting global contexts")

@@ -22,7 +22,7 @@ from .state import State
 _LOGGER = logging.getLogger(LOGGER_PATH + ".trigger")
 
 
-STATE_RE = re.compile(r"[a-zA-Z]\w*\.[a-zA-Z]\w*$")
+STATE_RE = re.compile(r"[a-zA-Z]\w*\.[a-zA-Z]\w*(\.[a-zA-Z]\w*)?$")
 
 
 def dt_now():
