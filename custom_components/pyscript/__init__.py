@@ -211,7 +211,7 @@ async def async_setup_entry(hass, config_entry):
             new_val = event.data["new_state"].state
         old_val = event.data["old_state"].state if event.data["old_state"] else None
 
-        if old_val != new_val:
+        if old_val == new_val:
             val_change = False
         else:
             val_change = True
@@ -237,7 +237,7 @@ async def async_setup_entry(hass, config_entry):
             else:
                 old_val = None
 
-            if old_val != new_val:
+            if old_val == new_val:
                 val_change = False
             else:
                 val_change = True
