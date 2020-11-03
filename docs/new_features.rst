@@ -21,7 +21,7 @@ The new features since 0.32 in master include:
 - The ``hass`` object is available in all pyscript global contexts if the ``hass_is_global`` configuration parameter
   is true (default false). This allows access to HASS internals that might not be otherwise exposed by pyscript.
   Use with caution (#51).
-- Improvements to UI config flow, including allows parameters to be updated, and the UI reload now works the same
+- Improvements to UI config flow, including allowing parameters to be updated, and the UI reload now works the same
   as the ``pyscript.reload`` service call, submitted by @raman325 (#53)
 - State variables now support virtual attributes ``last_changed`` and ``last_updated`` for the UTC time when state
   values or any attribute was last changed.
@@ -40,11 +40,13 @@ The new features since 0.32 in master include:
   installed on HASS startup and pyscript reload. Contributed by @raman325 (#66, #68, #69).
 - State variable attributes can be set by direct assignment, eg: ``DOMAIN.name.attr = value``. A
   equivalent new function ``state.setattr()`` allows a specific attribute to be set.
+- The reload service now takes an optional parameter ``global_ctx_only`` that specifies just that
+  global context is reloaded, eg: ``global_ctx_only="file.my_scripts"``.  Proposed by @dlashua (#63).
 - The ``state.get_attr()`` function has been renamed ``state.getattr()``. The old function is
   still available and will be removed in some future release.
 - Entities ``DOMAIN.ENTITY`` now support a virtual method ``SERVICE`` (eg, ``DOMAIN.ENTITY.SERVICE()``)
-  that calls a service ``DOMAIN.SERVICE`` for any service that has an ``entity_id`` parameter.
-  Proposed by @dlashua (#64).
+  that calls the service ``DOMAIN.SERVICE`` for any service that has an ``entity_id`` parameter, with
+  that ``entity_id`` set to ``DOMAIN.ENTITY``. Proposed by @dlashua (#64).
 
 The bug fixes since 0.32 in master include:
 
