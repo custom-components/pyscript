@@ -338,6 +338,14 @@ class Kernel:
             await self.send(self.iopub_socket, "execute_input", content, parent_header=msg["header"])
 
             code = msg["content"]["code"]
+            #
+            # replace VSCode initialization code, which depend on iPython % extensions
+            #
+            if code.startswith("%config "):
+                code = "None"
+            if code.startswith("_rwho_ls = %who_ls"):
+                code = "print([])"
+
             self.ast_ctx.parse(code)
             exc = self.ast_ctx.get_exception_obj()
             if exc is None:
@@ -414,6 +422,15 @@ class Kernel:
             )
             if msg["content"].get("store_history", True):
                 self.execution_count += 1
+
+            #
+            # Make sure stdout gets sent before set report execution_state idle on iopub,
+            # otherwise VSCode doesn't display stdout.  We do a handshake with the
+            # housekeep task to ensure any queued messages get processed.
+            #
+            handshake_q = asyncio.Queue(0)
+            await self.housekeep_q.put(["handshake", handshake_q, 0])
+            await handshake_q.get()
 
         elif msg["header"]["msg_type"] == "kernel_info_request":
             content = {
@@ -566,7 +583,7 @@ class Kernel:
                     await self.housekeep_q.put(["shutdown"])
         except asyncio.CancelledError:
             raise
-        except EOFError:
+        except (EOFError, ConnectionResetError):
             _LOGGER.debug("control_listen got eof")
             await self.housekeep_q.put(["unregister", "control", asyncio.current_task()])
             control_socket.close()
@@ -586,7 +603,7 @@ class Kernel:
                 # _LOGGER.debug("stdin_listen received %s", _)
         except asyncio.CancelledError:
             raise
-        except EOFError:
+        except (EOFError, ConnectionResetError):
             _LOGGER.debug("stdin_listen got eof")
             await self.housekeep_q.put(["unregister", "stdin", asyncio.current_task()])
             stdin_socket.close()
@@ -607,7 +624,7 @@ class Kernel:
         except asyncio.CancelledError:
             shell_socket.close()
             raise
-        except EOFError:
+        except (EOFError, ConnectionResetError):
             _LOGGER.debug("shell_listen got eof")
             await self.housekeep_q.put(["unregister", "shell", asyncio.current_task()])
             shell_socket.close()
@@ -628,7 +645,7 @@ class Kernel:
                 await heartbeat_socket.send(msg)
         except asyncio.CancelledError:
             raise
-        except EOFError:
+        except (EOFError, ConnectionResetError):
             _LOGGER.debug("heartbeat_listen got eof")
             await self.housekeep_q.put(["unregister", "heartbeat", asyncio.current_task()])
             heartbeat_socket.close()
@@ -649,7 +666,7 @@ class Kernel:
                 # _LOGGER.debug("iopub received %s", _)
         except asyncio.CancelledError:
             raise
-        except EOFError:
+        except (EOFError, ConnectionResetError):
             await self.housekeep_q.put(["unregister", "iopub", asyncio.current_task()])
             iopub_socket.close()
             self.iopub_socket.discard(iopub_socket)
@@ -667,8 +684,14 @@ class Kernel:
                     content = {"name": "stdout", "text": msg[1] + "\n"}
                     if self.iopub_socket:
                         await self.send(
-                            self.iopub_socket, "stream", content, parent_header=self.parent_header,
+                            self.iopub_socket,
+                            "stream",
+                            content,
+                            parent_header=self.parent_header,
+                            identities=[b"stream.stdout"],
                         )
+                elif msg[0] == "handshake":
+                    await msg[1].put(msg[2])
                 elif msg[0] == "register":
                     if msg[1] not in self.tasks:
                         self.tasks[msg[1]] = set()
