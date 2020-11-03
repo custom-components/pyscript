@@ -538,6 +538,7 @@ class TrigInfo:
         self.state_trigger_kwargs = trig_cfg.get("state_trigger", {}).get("kwargs", {})
         self.state_hold_dur = self.state_trigger_kwargs.get("state_hold", None)
         self.state_check_now = self.state_trigger_kwargs.get("state_check_now", False)
+        self.only_on_change = self.state_trigger_kwargs.get("only_on_change", True)
         self.time_trigger = trig_cfg.get("time_trigger", {}).get("args", None)
         self.event_trigger = trig_cfg.get("event_trigger", {}).get("args", None)
         self.state_active = trig_cfg.get("state_active", {}).get("args", None)
@@ -784,6 +785,12 @@ class TrigInfo:
 
                 else:
                     func_args = notify_info
+
+                #
+                # check if our value changed and if we want to trigger on non changes
+                #
+                if self.only_on_change and "change" in func_args and not func_args['change']:
+                    continue
 
                 #
                 # now check the state and time active expressions
