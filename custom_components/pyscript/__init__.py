@@ -232,7 +232,7 @@ async def async_setup_entry(hass, config_entry):
 
         for attribute in event.data["new_state"].attributes:
             new_val = event.data["new_state"].attributes[attribute]
-            if "old_state" in event.data and attribute in event.data["old_state"].attributes:
+            if "old_state" in event.data and event.data['old_state'] is not None and attribute in event.data["old_state"].attributes:
                 old_val = event.data["old_state"].attributes[attribute]
             else:
                 old_val = None
