@@ -40,8 +40,8 @@ The new features since 0.32 in master include:
   installed on HASS startup and pyscript reload. Contributed by @raman325 (#66, #68, #69).
 - State variable attributes can be set by direct assignment, eg: ``DOMAIN.name.attr = value``. A
   equivalent new function ``state.setattr()`` allows a specific attribute to be set.
-- The reload service now takes an optional parameter ``global_ctx_only`` that specifies just that
-  global context is reloaded, eg: ``global_ctx_only="file.my_scripts"``.  Proposed by @dlashua (#63).
+- The reload service now takes an optional parameter ``global_ctx`` that specifies just that
+  global context is reloaded, eg: ``global_ctx="file.my_scripts"``.  Proposed by @dlashua (#63).
 - The ``state.get_attr()`` function has been renamed ``state.getattr()``. The old function is
   still available and will be removed in some future release.
 - Entities ``DOMAIN.ENTITY`` now support a virtual method ``SERVICE`` (eg, ``DOMAIN.ENTITY.SERVICE()``)
