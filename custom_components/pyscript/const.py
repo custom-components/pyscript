@@ -7,6 +7,8 @@ UNSUB_LISTENERS = "unsub_listeners"
 
 FOLDER = "pyscript"
 
+UNPINNED_VERSION = "_unpinned_version"
+
 ATTR_INSTALLED_VERSION = "installed_version"
 ATTR_SOURCES = "sources"
 ATTR_VERSION = "version"

@@ -19,6 +19,7 @@ from .const import (
     LOGGER_PATH,
     REQUIREMENTS_FILE,
     REQUIREMENTS_PATHS,
+    UNPINNED_VERSION,
 )
 
 if sys.version_info[:2] >= (3, 8):
@@ -41,6 +42,24 @@ def get_installed_version(pkg_name):
         return installed_version(pkg_name)
     except PackageNotFoundError:
         return None
+
+
+def update_unpinned_versions(package_dict):
+    """Check for current installed version of each unpinned package."""
+    requirements_to_pop = []
+    for package in package_dict:
+        if package_dict[package] != UNPINNED_VERSION:
+            continue
+
+        package_dict[package] = get_installed_version(package)
+        if not package_dict[package]:
+            _LOGGER.error("%s wasn't able to be installed", package)
+            requirements_to_pop.append(package)
+
+    for package in requirements_to_pop:
+        package_dict.pop(package)
+
+    return package_dict
 
 
 @bind_hass
@@ -77,33 +96,72 @@ def process_all_requirements(pyscript_folder, requirements_paths, requirements_f
                 pkg_name = requirement.project_name
 
                 # Requirements must be pinned and will be skipped if they aren't
-                if (
-                    len(requirement.specs) != 1
-                    or len(requirement.specs[0]) != 2
-                    or requirement.specs[0][0] != "=="
+                if len(requirement.specs) == 1 and (
+                    len(requirement.specs[0]) != 2 or requirement.specs[0][0] != "=="
                 ):
                     _LOGGER.error(
                         (
-                            "Ignoring invalid requirement `%s` specified in `%s`, version must "
-                            "be pinned using the format `pkg==version`"
+                            "Ignoring invalid requirement `%s` specified in `%s`, version, if pinned, "
+                            "must use the format `pkg==version`"
                         ),
                         requirements_path,
                         pkg,
                     )
                     continue
 
-                new_pinned_version = requirement.specs[0][1]
+                if not requirement.specs:
+                    new_version = UNPINNED_VERSION
+                else:
+                    new_version = requirement.specs[0][1]
                 current_pinned_version = all_requirements_to_install.get(pkg_name, {}).get(ATTR_VERSION)
                 current_sources = all_requirements_to_install.get(pkg_name, {}).get(ATTR_SOURCES, [])
                 # If a version hasn't already been recorded, record this one
                 if not current_pinned_version:
                     all_requirements_to_install[pkg_name] = {
-                        ATTR_VERSION: new_pinned_version,
+                        ATTR_VERSION: new_version,
                         ATTR_SOURCES: [requirements_path],
                         ATTR_INSTALLED_VERSION: get_installed_version(pkg_name),
                     }
+
+                # If the new version is unpinned and there is an existing pinned version, use existing
+                # pinned version
+                elif new_version == UNPINNED_VERSION and current_pinned_version != UNPINNED_VERSION:
+                    _LOGGER.warning(
+                        (
+                            "Unpinned requirement for package `%s` detected in `%s` will be ignored in "
+                            "favor of the pinned version `%s` detected in %s"
+                        ),
+                        pkg_name,
+                        requirements_path,
+                        current_pinned_version,
+                        str(current_sources),
+                    )
+                # If the new version is pinned and the existing version is unpinned, use the new pinned
+                # version
+                elif new_version != UNPINNED_VERSION and current_pinned_version == UNPINNED_VERSION:
+                    _LOGGER.warning(
+                        (
+                            "Unpinned requirement for package `%s` detected in `%s will be ignored in "
+                            "favor of the pinned version `%s` detected in %s"
+                        ),
+                        pkg_name,
+                        str(current_sources),
+                        new_version,
+                        requirements_path,
+                    )
+                    all_requirements_to_install[pkg_name] = {
+                        ATTR_VERSION: new_version,
+                        ATTR_SOURCES: [requirements_path],
+                        ATTR_INSTALLED_VERSION: get_installed_version(pkg_name),
+                    }
+                # If the already recorded version is the same as the new version, append the current
+                # path so we can show sources
+                elif (
+                    new_version == UNPINNED_VERSION and current_pinned_version == UNPINNED_VERSION
+                ) or Version(current_pinned_version) == Version(new_version):
+                    all_requirements_to_install[pkg_name][ATTR_SOURCES].append(requirements_path)
                 # If the already recorded version is lower than the new version, use the new one
-                elif Version(current_pinned_version) < Version(new_pinned_version):
+                elif Version(current_pinned_version) < Version(new_version):
                     _LOGGER.warning(
                         (
                             "Version `%s` for package `%s` detected in `%s` will be ignored in "
@@ -112,24 +170,20 @@ def process_all_requirements(pyscript_folder, requirements_paths, requirements_f
                         current_pinned_version,
                         pkg_name,
                         str(current_sources),
-                        new_pinned_version,
+                        new_version,
                         requirements_path,
                     )
                     all_requirements_to_install[pkg_name].update(
-                        {ATTR_VERSION: new_pinned_version, ATTR_SOURCES: [requirements_path]}
+                        {ATTR_VERSION: new_version, ATTR_SOURCES: [requirements_path]}
                     )
-                # If the already recorded version is the same as the new version, append the current
-                # path so we can show sources
-                elif Version(current_pinned_version) == Version(new_pinned_version):
-                    all_requirements_to_install[pkg_name][ATTR_SOURCES].append(requirements_path)
                 # If the already recorded version is higher than the new version, ignore the new one
-                elif Version(current_pinned_version) > Version(new_pinned_version):
+                elif Version(current_pinned_version) > Version(new_version):
                     _LOGGER.warning(
                         (
                             "Version `%s` for package `%s` detected in `%s` will be ignored in "
                             "favor of the higher version `%s` detected in `%s`"
                         ),
-                        new_pinned_version,
+                        new_version,
                         pkg_name,
                         requirements_path,
                         current_pinned_version,
@@ -159,6 +213,19 @@ async def install_requirements(hass, config_entry, pyscript_folder):
         sources = all_requirements[package][ATTR_SOURCES]
         # If package is already installed, we need to run some checks
         if pkg_installed_version:
+            # If the version to install is unpinned and there is already something installed,
+            # defer to what is installed
+            if version_to_install == UNPINNED_VERSION:
+                _LOGGER.debug(
+                    (
+                        "Skipping unpinned version of package `%s` because version `%s` is "
+                        "already installed"
+                    ),
+                    package,
+                    pkg_installed_version,
+                )
+                continue
+
             # If installed package is not the same version as the one we last installed,
             # that means that the package is externally managed now so we shouldn't touch it
             # and should remove it from our internal tracker
@@ -207,6 +274,8 @@ async def install_requirements(hass, config_entry, pyscript_folder):
             DOMAIN,
             [
                 f"{package}=={requirements_to_install[package][ATTR_VERSION]}"
+                if requirements_to_install[package][ATTR_VERSION] != UNPINNED_VERSION
+                else package
                 for package in requirements_to_install
             ],
         )
@@ -217,6 +286,12 @@ async def install_requirements(hass, config_entry, pyscript_folder):
     pyscript_installed_packages.update(
         {package: requirements_to_install[package][ATTR_VERSION] for package in requirements_to_install}
     )
+
+    # If any requirements were unpinned, get their version now so they can be pinned later
+    if any(version == UNPINNED_VERSION for version in pyscript_installed_packages.values()):
+        pyscript_installed_packages = await hass.async_add_executor_job(
+            update_unpinned_versions, pyscript_installed_packages
+        )
     if pyscript_installed_packages != config_entry.data.get(CONF_INSTALLED_PACKAGES, {}):
         new_data = config_entry.data.copy()
         new_data[CONF_INSTALLED_PACKAGES] = pyscript_installed_packages

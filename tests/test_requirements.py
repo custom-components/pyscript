@@ -7,13 +7,14 @@ from custom_components.pyscript.const import (
     DOMAIN,
     REQUIREMENTS_FILE,
     REQUIREMENTS_PATHS,
+    UNPINNED_VERSION,
 )
 from custom_components.pyscript.requirements import install_requirements, process_all_requirements
 from pytest import fixture
 from pytest_homeassistant_custom_component.async_mock import patch
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
-PYSCRIPT_FOLDER = "tests/test_pyscript_folder"
+PYSCRIPT_FOLDER = "tests/test_data/test_requirements"
 
 
 @fixture(autouse=True)
@@ -139,27 +140,82 @@ async def test_install_requirements(hass, caplog):
         assert entry.data[CONF_INSTALLED_PACKAGES] == {"my-package-name": "2.0.1"}
 
 
+async def test_install_unpinned_requirements(hass, caplog):
+    """Test install_requirements function with unpinned versions."""
+    with patch(
+        "custom_components.pyscript.requirements.process_all_requirements"
+    ) as process_requirements, patch(
+        "custom_components.pyscript.requirements.async_process_requirements"
+    ) as ha_install_requirements:
+        entry = MockConfigEntry(domain=DOMAIN, data={})
+        entry.add_to_hass(hass)
+
+        process_requirements.return_value = {
+            "my-package-name": {
+                ATTR_SOURCES: [
+                    f"{PYSCRIPT_FOLDER}/requirements.txt",
+                    f"{PYSCRIPT_FOLDER}/apps/app1/requirements.txt",
+                ],
+                ATTR_VERSION: UNPINNED_VERSION,
+                ATTR_INSTALLED_VERSION: "2.0.1",
+            },
+        }
+        await install_requirements(hass, entry, PYSCRIPT_FOLDER)
+        await hass.async_block_till_done()
+        assert not ha_install_requirements.called
+
+        process_requirements.return_value = {
+            "my-package-name": {
+                ATTR_SOURCES: [
+                    f"{PYSCRIPT_FOLDER}/requirements.txt",
+                    f"{PYSCRIPT_FOLDER}/apps/app1/requirements.txt",
+                ],
+                ATTR_VERSION: UNPINNED_VERSION,
+                ATTR_INSTALLED_VERSION: None,
+            },
+            "my-package-name-1": {
+                ATTR_SOURCES: [
+                    f"{PYSCRIPT_FOLDER}/requirements.txt",
+                    f"{PYSCRIPT_FOLDER}/apps/app1/requirements.txt",
+                ],
+                ATTR_VERSION: "2.0.1",
+                ATTR_INSTALLED_VERSION: None,
+            },
+        }
+        await install_requirements(hass, entry, PYSCRIPT_FOLDER)
+        await hass.async_block_till_done()
+        assert ha_install_requirements.called
+        assert ha_install_requirements.call_args[0][2] == ["my-package-name", "my-package-name-1==2.0.1"]
+        assert entry.data[CONF_INSTALLED_PACKAGES] == {"my-package-name-1": "2.0.1"}
+
+
 def test_process_requirements():
     """Test process requirements function."""
-    all_requirements = process_all_requirements(PYSCRIPT_FOLDER, REQUIREMENTS_PATHS, REQUIREMENTS_FILE)
-    assert all_requirements == {
-        "my-package-name": {
-            ATTR_SOURCES: [
-                f"{PYSCRIPT_FOLDER}/requirements.txt",
-                f"{PYSCRIPT_FOLDER}/apps/app1/requirements.txt",
-            ],
-            ATTR_VERSION: "2.0.1",
-            ATTR_INSTALLED_VERSION: None,
-        },
-        "my-package-name-alternate": {
-            ATTR_SOURCES: [f"{PYSCRIPT_FOLDER}/requirements.txt"],
-            ATTR_VERSION: "2.0.1",
-            ATTR_INSTALLED_VERSION: None,
-        },
-    }
+    with patch("custom_components.pyscript.requirements.installed_version", return_value=None):
+        all_requirements = process_all_requirements(PYSCRIPT_FOLDER, REQUIREMENTS_PATHS, REQUIREMENTS_FILE)
+        assert all_requirements == {
+            "my-package-name": {
+                ATTR_SOURCES: [
+                    f"{PYSCRIPT_FOLDER}/requirements.txt",
+                    f"{PYSCRIPT_FOLDER}/apps/app1/requirements.txt",
+                ],
+                ATTR_VERSION: "2.0.1",
+                ATTR_INSTALLED_VERSION: None,
+            },
+            "my-package-name-alternate": {
+                ATTR_SOURCES: [f"{PYSCRIPT_FOLDER}/requirements.txt"],
+                ATTR_VERSION: "2.0.1",
+                ATTR_INSTALLED_VERSION: None,
+            },
+            "my-package-name-alternate-1": {
+                ATTR_SOURCES: [f"{PYSCRIPT_FOLDER}/requirements.txt"],
+                ATTR_VERSION: "0.0.1",
+                ATTR_INSTALLED_VERSION: None,
+            },
+        }
 
     with patch("custom_components.pyscript.requirements.installed_version") as installed_version:
-        installed_version.side_effect = ["2.0.1", "1.0.0"]
+        installed_version.side_effect = ["2.0.1", "1.0.0", None, None]
         all_requirements = process_all_requirements(PYSCRIPT_FOLDER, REQUIREMENTS_PATHS, REQUIREMENTS_FILE)
         assert all_requirements == {
             "my-package-name": {
@@ -174,5 +230,10 @@ def test_process_requirements():
                 ATTR_SOURCES: [f"{PYSCRIPT_FOLDER}/requirements.txt"],
                 ATTR_VERSION: "2.0.1",
                 ATTR_INSTALLED_VERSION: "1.0.0",
+            },
+            "my-package-name-alternate-1": {
+                ATTR_SOURCES: [f"{PYSCRIPT_FOLDER}/requirements.txt"],
+                ATTR_VERSION: "0.0.1",
+                ATTR_INSTALLED_VERSION: None,
             },
         }
