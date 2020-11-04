@@ -235,6 +235,14 @@ async def install_requirements(hass, config_entry, pyscript_folder):
                     package,
                     pkg_installed_version,
                 )
+                # If installed package is not the same version as the one we last installed,
+                # that means that the package is externally managed now so we shouldn't touch it
+                # and should remove it from our internal tracker
+                if (
+                    package in pyscript_installed_packages
+                    and pyscript_installed_packages[package] != pkg_installed_version
+                ):
+                    pyscript_installed_packages.pop(package)
                 continue
 
             # If installed package is not the same version as the one we last installed,
