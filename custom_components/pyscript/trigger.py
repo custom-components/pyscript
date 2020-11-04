@@ -812,6 +812,35 @@ class TrigInfo:
                 if self.task_unique is not None:
                     task_unique_func = Function.task_unique_factory(action_ast_ctx)
 
+
+                #
+                # for state notify, check that changes occurred in state_trig_ident variables
+                #
+                if notify_type == 'state' and func_args['old_state'] is not None:
+                    trig_ident_changed = False
+                    changes = {}
+                    if func_args['old_state'].state != func_args['new_state'].state:
+                        changes[func_args['var_name']] = {
+                            "old": func_args['old_state'].state,
+                            "new": func_args['new_state'].state,
+                        }
+                        if func_args['var_name'] in self.state_trig_ident:
+                            trig_ident_changed = True
+                    
+                    for attribute in func_args['new_state'].attributes:
+                        if func_args['new_state'].attributes[attribute] != func_args['old_state'].attributes[attribute]:
+                            changes[f"{func_args['var_name']}.{attribute}"] = {
+                                "old": func_args['old_state'].attributes[attribute],
+                                "new": func_args['new_state'].attributes[attribute],
+                            }
+                            if f"{func_args['var_name']}.{attribute}" in self.state_trig_ident:
+                                trig_ident_changed = True
+
+                    if not trig_ident_changed:
+                        continue
+
+                    func_args['changes'] = changes
+
                 #
                 # check for @task_unique with kill_me=True
                 #
