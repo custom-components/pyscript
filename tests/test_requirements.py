@@ -5,6 +5,7 @@ from custom_components.pyscript.const import (
     ATTR_INSTALLED_VERSION,
     ATTR_SOURCES,
     ATTR_VERSION,
+    CONF_ALLOW_ALL_IMPORTS,
     CONF_INSTALLED_PACKAGES,
     DOMAIN,
     REQUIREMENTS_FILE,
@@ -33,7 +34,7 @@ async def test_install_requirements(hass, caplog):
     ) as process_requirements, patch(
         "custom_components.pyscript.requirements.async_process_requirements"
     ) as ha_install_requirements:
-        entry = MockConfigEntry(domain=DOMAIN, data={})
+        entry = MockConfigEntry(domain=DOMAIN, data={CONF_ALLOW_ALL_IMPORTS: True})
         entry.add_to_hass(hass)
 
         # Check that packages get installed correctly
@@ -160,7 +161,7 @@ async def test_install_unpinned_requirements(hass, caplog):
     ) as process_requirements, patch(
         "custom_components.pyscript.requirements.async_process_requirements"
     ) as ha_install_requirements:
-        entry = MockConfigEntry(domain=DOMAIN, data={})
+        entry = MockConfigEntry(domain=DOMAIN, data={CONF_ALLOW_ALL_IMPORTS: True})
         entry.add_to_hass(hass)
 
         process_requirements.return_value = {
