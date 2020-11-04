@@ -217,9 +217,16 @@ async def async_setup_entry(hass, config_entry):
             "value": new_val,
             "old_value": old_val,
             "context": event.context,
-            "old_state": event.data.get('old_state'),
-            "new_state": event.data.get('new_state'),
         }
+
+        if new_val is not None:
+            for attribute in event.data["new_state"].attributes:
+                new_vars[f"{var_name}.{attribute}"] = event.data["new_state"].attributes[attribute]
+
+        if old_val is not None:
+            for attribute in event.data["old_state"].attributes:
+                new_vars[f"{var_name}.{attribute}.old"] = event.data["old_state"].attributes[attribute]
+
         await State.update(new_vars, func_args)
 
     async def hass_started(event):
