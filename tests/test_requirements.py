@@ -1,4 +1,6 @@
 """Test requirements helpers."""
+import logging
+
 from custom_components.pyscript.const import (
     ATTR_INSTALLED_VERSION,
     ATTR_SOURCES,
@@ -85,7 +87,18 @@ async def test_install_requirements(hass, caplog):
         await install_requirements(hass, entry, PYSCRIPT_FOLDER)
         await hass.async_block_till_done()
         assert not ha_install_requirements.called
-        assert "WARNING" in caplog.text and "installed outside of pyscript" in caplog.text
+        assert caplog.record_tuples == [
+            (
+                "custom_components.pyscript",
+                logging.WARNING,
+                (
+                    "Version '2.0.1' for package 'my-package-name-alternate' detected "
+                    "in '['tests/test_data/test_requirements/requirements.txt']' will "
+                    "be ignored in favor of the version '1.2.1' which was installed "
+                    "outside of pyscript"
+                ),
+            )
+        ]
         assert entry.data[CONF_INSTALLED_PACKAGES] == {"my-package-name": "2.0.1"}
 
         # Check that version upgrades are handled if the version was installed

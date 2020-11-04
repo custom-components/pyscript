@@ -101,8 +101,8 @@ def process_all_requirements(pyscript_folder, requirements_paths, requirements_f
                 ):
                     _LOGGER.error(
                         (
-                            "Ignoring invalid requirement `%s` specified in `%s`, version, if pinned, "
-                            "must use the format `pkg==version`"
+                            "Ignoring invalid requirement '%s' specified in '%s'; if a specific version"
+                            "is required, the requirement must use the format 'pkg==version'"
                         ),
                         requirements_path,
                         pkg,
@@ -128,8 +128,8 @@ def process_all_requirements(pyscript_folder, requirements_paths, requirements_f
                 elif new_version == UNPINNED_VERSION and current_pinned_version != UNPINNED_VERSION:
                     _LOGGER.warning(
                         (
-                            "Unpinned requirement for package `%s` detected in `%s` will be ignored in "
-                            "favor of the pinned version `%s` detected in %s"
+                            "Unpinned requirement for package '%s' detected in '%s' will be ignored in "
+                            "favor of the pinned version '%s' detected in '%s'"
                         ),
                         pkg_name,
                         requirements_path,
@@ -141,8 +141,8 @@ def process_all_requirements(pyscript_folder, requirements_paths, requirements_f
                 elif new_version != UNPINNED_VERSION and current_pinned_version == UNPINNED_VERSION:
                     _LOGGER.warning(
                         (
-                            "Unpinned requirement for package `%s` detected in `%s will be ignored in "
-                            "favor of the pinned version `%s` detected in %s"
+                            "Unpinned requirement for package '%s' detected in '%s will be ignored in "
+                            "favor of the pinned version '%s' detected in '%s'"
                         ),
                         pkg_name,
                         str(current_sources),
@@ -164,8 +164,8 @@ def process_all_requirements(pyscript_folder, requirements_paths, requirements_f
                 elif Version(current_pinned_version) < Version(new_version):
                     _LOGGER.warning(
                         (
-                            "Version `%s` for package `%s` detected in `%s` will be ignored in "
-                            "favor of the higher version `%s` detected in `%s`"
+                            "Version '%s' for package '%s' detected in '%s' will be ignored in "
+                            "favor of the higher version '%s' detected in '%s'"
                         ),
                         current_pinned_version,
                         pkg_name,
@@ -180,8 +180,8 @@ def process_all_requirements(pyscript_folder, requirements_paths, requirements_f
                 elif Version(current_pinned_version) > Version(new_version):
                     _LOGGER.warning(
                         (
-                            "Version `%s` for package `%s` detected in `%s` will be ignored in "
-                            "favor of the higher version `%s` detected in `%s`"
+                            "Version '%s' for package '%s' detected in '%s' will be ignored in "
+                            "favor of the higher version '%s' detected in '%s'"
                         ),
                         new_version,
                         pkg_name,
@@ -191,7 +191,7 @@ def process_all_requirements(pyscript_folder, requirements_paths, requirements_f
                     )
             except ValueError:
                 # Not valid requirements line so it can be skipped
-                _LOGGER.debug("Ignoring `%s` because it is not a valid package", pkg)
+                _LOGGER.debug("Ignoring '%s' because it is not a valid package", pkg)
 
     return all_requirements_to_install
 
@@ -218,7 +218,7 @@ async def install_requirements(hass, config_entry, pyscript_folder):
             if version_to_install == UNPINNED_VERSION:
                 _LOGGER.debug(
                     (
-                        "Skipping unpinned version of package `%s` because version `%s` is "
+                        "Skipping unpinned version of package '%s' because version '%s' is "
                         "already installed"
                     ),
                     package,
@@ -234,8 +234,8 @@ async def install_requirements(hass, config_entry, pyscript_folder):
             ) != Version(pkg_installed_version):
                 _LOGGER.warning(
                     (
-                        "Version `%s` for package `%s` detected in `%s` will be ignored in favor of"
-                        " the version `%s` which was installed outside of pyscript"
+                        "Version '%s' for package '%s' detected in '%s' will be ignored in favor of"
+                        " the version '%s' which was installed outside of pyscript"
                     ),
                     version_to_install,
                     package,
@@ -254,7 +254,7 @@ async def install_requirements(hass, config_entry, pyscript_folder):
             else:
                 _LOGGER.debug(
                     (
-                        "Version `%s` for package `%s` detected in `%s` will be ignored because it"
+                        "Version '%s' for package '%s' detected in '%s' will be ignored because it"
                         " is already installed"
                     ),
                     version_to_install,
