@@ -217,6 +217,8 @@ async def async_setup_entry(hass, config_entry):
             "value": new_val,
             "old_value": old_val,
             "context": event.context,
+            "old_state": event.data.get('old_state'),
+            "new_state": event.data.get('new_state'),
         }
         await State.update(new_vars, func_args)
 
