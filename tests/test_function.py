@@ -734,7 +734,7 @@ def func_startup_sync2(trigger_type=None, var_name=None):
         res = literal_eval(await wait_until_done(notify_q))
         results[res[0]] = res
 
-    assert results == [[0, "state", 'pyscript.fstartup2'], [1, "state", 'pyscript.fstartup0']]
+    assert results == [[0, "state", None], [1, "state", None]]
 
     for _ in range(2):
         hass.states.async_set("pyscript.fstartup2", 10)
