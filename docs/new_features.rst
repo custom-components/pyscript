@@ -47,6 +47,12 @@ The new features since 0.32 in master include:
 - Entities ``DOMAIN.ENTITY`` now support a virtual method ``SERVICE`` (eg, ``DOMAIN.ENTITY.SERVICE()``)
   that calls the service ``DOMAIN.SERVICE`` for any service that has an ``entity_id`` parameter, with
   that ``entity_id`` set to ``DOMAIN.ENTITY``. Proposed by @dlashua (#64).
+- VSCode connections to pyscript's Jupyter kernel now work.  Two changes were required: VSCode immediately
+  closes the heartbeat port, which no longer causes pyscript to shut down the kernel.  Also, ``stdout``
+  messages are flushed prior to sending the execute complete message. This is to ensure `log` and `print`
+  messages get displayed in VSCode. One benign but unresolved bug with VSCode is that when you connect
+  to the pyscript kernel, VSCode starts a second pyscript Jupyter kernel, before shutting that second one
+  down.
 
 The bug fixes since 0.32 in master include:
 
