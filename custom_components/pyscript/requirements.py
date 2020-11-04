@@ -14,6 +14,7 @@ from .const import (
     ATTR_INSTALLED_VERSION,
     ATTR_SOURCES,
     ATTR_VERSION,
+    CONF_ALLOW_ALL_IMPORTS,
     CONF_INSTALLED_PACKAGES,
     DOMAIN,
     LOGGER_PATH,
@@ -199,6 +200,7 @@ def process_all_requirements(pyscript_folder, requirements_paths, requirements_f
 @bind_hass
 async def install_requirements(hass, config_entry, pyscript_folder):
     """Install missing requirements from requirements.txt."""
+
     pyscript_installed_packages = config_entry.data.get(CONF_INSTALLED_PACKAGES, {}).copy()
 
     all_requirements = await hass.async_add_executor_job(
@@ -206,6 +208,15 @@ async def install_requirements(hass, config_entry, pyscript_folder):
     )
 
     requirements_to_install = {}
+
+    if all_requirements and not config_entry.data.get(CONF_ALLOW_ALL_IMPORTS, False):
+        _LOGGER.error(
+            (
+                "Requirements detected but 'allow_all_imports' is set to False, set "
+                "'allow_all_imports' to True if you want packages to be installed"
+            )
+        )
+        return
 
     for package in all_requirements:
         pkg_installed_version = all_requirements[package].get(ATTR_INSTALLED_VERSION)
