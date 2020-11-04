@@ -37,7 +37,8 @@ The new features since 0.32 in master include:
   @dlashua (#50, #62).
 - Required Python packages can be specified in ``requirements.txt`` files at the top-level pyscript
   directory, and each module's or app's directory. Those files are read and any missing packages are
-  installed on HASS startup and pyscript reload. Contributed by @raman325 (#66, #68, #69).
+  installed on HASS startup and pyscript reload. If a specific version of a package is needed, it must be
+  pinned using the format 'package_name==version'. Contributed by @raman325 (#66, #68, #69, #70, #78).
 - State variable attributes can be set by direct assignment, eg: ``DOMAIN.name.attr = value``. A
   equivalent new function ``state.setattr()`` allows a specific attribute to be set.
 - The ``state.get_attr()`` function has been renamed ``state.getattr()``. The old function is
