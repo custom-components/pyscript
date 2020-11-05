@@ -742,7 +742,7 @@ class TrigInfo:
                     # check if any state_trig_ident_any starts with var_name
                     any_match = False
                     if "var_name" not in func_args:
-                        any_match = True
+                        pass
                     else:
                         for check_var in self.state_trig_ident_any:
                             if check_var == func_args['var_name']:
