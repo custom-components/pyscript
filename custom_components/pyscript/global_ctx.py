@@ -266,8 +266,6 @@ class GlobalContextMgr:
                 _LOGGER.error("%s", exc)
                 return None
 
-        _LOGGER.debug("reading and parsing %s", filepath)
-
         source = await Function.hass.async_add_executor_job(read_file, filepath)
 
         if source is None:
@@ -288,4 +286,7 @@ class GlobalContextMgr:
             global_ctx.stop()
             return ast_ctx
         cls.set(global_ctx.get_name(), global_ctx)
+
+        _LOGGER.info("Loaded %s", filepath)
+
         return None
