@@ -60,3 +60,5 @@ The bug fixes since 0.32 in master include:
 - Jupyter autocomplete now works on multiline code blocks.
 - Improved error message reporting for syntax errors inside f-strings.
 - Fixed incorrect global context update on calling module that, in turn, does a callback (#58)
+- `task.wait_until` no longer silently ignores unrecognized keyword arguments (#80)
+- `task.wait_until` incorrectly ignored the keyword optional state_check_now argument (#81)
