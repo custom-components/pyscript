@@ -192,25 +192,21 @@ async def async_setup_entry(hass, config_entry):
         if "new_state" not in event.data or event.data["new_state"] is None:
             # state variable has been deleted
             new_val = None
-            new_val_obj = None
         else:
-            new_val = event.data['new_state'].state
-            new_val_obj = StateVar(event.data['new_state'])
+            new_val = StateVar(event.data['new_state'])
 
         if "old_state" not in event.data or event.data["old_state"] is None:
             # no previous state
             old_val = None
-            old_val_obj = None
         else:
-            old_val = event.data['old_state'].state
-            old_val_obj = StateVar(event.data['old_state'])
+            old_val = StateVar(event.data['old_state'])
 
         new_vars = {var_name: new_val, f"{var_name}.old": old_val}
         func_args = {
             "trigger_type": "state",
             "var_name": var_name,
-            "value": new_val_obj,
-            "old_value": old_val_obj,
+            "value": new_val,
+            "old_value": old_val,
             "context": event.context,
         }
         await State.update(new_vars, func_args)
