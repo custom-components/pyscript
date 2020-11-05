@@ -22,7 +22,7 @@ from .state import State
 _LOGGER = logging.getLogger(LOGGER_PATH + ".trigger")
 
 
-STATE_RE = re.compile(r"[a-zA-Z]\w*\.[a-zA-Z]\w*$")
+STATE_RE = re.compile(r"[a-zA-Z]\w*\.[a-zA-Z]\w*(\.\*)?$")
 
 
 def dt_now():
@@ -739,7 +739,7 @@ class TrigInfo:
                 elif notify_type == "state":
                     new_vars, func_args = notify_info
 
-                    if "var_name" not in func_args or func_args["var_name"] not in self.state_trig_ident_any:
+                    if "var_name" not in func_args or (func_args["var_name"] not in self.state_trig_ident_any and f"{func_args['var_name']}.*" not in self.state_trig_ident_any):
                         if self.state_trig_eval:
                             trig_ok = await self.state_trig_eval.eval(new_vars)
                             exc = self.state_trig_eval.get_exception_long()
@@ -819,16 +819,29 @@ class TrigInfo:
                 # if "value" not in func_args, then we are state_check_now
                 if "value" in func_args and notify_type == 'state':
                     trig_ident_change = False
-                    for var in self.state_trig_ident:
-                        var_pieces = var.split('.')
-                        if len(var_pieces) == 2 and var == func_args['var_name']:
-                            if func_args['value'] != func_args['old_value']:
-                                trig_ident_change = True
-                        elif len(var_pieces) == 3 and f"{var_pieces[0]}.{var_pieces[1]}" == func_args['var_name']:
-                            attrib_val = getattr(func_args['value'], var_pieces[2], None)
-                            attrib_old_val = getattr(func_args['old_value'], var_pieces[2], None)
+
+                    # determine if the catchall has been requested in state_trig_ident_any
+                    catch_all_entity = f"{func_args['var_name']}.*"
+                    if catch_all_entity in self.state_trig_ident_any:
+                        # catch all has been requested, check all attributes for change
+                        for attribute in func_args['value'].__dict__:
+                            if attribute in ['last_updated', 'last_changed']:
+                                continue
+                            attrib_val = getattr(func_args['value'], attribute, None)
+                            attrib_old_val = getattr(func_args['old_value'], attribute, None)
                             if  attrib_old_val != attrib_val:
                                 trig_ident_change = True
+                    else:
+                        for var in self.state_trig_ident:
+                            var_pieces = var.split('.')
+                            if len(var_pieces) == 2 and var == func_args['var_name']:
+                                if func_args['value'] != func_args['old_value']:
+                                    trig_ident_change = True
+                            elif len(var_pieces) == 3 and f"{var_pieces[0]}.{var_pieces[1]}" == func_args['var_name']:
+                                attrib_val = getattr(func_args['value'], var_pieces[2], None)
+                                attrib_old_val = getattr(func_args['old_value'], var_pieces[2], None)
+                                if  attrib_old_val != attrib_val:
+                                    trig_ident_change = True
 
                     if not trig_ident_change:
                         continue
