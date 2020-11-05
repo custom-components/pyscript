@@ -823,9 +823,17 @@ class TrigInfo:
                             if func_args['value'] != func_args['old_value']:
                                 trig_ident_change = True
                         elif len(var_pieces) == 3 and f"{var_pieces[0]}.{var_pieces[1]}" == func_args['var_name']:
-                            if func_args['value'] is None or func_args['old_value'] is None:
-                                trig_ident_change= True
-                            elif getattr(func_args['value'], var_pieces[2]) != getattr(func_args['old_value'], var_pieces[2]):
+                            if func_args['value'] is None:
+                                attrib_val = None
+                            else:
+                                attrib_val = getattr(func_args['value'], var_pieces[2])
+
+                            if func_args['old_value'] is None:
+                                attrib_old_val = None
+                            else:
+                                attrib_old_val = getattr(func_args['old_value'], var_pieces[2])
+
+                            if  attrib_old_val != attrib_val:
                                 trig_ident_change = True
 
                     if not trig_ident_change:
