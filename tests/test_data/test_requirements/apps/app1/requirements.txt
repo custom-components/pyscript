@@ -1,0 +1,2 @@
+my-package-name==2.0.1
+my-package-name-alternate==0.0.1

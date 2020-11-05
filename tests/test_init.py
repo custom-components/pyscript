@@ -4,8 +4,7 @@ import asyncio
 from datetime import datetime as dt
 import pathlib
 
-from custom_components.pyscript import process_all_requirements
-from custom_components.pyscript.const import DOMAIN, REQUIREMENTS_FILE, REQUIREMENTS_PATHS
+from custom_components.pyscript.const import DOMAIN
 from custom_components.pyscript.event import Event
 from custom_components.pyscript.function import Function
 from custom_components.pyscript.global_ctx import GlobalContextMgr
@@ -34,8 +33,7 @@ async def setup_script(hass, notify_q, now, source):
     ), patch(
         "homeassistant.config.load_yaml_config_file", return_value={}
     ), patch(
-        "custom_components.pyscript.process_all_requirements",
-        return_value={"/some/config/dir/pyscript/requirements.txt": ["pytube==2.0.1", "pykakasi==2.0.1"]},
+        "custom_components.pyscript.install_requirements", return_value=None,
     ):
         assert await async_setup_component(hass, "pyscript", {DOMAIN: {}})
 
@@ -451,10 +449,7 @@ def func5(var_name=None, value=None):
         ), patch(
             "homeassistant.config.load_yaml_config_file", return_value={}
         ), patch(
-            "custom_components.pyscript.process_all_requirements",
-            return_value={
-                "/some/config/dir/pyscript/requirements.txt": ["pytube==2.0.1", "pykakasi==2.0.1"]
-            },
+            "custom_components.pyscript.install_requirements", return_value=None,
         ):
             reload_param = {}
             if i % 2 == 1:
@@ -491,61 +486,3 @@ async def test_misc_errors(hass, caplog):
     assert "State class is not meant to be instantiated" in caplog.text
     assert "Event class is not meant to be instantiated" in caplog.text
     assert "TrigTime class is not meant to be instantiated" in caplog.text
-
-
-async def test_install_requirements(hass):
-    """Test install_requirements function."""
-    with patch("custom_components.pyscript.async_hass_config_yaml", return_value={}), patch(
-        "custom_components.pyscript.async_process_requirements"
-    ) as install_requirements:
-        await setup_script(hass, None, dt(2020, 7, 1, 11, 59, 59, 999999), "")
-        assert install_requirements.called
-        assert install_requirements.call_args[0][2] == ["pytube==2.0.1", "pykakasi==2.0.1"]
-        install_requirements.reset_mock()
-        # Because in tests, packages are not installed, we fake that they are
-        # installed so we can test that we don't attempt to install them
-        with patch("custom_components.pyscript.installed_version", return_value="2.0.1"), patch(
-            "custom_components.pyscript.process_all_requirements",
-            return_value={"/some/config/dir/pyscript/requirements.txt": []},
-        ):
-            await hass.services.async_call("pyscript", "reload", {}, blocking=True)
-            assert not install_requirements.called
-
-
-async def test_process_requirements(hass, caplog):
-    """Test process requirements function."""
-    requirements = [
-        "/some/config/dir/pyscript/requirements.txt",
-    ]
-
-    source = """
-# Comment
-pytube==2.0.1
->
-pkakasi==2.0.1 # Comment
-
-
-"""
-
-    with patch("custom_components.pyscript.glob.iglob", return_value=requirements), patch(
-        "custom_components.pyscript.open", mock_open(read_data=source), create=True
-    ):
-        all_requirements = await hass.async_add_executor_job(
-            process_all_requirements, hass, REQUIREMENTS_PATHS, REQUIREMENTS_FILE
-        )
-        assert requirements[0] in all_requirements
-        assert all_requirements[requirements[0]] == ["pytube==2.0.1", "pkakasi==2.0.1"]
-
-        with patch("custom_components.pyscript.installed_version") as installed_version:
-            installed_version.side_effect = ["2.0.1", "1.0.0"]
-            all_requirements = await hass.async_add_executor_job(
-                process_all_requirements, hass, REQUIREMENTS_PATHS, REQUIREMENTS_FILE
-            )
-            assert requirements[0] in all_requirements
-            assert all_requirements[requirements[0]] == []
-
-    assert caplog.record_tuples[0] == (
-        "custom_components.pyscript",
-        30,
-        "`pkakasi` already found but found version `1.0.0` does not match requirement. Keeping found version.",
-    )

@@ -1090,13 +1090,17 @@ version of that package, eg:
 
    # this is a comment
    aiohttp
-   amazing_stuff>=3.1
+   amazing_stuff==3.1
    another_package==5.1.2
+
+When a specific version of a package is required, the ``==`` specifier must be used. Unpinned packages
+(no version specified) are also accepted, but the highest pinned version will always take precedence
+when a package has been specified as a requirement multiple times.
 
 Each app's or module's directory (assuming they use the directory-form of a package) can also
 contain an optional ``requirements.txt`` file:
 
-- ``<config>/pyscript/modules/PACKAGE_NAME/requirements.txt``
+- ``<config>/pyscript/modules/my-package-name/requirements.txt``
 - ``<config>/pyscript/apps/APP_NAME/requirements.txt``
 
 That allows you to specify the specific requirements for each pyscript module or app. If you release

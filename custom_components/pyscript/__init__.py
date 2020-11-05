@@ -4,9 +4,7 @@ import glob
 import json
 import logging
 import os
-import sys
 
-import pkg_resources
 import voluptuous as vol
 
 from homeassistant.config import async_hass_config_yaml
@@ -21,7 +19,6 @@ from homeassistant.exceptions import HomeAssistantError
 import homeassistant.helpers.config_validation as cv
 from homeassistant.helpers.restore_state import RestoreStateData
 from homeassistant.loader import bind_hass
-from homeassistant.requirements import async_process_requirements
 
 from .const import (
     CONF_ALLOW_ALL_IMPORTS,
@@ -30,8 +27,6 @@ from .const import (
     DOMAIN,
     FOLDER,
     LOGGER_PATH,
-    REQUIREMENTS_FILE,
-    REQUIREMENTS_PATHS,
     SERVICE_JUPYTER_KERNEL_START,
     UNSUB_LISTENERS,
 )
@@ -40,19 +35,9 @@ from .event import Event
 from .function import Function
 from .global_ctx import GlobalContext, GlobalContextMgr
 from .jupyter_kernel import Kernel
+from .requirements import install_requirements
 from .state import State
 from .trigger import TrigTime
-
-if sys.version_info[:2] >= (3, 8):
-    from importlib.metadata import (  # pylint: disable=no-name-in-module,import-error
-        PackageNotFoundError,
-        version as installed_version,
-    )
-else:
-    from importlib_metadata import (  # pylint: disable=import-error
-        PackageNotFoundError,
-        version as installed_version,
-    )
 
 _LOGGER = logging.getLogger(LOGGER_PATH)
 
@@ -149,7 +134,7 @@ async def async_setup_entry(hass, config_entry):
 
     State.set_pyscript_config(config_entry.data)
 
-    await install_requirements(hass)
+    await install_requirements(hass, config_entry, pyscript_folder)
     await load_scripts(hass, config_entry.data)
 
     async def reload_scripts_handler(call):
@@ -169,7 +154,7 @@ async def async_setup_entry(hass, config_entry):
 
         await unload_scripts(global_ctx_only=global_ctx_only)
 
-        await install_requirements(hass)
+        await install_requirements(hass, config_entry, pyscript_folder)
         await load_scripts(hass, config_entry.data, global_ctx_only=global_ctx_only)
 
         start_global_contexts(global_ctx_only=global_ctx_only)
@@ -269,81 +254,6 @@ async def unload_scripts(global_ctx_only=None, unload_all=False):
         ctx_delete[global_ctx_name] = global_ctx
     for global_ctx_name, global_ctx in ctx_delete.items():
         await GlobalContextMgr.delete(global_ctx_name)
-
-
-@bind_hass
-def process_all_requirements(hass, requirements_paths, requirements_file):
-    """
-    Load all lines from requirements_file located in requirements_paths.
-
-    Returns files and a list of packages, if any, that need to be installed.
-    """
-    all_requirements_to_process = {}
-    for root in requirements_paths:
-        for requirements_path in glob.glob(os.path.join(hass.config.path(FOLDER), root, requirements_file)):
-            with open(requirements_path, "r") as requirements_fp:
-                all_requirements_to_process[requirements_path] = requirements_fp.readlines()
-
-    all_requirements_to_install = {}
-    for requirements_path, pkg_lines in all_requirements_to_process.items():
-        all_requirements_to_install[requirements_path] = []
-        for pkg in pkg_lines:
-            # Remove inline comments which are accepted by pip but not by Home
-            # Assistant's installation method.
-            # https://rosettacode.org/wiki/Strip_comments_from_a_string#Python
-            i = pkg.find("#")
-            if i >= 0:
-                pkg = pkg[:i]
-            pkg = pkg.strip()
-
-            if not pkg:
-                continue
-
-            try:
-                # Attempt to get version of package. Do nothing if it's found since
-                # we want to use the version that's already installed to be safe
-                requirement = pkg_resources.Requirement.parse(pkg)
-                requirement_installed_version = installed_version(requirement.project_name)
-
-                if requirement_installed_version in requirement:
-                    _LOGGER.debug("`%s` already found", requirement.project_name)
-                else:
-                    _LOGGER.warning(
-                        (
-                            "`%s` already found but found version `%s` does not"
-                            " match requirement. Keeping found version."
-                        ),
-                        requirement.project_name,
-                        requirement_installed_version,
-                    )
-            except PackageNotFoundError:
-                # Since package wasn't found, add it to installation list
-                _LOGGER.debug("%s not found, adding it to package installation list", pkg)
-                all_requirements_to_install[requirements_path].append(pkg)
-            except ValueError:
-                # Not valid requirements line so it can be skipped
-                _LOGGER.debug("Ignoring `%s` because it is not a valid package", pkg)
-
-    return all_requirements_to_install
-
-
-@bind_hass
-async def install_requirements(hass):
-    """Install missing requirements from requirements.txt."""
-    all_requirements = await hass.async_add_executor_job(
-        process_all_requirements, hass, REQUIREMENTS_PATHS, REQUIREMENTS_FILE
-    )
-
-    for requirements_path, requirements_to_install in all_requirements.items():
-        if requirements_to_install:
-            _LOGGER.info(
-                "Installing the following packages from %s: %s",
-                requirements_path,
-                ", ".join(requirements_to_install),
-            )
-            await async_process_requirements(hass, DOMAIN, requirements_to_install)
-        else:
-            _LOGGER.debug("All packages in %s are already available", requirements_path)
 
 
 @bind_hass
