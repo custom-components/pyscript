@@ -13,6 +13,18 @@ from .function import Function
 _LOGGER = logging.getLogger(LOGGER_PATH + ".state")
 
 
+class StateVar(str):
+    """Class for representing the value and attributes of a state variable."""
+
+    def __new__(cls, state):
+        """Create a new instance given a state variable."""
+        new_var = super().__new__(cls, state.state)
+        new_var.__dict__ = state.attributes.copy()
+        new_var.last_updated = state.last_updated
+        new_var.last_changed = state.last_changed
+        return new_var
+
+
 class State:
     """Class for state functions."""
 
@@ -217,21 +229,15 @@ class State:
         parts = var_name.split(".")
         if len(parts) != 2 and len(parts) != 3:
             raise NameError(f"invalid name '{var_name}' (should be 'domain.entity' or 'domain.entity.attr')")
-        value = cls.hass.states.get(f"{parts[0]}.{parts[1]}")
-        if not value:
+        state = cls.hass.states.get(f"{parts[0]}.{parts[1]}")
+        if not state:
             raise NameError(f"name '{parts[0]}.{parts[1]}' is not defined")
         #
         # simplest case is just the state value
         #
+        state = StateVar(state)
         if len(parts) == 2:
-            return value.state
-        #
-        # handle virtual attributes
-        #
-        if parts[2] == "last_changed":
-            return value.last_changed
-        if parts[2] == "last_updated":
-            return value.last_updated
+            return state
         #
         # see if this is a service that has an entity_id parameter
         #
@@ -264,9 +270,12 @@ class State:
         #
         # finally see if it is an attribute
         #
-        if parts[2] not in value.attributes:
-            raise AttributeError(f"state '{parts[0]}.{parts[1]}' has no attribute '{parts[2]}'")
-        return value.attributes.get(parts[2])
+        try:
+            return getattr(state, parts[2])
+        except AttributeError:
+            raise AttributeError(  # pylint: disable=raise-missing-from
+                f"state '{parts[0]}.{parts[1]}' has no attribute '{parts[2]}'"
+            )
 
     @classmethod
     async def getattr(cls, var_name):
