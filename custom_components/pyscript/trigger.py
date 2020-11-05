@@ -815,7 +815,9 @@ class TrigInfo:
                 #
                 # check for changes to state or attributes
                 #
-                if notify_type == 'state':
+
+                # if "value" not in func_args, then we are state_check_now
+                if "value" in func_args and notify_type == 'state':
                     trig_ident_change = False
                     for var in self.state_trig_ident:
                         var_pieces = var.split('.')
