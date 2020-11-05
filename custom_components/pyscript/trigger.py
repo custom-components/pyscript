@@ -832,7 +832,7 @@ class TrigInfo:
                             if  attrib_old_val != attrib_val:
                                 trig_ident_change = True
                     
-                    if trig_ident_change == False:
+                    if not trig_ident_change:
                         for var in self.state_trig_ident:
                             var_pieces = var.split('.')
                             if len(var_pieces) == 2 and var == func_args['var_name']:
