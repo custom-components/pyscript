@@ -127,12 +127,12 @@ class State:
     @classmethod
     def notify_var_get(cls, var_names, new_vars):
         """Return the most recent value of a state variable change."""
-        notify_vars = {}
+        notify_vars = new_vars.copy()
         for var_name in var_names if var_names is not None else []:
             if var_name in cls.notify_var_last:
                 notify_vars[var_name] = cls.notify_var_last[var_name]
-            elif var_name in new_vars:
-                notify_vars[var_name] = new_vars[var_name]
+            # elif var_name in new_vars:
+                # notify_vars[var_name] = new_vars[var_name]
             elif 1 <= var_name.count(".") <= 2 and not cls.exist(var_name):
                 notify_vars[var_name] = None
         return notify_vars

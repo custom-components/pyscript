@@ -40,7 +40,7 @@ from .event import Event
 from .function import Function
 from .global_ctx import GlobalContext, GlobalContextMgr
 from .jupyter_kernel import Kernel
-from .state import State
+from .state import State, StateVar
 from .trigger import TrigTime
 
 if sys.version_info[:2] >= (3, 8):
@@ -208,8 +208,8 @@ async def async_setup_entry(hass, config_entry):
             # state variable has been deleted
             new_val = None
         else:
-            new_val = event.data["new_state"].state
-        old_val = event.data["old_state"].state if event.data["old_state"] else None
+            new_val = StateVar(event.data.get('new_state'))
+        old_val = StateVar(event.data.get('old_state')) if event.data["old_state"] else None
         new_vars = {var_name: new_val, f"{var_name}.old": old_val}
         func_args = {
             "trigger_type": "state",

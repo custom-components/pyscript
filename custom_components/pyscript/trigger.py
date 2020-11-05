@@ -812,6 +812,30 @@ class TrigInfo:
                 if self.task_unique is not None:
                     task_unique_func = Function.task_unique_factory(action_ast_ctx)
 
+
+                _LOGGER.info(
+                    "trigger %s with ident %s and any %s",
+                    self.name,
+                    self.state_trig_ident,
+                    self.state_trig_ident_any,
+                )
+                #
+                # check for changes to state or attributes
+                #
+                if notify_type == 'state':
+                    trig_ident_change = False
+                    for var in self.state_trig_ident:
+                        var_pieces = var.split('.')
+                        if len(var_pieces) == 2 and var == func_args['var_name']:
+                            if func_args['value'] != func_args['old_value']:
+                                trig_ident_change = True
+                        elif len(var_pieces) == 3 and ".".join(var_pieces[0:2]) == func_args['var_name']:
+                            if getattr(func_args['value'], var_pieces[2]) != getattr(func_args['old_value'], var_pieces[2]):
+                                trig_ident_change = True
+
+                    if not trig_ident_change:
+                        continue 
+
                 #
                 # check for @task_unique with kill_me=True
                 #
