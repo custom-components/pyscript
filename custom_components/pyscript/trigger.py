@@ -826,12 +826,12 @@ class TrigInfo:
                             if func_args['value'] is None:
                                 attrib_val = None
                             else:
-                                attrib_val = getattr(func_args['value'], var_pieces[2])
+                                attrib_val = getattr(func_args['value'], var_pieces[2], None)
 
                             if func_args['old_value'] is None:
                                 attrib_old_val = None
                             else:
-                                attrib_old_val = getattr(func_args['old_value'], var_pieces[2])
+                                attrib_old_val = getattr(func_args['old_value'], var_pieces[2], None)
 
                             if  attrib_old_val != attrib_val:
                                 trig_ident_change = True
