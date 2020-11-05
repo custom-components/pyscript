@@ -1094,7 +1094,8 @@ version of that package, eg:
    another_package==5.1.2
 
 When a specific version of a package is required, the ``==`` specifier must be used. Unpinned packages
-(no version specified) are also accepted.
+(no version specified) are also accepted, but the highest pinned version will always take precedence
+when a package has been specified as a requirement multiple times.
 
 Each app's or module's directory (assuming they use the directory-form of a package) can also
 contain an optional ``requirements.txt`` file:
@@ -1110,9 +1111,6 @@ start of HASS or reload of pyscript.
 If a required package version differs from the installed one, no change is made since it's likely
 HASS has a requirement that pyscript should not change. In that case a warning message will be
 logged and the requirement will be skipped.
-
-When a package appears multiple times across all of your ``requirements.txt`` definitions, the
-highest version specified will be installed.
 
 Trigger Closures
 ^^^^^^^^^^^^^^^^
