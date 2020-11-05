@@ -22,7 +22,7 @@ from .state import State
 _LOGGER = logging.getLogger(LOGGER_PATH + ".trigger")
 
 
-STATE_RE = re.compile(r"[a-zA-Z]\w*\.[a-zA-Z]\w*(\.\*)?$")
+STATE_RE = re.compile(r"[a-zA-Z]\w*\.[a-zA-Z]\w*(\.[a-zA-Z\*]?[a-zA-Z]*)?$")
 
 
 def dt_now():
@@ -739,7 +739,19 @@ class TrigInfo:
                 elif notify_type == "state":
                     new_vars, func_args = notify_info
 
-                    if "var_name" not in func_args or (func_args["var_name"] not in self.state_trig_ident_any and f"{func_args['var_name']}.*" not in self.state_trig_ident_any):
+                    # check if any state_trig_ident_any starts with var_name
+                    any_match = False
+                    if "var_name" not in func_args:
+                        any_match = True
+                    else:
+                        for check_var in self.state_trig_ident_any:
+                            if check_var == func_args['var_name']:
+                                any_match = True
+                                break
+                            if check_var.startswith(f"{func_args['var_name']}."):
+                                any_match = True
+                                break
+                    if not any_match:
                         if self.state_trig_eval:
                             trig_ok = await self.state_trig_eval.eval(new_vars)
                             exc = self.state_trig_eval.get_exception_long()
