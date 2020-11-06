@@ -646,15 +646,23 @@ class TrigInfo:
 
     def ident_any_values_changed(self, func_args):
         """Check for changes to state or attributes on ident any vars"""
-        value = func_args['value']
-        old_value = func_args['old_value']
-        var_name = func_args['var_name']
+        value = func_args.get('value')
+        old_value = func_args.get('old_value')
+        var_name = func_args.get('var_name')
 
         if var_name is None:
+            _LOGGER.debug(
+                "%s ident_any change not detected because no var_name",
+                self.name,
+            )
             return False
 
         for check_var in self.state_trig_ident_any:
             if check_var == var_name and old_value != value:
+                _LOGGER.debug(
+                    "%s ident_any change detected at state",
+                    self.name,
+                )
                 return True
 
             if check_var.startswith(f"{var_name}."):
@@ -672,31 +680,73 @@ class TrigInfo:
                             attrib_val = getattr(value, attribute, None)
                             attrib_old_val = getattr(old_value, attribute, None)
                             if attrib_old_val != attrib_val:
+                                _LOGGER.debug(
+                                    "%s ident_any change detected in * at %s",
+                                    self.name,
+                                    attribute,
+                                )
                                 return True
                     else:
                         attrib_val = getattr(value, var_pieces[2], None)
                         attrib_old_val = getattr(old_value, var_pieces[2], None)
                         if attrib_old_val != attrib_val:
+                            _LOGGER.debug(
+                                "%s ident_any change detected at %s",
+                                self.name,
+                                var_pieces[2],
+                            )
                             return True
+
+        _LOGGER.debug(
+            "%s no ident_any change detected",
+            self.name,
+        )
         return False
 
     def ident_values_changed(self, func_args):
         """Check for changes to state or attributes on ident vars"""
-        value = func_args['value']
-        old_value = func_args['old_value']
-        var_name = func_args['var_name']     
+        value = func_args.get('value')
+        old_value = func_args.get('old_value')
+        var_name = func_args.get('var_name')
+
+        if var_name is None:
+            _LOGGER.debug(
+                "%s ident changes detected because no var_name",
+                self.name,
+            )
+            return True
+
         for check_var in self.state_trig_ident:
-            if check_var in self.state_trig_ident_any:
-                continue
+            # if check_var in self.state_trig_ident_any:
+            #     _LOGGER.debug(
+            #         "%s ident change skipping %s because also ident_any",
+            #         self.name,
+            #         check_var,
+            #     )
+            #     continue
             var_pieces = check_var.split('.')
             if len(var_pieces) == 2 and check_var == var_name:
                 if value != old_value:
+                    _LOGGER.debug(
+                        "%s ident change detected at state",
+                        self.name
+                    )
                     return True
             elif len(var_pieces) == 3 and f"{var_pieces[0]}.{var_pieces[1]}" == var_name:
                 attrib_val = getattr(value, var_pieces[2], None)
                 attrib_old_val = getattr(old_value, var_pieces[2], None)
                 if  attrib_old_val != attrib_val:
+                    _LOGGER.debug(
+                        "%s ident change detected at attribute %s",
+                        self.name,
+                        var_pieces[2]
+                    )
                     return True
+
+        _LOGGER.debug(
+            "%s no ident change detected",
+            self.name,
+        )
 
         return False
 
@@ -798,7 +848,7 @@ class TrigInfo:
                     if not self.ident_any_values_changed(func_args):
                         if not self.ident_values_changed(func_args):
                             continue
-                        
+
                         if self.state_trig_eval:
                             trig_ok = await self.state_trig_eval.eval(new_vars)
                             exc = self.state_trig_eval.get_exception_long()
