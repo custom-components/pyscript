@@ -834,9 +834,8 @@ class TrigInfo:
                     catch_all_entity = f"{func_args['var_name']}.*"
                     if catch_all_entity in self.state_trig_ident_any:
                         # catch all has been requested, check all attributes for change
-                        for attribute in func_args['value'].__dict__:
-                            if attribute in ['last_updated', 'last_changed']:
-                                continue
+                        all_attributes = (set(func_args['value'].__dict__.keys()) | set(func_args['old_value'].__dict__.keys())) - {"last_updated", "last_changed"}
+                        for attribute in all_attributes:
                             attrib_val = getattr(func_args['value'], attribute, None)
                             attrib_old_val = getattr(func_args['old_value'], attribute, None)
                             if  attrib_old_val != attrib_val:
