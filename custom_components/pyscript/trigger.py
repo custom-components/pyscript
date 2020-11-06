@@ -662,7 +662,12 @@ class TrigInfo:
                 if len(var_pieces) == 3 and f"{var_pieces[0]}.{var_pieces[1]}" == var_name:
                     if var_pieces[2] == "*":
                         # catch all has been requested, check all attributes for change
-                        all_attributes = (set(value.__dict__.keys()) | set(old_value.__dict__.keys())) - {"last_updated", "last_changed"}
+                        all_attributes = set()
+                        if value is not None:
+                            all_attributes |= set(value.__dict__.keys())
+                        if old_value is not None:
+                            all_attributes |= set(old_value.__dict__.keys())
+                        all_attributes -= {"last_updated", "last_changed"}
                         for attribute in all_attributes:
                             attrib_val = getattr(value, attribute, None)
                             attrib_old_val = getattr(old_value, attribute, None)
