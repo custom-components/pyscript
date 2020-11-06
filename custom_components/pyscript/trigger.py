@@ -795,21 +795,18 @@ class TrigInfo:
                 elif notify_type == "state":
                     new_vars, func_args = notify_info
 
-                    # if func_args is not fully populated, then we are state_check_now so skip changed check
-                    if all([(x in func_args) for x in ['value', 'old_value', 'var_name']]):
-                        # check for changes to ident vars
-                        if not self.ident_any_values_changed(func_args) and not self.ident_values_changed(func_args):
-                            # nothing changed so no need to evaluate trigger
+                    if not self.ident_any_values_changed(func_args):
+                        if not self.ident_values_changed(func_args):
                             continue
-
-                    if self.state_trig_eval:
-                        trig_ok = await self.state_trig_eval.eval(new_vars)
-                        exc = self.state_trig_eval.get_exception_long()
-                        if exc is not None:
-                            self.state_trig_eval.get_logger().error(exc)
+                        
+                        if self.state_trig_eval:
+                            trig_ok = await self.state_trig_eval.eval(new_vars)
+                            exc = self.state_trig_eval.get_exception_long()
+                            if exc is not None:
+                                self.state_trig_eval.get_logger().error(exc)
+                                trig_ok = False
+                        else:
                             trig_ok = False
-                    else:
-                        trig_ok = False
 
                     if self.state_hold_dur is not None:
                         if trig_ok:
