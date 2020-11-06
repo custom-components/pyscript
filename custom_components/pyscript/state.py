@@ -260,11 +260,11 @@ class State:
                     curr_task = asyncio.current_task()
                     hass_args = {}
                     for keyword, typ, default in [
-                        ("context", Context, Function.task2context.get(curr_task, None)),
-                        ("blocking", bool, None),
-                        ("limit", float, None),
+                        ("context", [Context], Function.task2context.get(curr_task, None)),
+                        ("blocking", [bool], None),
+                        ("limit", [float, int], None),
                     ]:
-                        if keyword in kwargs and isinstance(kwargs[keyword], typ):
+                        if keyword in kwargs and type(kwargs[keyword]) in typ:
                             hass_args[keyword] = kwargs.pop(keyword)
                         elif default:
                             hass_args[keyword] = default

@@ -192,11 +192,11 @@ class Function:
         curr_task = asyncio.current_task()
         hass_args = {}
         for keyword, typ, default in [
-            ("context", Context, cls.task2context.get(curr_task, None)),
-            ("blocking", bool, None),
-            ("limit", float, None),
+            ("context", [Context], cls.task2context.get(curr_task, None)),
+            ("blocking", [bool], None),
+            ("limit", [float, int], None),
         ]:
-            if keyword in kwargs and isinstance(kwargs[keyword], typ):
+            if keyword in kwargs and type(kwargs[keyword]) in typ:
                 hass_args[keyword] = kwargs.pop(keyword)
             elif default:
                 hass_args[keyword] = default
@@ -262,17 +262,18 @@ class Function:
                 curr_task = asyncio.current_task()
                 hass_args = {}
                 for keyword, typ, default in [
-                    ("context", Context, cls.task2context.get(curr_task, None)),
-                    ("blocking", bool, None),
-                    ("limit", float, None),
+                    ("context", [Context], cls.task2context.get(curr_task, None)),
+                    ("blocking", [bool], None),
+                    ("limit", [float, int], None),
                 ]:
-                    if keyword in kwargs and isinstance(kwargs[keyword], typ):
+                    if keyword in kwargs and type(kwargs[keyword]) in typ:
                         hass_args[keyword] = kwargs.pop(keyword)
                     elif default:
                         hass_args[keyword] = default
 
                 if len(args) != 0:
                     raise (TypeError, f"service {domain}.{service} takes no positional arguments")
+
                 await cls.hass.services.async_call(domain, service, kwargs, **hass_args)
 
             return service_call
