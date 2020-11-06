@@ -827,29 +827,32 @@ class TrigInfo:
                 #
 
                 # if "value" not in func_args, then we are state_check_now
-                if "value" in func_args and notify_type == 'state':
+                if notify_type == 'state' and all([(x in func_args) for x in ['value', 'old_value', 'var_name']]):
                     trig_ident_change = False
 
+                    value = func_args['value']
+                    old_value = func_args['old_value']
+                    var_name = func_args['var_name']
                     # determine if the catchall has been requested in state_trig_ident_any
-                    catch_all_entity = f"{func_args['var_name']}.*"
+                    catch_all_entity = f"{var_name}.*"
                     if catch_all_entity in self.state_trig_ident_any:
                         # catch all has been requested, check all attributes for change
-                        all_attributes = (set(func_args['value'].__dict__.keys()) | set(func_args['old_value'].__dict__.keys())) - {"last_updated", "last_changed"}
+                        all_attributes = (set(value.__dict__.keys()) | set(old_value.__dict__.keys())) - {"last_updated", "last_changed"}
                         for attribute in all_attributes:
-                            attrib_val = getattr(func_args['value'], attribute, None)
-                            attrib_old_val = getattr(func_args['old_value'], attribute, None)
+                            attrib_val = getattr(value, attribute, None)
+                            attrib_old_val = getattr(old_value, attribute, None)
                             if  attrib_old_val != attrib_val:
                                 trig_ident_change = True
                     
                     if not trig_ident_change:
                         for var in self.state_trig_ident:
                             var_pieces = var.split('.')
-                            if len(var_pieces) == 2 and var == func_args['var_name']:
-                                if func_args['value'] != func_args['old_value']:
+                            if len(var_pieces) == 2 and var == var_name:
+                                if value != old_value:
                                     trig_ident_change = True
-                            elif len(var_pieces) == 3 and f"{var_pieces[0]}.{var_pieces[1]}" == func_args['var_name']:
-                                attrib_val = getattr(func_args['value'], var_pieces[2], None)
-                                attrib_old_val = getattr(func_args['old_value'], var_pieces[2], None)
+                            elif len(var_pieces) == 3 and f"{var_pieces[0]}.{var_pieces[1]}" == var_name:
+                                attrib_val = getattr(value, var_pieces[2], None)
+                                attrib_old_val = getattr(old_value, var_pieces[2], None)
                                 if  attrib_old_val != attrib_val:
                                     trig_ident_change = True
 
