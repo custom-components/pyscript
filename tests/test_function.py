@@ -809,10 +809,10 @@ def set_add(entity_id=None, val1=None, val2=None):
 
 async def test_service_call_params(hass):
     """Test that hass params get set properly on service calls."""
-    Function.init(hass)
-    with patch.object(Function.hass.services, "async_call") as call, patch.object(
+    with patch.object(hass.services, "async_call") as call, patch.object(
         Function, "service_has_service", return_value=True
     ):
+        Function.init(hass)
         await Function.service_call(
             "test", "test", context=Context(id="test"), blocking=True, limit=1, other_service_data="test"
         )
@@ -843,3 +843,6 @@ async def test_service_call_params(hass):
         assert call.called
         assert call.call_args[0] == ("test", "test", {"other_service_data": "test"})
         assert call.call_args[1] == {"context": Context(id="test"), "blocking": False}
+
+    # Stop all tasks to avoid conflicts with other tests
+    await Function.reaper_stop()
