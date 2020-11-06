@@ -258,11 +258,16 @@ class State:
             def service_call_factory(domain, service, entity_id, params):
                 async def service_call(*args, **kwargs):
                     curr_task = asyncio.current_task()
-                    if "context" in kwargs and isinstance(kwargs["context"], Context):
-                        context = kwargs["context"]
-                        del kwargs["context"]
-                    else:
-                        context = Function.task2context.get(curr_task, None)
+                    hass_args = {}
+                    for keyword, typ, default in [
+                        ("context", [Context], Function.task2context.get(curr_task, None)),
+                        ("blocking", [bool], None),
+                        ("limit", [float, int], None),
+                    ]:
+                        if keyword in kwargs and type(kwargs[keyword]) in typ:
+                            hass_args[keyword] = kwargs.pop(keyword)
+                        elif default:
+                            hass_args[keyword] = default
 
                     kwargs["entity_id"] = entity_id
                     if len(args) == 1 and len(params) == 1:
@@ -273,7 +278,7 @@ class State:
                         kwargs[param_name] = args[0]
                     elif len(args) != 0:
                         raise TypeError(f"service {domain}.{service} takes no positional arguments")
-                    await cls.hass.services.async_call(domain, service, kwargs, context=context)
+                    await cls.hass.services.async_call(domain, service, kwargs, **hass_args)
 
                 return service_call
 

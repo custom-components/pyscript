@@ -54,6 +54,9 @@ The new features since 0.32 in master include:
   messages get displayed in VSCode. One benign but unresolved bug with VSCode is that when you connect
   to the pyscript kernel, VSCode starts a second pyscript Jupyter kernel, before shutting that second one
   down.
+- Service calls now accept ``blocking`` and ``limit`` parameters. The default behavior for a service call is
+  to run it in the background, but using ``blocking=True`` will force a task to wait up to ``limit`` seconds
+  for the service call to finish executing before continuing. Contributed by @raman325 (#85)
 
 The bug fixes since 0.32 in master include:
 
