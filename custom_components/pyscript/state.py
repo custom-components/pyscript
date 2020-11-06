@@ -12,6 +12,8 @@ from .function import Function
 
 _LOGGER = logging.getLogger(LOGGER_PATH + ".state")
 
+STATE_VIRTUAL_ATTRS = {"last_changed", "last_updated"}
+
 
 class StateVar(str):
     """Class for representing the value and attributes of a state variable."""
@@ -143,6 +145,15 @@ class State:
         if var_name.count(".") != 1:
             raise NameError(f"invalid name {var_name} (should be 'domain.entity')")
 
+        if isinstance(value, StateVar) and new_attributes is None:
+            #
+            # value is a StateVar, so extract the attributes and value
+            #
+            new_attributes = value.__dict__.copy()
+            for discard in STATE_VIRTUAL_ATTRS:
+                new_attributes.pop(discard, None)
+            value = str(value)
+
         state_value = None
         if value is None or new_attributes is None:
             state_value = cls.hass.states.get(var_name)
@@ -218,7 +229,7 @@ class State:
             len(parts) == 2
             or (parts[0] in cls.service2args and parts[2] in cls.service2args[parts[0]])
             or parts[2] in value.attributes
-            or parts[2] in {"last_changed", "last_updated"}
+            or parts[2] in STATE_VIRTUAL_ATTRS
         ):
             return True
         return False
@@ -302,7 +313,7 @@ class State:
             value = cls.hass.states.get(name)
             if value:
                 attr_root = root[last_period + 1 :]
-                attrs = set(value.attributes.keys()).union({"last_changed", "last_updated"})
+                attrs = set(value.attributes.keys()).union(STATE_VIRTUAL_ATTRS)
                 if parts[0] in cls.service2args:
                     attrs.update(set(cls.service2args[parts[0]].keys()))
                 for attr_name in attrs:
