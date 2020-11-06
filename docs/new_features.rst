@@ -1,7 +1,7 @@
 New Features
 ============
 
-The releases and releae notes are available on `GitHub <https://github.com/custom-components/pyscript/releases>`__.
+The releases and release notes are available on `GitHub <https://github.com/custom-components/pyscript/releases>`__.
 Use HACS to install different versions of pyscript.
 
 You can also install the master (head of tree) version from GitHub, either using HACS or manually.
