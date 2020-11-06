@@ -872,8 +872,6 @@ class TrigInfo:
                 if self.task_unique is not None:
                     task_unique_func = Function.task_unique_factory(action_ast_ctx)
 
-
-
                 #
                 # check for @task_unique with kill_me=True
                 #
