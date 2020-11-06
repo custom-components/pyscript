@@ -210,6 +210,11 @@ called by:
 
        service.call("myservice", "flash_light", light_name="front", light_color="red")
 
+When making a service call, either using the ``service.call`` function or the service name as the
+function, you can optionally pass the keyword argument ``blocking=True`` if you would like to wait
+for the service to finish execution before continuing execution in your function. You can also
+specify a timeout for a blocking service call using the ``limit=<number_of_seconds>`` parameters.
+
 Firing events
 -------------
 
@@ -691,8 +696,11 @@ or ``float()``). Attributes keep their native type.
 Service Calls
 ^^^^^^^^^^^^^
 
-``service.call(domain, name, **kwargs)``
-  calls the service ``domain.name`` with the given keyword arguments as parameters.
+``service.call(domain, name, blocking=False, limit=10, **kwargs)``
+  calls the service ``domain.name`` with the given keyword arguments as parameters. If ``blocking``
+  is ``True``, pyscript will wait for the service to finish executing before continuing the current
+  routine, or will wait a maximum of the number of seconds specified in the `limit` keyword
+  argument.
 ``service.has_service(domain, name)``
   returns whether the service ``domain.name`` exists.
 
