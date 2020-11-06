@@ -711,19 +711,19 @@ class TrigInfo:
 
         if var_name is None:
             _LOGGER.debug(
-                "%s ident changes detected because no var_name",
+                "%s ident changes not detected because no var_name",
                 self.name,
             )
-            return True
+            return False
 
         for check_var in self.state_trig_ident:
-            # if check_var in self.state_trig_ident_any:
-            #     _LOGGER.debug(
-            #         "%s ident change skipping %s because also ident_any",
-            #         self.name,
-            #         check_var,
-            #     )
-            #     continue
+            if check_var in self.state_trig_ident_any:
+                _LOGGER.debug(
+                    "%s ident change skipping %s because also ident_any",
+                    self.name,
+                    check_var,
+                )
+                continue
             var_pieces = check_var.split('.')
             if len(var_pieces) == 2 and check_var == var_name:
                 if value != old_value:
@@ -846,7 +846,8 @@ class TrigInfo:
                     new_vars, func_args = notify_info
 
                     if not self.ident_any_values_changed(func_args):
-                        if not self.ident_values_changed(func_args):
+                        # if var_name not in func_args we are state_check_now
+                        if "var_name" in func_args and not self.ident_values_changed(func_args):
                             continue
 
                         if self.state_trig_eval:
