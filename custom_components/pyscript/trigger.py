@@ -644,6 +644,55 @@ class TrigInfo:
             self.task = Function.create_task(self.trigger_watch())
             _LOGGER.debug("trigger %s is active", self.name)
 
+    def ident_any_values_changed(self, func_args):
+        """Check for changes to state or attributes on ident any vars"""
+        value = func_args['value']
+        old_value = func_args['old_value']
+        var_name = func_args['var_name']
+
+        if var_name is None:
+            return False
+
+        for check_var in self.state_trig_ident_any:
+            if check_var == var_name and old_value != value:
+                return True
+
+            if check_var.startswith(f"{var_name}."):
+                var_pieces = check_var.split('.')
+                if len(var_pieces) == 3 and f"{var_pieces[0]}.{var_pieces[1]}" == var_name:
+                    if var_pieces[2] == "*":
+                        # catch all has been requested, check all attributes for change
+                        all_attributes = (set(value.__dict__.keys()) | set(old_value.__dict__.keys())) - {"last_updated", "last_changed"}
+                        for attribute in all_attributes:
+                            attrib_val = getattr(value, attribute, None)
+                            attrib_old_val = getattr(old_value, attribute, None)
+                            if attrib_old_val != attrib_val:
+                                return True
+                    else:
+                        attrib_val = getattr(value, var_pieces[2], None)
+                        attrib_old_val = getattr(old_value, var_pieces[2], None)
+                        if attrib_old_val != attrib_val:
+                            return True
+        return False
+
+    def ident_values_changed(self, func_args):
+        """Check for changes to state or attributes on ident vars"""
+        value = func_args['value']
+        old_value = func_args['old_value']
+        var_name = func_args['var_name']     
+        for check_var in self.state_trig_ident:
+            var_pieces = check_var.split('.')
+            if len(var_pieces) == 2 and check_var == var_name:
+                if value != old_value:
+                    return True
+            elif len(var_pieces) == 3 and f"{var_pieces[0]}.{var_pieces[1]}" == var_name:
+                attrib_val = getattr(value, var_pieces[2], None)
+                attrib_old_val = getattr(old_value, var_pieces[2], None)
+                if  attrib_old_val != attrib_val:
+                    return True
+
+        return False
+
     async def trigger_watch(self):
         """Task that runs for each trigger, waiting for the next trigger and calling the function."""
 
@@ -739,25 +788,22 @@ class TrigInfo:
                 elif notify_type == "state":
                     new_vars, func_args = notify_info
 
-                    # check if any state_trig_ident_any starts with var_name
-                    any_match = False
-                    if "var_name" in func_args:
-                        for check_var in self.state_trig_ident_any:
-                            if check_var == func_args['var_name']:
-                                any_match = True
-                                break
-                            if check_var.startswith(f"{func_args['var_name']}."):
-                                any_match = True
-                                break
-                    if not any_match:
-                        if self.state_trig_eval:
-                            trig_ok = await self.state_trig_eval.eval(new_vars)
-                            exc = self.state_trig_eval.get_exception_long()
-                            if exc is not None:
-                                self.state_trig_eval.get_logger().error(exc)
-                                trig_ok = False
-                        else:
+                    # if func_args is not fully populated, then we are state_check_now so skip changed check
+                    if all([(x in func_args) for x in ['value', 'old_value', 'var_name']]):
+                        # check for changes to ident vars
+                        if not self.ident_any_values_changed(func_args) and not self.ident_values_changed(func_args):
+                            # nothing changed so no need to evaluate trigger
+                            continue
+
+                    if self.state_trig_eval:
+                        trig_ok = await self.state_trig_eval.eval(new_vars)
+                        exc = self.state_trig_eval.get_exception_long()
+                        if exc is not None:
+                            self.state_trig_eval.get_logger().error(exc)
                             trig_ok = False
+                    else:
+                        trig_ok = False
+
                     if self.state_hold_dur is not None:
                         if trig_ok:
                             if not state_trig_waiting:
@@ -822,42 +868,7 @@ class TrigInfo:
                 if self.task_unique is not None:
                     task_unique_func = Function.task_unique_factory(action_ast_ctx)
 
-                #
-                # check for changes to state or attributes
-                #
 
-                # if "value" not in func_args, then we are state_check_now
-                if notify_type == 'state' and all([(x in func_args) for x in ['value', 'old_value', 'var_name']]):
-                    trig_ident_change = False
-
-                    value = func_args['value']
-                    old_value = func_args['old_value']
-                    var_name = func_args['var_name']
-                    # determine if the catchall has been requested in state_trig_ident_any
-                    catch_all_entity = f"{var_name}.*"
-                    if catch_all_entity in self.state_trig_ident_any:
-                        # catch all has been requested, check all attributes for change
-                        all_attributes = (set(value.__dict__.keys()) | set(old_value.__dict__.keys())) - {"last_updated", "last_changed"}
-                        for attribute in all_attributes:
-                            attrib_val = getattr(value, attribute, None)
-                            attrib_old_val = getattr(old_value, attribute, None)
-                            if  attrib_old_val != attrib_val:
-                                trig_ident_change = True
-                    
-                    if not trig_ident_change:
-                        for var in self.state_trig_ident:
-                            var_pieces = var.split('.')
-                            if len(var_pieces) == 2 and var == var_name:
-                                if value != old_value:
-                                    trig_ident_change = True
-                            elif len(var_pieces) == 3 and f"{var_pieces[0]}.{var_pieces[1]}" == var_name:
-                                attrib_val = getattr(value, var_pieces[2], None)
-                                attrib_old_val = getattr(old_value, var_pieces[2], None)
-                                if  attrib_old_val != attrib_val:
-                                    trig_ident_change = True
-
-                    if not trig_ident_change:
-                        continue
 
                 #
                 # check for @task_unique with kill_me=True
