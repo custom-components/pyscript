@@ -686,6 +686,8 @@ class TrigInfo:
         old_value = func_args['old_value']
         var_name = func_args['var_name']     
         for check_var in self.state_trig_ident:
+            if check_var in self.state_trig_ident_any:
+                continue
             var_pieces = check_var.split('.')
             if len(var_pieces) == 2 and check_var == var_name:
                 if value != old_value:
