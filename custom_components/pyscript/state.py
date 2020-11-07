@@ -12,7 +12,7 @@ from .function import Function
 
 _LOGGER = logging.getLogger(LOGGER_PATH + ".state")
 
-STATE_VIRTUAL_ATTRS = {"last_updated", "last_changed"}
+STATE_VIRTUAL_ATTRS = {"last_changed", "last_updated"}
 
 class StateVar(str):
     """Class for representing the value and attributes of a state variable."""
@@ -144,6 +144,15 @@ class State:
         if var_name.count(".") != 1:
             raise NameError(f"invalid name {var_name} (should be 'domain.entity')")
 
+        if isinstance(value, StateVar) and new_attributes is None:
+            #
+            # value is a StateVar, so extract the attributes and value
+            #
+            new_attributes = value.__dict__.copy()
+            for discard in STATE_VIRTUAL_ATTRS:
+                new_attributes.pop(discard, None)
+            value = str(value)
+
         state_value = None
         if value is None or new_attributes is None:
             state_value = cls.hass.states.get(var_name)
@@ -219,7 +228,7 @@ class State:
             len(parts) == 2
             or (parts[0] in cls.service2args and parts[2] in cls.service2args[parts[0]])
             or parts[2] in value.attributes
-            or parts[2] in {"last_changed", "last_updated"}
+            or parts[2] in STATE_VIRTUAL_ATTRS
         ):
             return True
         return False
@@ -248,11 +257,16 @@ class State:
             def service_call_factory(domain, service, entity_id, params):
                 async def service_call(*args, **kwargs):
                     curr_task = asyncio.current_task()
-                    if "context" in kwargs and isinstance(kwargs["context"], Context):
-                        context = kwargs["context"]
-                        del kwargs["context"]
-                    else:
-                        context = Function.task2context.get(curr_task, None)
+                    hass_args = {}
+                    for keyword, typ, default in [
+                        ("context", [Context], Function.task2context.get(curr_task, None)),
+                        ("blocking", [bool], None),
+                        ("limit", [float, int], None),
+                    ]:
+                        if keyword in kwargs and type(kwargs[keyword]) in typ:
+                            hass_args[keyword] = kwargs.pop(keyword)
+                        elif default:
+                            hass_args[keyword] = default
 
                     kwargs["entity_id"] = entity_id
                     if len(args) == 1 and len(params) == 1:
@@ -263,7 +277,7 @@ class State:
                         kwargs[param_name] = args[0]
                     elif len(args) != 0:
                         raise TypeError(f"service {domain}.{service} takes no positional arguments")
-                    await cls.hass.services.async_call(domain, service, kwargs, context=context)
+                    await cls.hass.services.async_call(domain, service, kwargs, **hass_args)
 
                 return service_call
 
@@ -303,7 +317,7 @@ class State:
             value = cls.hass.states.get(name)
             if value:
                 attr_root = root[last_period + 1 :]
-                attrs = set(value.attributes.keys()).union({"last_changed", "last_updated"})
+                attrs = set(value.attributes.keys()).union(STATE_VIRTUAL_ATTRS)
                 if parts[0] in cls.service2args:
                     attrs.update(set(cls.service2args[parts[0]].keys()))
                 for attr_name in attrs:

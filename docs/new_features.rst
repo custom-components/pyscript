@@ -1,7 +1,7 @@
 New Features
 ============
 
-The releases and releae notes are available on `GitHub <https://github.com/custom-components/pyscript/releases>`__.
+The releases and release notes are available on `GitHub <https://github.com/custom-components/pyscript/releases>`__.
 Use HACS to install different versions of pyscript.
 
 You can also install the master (head of tree) version from GitHub, either using HACS or manually.
@@ -54,9 +54,14 @@ The new features since 0.32 in master include:
   messages get displayed in VSCode. One benign but unresolved bug with VSCode is that when you connect
   to the pyscript kernel, VSCode starts a second pyscript Jupyter kernel, before shutting that second one
   down.
+- Service calls now accept ``blocking`` and ``limit`` parameters. The default behavior for a service call is
+  to run it in the background, but using ``blocking=True`` will force a task to wait up to ``limit`` seconds
+  for the service call to finish executing before continuing. Contributed by @raman325 (#85)
 
 The bug fixes since 0.32 in master include:
 
 - Jupyter autocomplete now works on multiline code blocks.
 - Improved error message reporting for syntax errors inside f-strings.
 - Fixed incorrect global context update on calling module that, in turn, does a callback (#58)
+- `task.wait_until` no longer silently ignores unrecognized keyword arguments (#80)
+- `task.wait_until` incorrectly ignored the keyword optional state_check_now argument (#81)

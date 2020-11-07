@@ -48,7 +48,7 @@ For example, applications ``my_app1`` and ``my_app2`` would be configured as:
 
 Note that if you used the UI flow to configure pyscript, the ``allow_all_imports`` and
 ``hass_is_global`` configuration settings will be ignored in the yaml file.  In that case
-you should omit them from the yaml, and just use yaml for pycript app configuration.
+you should omit them from the yaml, and just use yaml for pyscript app configuration.
 
 As explained below, the use of ``apps`` with entries for each application by name below,
 is used to determine which application scripts are autoloaded. That's the only configuration
@@ -209,6 +209,11 @@ called by:
 .. code:: python
 
        service.call("myservice", "flash_light", light_name="front", light_color="red")
+
+When making a service call, either using the ``service.call`` function or the service name as the
+function, you can optionally pass the keyword argument ``blocking=True`` if you would like to wait
+for the service to finish execution before continuing execution in your function. You can also
+specify a timeout for a blocking service call using the ``limit=<number_of_seconds>`` parameters.
 
 Firing events
 -------------
@@ -535,7 +540,7 @@ When any trigger occurs (whether time, state or event), the ``@state_active`` ex
 evaluated. If it evaluates to ``False`` (or zero), the trigger is ignored and the trigger function
 is not called. This decorator is roughly equivalent to starting the trigger function with an
 ``if`` statement with the ``str_expr`` (the minor difference is that this decorator uses the
-``@state_trigger`` variable value, if present, when evalauting ``str_expr``, whereas an
+``@state_trigger`` variable value, if present, when evaluating ``str_expr``, whereas an
 ``if`` statement at the start of the function uses its current value, which might be different
 if the state variable was changed immediately after the trigger, and the ``.old`` value is
 not available).
@@ -691,8 +696,11 @@ or ``float()``). Attributes keep their native type.
 Service Calls
 ^^^^^^^^^^^^^
 
-``service.call(domain, name, **kwargs)``
-  calls the service ``domain.name`` with the given keyword arguments as parameters.
+``service.call(domain, name, blocking=False, limit=10, **kwargs)``
+  calls the service ``domain.name`` with the given keyword arguments as parameters. If ``blocking``
+  is ``True``, pyscript will wait for the service to finish executing before continuing the current
+  routine, or will wait a maximum of the number of seconds specified in the `limit` keyword
+  argument.
 ``service.has_service(domain, name)``
   returns whether the service ``domain.name`` exists.
 
@@ -992,7 +1000,7 @@ makes it convenient to just reload the script file or application you are develo
 affecting the others.
 
 A much better alternative to repeatedly modifying a script file and reloading it is to use Jupyter
-notebook to interactively deveop and test functions, triggers and services.
+notebook to interactively develop and test functions, triggers and services.
 
 Jupyter auto-completion (with `<TAB>`) is supported in Jupyter notebook, console and lab. It should
 work after you have typed at least the first character. After you hit `<TAB>` you should see a list
@@ -1275,7 +1283,7 @@ Access to Hass
 ^^^^^^^^^^^^^^
 
 If the ``hass_is_global`` configuration setting is set (default is off), then the variable ``hass``
-is available as a global variable in all pyscript contexts. That provides significant flexiblity
+is available as a global variable in all pyscript contexts. That provides significant flexibility
 in accessing HASS internals for cases where pyscript doesn't provide some binding or access.
 
 Ideally you should only use ``hass`` for read-only access. However, you do need a good understanding
@@ -1297,7 +1305,7 @@ You can use ``hass`` to compute sunrise and sunset times using the same method H
    print(f"today sunrise = {sunrise}, sunset = {sunset}")
 
 Here's another method that uses the installed version of ``astral`` directly, rather than the HASS
-helper function.  It's a bit more crytpic since it's a very old version of ``astral``, but you can
+helper function.  It's a bit more cryptic since it's a very old version of ``astral``, but you can
 see how the HASS configuration values are used:
 
 .. code:: python
@@ -1332,7 +1340,7 @@ be blocked, which will delay all other tasks.
 
 All the built-in functionality in pyscript is written using asynchronous code, which runs seamlessly
 together with all the other tasks in the main event loop. However, if you import Python packages and
-call functions that block (eg, file or networrk I/O) then you need to run those functions outside
+call functions that block (eg, file or network I/O) then you need to run those functions outside
 the main event loop. That can be accomplished wrapping those function calls with the
 ``task.executor`` function, which runs the function in a separate thread:
 
@@ -1440,5 +1448,5 @@ A handful of language features are not supported:
   functions that can be called and used in-line. There is a feature request to add this.
 
 Pyscript can call Python modules and packages, so you can always write your own native Python code
-(eg, if you need a generator or other unsupported feature) that can be called by psycript
+(eg, if you need a generator or other unsupported feature) that can be called by pyscript
 (see `Importing <#importing>`__ for how to create and import native Python modules in pyscript).

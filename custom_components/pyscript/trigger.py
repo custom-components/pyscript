@@ -166,7 +166,6 @@ class TrigTime:
         event_trigger=None,
         timeout=None,
         state_hold=None,
-        **kwargs,
     ):
         """Wait for zero or more triggers, until an optional timeout."""
         if state_trigger is None and time_trigger is None and event_trigger is None:

@@ -12,6 +12,7 @@ import pytest
 from pytest_homeassistant_custom_component.async_mock import MagicMock, Mock, mock_open, patch
 
 from homeassistant.const import EVENT_HOMEASSISTANT_STARTED, EVENT_STATE_CHANGED
+from homeassistant.core import Context
 from homeassistant.setup import async_setup_component
 
 
@@ -804,3 +805,95 @@ def set_add(entity_id=None, val1=None, val2=None):
     assert literal_eval(await wait_until_done(notify_q)) == [4, "pyscript.var1", "32"]
     assert literal_eval(await wait_until_done(notify_q)) == [5, "pyscript.var1", "50", "HomeAssistant"]
     assert "TypeError: service pyscript.set_add takes no positional arguments" in caplog.text
+
+
+async def test_service_call_params(hass):
+    """Test that hass params get set properly on service calls."""
+    with patch.object(hass.services, "async_call") as call, patch.object(
+        Function, "service_has_service", return_value=True
+    ):
+        Function.init(hass)
+        await Function.service_call(
+            "test", "test", context=Context(id="test"), blocking=True, limit=1, other_service_data="test"
+        )
+        assert call.called
+        assert call.call_args[0] == ("test", "test", {"other_service_data": "test"})
+        assert call.call_args[1] == {"context": Context(id="test"), "blocking": True, "limit": 1}
+        call.reset_mock()
+
+        await Function.service_call(
+            "test", "test", context=Context(id="test"), blocking=False, other_service_data="test"
+        )
+        assert call.called
+        assert call.call_args[0] == ("test", "test", {"other_service_data": "test"})
+        assert call.call_args[1] == {"context": Context(id="test"), "blocking": False}
+        call.reset_mock()
+
+        await Function.get("test.test")(
+            context=Context(id="test"), blocking=True, limit=1, other_service_data="test"
+        )
+        assert call.called
+        assert call.call_args[0] == ("test", "test", {"other_service_data": "test"})
+        assert call.call_args[1] == {"context": Context(id="test"), "blocking": True, "limit": 1}
+        call.reset_mock()
+
+        await Function.get("test.test")(
+            context=Context(id="test"), blocking=False, other_service_data="test"
+        )
+        assert call.called
+        assert call.call_args[0] == ("test", "test", {"other_service_data": "test"})
+        assert call.call_args[1] == {"context": Context(id="test"), "blocking": False}
+
+    # Stop all tasks to avoid conflicts with other tests
+    await Function.reaper_stop()
+
+
+async def test_serive_call_blocking(hass, caplog):
+    """Test that service calls with blocking=True actually block."""
+    notify_q = asyncio.Queue(0)
+
+    await setup_script(
+        hass,
+        notify_q,
+        [dt(2020, 7, 1, 12, 0, 0, 0)],
+        """
+seq_num = 0
+
+@time_trigger("startup")
+def func_startup():
+    global seq_num
+
+    seq_num += 1
+    pyscript.var1 = 1
+    pyscript.service1(blocking=True)
+    pyscript.done = [seq_num, pyscript.var1]
+
+    seq_num += 1
+    pyscript.service1(blocking=True)
+    pyscript.done = [seq_num, pyscript.var1]
+
+    seq_num += 1
+    service.call("pyscript", "service1", blocking=True)
+    pyscript.done = [seq_num, pyscript.var1]
+
+    seq_num += 1
+    pyscript.var1 = int(pyscript.var1) + 1
+    service.call("pyscript", "long_sleep", blocking=True, limit=1e-6)
+    pyscript.done = [seq_num, pyscript.var1]
+
+@service
+def long_sleep():
+    task.delay(10000)
+
+@service
+def service1():
+    pyscript.var1 = int(pyscript.var1) + 1
+
+""",
+        config={DOMAIN: {CONF_ALLOW_ALL_IMPORTS: True, CONF_HASS_IS_GLOBAL: True}},
+    )
+    hass.bus.async_fire(EVENT_HOMEASSISTANT_STARTED)
+    assert literal_eval(await wait_until_done(notify_q)) == [1, "2"]
+    assert literal_eval(await wait_until_done(notify_q)) == [2, "3"]
+    assert literal_eval(await wait_until_done(notify_q)) == [3, "4"]
+    assert literal_eval(await wait_until_done(notify_q)) == [4, "5"]
