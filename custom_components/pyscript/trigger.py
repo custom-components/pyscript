@@ -48,6 +48,74 @@ def parse_time_offset(offset_str):
     return value * scale
 
 
+def ident_any_values_changed(func_args, ident):
+    """Check for changes to state or attributes on ident any vars"""
+    value = func_args.get('value')
+    old_value = func_args.get('old_value')
+    var_name = func_args.get('var_name')
+
+    if var_name is None:
+        return False
+
+    for check_var in ident:
+        if check_var == var_name and old_value != value:
+            return True
+
+        if check_var.startswith(f"{var_name}."):
+            var_pieces = check_var.split('.')
+            if len(var_pieces) == 3 and f"{var_pieces[0]}.{var_pieces[1]}" == var_name:
+                if var_pieces[2] == "*":
+                    # catch all has been requested, check all attributes for change
+                    all_attributes = set()
+                    if value is not None:
+                        all_attributes |= set(value.__dict__.keys())
+                    if old_value is not None:
+                        all_attributes |= set(old_value.__dict__.keys())
+                    all_attributes -= STATE_VIRTUAL_ATTRS
+                    for attribute in all_attributes:
+                        attrib_val = getattr(value, attribute, None)
+                        attrib_old_val = getattr(old_value, attribute, None)
+                        if attrib_old_val != attrib_val:
+                            return True
+                else:
+                    attrib_val = getattr(value, var_pieces[2], None)
+                    attrib_old_val = getattr(old_value, var_pieces[2], None)
+                    if attrib_old_val != attrib_val:
+                        return True
+    
+    return False
+
+def ident_values_changed(func_args, ident):
+    """Check for changes to state or attributes on ident vars"""
+    value = func_args.get('value')
+    old_value = func_args.get('old_value')
+    var_name = func_args.get('var_name')
+
+    if var_name is None:
+        return False
+
+    for check_var in ident:
+        # if check_var in self.state_trig_ident_any:
+        #     _LOGGER.debug(
+        #         "%s ident change skipping %s because also ident_any",
+        #         self.name,
+        #         check_var,
+        #     )
+        #     continue
+        var_pieces = check_var.split('.')
+        if len(var_pieces) == 2 and check_var == var_name:
+            if value != old_value:
+                return True
+        elif len(var_pieces) == 3 and f"{var_pieces[0]}.{var_pieces[1]}" == var_name:
+            attrib_val = getattr(value, var_pieces[2], None)
+            attrib_old_val = getattr(old_value, var_pieces[2], None)
+            if  attrib_old_val != attrib_val:
+                return True
+
+    return False
+
+
+
 class TrigTime:
     """Class for trigger time functions."""
 
@@ -254,13 +322,18 @@ class TrigTime:
                     new_vars, func_args = None, {}
 
                 state_trig_ok = False
-                if func_args.get("var_name", "") in state_trig_ident_any:
-                    state_trig_ok = True
-                elif state_trig_eval:
-                    state_trig_ok = await state_trig_eval.eval(new_vars)
-                    exc = state_trig_eval.get_exception_obj()
-                    if exc is not None:
-                        break
+
+                if not ident_any_values_changed(func_args, state_trig_ident_any):
+                    # if var_name not in func_args we are state_check_now
+                    if "var_name" in func_args and not ident_values_changed(func_args, state_trig):
+                        continue
+
+                    if state_trig_eval:
+                        state_trig_ok = await state_trig_eval.eval(new_vars)
+                        exc = state_trig_eval.get_exception_obj()
+                        if exc is not None:
+                            break
+
                 if state_hold is not None:
                     if state_trig_ok:
                         if not state_trig_waiting:
@@ -644,112 +717,6 @@ class TrigInfo:
             self.task = Function.create_task(self.trigger_watch())
             _LOGGER.debug("trigger %s is active", self.name)
 
-    def ident_any_values_changed(self, func_args):
-        """Check for changes to state or attributes on ident any vars"""
-        value = func_args.get('value')
-        old_value = func_args.get('old_value')
-        var_name = func_args.get('var_name')
-
-        if var_name is None:
-            _LOGGER.debug(
-                "%s ident_any change not detected because no var_name",
-                self.name,
-            )
-            return False
-
-        for check_var in self.state_trig_ident_any:
-            if check_var == var_name and old_value != value:
-                _LOGGER.debug(
-                    "%s ident_any change detected at state",
-                    self.name,
-                )
-                return True
-
-            if check_var.startswith(f"{var_name}."):
-                var_pieces = check_var.split('.')
-                if len(var_pieces) == 3 and f"{var_pieces[0]}.{var_pieces[1]}" == var_name:
-                    if var_pieces[2] == "*":
-                        # catch all has been requested, check all attributes for change
-                        all_attributes = set()
-                        if value is not None:
-                            all_attributes |= set(value.__dict__.keys())
-                        if old_value is not None:
-                            all_attributes |= set(old_value.__dict__.keys())
-                        all_attributes -= STATE_VIRTUAL_ATTRS
-                        for attribute in all_attributes:
-                            attrib_val = getattr(value, attribute, None)
-                            attrib_old_val = getattr(old_value, attribute, None)
-                            if attrib_old_val != attrib_val:
-                                _LOGGER.debug(
-                                    "%s ident_any change detected in * at %s",
-                                    self.name,
-                                    attribute,
-                                )
-                                return True
-                    else:
-                        attrib_val = getattr(value, var_pieces[2], None)
-                        attrib_old_val = getattr(old_value, var_pieces[2], None)
-                        if attrib_old_val != attrib_val:
-                            _LOGGER.debug(
-                                "%s ident_any change detected at %s",
-                                self.name,
-                                var_pieces[2],
-                            )
-                            return True
-
-        _LOGGER.debug(
-            "%s no ident_any change detected",
-            self.name,
-        )
-        return False
-
-    def ident_values_changed(self, func_args):
-        """Check for changes to state or attributes on ident vars"""
-        value = func_args.get('value')
-        old_value = func_args.get('old_value')
-        var_name = func_args.get('var_name')
-
-        if var_name is None:
-            _LOGGER.debug(
-                "%s ident changes not detected because no var_name",
-                self.name,
-            )
-            return False
-
-        for check_var in self.state_trig_ident:
-            if check_var in self.state_trig_ident_any:
-                _LOGGER.debug(
-                    "%s ident change skipping %s because also ident_any",
-                    self.name,
-                    check_var,
-                )
-                continue
-            var_pieces = check_var.split('.')
-            if len(var_pieces) == 2 and check_var == var_name:
-                if value != old_value:
-                    _LOGGER.debug(
-                        "%s ident change detected at state",
-                        self.name
-                    )
-                    return True
-            elif len(var_pieces) == 3 and f"{var_pieces[0]}.{var_pieces[1]}" == var_name:
-                attrib_val = getattr(value, var_pieces[2], None)
-                attrib_old_val = getattr(old_value, var_pieces[2], None)
-                if  attrib_old_val != attrib_val:
-                    _LOGGER.debug(
-                        "%s ident change detected at attribute %s",
-                        self.name,
-                        var_pieces[2]
-                    )
-                    return True
-
-        _LOGGER.debug(
-            "%s no ident change detected",
-            self.name,
-        )
-
-        return False
-
     async def trigger_watch(self):
         """Task that runs for each trigger, waiting for the next trigger and calling the function."""
 
@@ -845,9 +812,9 @@ class TrigInfo:
                 elif notify_type == "state":
                     new_vars, func_args = notify_info
 
-                    if not self.ident_any_values_changed(func_args):
+                    if not ident_any_values_changed(func_args, self.state_trig_ident_any):
                         # if var_name not in func_args we are state_check_now
-                        if "var_name" in func_args and not self.ident_values_changed(func_args):
+                        if "var_name" in func_args and not ident_values_changed(func_args, self.state_trig_ident):
                             continue
 
                         if self.state_trig_eval:
