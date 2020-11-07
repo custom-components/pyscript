@@ -14,7 +14,6 @@ _LOGGER = logging.getLogger(LOGGER_PATH + ".state")
 
 STATE_VIRTUAL_ATTRS = {"last_changed", "last_updated"}
 
-
 class StateVar(str):
     """Class for representing the value and attributes of a state variable."""
 
