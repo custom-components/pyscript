@@ -846,3 +846,54 @@ async def test_service_call_params(hass):
 
     # Stop all tasks to avoid conflicts with other tests
     await Function.reaper_stop()
+
+
+async def test_serive_call_blocking(hass, caplog):
+    """Test that service calls with blocking=True actually block."""
+    notify_q = asyncio.Queue(0)
+
+    await setup_script(
+        hass,
+        notify_q,
+        [dt(2020, 7, 1, 12, 0, 0, 0)],
+        """
+seq_num = 0
+
+@time_trigger("startup")
+def func_startup():
+    global seq_num
+
+    seq_num += 1
+    pyscript.var1 = 1
+    pyscript.service1(blocking=True)
+    pyscript.done = [seq_num, pyscript.var1]
+
+    seq_num += 1
+    pyscript.service1(blocking=True)
+    pyscript.done = [seq_num, pyscript.var1]
+
+    seq_num += 1
+    service.call("pyscript", "service1", blocking=True)
+    pyscript.done = [seq_num, pyscript.var1]
+
+    seq_num += 1
+    pyscript.var1 = int(pyscript.var1) + 1
+    service.call("pyscript", "long_sleep", blocking=True, limit=1e-6)
+    pyscript.done = [seq_num, pyscript.var1]
+
+@service
+def long_sleep():
+    task.delay(10000)
+
+@service
+def service1():
+    pyscript.var1 = int(pyscript.var1) + 1
+
+""",
+        config={DOMAIN: {CONF_ALLOW_ALL_IMPORTS: True, CONF_HASS_IS_GLOBAL: True}},
+    )
+    hass.bus.async_fire(EVENT_HOMEASSISTANT_STARTED)
+    assert literal_eval(await wait_until_done(notify_q)) == [1, "2"]
+    assert literal_eval(await wait_until_done(notify_q)) == [2, "3"]
+    assert literal_eval(await wait_until_done(notify_q)) == [3, "4"]
+    assert literal_eval(await wait_until_done(notify_q)) == [4, "5"]
