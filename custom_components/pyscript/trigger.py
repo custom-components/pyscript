@@ -321,12 +321,12 @@ class TrigTime:
                 else:
                     new_vars, func_args = None, {}
 
-                state_trig_ok = False
+                state_trig_ok = True
 
                 if not ident_any_values_changed(func_args, state_trig_ident_any):
                     # if var_name not in func_args we are state_check_now
                     if "var_name" in func_args and not ident_values_changed(func_args, state_trig):
-                        continue
+                        state_trig_ok = False
 
                     if state_trig_eval:
                         state_trig_ok = await state_trig_eval.eval(new_vars)
