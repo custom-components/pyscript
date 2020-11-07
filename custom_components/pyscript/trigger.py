@@ -17,7 +17,7 @@ from .const import LOGGER_PATH
 from .eval import AstEval
 from .event import Event
 from .function import Function
-from .state import State
+from .state import State, STATE_VIRTUAL_ATTRS
 
 _LOGGER = logging.getLogger(LOGGER_PATH + ".trigger")
 
@@ -675,7 +675,7 @@ class TrigInfo:
                             all_attributes |= set(value.__dict__.keys())
                         if old_value is not None:
                             all_attributes |= set(old_value.__dict__.keys())
-                        all_attributes -= {"last_updated", "last_changed"}
+                        all_attributes -= STATE_VIRTUAL_ATTRS
                         for attribute in all_attributes:
                             attrib_val = getattr(value, attribute, None)
                             attrib_old_val = getattr(old_value, attribute, None)

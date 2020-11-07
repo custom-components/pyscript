@@ -12,6 +12,7 @@ from .function import Function
 
 _LOGGER = logging.getLogger(LOGGER_PATH + ".state")
 
+STATE_VIRTUAL_ATTRS = {"last_updated", "last_changed"}
 
 class StateVar(str):
     """Class for representing the value and attributes of a state variable."""
