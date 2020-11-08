@@ -15,8 +15,8 @@ can sleep or wait for additional changes in state variables or events, without s
 other operations. You can think of these functions as small programs that run in parallel,
 independently of each other, and they could be active for extended periods of time.
 
-Pyscript also provides a kernel that interfaces with the Jupyter front-ends (eg, notebook, console
-and lab). That allows you to develop and test pyscript code interactively. Plus you can interact
+Pyscript also provides a kernel that interfaces with the Jupyter front-ends (eg, notebook, console,
+lab and VSCode). That allows you to develop and test pyscript code interactively. Plus you can interact
 with much of HASS by looking at state variables, calling services etc.
 
 ## Documentation
@@ -78,7 +78,8 @@ for setting up a development environment and running tests.
 
 ## Useful Links
 
-* [Documentation](https://hacs-pyscript.readthedocs.io/en/stable)
+* [Documentation stable](https://hacs-pyscript.readthedocs.io/en/stable): latest release
+* [Documentation latest](https://hacs-pyscript.readthedocs.io/en/latest): current master in Github
 * [Issues](https://github.com/custom-components/pyscript/issues)
 * [Wiki](https://github.com/custom-components/pyscript/wiki)
 * [GitHub repository](https://github.com/custom-components/pyscript) (please add a star if you like pyscript!)
