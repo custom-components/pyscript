@@ -111,8 +111,8 @@ State variables can be accessed in any Python code simply by name. State variabl
 ``entity_id``) are of the form ``DOMAIN.name``, where ``DOMAIN`` is typically the name of the
 component that sets that variable. You can set a state variable by assigning to it.
 
-State variables only have string values, so you will need to convert them to ``int`` or ``float`` if
-you need their numeric value.
+State variables only have string values, so you will need to convert them to ``int`` or ``float``
+if you need their numeric value.
 
 State variables have attributes that can be accessed by adding the name of the attribute, as in
 ``DOMAIN.name.attr``. The attribute names and their meaning depend on the component that sets them,
@@ -133,8 +133,20 @@ component has a state variable name that collides with one of its services, you�
 
 Accessing state variables that don't exist will throw a ``NameError`` exception, and accessing
 an attribute that doesn't exist will throw a ``AttributeError`` exception. One exception (!)
-to this that in a ``@state_trigger`` expression, undefined state variables will evaluate to
-``None`` instead of throwing an exception.
+to this that in a ``@state_trigger`` expression, undefined state variables and attributes will
+evaluate to ``None`` instead of throwing an exception.
+
+You can assign a state variable (or the return value of ``state.get()``) to a normal Python variable,
+and that variable will capture the value and attributes of the state variable at the time of the
+assignment. So, for example, after this assignment:
+
+.. code:: python
+
+   test1_state = binary_sensor.test1
+
+the variable ``test1_state`` captures both the value and attributes of ``binary_sensor.test1``.
+Later, if ``binary_sensor.test1`` changes, ``test1_state`` continues to represent the previous
+value and attributes at the time of the assignment.
 
 State variables also support virtual methods that are service calls with that ``entity_id``.
 For any state variable ``DOMAIN.ENTITY``, any services registered by ``DOMAIN``, eg:
@@ -249,10 +261,12 @@ function.
 
 ``@state_trigger`` takes one or more string arguments that contain any expression based on one or
 more state variables, and evaluates to ``True`` or ``False`` (or non-zero or zero). Whenever the
-state variables mentioned in the expression change, the expression is evaluated and the trigger
-occurs if it evaluates to ``True`` (or non-zero). For each state variable, eg: ``domain.name``,
-the prior value is also available to the expression as ``domain.name.old`` in case you want to
-condition the trigger on the prior value too.
+state variables or attributes values mentioned in the expression change, the expression is evaluated
+and the trigger occurs if it evaluates to ``True`` (or non-zero). For each state variable,
+eg: ``domain.name``, the prior value is also available to the expression as ``domain.name.old``
+in case you want to condition the trigger on the prior value too. Attribute values can be used
+in the expression too, using the forms ``domain.name.attr`` and ``domain.name.old.attr`` for
+the new and old attribute values respectively.
 
 Multiple ``str_expr`` arguments are logically "or"ed together, so the trigger occurs if any of the
 expressions evaluate to ``True``. Any argument can alternatively be a list or set of strings, and
@@ -297,24 +311,36 @@ You can also use state variable attributes in the trigger expression, with an id
 form ``DOMAIN.name.attr``. Attributes maintain their original type, so there is no need to cast
 then to another type.
 
-You can specify a state trigger on any change with a string that is just the state variable name:
+You can specify a state trigger on any change with a string that can take three forms:
+``"domain.entity"``
+  triggers on any change to the state variable value
+``"domain.entity.attr"``
+  triggers on any change to the state variable attribute ``attr`` value
+``"domain.entity.*"``
+  triggers on any change to any state variable attribute (but not its value)
+
+For example:
 
 .. code:: python
 
    @state_trigger("domain.light_level")
 
-If you use this form, there's no point in also specifying ``state_hold`` since the expression
-is always ``True`` whenever the state variable changes - there is no way for it to evaluate
-to ``False`` and to re-start the trigger process. If you do specify ``state_hold`` in this
-case it will simply delay the trigger by the specified time.
+will trigger any time the value of ``domain.light_level`` changes (not its attributes), which
+includes the cases when that variable is first created (ie, the ``old_value`` is ``None``)
+and when it is deleted (ie, the ``value`` is ``None``).
+
+If you use the "any change" form, there's no point in also specifying ``state_hold`` since the
+expression is always ``True`` whenever the state variable changes - there is no way for it to
+evaluate to ``False`` and to re-start the trigger process. If you do specify ``state_hold`` in
+this case it will simply delay the trigger by the specified time.
 
 The trigger can include arguments with any mixture of string expressions (that are evaluated
-when any of the underlying state variables change) and string state variable names (that trigger
-whenever that variable changes).
+when any of the underlying state variables change) and string state variable or attribute
+names (that trigger whenever that variable or attribute changes).
 
-Note that if a state variable is set to the same value, HASS doesn’t generate a state change event,
-so the ``@state_trigger`` condition will not be checked. It is only evaluated each time a state
-variable changes to a new value.
+Note that if a state variable and attributes are set to the same value, HASS doesn’t generate a
+state change event, so the ``@state_trigger`` condition will not be checked. It is only evaluated
+each time a state variable or any of its attributes change to a new value.
 
 When the trigger occurs and the function is executed (meaning any active checks passed too), keyword
 arguments are passed to the function so it can tell which state variable caused it to succeed and
@@ -328,6 +354,11 @@ run, in cases where the trigger condition involves multiple variables. These are
        "value": new_value,
        "old_value": old_value
    }
+
+The ``value`` and ``old_value`` represent the current and old values of the state variable
+``var_name`` whose change caused the trigger. Those variables include the state attributes too.
+If the trigger occurs when the state variable is newly created, ``old_value`` will be ``None``,
+and if the trigger occurs when a state variable is deleted, ``value`` will be ``None``.
 
 If your function needs to know any of these values, you can list the keyword arguments you need,
 with defaults:
@@ -1303,6 +1334,9 @@ You can use ``hass`` to compute sunrise and sunset times using the same method H
    sunrise = location.sunrise(datetime.datetime.today()).replace(tzinfo=None)
    sunset = location.sunset(datetime.datetime.today()).replace(tzinfo=None)
    print(f"today sunrise = {sunrise}, sunset = {sunset}")
+
+(Note that the ``sun.sun`` attributes already provide times for the next sunrise and sunset, so
+this example is a bit contrived.)
 
 Here's another method that uses the installed version of ``astral`` directly, rather than the HASS
 helper function.  It's a bit more cryptic since it's a very old version of ``astral``, but you can
