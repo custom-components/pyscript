@@ -19,7 +19,7 @@ The new features since 0.32 in master include:
 - Pyscript state variables (entity_ids) can be persisted across pyscript reloads and HASS restarts,
   from @swazrgb and @dlashua (#48).
 - ``@state_trigger`` now supports triggering on an attribute change with ``"domain.entity.attr"`` and
-  any attribute change with ``"domain.entity.*"``, submitted by @dlashua (#82)
+  any attribute change with ``"domain.entity.*"``, from @dlashua (#82)
 - State variables now support virtual attributes ``last_changed`` and ``last_updated`` for the UTC time when state
   values or any attribute was last changed.
 - State variable values (eg, from ``domain.entity`` or ``state.get()``) now include attributes that can be accessed
@@ -34,11 +34,11 @@ The new features since 0.32 in master include:
   is true (default false). This allows access to HASS internals that might not be otherwise exposed by pyscript.
   Use with caution (#51).
 - Improvements to UI config flow, including allowing parameters to be updated, and the UI reload now works the same
-  as the ``pyscript.reload`` service call, submitted by @raman325 (#53)
+  as the ``pyscript.reload`` service call, from @raman325 (#53)
 - Added inbound ``context`` variable to trigger functions and support optional ``context`` setting on state,
-  event firing and service calls. Proposal and PR by @dlashua (#50, #60).
+  event firing and service calls. Proposal and PR from @dlashua (#50, #60).
 - Logbook now supported using ``context`` and informational message based on trigger type. Proposal and PR
-  by @dlashua (#50, #62).
+  from @dlashua (#50, #62).
 - Required Python packages can be specified in ``requirements.txt`` files at the top-level pyscript
   directory, and each module's or app's directory. Those files are read and any missing packages are
   installed on HASS startup and pyscript reload. If a specific version of a package is needed, it must be
@@ -69,5 +69,5 @@ The bug fixes since 0.32 in master include:
 - Jupyter autocomplete now works on multiline code blocks.
 - Improved error message reporting for syntax errors inside f-strings.
 - Fixed incorrect global context update on calling module that, in turn, does a callback (#58).
-- `task.wait_until` no longer silently ignores unrecognized keyword arguments (#80).
-- `task.wait_until` incorrectly ignored the keyword optional state_check_now argument (#81).
+- ``task.wait_until`` no longer silently ignores unrecognized keyword arguments (#80).
+- ``task.wait_until`` incorrectly ignored the keyword optional state_check_now argument (#81).

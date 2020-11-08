@@ -260,9 +260,9 @@ function.
     @state_trigger(str_expr, ..., state_hold=None, state_check_now=False)
 
 ``@state_trigger`` takes one or more string arguments that contain any expression based on one or
-more state variables, and evaluates to ``True`` or ``False`` (or non-zero or zero). Whenever the
-state variables or attributes values mentioned in the expression change, the expression is evaluated
-and the trigger occurs if it evaluates to ``True`` (or non-zero). For each state variable,
+more state variables, and evaluates to ``True`` or ``False`` (or non-zero or zero). Whenever any
+of the state variables or attribute values mentioned in the expression change, the expression is
+evaluated and the trigger occurs if it evaluates to ``True`` (or non-zero). For each state variable,
 eg: ``domain.name``, the prior value is also available to the expression as ``domain.name.old``
 in case you want to condition the trigger on the prior value too. Attribute values can be used
 in the expression too, using the forms ``domain.name.attr`` and ``domain.name.old.attr`` for
@@ -312,12 +312,10 @@ form ``DOMAIN.name.attr``. Attributes maintain their original type, so there is 
 then to another type.
 
 You can specify a state trigger on any change with a string that can take three forms:
-``"domain.entity"``
-  triggers on any change to the state variable value
-``"domain.entity.attr"``
-  triggers on any change to the state variable attribute ``attr`` value
-``"domain.entity.*"``
-  triggers on any change to any state variable attribute (but not its value)
+
+- ``"domain.entity"``: triggers on any change to the state variable value
+- ``"domain.entity.attr"``: triggers on any change to the state variable attribute ``attr`` value
+- ``"domain.entity.*"``: triggers on any change to any state variable attribute (but not its value)
 
 For example:
 
