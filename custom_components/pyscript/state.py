@@ -15,7 +15,7 @@ _LOGGER = logging.getLogger(LOGGER_PATH + ".state")
 STATE_VIRTUAL_ATTRS = {"last_changed", "last_updated"}
 
 
-class StateVar(str):
+class StateVal(str):
     """Class for representing the value and attributes of a state variable."""
 
     def __new__(cls, state):
@@ -152,10 +152,10 @@ class State:
         if var_name.count(".") != 1:
             raise NameError(f"invalid name {var_name} (should be 'domain.entity')")
 
-        if isinstance(value, StateVar):
+        if isinstance(value, StateVal):
             if new_attributes is None:
                 #
-                # value is a StateVar, so extract the attributes and value
+                # value is a StateVal, so extract the attributes and value
                 #
                 new_attributes = value.__dict__.copy()
                 for discard in STATE_VIRTUAL_ATTRS:
@@ -193,7 +193,7 @@ class State:
             # immediately update a variable we are monitoring since it could take a while
             # for the state changed event to propagate
             #
-            cls.notify_var_last[var_name] = StateVar(cls.hass.states.get(var_name))
+            cls.notify_var_last[var_name] = StateVal(cls.hass.states.get(var_name))
 
     @classmethod
     async def setattr(cls, var_attr_name, value):
@@ -259,7 +259,7 @@ class State:
         #
         # simplest case is just the state value
         #
-        state = StateVar(state)
+        state = StateVal(state)
         if len(parts) == 2:
             return state
         #

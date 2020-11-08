@@ -194,7 +194,7 @@ ZeroDivisionError: division by zero"""
         """Exception in <file.hello.func6 @state_active()> line 1:
     1 / pyscript.var1
         ^
-TypeError: unsupported operand type(s) for /: 'int' and 'StateVar'"""
+TypeError: unsupported operand type(s) for /: 'int' and 'StateVal'"""
         in caplog.text
     )
 

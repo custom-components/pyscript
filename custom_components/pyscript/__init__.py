@@ -36,7 +36,7 @@ from .function import Function
 from .global_ctx import GlobalContext, GlobalContextMgr
 from .jupyter_kernel import Kernel
 from .requirements import install_requirements
-from .state import State, StateVar
+from .state import State, StateVal
 from .trigger import TrigTime
 
 _LOGGER = logging.getLogger(LOGGER_PATH)
@@ -189,13 +189,13 @@ async def async_setup_entry(hass, config_entry):
     async def state_changed(event):
         var_name = event.data["entity_id"]
         if event.data.get("new_state", None):
-            new_val = StateVar(event.data["new_state"])
+            new_val = StateVal(event.data["new_state"])
         else:
             # state variable has been deleted
             new_val = None
 
         if event.data.get("old_state", None):
-            old_val = StateVar(event.data["old_state"])
+            old_val = StateVal(event.data["old_state"])
         else:
             # no previous state
             old_val = None
