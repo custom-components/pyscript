@@ -14,6 +14,7 @@ _LOGGER = logging.getLogger(LOGGER_PATH + ".state")
 
 STATE_VIRTUAL_ATTRS = {"last_changed", "last_updated"}
 
+
 class StateVar(str):
     """Class for representing the value and attributes of a state variable."""
 
@@ -127,14 +128,21 @@ class State:
 
     @classmethod
     def notify_var_get(cls, var_names, new_vars):
-        """Return the most recent value of a state variable change."""
-        notify_vars = {}
+        """Add values of var_names to new_vars, or default to None."""
+        notify_vars = new_vars.copy()
         for var_name in var_names if var_names is not None else []:
+            if var_name in notify_vars:
+                continue
+            parts = var_name.split(".")
             if var_name in cls.notify_var_last:
                 notify_vars[var_name] = cls.notify_var_last[var_name]
-            elif var_name in new_vars:
-                notify_vars[var_name] = new_vars[var_name]
-            elif 1 <= var_name.count(".") <= 2 and not cls.exist(var_name):
+            elif len(parts) == 3 and f"{parts[0]}.{parts[1]}" in cls.notify_var_last:
+                notify_vars[var_name] = getattr(
+                    cls.notify_var_last[f"{parts[0]}.{parts[1]}"], parts[2], None
+                )
+            elif len(parts) == 4 and parts[2] == "old" and f"{parts[0]}.{parts[1]}.old" in notify_vars:
+                notify_vars[var_name] = getattr(notify_vars[f"{parts[0]}.{parts[1]}.old"], parts[3], None)
+            elif 1 <= var_name.count(".") <= 3 and not cls.exist(var_name):
                 notify_vars[var_name] = None
         return notify_vars
 
@@ -144,13 +152,14 @@ class State:
         if var_name.count(".") != 1:
             raise NameError(f"invalid name {var_name} (should be 'domain.entity')")
 
-        if isinstance(value, StateVar) and new_attributes is None:
-            #
-            # value is a StateVar, so extract the attributes and value
-            #
-            new_attributes = value.__dict__.copy()
-            for discard in STATE_VIRTUAL_ATTRS:
-                new_attributes.pop(discard, None)
+        if isinstance(value, StateVar):
+            if new_attributes is None:
+                #
+                # value is a StateVar, so extract the attributes and value
+                #
+                new_attributes = value.__dict__.copy()
+                for discard in STATE_VIRTUAL_ATTRS:
+                    new_attributes.pop(discard, None)
             value = str(value)
 
         state_value = None
@@ -176,10 +185,15 @@ class State:
         if kwargs:
             new_attributes = new_attributes.copy()
             new_attributes.update(kwargs)
-        _LOGGER.debug("setting %s = %s, attr = %s", var_name, value, new_attributes)
-        cls.notify_var_last[var_name] = str(value)
 
+        _LOGGER.debug("setting %s = %s, attr = %s", var_name, value, new_attributes)
         cls.hass.states.async_set(var_name, value, new_attributes, context=context)
+        if var_name in cls.notify_var_last or var_name in cls.notify:
+            #
+            # immediately update a variable we are monitoring since it could take a while
+            # for the state changed event to propagate
+            #
+            cls.notify_var_last[var_name] = StateVar(cls.hass.states.get(var_name))
 
     @classmethod
     async def setattr(cls, var_attr_name, value):

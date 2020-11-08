@@ -236,11 +236,22 @@ def func4(trigger_type=None, event_type=None, **kwargs):
     state.set("pyscript.setVar1", 1 + int(state.get("pyscript.setVar1")), {"attr1": 456, "attr2": 987})
 
     seq_num += 1
-    res = task.wait_until(state_trigger=["False", "pyscript.xyznotset", "pyscript.f4var2 == '10'"], timeout=10, state_hold=1e-6)
+    res = task.wait_until(state_trigger=["False", "pyscript.xyznotset", "pyscript.f4var2 == '10' and pyscript.f4var2.old == '2'"], timeout=10, state_hold=1e-6)
     log.info(f"func4 trigger_type = {res}")
     res["context"] = {"user_id": res["context"].user_id, "parent_id": res["context"].parent_id, "id": "1234"}
     pyscript.done = [seq_num, res, pyscript.setVar1, pyscript.setVar1.attr1, state.get("pyscript.setVar1.attr2"),
     pyscript.setVar2, state.get("pyscript.setVar3")]
+
+    #
+    # check some fall-though cases based on attribute state triggers
+    #
+    seq_num += 1
+    res = task.wait_until(state_trigger=["pyscript.setVar1 == '2' and pyscript.setVar1.attr2 == 987"], timeout=10, state_hold=1e-6)
+    pyscript.done = [seq_num, pyscript.setVar1, pyscript.setVar1.attr2]
+
+    seq_num += 1
+    res = task.wait_until(state_trigger="pyscript.setVar1 == '2' and pyscript.setVar1.attr1 == 456 and pyscript.setVar1.nosuchattr == None")
+    pyscript.done = [seq_num, pyscript.setVar1, pyscript.setVar1.attr1]
 
     seq_num += 1
     #
@@ -361,6 +372,38 @@ def func6(var_name=None, value=None):
     log.info(f"func6 var = {var_name}, value = {value}")
     pyscript.done = [seq_num, var_name, pyscript.f6var1.attr1]
 
+@state_trigger("pyscript.f6avar1.attr1 == 123 and pyscript.f6avar2.attr1 == 456")
+def func6a(var_name=None, value=None):
+    global seq_num
+
+    seq_num += 1
+    log.info(f"func6a var = {var_name}, value = {value}")
+    pyscript.done = [seq_num, var_name, value.attr1]
+
+@state_trigger("pyscript.f6bvar1.attr3")
+def func6b(var_name=None, value=None):
+    global seq_num
+
+    seq_num += 1
+    log.info(f"func6b var = {var_name}, value = {value}")
+    pyscript.done = [seq_num, var_name, value, pyscript.f6bvar1.attr3]
+
+@state_trigger("pyscript.f6cvar1.*")
+def func6c(var_name=None, value=None):
+    global seq_num
+
+    seq_num += 1
+    log.info(f"func6c var = {var_name}, value = {value}")
+    pyscript.done = [seq_num, var_name, value, state.getattr("pyscript.f6cvar1")]
+
+@state_trigger("pyscript.f6dvar1.attr1 == 10 and pyscript.f6dvar1.old.attr1 == 20 and pyscript.f6dvar1.nosuchattr == None and pyscript.f6dvar1.old.nosuchattr == None")
+def func6d(var_name=None, value=None, old_value=None):
+    global seq_num
+
+    seq_num += 1
+    log.info(f"func6d var = {var_name}, value = {value}, old_value={old_value}")
+    pyscript.done = [seq_num, var_name, value.attr1, old_value.attr1]
+
 @state_trigger("pyscript.f7var1 == '2' and pyscript.f7var1.old == '1'", state_check_now=True)
 @state_active("pyscript.f7var1 == '2' and pyscript.f7var1.old == '1' and pyscript.no_such_variable is None")
 def func7(var_name=None, value=None, old_value=None):
@@ -429,6 +472,9 @@ def func9(var_name=None, value=None, old_value=None):
         "hello",
     ]
     assert "func1 var = pyscript.f1var1, value = 1" in caplog.text
+    # try some other settings that should not cause it to re-trigger
+    hass.states.async_set("pyscript.f1var1", 1, {"attr1": 123, "attr2": 10})
+    hass.states.async_set("pyscript.f1var1", 1, {"attr1": 123, "attr2": 20})
 
     seq_num += 1
     hass.states.async_set("pyscript.f2var3", 3)
@@ -507,8 +553,13 @@ def func9(var_name=None, value=None, old_value=None):
     seq_num += 1
     # now try a few other values, then the correct one
     hass.states.async_set("pyscript.f4var2", 4)
+    hass.states.async_set("pyscript.f4var2", 4, {"attr5": 10})
     hass.states.async_set("pyscript.f4var2", 2)
+    hass.states.async_set("pyscript.f4var2", 3, {"attr5": 21})
     hass.states.async_set("pyscript.f4var2", 10)
+    hass.states.async_set("pyscript.f4var2", 2, {"attr5": 21})
+    hass.states.async_set("pyscript.f4var2", 10)
+    hass.states.async_set("pyscript.f4var2", 10, {"attr5": 22})
     trig = {
         "trigger_type": "state",
         "var_name": "pyscript.f4var2",
@@ -528,6 +579,14 @@ def func9(var_name=None, value=None, old_value=None):
     }
     assert hass.states.get("pyscript.setVar2").state == "var2"
     assert literal_eval(hass.states.get("pyscript.setVar3").state) == {"foo": "bar"}
+
+    #
+    # check the fall-through attrib triggers
+    #
+    seq_num += 1
+    assert literal_eval(await wait_until_done(notify_q)) == [seq_num, "2", 987]
+    seq_num += 1
+    assert literal_eval(await wait_until_done(notify_q)) == [seq_num, "2", 456]
 
     #
     # check for the four time triggers, five timeouts and two none
@@ -555,6 +614,11 @@ def func9(var_name=None, value=None, old_value=None):
     seq_num += 1
     hass.states.async_set("pyscript.f5var1", 0)
     assert literal_eval(await wait_until_done(notify_q)) == [seq_num, "pyscript.f5var1", "0"]
+    #
+    # make sure it doesn't trigger on attribte changes
+    #
+    hass.states.async_set("pyscript.f5var1", 0, {"attr1": 123, "attr2": 10})
+    hass.states.async_set("pyscript.f5var1", 0, {"attr1": 123, "attr2": 20})
 
     seq_num += 1
     hass.states.async_set("pyscript.f5var1", "")
@@ -570,6 +634,62 @@ def func9(var_name=None, value=None, old_value=None):
     seq_num += 1
     hass.states.async_set("pyscript.f6var1", 1, {"attr1": 123, "attr2": 10})
     assert literal_eval(await wait_until_done(notify_q)) == [seq_num, "pyscript.f6var1", 123]
+
+    #
+    # check that back-to-back attribute settings still trigger
+    #
+    seq_num += 1
+    hass.states.async_set("pyscript.f6avar2", 1, {"attr1": 450, "attr2": 10})
+    hass.states.async_set("pyscript.f6avar1", 1, {"attr1": 123, "attr2": 10})
+    hass.states.async_set("pyscript.f6avar2", 1, {"attr1": 456, "attr2": 10})  # this will trigger
+    hass.states.async_set("pyscript.f6avar1", 1, {"attr1": 120, "attr2": 10})
+    assert literal_eval(await wait_until_done(notify_q)) == [seq_num, "pyscript.f6avar2", 456]
+
+    #
+    # check that we can state_trigger off any change to an attribute
+    #
+    seq_num += 1
+    hass.states.async_set("pyscript.f6bvar1", 1, {"attr3": 987, "attr2": 10})
+    assert literal_eval(await wait_until_done(notify_q)) == [seq_num, "pyscript.f6bvar1", "1", 987]
+    seq_num += 1
+    hass.states.async_set("pyscript.f6bvar1", 1, {"attr3": 987, "attr2": 10})
+    hass.states.async_set("pyscript.f6bvar1", 2, {"attr3": 987, "attr2": 10})
+    hass.states.async_set("pyscript.f6bvar1", 3, {"attr3": 987, "attr2": 10})
+    hass.states.async_set("pyscript.f6bvar1", 1, {"attr3": 985, "attr2": 10})
+    assert literal_eval(await wait_until_done(notify_q)) == [seq_num, "pyscript.f6bvar1", "1", 985]
+
+    #
+    # check that we can state_trigger off any change to any attribute
+    #
+    seq_num += 1
+    hass.states.async_set("pyscript.f6cvar1", 1, {"attr3": 987, "attr4": 10})
+    assert literal_eval(await wait_until_done(notify_q)) == [
+        seq_num,
+        "pyscript.f6cvar1",
+        "1",
+        {"attr3": 987, "attr4": 10},
+    ]
+    seq_num += 1
+    hass.states.async_set("pyscript.f6cvar1", 1, {"attr3": 987, "attr4": 10})
+    hass.states.async_set("pyscript.f6cvar1", 2, {"attr3": 987, "attr4": 10})
+    hass.states.async_set("pyscript.f6cvar1", 3, {"attr3": 987, "attr4": 10})
+    hass.states.async_set("pyscript.f6cvar1", 1, {"attr3": 987, "attr4": 4})
+    assert literal_eval(await wait_until_done(notify_q)) == [
+        seq_num,
+        "pyscript.f6cvar1",
+        "1",
+        {"attr3": 987, "attr4": 4},
+    ]
+
+    #
+    # check we can trigger based on an old attrib value
+    #
+    seq_num += 1
+    hass.states.async_set("pyscript.f6dvar1", 1, {"attr1": 30})
+    hass.states.async_set("pyscript.f6dvar1", 1, {"attr1": 20})
+    hass.states.async_set("pyscript.f6dvar1", 1, {"attr1": 10})
+    hass.states.async_set("pyscript.f6dvar1", 1, {"attr1": 5})
+    assert literal_eval(await wait_until_done(notify_q)) == [seq_num, "pyscript.f6dvar1", 10, 20]
 
     #
     # check that state_var.old works in a state_trigger

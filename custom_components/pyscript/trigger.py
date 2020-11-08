@@ -17,7 +17,7 @@ from .const import LOGGER_PATH
 from .eval import AstEval
 from .event import Event
 from .function import Function
-from .state import State, STATE_VIRTUAL_ATTRS
+from .state import STATE_VIRTUAL_ATTRS, State
 
 _LOGGER = logging.getLogger(LOGGER_PATH + ".trigger")
 
@@ -49,71 +49,56 @@ def parse_time_offset(offset_str):
 
 
 def ident_any_values_changed(func_args, ident):
-    """Check for changes to state or attributes on ident any vars"""
-    value = func_args.get('value')
-    old_value = func_args.get('old_value')
-    var_name = func_args.get('var_name')
+    """Check for any changes to state or attributes on ident vars."""
+    var_name = func_args.get("var_name", None)
 
     if var_name is None:
         return False
+    value = func_args["value"]
+    old_value = func_args["old_value"]
 
     for check_var in ident:
         if check_var == var_name and old_value != value:
             return True
 
         if check_var.startswith(f"{var_name}."):
-            var_pieces = check_var.split('.')
+            var_pieces = check_var.split(".")
             if len(var_pieces) == 3 and f"{var_pieces[0]}.{var_pieces[1]}" == var_name:
                 if var_pieces[2] == "*":
                     # catch all has been requested, check all attributes for change
-                    all_attributes = set()
+                    all_attrs = set()
                     if value is not None:
-                        all_attributes |= set(value.__dict__.keys())
+                        all_attrs |= set(value.__dict__.keys())
                     if old_value is not None:
-                        all_attributes |= set(old_value.__dict__.keys())
-                    all_attributes -= STATE_VIRTUAL_ATTRS
-                    for attribute in all_attributes:
-                        attrib_val = getattr(value, attribute, None)
-                        attrib_old_val = getattr(old_value, attribute, None)
-                        if attrib_old_val != attrib_val:
+                        all_attrs |= set(old_value.__dict__.keys())
+                    for attr in all_attrs - STATE_VIRTUAL_ATTRS:
+                        if getattr(value, attr, None) != getattr(old_value, attr, None):
                             return True
-                else:
-                    attrib_val = getattr(value, var_pieces[2], None)
-                    attrib_old_val = getattr(old_value, var_pieces[2], None)
-                    if attrib_old_val != attrib_val:
-                        return True
-    
+                elif getattr(value, var_pieces[2], None) != getattr(old_value, var_pieces[2], None):
+                    return True
+
     return False
 
+
 def ident_values_changed(func_args, ident):
-    """Check for changes to state or attributes on ident vars"""
-    value = func_args.get('value')
-    old_value = func_args.get('old_value')
-    var_name = func_args.get('var_name')
+    """Check for changes to state or attributes on ident vars."""
+    var_name = func_args.get("var_name", None)
 
     if var_name is None:
         return False
+    value = func_args["value"]
+    old_value = func_args["old_value"]
 
     for check_var in ident:
-        # if check_var in self.state_trig_ident_any:
-        #     _LOGGER.debug(
-        #         "%s ident change skipping %s because also ident_any",
-        #         self.name,
-        #         check_var,
-        #     )
-        #     continue
-        var_pieces = check_var.split('.')
+        var_pieces = check_var.split(".")
         if len(var_pieces) == 2 and check_var == var_name:
             if value != old_value:
                 return True
         elif len(var_pieces) == 3 and f"{var_pieces[0]}.{var_pieces[1]}" == var_name:
-            attrib_val = getattr(value, var_pieces[2], None)
-            attrib_old_val = getattr(old_value, var_pieces[2], None)
-            if  attrib_old_val != attrib_val:
+            if getattr(value, var_pieces[2], None) != getattr(old_value, var_pieces[2], None):
                 return True
 
     return False
-
 
 
 class TrigTime:
@@ -222,7 +207,8 @@ class TrigTime:
                 #
                 # check straight away to see if the condition is met (to avoid race conditions)
                 #
-                state_trig_ok = await state_trig_eval.eval(State.notify_var_get(state_trig_ident, {}))
+                new_vars = State.notify_var_get(state_trig_ident, {})
+                state_trig_ok = await state_trig_eval.eval(new_vars)
                 exc = state_trig_eval.get_exception_obj()
                 if exc is not None:
                     raise exc
@@ -324,8 +310,8 @@ class TrigTime:
 
                 if not ident_any_values_changed(func_args, state_trig_ident_any):
                     # if var_name not in func_args we are state_check_now
-                    if "var_name" in func_args and not ident_values_changed(func_args, state_trig):
-                        state_trig_ok = False
+                    if "var_name" in func_args and not ident_values_changed(func_args, state_trig_ident):
+                        continue
 
                     if state_trig_eval:
                         state_trig_ok = await state_trig_eval.eval(new_vars)
@@ -813,7 +799,9 @@ class TrigInfo:
 
                     if not ident_any_values_changed(func_args, self.state_trig_ident_any):
                         # if var_name not in func_args we are state_check_now
-                        if "var_name" in func_args and not ident_values_changed(func_args, self.state_trig_ident):
+                        if "var_name" in func_args and not ident_values_changed(
+                            func_args, self.state_trig_ident
+                        ):
                             continue
 
                         if self.state_trig_eval:
@@ -965,8 +953,9 @@ class TrigInfo:
         except asyncio.CancelledError:
             raise
 
-        except Exception:
+        except Exception as exc:
             # _LOGGER.error(f"{self.name}: " + traceback.format_exc(-1))
+            _LOGGER.error("%s: %s", self.name, exc)
             if self.state_trig_ident:
                 State.notify_del(self.state_trig_ident, self.notify_q)
             if self.event_trigger is not None:

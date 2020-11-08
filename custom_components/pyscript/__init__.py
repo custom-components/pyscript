@@ -188,18 +188,17 @@ async def async_setup_entry(hass, config_entry):
 
     async def state_changed(event):
         var_name = event.data["entity_id"]
-        # attr = event.data["new_state"].attributes
-        if "new_state" not in event.data or event.data["new_state"] is None:
+        if event.data.get("new_state", None):
+            new_val = StateVar(event.data["new_state"])
+        else:
             # state variable has been deleted
             new_val = None
-        else:
-            new_val = StateVar(event.data['new_state'])
 
-        if "old_state" not in event.data or event.data["old_state"] is None:
+        if event.data.get("old_state", None):
+            old_val = StateVar(event.data["old_state"])
+        else:
             # no previous state
             old_val = None
-        else:
-            old_val = StateVar(event.data['old_state'])
 
         new_vars = {var_name: new_val, f"{var_name}.old": old_val}
         func_args = {
