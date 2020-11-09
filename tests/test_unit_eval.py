@@ -150,12 +150,12 @@ chk.append(state.getattr("pyscript.var1"))
 state.set("pyscript.var1", pyscript.var1, new_attributes={"attr2": 8.5, "attr3": "xyz"})
 chk.append(state.getattr("pyscript.var1"))
 pyscript.var1.attr2 = "abc"
-chk.append(state.getattr("pyscript.var1"))
+chk.append(state.getattr(pyscript.var1))
 state.set("pyscript.var1", attr1=123)
 state.set("pyscript.var1", attr3="def")
 chk.append(state.getattr("pyscript.var1"))
 pyscript.var1.attr4 = 987
-chk.append(state.getattr("pyscript.var1"))
+chk.append(state.getattr(pyscript.var1))
 state.set("pyscript.var1", new_attributes={"attr2": 9.5, "attr3": "xyz"})
 chk.append(state.getattr("pyscript.var1"))
 chk.append(pyscript.var1)
@@ -955,6 +955,7 @@ evalTestsExceptions = [
     ],
     ["assert 1 == 0, 'this is an error'", "Exception in test line 1 column 15: this is an error"],
     ["assert 1 == 0", "Exception in test line 1 column 12: "],
+    ["pyscript.var1.attr1 = 10", "Exception in test line 1 column 0: state pyscript.var1 doesn't exist"],
     [
         "import math; math.sinXYZ",
         "Exception in test line 1 column 13: module 'math' has no attribute 'sinXYZ'",

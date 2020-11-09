@@ -18,10 +18,15 @@ The new features since 0.32 in master include:
 
 - Pyscript state variables (entity_ids) can be persisted across pyscript reloads and HASS restarts,
   from @swazrgb and @dlashua (#48).
+- Entities ``domain.entity`` now support a virtual method ``service`` (eg, ``domain.entity.service()``)
+  that calls the service ``domain.service`` for any service that has an ``entity_id`` parameter, with
+  that ``entity_id`` set to ``domain.entity``. Proposed by @dlashua (#64).
 - ``@state_trigger`` now supports triggering on an attribute change with ``"domain.entity.attr"`` and
   any attribute change with ``"domain.entity.*"``, from @dlashua (#82)
 - State variables now support virtual attributes ``last_changed`` and ``last_updated`` for the UTC time when state
   values or any attribute was last changed.
+- State variable attributes can be set by direct assignment, eg: ``DOMAIN.name.attr = value``.
+  An equivalent new function ``state.setattr()`` allows a specific attribute to be set.
 - State variable values (eg, from ``domain.entity`` or ``state.get()``) now include attributes that can be accessed
   after they are assigned to another, normal, variable.
 - ``@state_trigger`` and ``task.wait_until`` now have an optional ``state_hold`` duration in seconds that requires
@@ -43,15 +48,10 @@ The new features since 0.32 in master include:
   directory, and each module's or app's directory. Those files are read and any missing packages are
   installed on HASS startup and pyscript reload. If a specific version of a package is needed, it must be
   pinned using the format 'package_name==version'. Contributed by @raman325 (#66, #68, #69, #70, #78).
-- State variable attributes can be set by direct assignment, eg: ``DOMAIN.name.attr = value``.
-  An equivalent new function ``state.setattr()`` allows a specific attribute to be set.
 - The reload service now takes an optional parameter ``global_ctx`` that specifies just that
   global context is reloaded, eg: ``global_ctx="file.my_scripts"``.  Proposed by @dlashua (#63).
 - The ``state.get_attr()`` function has been renamed ``state.getattr()``. The old function is
-  still available and will be removed in some future release.
-- Entities ``DOMAIN.ENTITY`` now support a virtual method ``SERVICE`` (eg, ``DOMAIN.ENTITY.SERVICE()``)
-  that calls the service ``DOMAIN.SERVICE`` for any service that has an ``entity_id`` parameter, with
-  that ``entity_id`` set to ``DOMAIN.ENTITY``. Proposed by @dlashua (#64).
+  still available and will be removed in some future release (it logs a warning when used).
 - VSCode connections to pyscript's Jupyter kernel now work.  Two changes were required: VSCode immediately
   closes the heartbeat port, which no longer causes pyscript to shut down the kernel.  Also, ``stdout``
   messages are flushed prior to sending the execute complete message. This is to ensure `log` and `print`

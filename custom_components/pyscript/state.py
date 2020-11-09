@@ -201,7 +201,8 @@ class State:
         parts = var_attr_name.split(".")
         if len(parts) != 3:
             raise NameError(f"invalid name {var_attr_name} (should be 'domain.entity.attr')")
-
+        if not cls.exist(f"{parts[0]}.{parts[1]}"):
+            raise NameError(f"state {parts[0]}.{parts[1]} doesn't exist")
         await cls.set(f"{parts[0]}.{parts[1]}", **{parts[2]: value})
 
     @classmethod
@@ -309,12 +310,23 @@ class State:
     @classmethod
     async def getattr(cls, var_name):
         """Return a dict of attributes for a state variable."""
+        if isinstance(var_name, StateVal):
+            attrs = var_name.__dict__.copy()
+            for discard in STATE_VIRTUAL_ATTRS:
+                attrs.pop(discard, None)
+            return attrs
         if var_name.count(".") != 1:
             raise NameError(f"invalid name {var_name} (should be 'domain.entity')")
         value = cls.hass.states.get(var_name)
         if not value:
             return None
         return value.attributes.copy()
+
+    @classmethod
+    async def get_attr(cls, var_name):
+        """Return a dict of attributes for a state variable - deprecated."""
+        _LOGGER.warning("state.get_attr() is deprecated: use state.getattr() instead")
+        return cls.getattr(var_name)
 
     @classmethod
     def completions(cls, root):
@@ -360,7 +372,7 @@ class State:
             "state.setattr": cls.setattr,
             "state.names": cls.names,
             "state.getattr": cls.getattr,
-            "state.get_attr": cls.getattr,  # deprecated form; to be removed
+            "state.get_attr": cls.get_attr,  # deprecated form; to be removed
             "state.persist": cls.persist,
             "pyscript.config": cls.pyscript_config,
         }

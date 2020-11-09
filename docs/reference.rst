@@ -693,9 +693,10 @@ which you can’t do if you are directly assigning to the variable:
   then the attribute ``attr`` of the state variable ``DOMAIN.entity`` is returned; an
   ``AttributeError`` exception is thrown if that attribute doesn't exist.
 ``state.getattr(name)``
-  Returns a ``dict`` of attribute values for the state variable, or ``None`` if it doesn’t exist.
-  In pyscript versions 0.32 and earlier, this function was ``state.get_attr()``. That deprecated
-  name is still supported, but will be removed in a future version.
+  Returns a ``dict`` of attribute values for the state variable ``name`` string, or ``None`` if it
+  doesn’t exist.  Alternatively, ``name`` can be a state variable.  In pyscript versions 0.32 and
+  earlier, this function was ``state.get_attr()``. That deprecated name is still supported, but
+  logs a warning message and will be removed in a future version.
 ``state.names(domain=None)``
   Returns a list of all state variable names (ie, ``entity_id``\ s) of a
   domain. If ``domain`` is not specified, it returns all HASS state variable (``entity_id``) names.
