@@ -147,7 +147,7 @@ class State:
         return notify_vars
 
     @classmethod
-    async def set(cls, var_name, value=None, new_attributes=None, **kwargs):
+    def set(cls, var_name, value=None, new_attributes=None, **kwargs):
         """Set a state variable and optional attributes in hass."""
         if var_name.count(".") != 1:
             raise NameError(f"invalid name {var_name} (should be 'domain.entity')")
@@ -196,14 +196,14 @@ class State:
             cls.notify_var_last[var_name] = StateVal(cls.hass.states.get(var_name))
 
     @classmethod
-    async def setattr(cls, var_attr_name, value):
+    def setattr(cls, var_attr_name, value):
         """Set a state variable's attribute in hass."""
         parts = var_attr_name.split(".")
         if len(parts) != 3:
             raise NameError(f"invalid name {var_attr_name} (should be 'domain.entity.attr')")
         if not cls.exist(f"{parts[0]}.{parts[1]}"):
             raise NameError(f"state {parts[0]}.{parts[1]} doesn't exist")
-        await cls.set(f"{parts[0]}.{parts[1]}", **{parts[2]: value})
+        cls.set(f"{parts[0]}.{parts[1]}", **{parts[2]: value})
 
     @classmethod
     async def register_persist(cls, var_name):
@@ -223,12 +223,12 @@ class State:
         exists = cls.exist(var_name)
 
         if not exists and default_value is not None:
-            await cls.set(var_name, default_value, default_attributes)
+            cls.set(var_name, default_value, default_attributes)
         elif exists and default_attributes is not None:
             # Patch the attributes with new values if necessary
             current = cls.hass.states.get(var_name)
             new_attributes = {k: v for (k, v) in default_attributes.items() if k not in current.attributes}
-            await cls.set(var_name, current.state, **new_attributes)
+            cls.set(var_name, current.state, **new_attributes)
 
     @classmethod
     def exist(cls, var_name):
@@ -308,7 +308,7 @@ class State:
             )
 
     @classmethod
-    async def getattr(cls, var_name):
+    def getattr(cls, var_name):
         """Return a dict of attributes for a state variable."""
         if isinstance(var_name, StateVal):
             attrs = var_name.__dict__.copy()
@@ -323,10 +323,10 @@ class State:
         return value.attributes.copy()
 
     @classmethod
-    async def get_attr(cls, var_name):
+    def get_attr(cls, var_name):
         """Return a dict of attributes for a state variable - deprecated."""
         _LOGGER.warning("state.get_attr() is deprecated: use state.getattr() instead")
-        return await cls.getattr(var_name)
+        return cls.getattr(var_name)
 
     @classmethod
     def completions(cls, root):

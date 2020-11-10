@@ -1214,10 +1214,10 @@ class AstEval:
                 raise NotImplementedError(f"unknown lhs type {lhs} (got {var_name}) in assign")
             dot_count = var_name.count(".")
             if dot_count == 1:
-                await State.set(var_name, val)
+                State.set(var_name, val)
                 return
             if dot_count == 2:
-                await State.setattr(var_name, val)
+                State.setattr(var_name, val)
                 return
             if dot_count > 0:
                 raise NameError(

@@ -24,3 +24,7 @@ Planned new features post 1.0.0 include:
 The new features since 1.0.0 in master include:
 
 - None so far
+
+Bug fixes since 1.0.0 in master include:
+
+- the deprecated function ``state.get_attr`` was missing an ``await``, which caused an exception; in 1.0.0 use ``state.getattr`` instead (#88).
