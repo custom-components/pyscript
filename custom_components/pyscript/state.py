@@ -326,7 +326,7 @@ class State:
     async def get_attr(cls, var_name):
         """Return a dict of attributes for a state variable - deprecated."""
         _LOGGER.warning("state.get_attr() is deprecated: use state.getattr() instead")
-        return cls.getattr(var_name)
+        return await cls.getattr(var_name)
 
     @classmethod
     def completions(cls, root):
