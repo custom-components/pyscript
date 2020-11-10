@@ -394,7 +394,7 @@ def func6c(var_name=None, value=None):
 
     seq_num += 1
     log.info(f"func6c var = {var_name}, value = {value}")
-    pyscript.done = [seq_num, var_name, value, state.getattr("pyscript.f6cvar1")]
+    pyscript.done = [seq_num, var_name, value, state.get_attr("pyscript.f6cvar1")]
 
 @state_trigger("pyscript.f6dvar1.attr1 == 10 and pyscript.f6dvar1.old.attr1 == 20 and pyscript.f6dvar1.nosuchattr == None and pyscript.f6dvar1.old.nosuchattr == None")
 def func6d(var_name=None, value=None, old_value=None):
@@ -680,6 +680,7 @@ def func9(var_name=None, value=None, old_value=None):
         "1",
         {"attr3": 987, "attr4": 4},
     ]
+    assert "state.get_attr() is deprecated: use state.getattr() instead" in caplog.text
 
     #
     # check we can trigger based on an old attrib value
