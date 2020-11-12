@@ -171,7 +171,7 @@ class State:
 
         if new_attributes is None:
             if state_value:
-                new_attributes = state_value.attributes
+                new_attributes = state_value.attributes.copy()
             else:
                 new_attributes = {}
 
