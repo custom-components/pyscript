@@ -23,8 +23,13 @@ Planned new features post 1.0.0 include:
 
 The new features since 1.0.0 in master include:
 
-- None so far
+- Added ``state_hold_false=None`` optional period in seconds to ``@state_trigger`` and ``task.wait_until()``.
+  This requires the trigger expression to be ``False`` for at least that period (including 0) before a
+  successful trigger.  Proposed by @tchef69 (#89).
 
 Bug fixes since 1.0.0 in master include:
 
-- the deprecated function ``state.get_attr`` was missing an ``await``, which caused an exception; in 1.0.0 use ``state.getattr`` instead (#88).
+- state setting now copies the attributes, to avoid a strange ``MappingProxyType`` recursion error
+  inside HASS, reported by @github392 (#87).
+- the deprecated function ``state.get_attr`` was missing an ``await``, which caused an exception; in 1.0.0 use
+  ``state.getattr``, reported and fixed by @dlashua (#88).

@@ -99,7 +99,7 @@ async def test_service_completions(root, expected, hass, services):  # pylint: d
         assert words == expected
 
 
-async def setup_script(hass, notify_q, now, source, config=None):
+async def setup_script(hass, notify_q, notify_q2, now, source, config=None):
     """Initialize and load the given pyscript."""
     scripts = [
         "/some/config/dir/pyscripts/hello.py",
@@ -132,14 +132,18 @@ async def setup_script(hass, notify_q, now, source, config=None):
 
     trigger.__dict__["dt_now"] = return_next_time
 
-    if notify_q:
+    if notify_q or notify_q2:
 
         async def state_changed(event):
             var_name = event.data["entity_id"]
-            if var_name != "pyscript.done":
-                return
-            value = event.data["new_state"].state
-            await notify_q.put(value)
+            if var_name == "pyscript.done":
+                value = event.data["new_state"].state
+                if notify_q:
+                    await notify_q.put(value)
+            if var_name == "pyscript.done2":
+                value = event.data["new_state"].state
+                if notify_q2:
+                    await notify_q2.put(value)
 
         hass.bus.async_listen(EVENT_STATE_CHANGED, state_changed)
 
@@ -152,9 +156,11 @@ async def wait_until_done(notify_q):
 async def test_state_trigger(hass, caplog):
     """Test state trigger."""
     notify_q = asyncio.Queue(0)
+    notify_q2 = asyncio.Queue(0)
     await setup_script(
         hass,
         notify_q,
+        notify_q2,
         [dt(2020, 7, 1, 10, 59, 59, 999998), dt(2020, 7, 1, 11, 59, 59, 999998)],
         """
 
@@ -179,7 +185,7 @@ def func_startup_sync(trigger_type=None, trigger_time=None):
     log.info(f"func_startup_sync setting pyscript.done = {seq_num}, trigger_type = {trigger_type}, trigger_time = {trigger_time}")
     pyscript.done = seq_num
 
-@state_trigger("pyscript.f1var1 == '1'", state_check_now=True)
+@state_trigger("pyscript.f1var1 == '1'", state_check_now=True, state_hold_false=0)
 def func1(var_name=None, value=None):
     global seq_num
 
@@ -195,6 +201,40 @@ def func2(var_name=None, value=None):
     seq_num += 1
     log.info(f"func2 var = {var_name}, value = {value}")
     pyscript.done = [seq_num, var_name, int(value), sqrt(4096)]
+
+#
+# trigger every time int(pyscript.f1var1) >= 11
+#
+@state_trigger("int(pyscript.f1var1) >= 11", state_hold_false=None)
+def func2a(var_name=None, value=None):
+    global seq_num
+
+    seq_num += 1
+    log.info(f"func2a var = {var_name}, value = {value}")
+    pyscript.done = [seq_num, var_name, int(value)]
+
+#
+# just trigger the first time int(pyscript.f1var1) >= 10
+#
+@state_trigger("int(pyscript.f1var1) >= 10", state_hold_false=0)
+def func2b(var_name=None, value=None):
+    global seq_num
+
+    seq_num += 1
+    log.info(f"func2b var = {var_name}, value = {value}")
+    pyscript.done = [seq_num, var_name, int(value)]
+
+#
+# this should never trigger
+#
+@state_trigger("int(pyscript.f1var1) >= 10", state_hold_false=1000, state_check_now=True)
+def func2c(var_name=None, value=None):
+    global seq_num
+
+    seq_num += 1
+    log.info(f"func2c var = {var_name}, value = {value}")
+    pyscript.done = [seq_num, var_name, int(value)]
+
 
 @event_trigger("fire_event")
 def fire_event(**kwargs):
@@ -354,6 +394,34 @@ def func4(trigger_type=None, event_type=None, **kwargs):
     #
     "xyz" + 123
 
+@service
+def func4a_hold_false():
+    global seq_num
+
+    while 1:
+        seq_num += 1
+        res = task.wait_until(state_trigger="int(pyscript.f4avar2) >= 10", state_hold_false=0, __test_handshake__=["pyscript.done2", seq_num], state_check_now=True)
+        pyscript.done = [seq_num, res["value"]]
+
+@service
+def func4b_hold_false():
+    global seq_num
+
+    while 1:
+        seq_num += 1
+        res = task.wait_until(state_trigger="int(pyscript.f4bvar2) >= 10", state_hold_false=0, __test_handshake__=["pyscript.done2", seq_num], state_check_now=False)
+        pyscript.done = [seq_num, res["value"]]
+
+@service
+def func4c_hold_false():
+    global seq_num
+
+    while 1:
+        # this should never trigger
+        seq_num += 1
+        res = task.wait_until(state_trigger="int(pyscript.f4bvar2) >= 10", state_hold_false=1000, __test_handshake__=["pyscript.done2", seq_num], state_check_now=True)
+        pyscript.done = [seq_num, res["value"]]
+
 @state_trigger("pyscript.f5var1")
 @time_active("cron(* * * * *)")
 def func5(var_name=None, value=None):
@@ -441,7 +509,14 @@ def func9(var_name=None, value=None, old_value=None):
     pyscript.done = [seq_num, var_name, value, old_value]
 """,
     )
+    # initialize the trigger and active variables
     seq_num = 0
+    hass.states.async_set("pyscript.f1var1", 0)
+    hass.states.async_set("pyscript.f2var2", 0)
+    hass.states.async_set("pyscript.f2var3", 0)
+    hass.states.async_set("pyscript.f2var4", 0)
+    hass.states.async_set("pyscript.f4avar2", 0)
+    hass.states.async_set("pyscript.f4bvar2", 0)
 
     seq_num += 1
     # fire event to start triggers, and handshake when they are running
@@ -453,15 +528,10 @@ def func9(var_name=None, value=None, old_value=None):
     )
 
     seq_num += 1
-    # initialize the trigger and active variables
-    hass.states.async_set("pyscript.f1var1", 0)
-    hass.states.async_set("pyscript.f2var2", 0)
-    hass.states.async_set("pyscript.f2var3", 0)
-    hass.states.async_set("pyscript.f2var4", 0)
 
     # try some values that shouldn't work, then one that does
     hass.states.async_set("pyscript.f1var1", 0)
-    hass.states.async_set("pyscript.f1var1", "string")
+    hass.states.async_set("pyscript.f1var1", "-2")
     hass.states.async_set("pyscript.f1var1", -1)
     hass.states.async_set("pyscript.f1var1", 1)
     assert literal_eval(await wait_until_done(notify_q)) == [
@@ -489,6 +559,14 @@ def func9(var_name=None, value=None, old_value=None):
         32,
         "hello",
     ]
+
+    #
+    # now check state_hold_false
+    #
+    for num in range(10, 14):
+        seq_num += 1
+        hass.states.async_set("pyscript.f1var1", num)
+        assert literal_eval(await wait_until_done(notify_q)) == [seq_num, "pyscript.f1var1", num]
 
     seq_num += 1
     hass.states.async_set("pyscript.f2var4", 4)
@@ -735,6 +813,49 @@ def func9(var_name=None, value=None, old_value=None):
     hass.states.async_set("pyscript.f9var1", 2)
     assert literal_eval(await wait_until_done(notify_q)) == [seq_num, "pyscript.f9var1", "2", None]
 
+    #
+    # check state_hold_false
+    #
+    seq_num += 1
+    await hass.services.async_call("pyscript", "func4a_hold_false", {})
+    assert literal_eval(await wait_until_done(notify_q2)) == seq_num
+    hass.states.async_set("pyscript.f4avar2", 6)
+    hass.states.async_set("pyscript.f4avar2", 15)
+    assert literal_eval(await wait_until_done(notify_q)) == [seq_num, "15"]
+    # these won't retrigger
+    seq_num += 1
+    assert literal_eval(await wait_until_done(notify_q2)) == seq_num
+    hass.states.async_set("pyscript.f4avar2", 16)
+    hass.states.async_set("pyscript.f4avar2", 17)
+    hass.states.async_set("pyscript.f4avar2", 18)
+    hass.states.async_set("pyscript.f4avar2", 6)
+    # this will trigger
+    hass.states.async_set("pyscript.f4avar2", 19)
+    assert literal_eval(await wait_until_done(notify_q)) == [seq_num, "19"]
+    seq_num += 1
+    assert literal_eval(await wait_until_done(notify_q2)) == seq_num
+
+    hass.states.async_set("pyscript.f4bvar2", 6)
+    seq_num += 1
+    await hass.services.async_call("pyscript", "func4b_hold_false", {})
+    assert literal_eval(await wait_until_done(notify_q2)) == seq_num
+    seq_num += 1
+    await hass.services.async_call("pyscript", "func4c_hold_false", {})
+    assert literal_eval(await wait_until_done(notify_q2)) == seq_num
+
+    hass.states.async_set("pyscript.f4bvar2", 15)
+    assert literal_eval(await wait_until_done(notify_q)) == [seq_num, "15"]
+
+    seq_num += 1
+    assert literal_eval(await wait_until_done(notify_q2)) == seq_num
+    hass.states.async_set("pyscript.f4bvar2", 6)
+    hass.states.async_set("pyscript.f4bvar2", 8)
+    hass.states.async_set("pyscript.f4bvar2", 1)
+    hass.states.async_set("pyscript.f4bvar2", 20)
+    assert literal_eval(await wait_until_done(notify_q)) == [seq_num, "20"]
+    seq_num += 1
+    assert literal_eval(await wait_until_done(notify_q2)) == seq_num
+
 
 async def test_trigger_closures(hass, caplog):
     """Test trigger function closures."""
@@ -742,6 +863,7 @@ async def test_trigger_closures(hass, caplog):
     await setup_script(
         hass,
         notify_q,
+        None,
         [dt(2020, 7, 1, 10, 59, 59, 999998), dt(2020, 7, 1, 11, 59, 59, 999998)],
         """
 
@@ -822,6 +944,7 @@ async def test_state_trigger_check_now(hass, caplog):
     await setup_script(
         hass,
         notify_q,
+        None,
         [dt(2020, 7, 1, 10, 59, 59, 999998), dt(2020, 7, 1, 11, 59, 59, 999998)],
         """
 
@@ -876,6 +999,7 @@ async def test_state_methods(hass, caplog):
     await setup_script(
         hass,
         notify_q,
+        None,
         [dt(2020, 7, 1, 12, 0, 0, 0)],
         """
 
@@ -978,6 +1102,7 @@ async def test_serive_call_blocking(hass, caplog):
     await setup_script(
         hass,
         notify_q,
+        None,
         [dt(2020, 7, 1, 12, 0, 0, 0)],
         """
 seq_num = 0
@@ -1006,7 +1131,7 @@ def func_startup():
 
 @service
 def long_sleep():
-    task.delay(10000)
+    task.sleep(10000)
 
 @service
 def service1():

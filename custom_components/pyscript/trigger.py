@@ -151,6 +151,8 @@ class TrigTime:
         event_trigger=None,
         timeout=None,
         state_hold=None,
+        state_hold_false=None,
+        __test_handshake__=None,
     ):
         """Wait for zero or more triggers, until an optional timeout."""
         if state_trigger is None and time_trigger is None and event_trigger is None:
@@ -168,6 +170,12 @@ class TrigTime:
         last_state_trig_time = None
         state_trig_waiting = False
         state_trig_notify_info = [None, None]
+
+        #
+        # at startup we start our state_hold_false window,
+        # although it could get updated if state_check_now is set.
+        #
+        state_false_time = time.monotonic()
 
         if state_trigger is not None:
             state_trig = []
@@ -212,7 +220,13 @@ class TrigTime:
                 exc = state_trig_eval.get_exception_obj()
                 if exc is not None:
                     raise exc
-                if state_hold is not None and state_trig_ok:
+                if state_hold_false is not None:
+                    #
+                    # if state_trig_ok we wait until it is false;
+                    # otherwise we consider now to be the start of the false hold time
+                    #
+                    state_false_time = None if state_trig_ok else time.monotonic()
+                elif state_hold is not None and state_trig_ok:
                     state_trig_waiting = True
                     state_trig_notify_info = [None, {"trigger_type": "state"}]
                     last_state_trig_time = time.monotonic()
@@ -247,6 +261,14 @@ class TrigTime:
                     raise exc
             Event.notify_add(event_trigger[0], notify_q)
         time0 = time.monotonic()
+
+        if __test_handshake__:
+            #
+            # used for testing to avoid race conditions
+            # we use this as a handshake that we are about to
+            # listen to the queue
+            #
+            State.set(__test_handshake__[0], __test_handshake__[1])
 
         while True:
             ret = None
@@ -318,6 +340,26 @@ class TrigTime:
                         exc = state_trig_eval.get_exception_obj()
                         if exc is not None:
                             break
+
+                        if state_hold_false is not None:
+                            if state_false_time is None:
+                                if state_trig_ok:
+                                    #
+                                    # wasn't False, so ignore
+                                    #
+                                    continue
+                                #
+                                # first False, so remember when it is
+                                #
+                                state_false_time = time.monotonic()
+                            elif state_trig_ok:
+                                too_soon = time.monotonic() - state_false_time < state_hold_false
+                                state_false_time = None
+                                if too_soon:
+                                    #
+                                    # was False but not for long enough, so start over
+                                    #
+                                    continue
 
                 if state_hold is not None:
                     if state_trig_ok:
@@ -594,7 +636,8 @@ class TrigInfo:
         self.trig_cfg = trig_cfg
         self.state_trigger = trig_cfg.get("state_trigger", {}).get("args", None)
         self.state_trigger_kwargs = trig_cfg.get("state_trigger", {}).get("kwargs", {})
-        self.state_hold_dur = self.state_trigger_kwargs.get("state_hold", None)
+        self.state_hold = self.state_trigger_kwargs.get("state_hold", None)
+        self.state_hold_false = self.state_trigger_kwargs.get("state_hold_false", None)
         self.state_check_now = self.state_trigger_kwargs.get("state_check_now", False)
         self.time_trigger = trig_cfg.get("time_trigger", {}).get("args", None)
         self.event_trigger = trig_cfg.get("event_trigger", {}).get("args", None)
@@ -727,6 +770,11 @@ class TrigInfo:
             last_state_trig_time = None
             state_trig_waiting = False
             state_trig_notify_info = [None, None]
+            #
+            # at startup we start our state_hold_false window,
+            # although it could get updated if state_check_now is set.
+            #
+            state_false_time = time.monotonic()
 
             while True:
                 timeout = None
@@ -761,7 +809,7 @@ class TrigInfo:
                         if time_next is not None:
                             timeout = (time_next - now).total_seconds()
                     if state_trig_waiting:
-                        time_left = last_state_trig_time + self.state_hold_dur - time.monotonic()
+                        time_left = last_state_trig_time + self.state_hold - time.monotonic()
                         if timeout is None or time_left < timeout:
                             timeout = time_left
                             state_trig_timeout = True
@@ -798,7 +846,9 @@ class TrigInfo:
                     new_vars, func_args = notify_info
 
                     if not ident_any_values_changed(func_args, self.state_trig_ident_any):
+                        #
                         # if var_name not in func_args we are state_check_now
+                        #
                         if "var_name" in func_args and not ident_values_changed(
                             func_args, self.state_trig_ident
                         ):
@@ -810,10 +860,38 @@ class TrigInfo:
                             if exc is not None:
                                 self.state_trig_eval.get_logger().error(exc)
                                 trig_ok = False
+
+                            if self.state_hold_false is not None:
+                                if "var_name" not in func_args:
+                                    #
+                                    # this is state_check_now check
+                                    # if immediately true, force wait until False
+                                    # otherwise start False wait now
+                                    #
+                                    state_false_time = None if trig_ok else time.monotonic()
+                                    continue
+                                if state_false_time is None:
+                                    if trig_ok:
+                                        #
+                                        # wasn't False, so ignore
+                                        #
+                                        continue
+                                    #
+                                    # first False, so remember when it is
+                                    #
+                                    state_false_time = time.monotonic()
+                                elif trig_ok:
+                                    too_soon = time.monotonic() - state_false_time < self.state_hold_false
+                                    state_false_time = None
+                                    if too_soon:
+                                        #
+                                        # was False but not for long enough, so start over
+                                        #
+                                        continue
                         else:
                             trig_ok = False
 
-                    if self.state_hold_dur is not None:
+                    if self.state_hold is not None:
                         if trig_ok:
                             if not state_trig_waiting:
                                 state_trig_waiting = True
@@ -823,14 +901,14 @@ class TrigInfo:
                                     "trigger %s got %s trigger; now waiting for state_hold of %g seconds",
                                     notify_type,
                                     self.name,
-                                    self.state_hold_dur,
+                                    self.state_hold,
                                 )
                             else:
                                 _LOGGER.debug(
                                     "trigger %s got %s trigger; still waiting for state_hold of %g seconds",
                                     notify_type,
                                     self.name,
-                                    self.state_hold_dur,
+                                    self.state_hold,
                                 )
                             continue
                         if state_trig_waiting:

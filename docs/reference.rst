@@ -257,7 +257,7 @@ function.
 
 .. code:: python
 
-    @state_trigger(str_expr, ..., state_hold=None, state_check_now=False)
+    @state_trigger(str_expr, ..., state_hold=None, state_hold_false=None, state_check_now=False)
 
 ``@state_trigger`` takes one or more string arguments that contain any expression based on one or
 more state variables, and evaluates to ``True`` or ``False`` (or non-zero or zero). Whenever any
@@ -290,6 +290,29 @@ Optional arguments are:
   canceled and a wait for a new trigger begins. If the state trigger expression changes, but is
   still ``True`` then the ``state_hold`` time is not restarted - the trigger will still occur
   that number of seconds after the first state trigger.
+
+``state_hold_false=None``
+  If set, the ``@state_trigger`` expression must evaluate to ``False`` for this duration in seconds
+  before the next trigger can occur. The default value of ``None`` means that triggers can occur
+  without the trigger expression having to be ``False`` between triggers. A value of ``0`` requires
+  the expression become ``False`` between triggers, but with no minimum time in that state.
+  If the expression evaluates to ``True`` during the ``state_hold_false`` period, that trigger is
+  ignored, and when the expression next is ``False`` the `state_hold_false`` period starts over.
+
+  For example, by default the expression ``"int(sensor.temp_outside) >= 50"`` will trigger every
+  time ``sensor.temp_outside`` changes to a value that is 50 or more.  If instead
+  ``state_hold_false=0``, the trigger will only occur when ``sensor.temp_outside`` changes the first
+  time to 50 or more. It has to go back below 50 for ``state_hold_false`` seconds before a new
+  trigger can occur. To summarize, the default behavior is level triggered, and setting ``state_hold_false``
+  makes it edge triggered.
+
+  The ``state_hold_false`` period applies at startup, although the expression is not checked at
+  startup if ``state_check_now==False``. So if ``state_hold_false=0`` the first trigger after startup
+  will succeed, whether or not the expression was previously ``False``. That behavior can be changed
+  by setting ``state_check_now=True``; the expression is checked at startup, and if ``True`` the
+  trigger will not occur, and a wait for the next ``False`` will begin. So setting ``state_check_now=True``
+  and ``state_hold_false`` enforces the need for the expression to be ``False`` before the first
+  trigger.
 
 All state variables in HASS have string values. So you’ll have to do comparisons against string
 values or cast the variable to an integer or float. These two examples are essentially equivalent
@@ -852,9 +875,18 @@ It takes the following keyword arguments (all are optional):
   delays returning for this amount of time. If the state trigger expression changes to ``False``
   during that time, the trigger is canceled and a wait for a new trigger begins. If the state
   trigger expression changes, but is still ``True`` then the ``state_hold`` time is not
-  restarted - ``task.wait_until() will return that number of seconds after the first state
+  restarted - ``task.wait_until()`` will return that number of seconds after the first state
   trigger (unless a different trigger type or a ``timeout`` occurs first). This setting also
   applies to the initial check when ``state_check_now=True``.
+- ``state_hold_false=None`` requires the expression evaluate to ``False`` for this duration in seconds
+  before a subsequent state trigger occurs. The default value of ``None`` means that the trigger can
+  occur without the trigger expression having to be ``False``. A value of ``0`` requires the
+  expression become ``False`` before the trigger, but with no minimum time in that state.
+  With the default of ``state_check_now=True``, the state trigger expression is checked at startup,
+  and if ``True`` the trigger will not occur, and a wait for the next ``False`` will begin.
+  If ``state_check_now==False``, the ``state_hold_false`` period applies at startup, although the
+  expression is not checked at startup. So if ``state_hold_false=0`` the first trigger after startup
+  will succeed, whether or not the expression was previously ``False``.
 
 When a trigger occurs, the return value is a ``dict`` containing the same keyword values that are
 passed into the function when the corresponding decorator trigger occurs. There will always be a key
