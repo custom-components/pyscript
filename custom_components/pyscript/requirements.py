@@ -4,7 +4,6 @@ import logging
 import os
 import sys
 
-from packaging.version import Version
 from pkg_resources import Requirement
 
 from homeassistant.loader import bind_hass
@@ -70,6 +69,10 @@ def process_all_requirements(pyscript_folder, requirements_paths, requirements_f
 
     Returns files and a list of packages, if any, that need to be installed.
     """
+
+    # Re-import Version to avoid dealing with multiple flake and pylint errors
+    from packaging.version import Version  # pylint: disable=import-outside-toplevel
+
     all_requirements_to_process = {}
     for root in requirements_paths:
         for requirements_path in glob.glob(os.path.join(pyscript_folder, root, requirements_file)):
@@ -202,6 +205,14 @@ async def install_requirements(hass, config_entry, pyscript_folder):
     """Install missing requirements from requirements.txt."""
 
     pyscript_installed_packages = config_entry.data.get(CONF_INSTALLED_PACKAGES, {}).copy()
+
+    # Import packaging inside install_requirements so that we can use Home Assistant to install it
+    # if it can't been found
+    try:
+        from packaging.version import Version  # pylint: disable=import-outside-toplevel
+    except ModuleNotFoundError:
+        await async_process_requirements(hass, DOMAIN, ["packaging"])
+        from packaging.version import Version  # pylint: disable=import-outside-toplevel
 
     all_requirements = await hass.async_add_executor_job(
         process_all_requirements, pyscript_folder, REQUIREMENTS_PATHS, REQUIREMENTS_FILE
