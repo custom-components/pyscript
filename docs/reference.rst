@@ -297,7 +297,7 @@ Optional arguments are:
   without the trigger expression having to be ``False`` between triggers. A value of ``0`` requires
   the expression become ``False`` between triggers, but with no minimum time in that state.
   If the expression evaluates to ``True`` during the ``state_hold_false`` period, that trigger is
-  ignored, and when the expression next is ``False`` the `state_hold_false`` period starts over.
+  ignored, and when the expression next is ``False`` the ``state_hold_false`` period starts over.
 
   For example, by default the expression ``"int(sensor.temp_outside) >= 50"`` will trigger every
   time ``sensor.temp_outside`` changes to a value that is 50 or more.  If instead

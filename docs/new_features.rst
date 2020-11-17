@@ -33,3 +33,5 @@ Bug fixes since 1.0.0 in master include:
   inside HASS, reported by @github392 (#87).
 - the deprecated function ``state.get_attr`` was missing an ``await``, which caused an exception; in 1.0.0 use
   ``state.getattr``, reported and fixed by @dlashua (#88).
+- the ``packaging`` module is installed if not found, since certain HASS configurations might not include it;
+  fixed by @raman325 (#90, #91).
