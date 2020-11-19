@@ -979,7 +979,9 @@ main event loop using ``task.executor``:
 ``task.executor(func, *args, **kwargs)``
   Run the given function in a separate thread. The first argument is the function to be called,
   followed by each of the positional or keyword arguments that function expects. The ``func``
-  argument can only be a regular Python function, not a function defined in pyscript.
+  argument can only be a regular Python function (eg, defined in an imported module), not a
+  function defined in pyscript. The return value of ``task.executor`` is the return value of
+  the function ``func``.
 
 See `this section <#avoiding-event-loop-i-o>`__ for more information.
 
@@ -1133,8 +1135,10 @@ worry about the details. However, the performance will be much slower that regul
 which is typically compiled. Any Python packages you import will run at native, compiled speed.
 
 So if you plan to run large chunks of code in pyscript without needing any of the pyscript-specific
-features, you might consider putting them in a package and importing it instead. That way it will
-run at native compiled speed.
+features, or you want access to native Python features that aren't supported in pyscript (like
+``yield``, ``open``, ``read`` or ``write``), you might consider putting them in a package and
+importing it instead. That way it will run at native compiled speed and have full access to
+the native Python language.
 
 One way to do that is in one of your pyscript script files, add this code:
 
@@ -1422,6 +1426,18 @@ If you forget to use ``task.executor``, you might get this warning from HASS:
     causing stability issues. Please report issue to the custom component author for pyscript doing
     I/O at custom_components/pyscript/eval.py, line 1583: return func(*args, **kwargs)
 
+Currently the built-in functions that do I/O, such as ``open``, ``read`` and ``write`` are not supported
+to avoid I/O in the main event loop, and also to avoid security issues if people share pyscripts. Also,
+the ``print`` function only logs a message, rather than implements the real ``print`` features, such
+as specifying an output file handle. If you want to do file I/O from pyscript, you have two choices:
+
+- put the code in a separate native Python module, so that functions like ``open``, ``read`` and ``write``
+  are available, and call the function in that module from pyscript using ``task.executor``. See
+  `Importing <#importing>`__ for how to set Python's ``sys.path`` to import a local Python module.
+- you could use the ``os`` package (which can be imported by setting ``allow_all_imports``) and
+  calling the low-level functions like ``os.open`` and ``os.read`` using ``task.executor`` to
+  wrap every function.
+
 Here's an example fetching a URL. Inside pyscript, this is the wrong way since it does I/O without
 using a separate thread:
 
@@ -1508,6 +1524,10 @@ Here are some areas where pyscript differs from real Python:
 A handful of language features are not supported:
 
 - generators and the ``yield`` statement; these are difficult to implement in an interpreter.
+- built-in functions that do I/O, such as ``open``, ``read`` and ``write`` are not supported to avoid
+  I/O in the main event loop, and also to avoid security issues if people share pyscripts. The ``print``
+  function only logs a message, rather than implements the real ``print`` features, such as specifying
+  an output file handle.
 - function decorators, beyond the builtin ones, are not yet supported.  If there is interest, support
   for function decorators could be added.  Additionally, the builtin function decorators aren't
   functions that can be called and used in-line. There is a feature request to add this.
