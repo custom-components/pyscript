@@ -513,7 +513,7 @@ async def test_jupyter_kernel_no_connection_timeout(hass, caplog):
     #
     # There is a race condition waiting for the log message, so we need to poll
     #
-    for _ in range(50):
+    for _ in range(1000):
         if "No connections to session jupyter_" in caplog.text:
             break
         await asyncio.sleep(2e-3)

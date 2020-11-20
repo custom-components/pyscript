@@ -3,7 +3,6 @@
 from ast import literal_eval
 import asyncio
 from datetime import datetime as dt
-import time
 
 from custom_components.pyscript.const import CONF_ALLOW_ALL_IMPORTS, CONF_HASS_IS_GLOBAL, DOMAIN
 from custom_components.pyscript.function import Function
@@ -259,7 +258,7 @@ def func4(trigger_type=None, event_type=None, **kwargs):
     global seq_num
 
     seq_num += 1
-    res = task.wait_until(event_trigger=["test_event4b", "arg1 == 25 and arg2 == 35"], timeout=10)
+    res = task.wait_until(event_trigger=["test_event4b", "arg1 == 25 and arg2 == 35"], timeout=10, __test_handshake__=["pyscript.done2", seq_num])
     log.info(f"func4 trigger_type = {res}, event_type = {event_type}, event_data = {kwargs}")
     kwargs["context"] = {"user_id": kwargs["context"].user_id, "parent_id": kwargs["context"].parent_id, "id": "1234"}
     res["context"] = kwargs["context"]
@@ -599,12 +598,10 @@ def func9(var_name=None, value=None, old_value=None):
     seq_num += 1
     hass.states.async_set("pyscript.f4var2", 2)
     hass.bus.async_fire("test_event4", {"arg1": 20, "arg2": 30})
-    t_now = time.monotonic()
-    while notify_q.empty() and time.monotonic() < t_now + 4:
-        hass.bus.async_fire("test_event4b", {"arg1": 15, "arg2": 25})
-        hass.bus.async_fire("test_event4b", {"arg1": 20, "arg2": 25})
-        hass.bus.async_fire("test_event4b", {"arg1": 25, "arg2": 35})
-        await asyncio.sleep(2e-3)
+    assert literal_eval(await wait_until_done(notify_q2)) == seq_num
+    hass.bus.async_fire("test_event4b", {"arg1": 20, "arg2": 25})
+    hass.bus.async_fire("test_event4b", {"arg1": 15, "arg2": 25})
+    hass.bus.async_fire("test_event4b", {"arg1": 25, "arg2": 35})
     trig = {
         "trigger_type": "event",
         "event_type": "test_event4b",
