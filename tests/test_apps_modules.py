@@ -123,7 +123,7 @@ def func12()
     conf = {"apps": {"world": {}}}
     with patch("custom_components.pyscript.os.path.isdir", return_value=True), patch(
         "custom_components.pyscript.glob.iglob"
-    ) as mock_glob, patch("builtins.open", mock_open), patch(
+    ) as mock_glob, patch("custom_components.pyscript.global_ctx.open", mock_open), patch(
         "homeassistant.config.load_yaml_config_file", return_value={"pyscript": conf}
     ), patch(
         "os.path.isfile"
