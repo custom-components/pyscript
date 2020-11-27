@@ -133,7 +133,7 @@ component has a state variable name that collides with one of its services, youâ
 
 Accessing state variables that don't exist will throw a ``NameError`` exception, and accessing
 an attribute that doesn't exist will throw a ``AttributeError`` exception. One exception (!)
-to this that in a ``@state_trigger`` expression, undefined state variables and attributes will
+to this is that in a ``@state_trigger`` expression, undefined state variables and attributes will
 evaluate to ``None`` instead of throwing an exception.
 
 You can assign a state variable (or the return value of ``state.get()``) to a normal Python variable,
