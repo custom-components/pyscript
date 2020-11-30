@@ -163,6 +163,11 @@ class Function:
                     except asyncio.CancelledError:
                         pass
             if curr_task in cls.our_tasks:
+                if name in cls.unique_name2task:
+                    task = cls.unique_name2task[name]
+                    if task in cls.unique_task2name:
+                        if name in cls.unique_task2name[task]:
+                            cls.unique_task2name[task].remove(name)
                 cls.unique_name2task[name] = curr_task
                 if curr_task not in cls.unique_task2name:
                     cls.unique_task2name[curr_task] = []
