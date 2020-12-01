@@ -36,7 +36,8 @@ class Mqtt:
 
     @classmethod
     def mqtt_message_handler_maker(cls, subscribed_topic):
-
+        """closure for mqtt_message_handler"""
+        
         async def mqtt_message_handler(mqttmsg):
             """Listen for MQTT messages."""
             func_args = {
