@@ -163,8 +163,14 @@ class Function:
                     except asyncio.CancelledError:
                         pass
             if curr_task in cls.our_tasks:
+                if name in cls.unique_name2task:
+                    task = cls.unique_name2task[name]
+                    if task in cls.unique_task2name:
+                        cls.unique_task2name[task].discard(name)
                 cls.unique_name2task[name] = curr_task
-                cls.unique_task2name[curr_task] = name
+                if curr_task not in cls.unique_task2name:
+                    cls.unique_task2name[curr_task] = set()
+                cls.unique_task2name[curr_task].add(name)
 
         return task_unique
 
@@ -296,7 +302,8 @@ class Function:
             _LOGGER.error("run_coro: got exception %s", traceback.format_exc(-1))
         finally:
             if task in cls.unique_task2name:
-                del cls.unique_name2task[cls.unique_task2name[task]]
+                for name in cls.unique_task2name[task]:
+                    del cls.unique_name2task[name]
                 del cls.unique_task2name[task]
             if task in cls.task2context:
                 del cls.task2context[task]
