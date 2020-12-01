@@ -666,6 +666,7 @@ class TrigInfo:
         self.state_trig_ident = None
         self.state_trig_ident_any = set()
         self.event_trig_expr = None
+        self.mqtt_trig_expr = None
         self.have_trigger = False
         self.setup_ok = False
         self.run_on_startup = False
@@ -737,6 +738,16 @@ class TrigInfo:
             self.have_trigger = True
 
         if self.mqtt_trigger is not None:
+            if len(self.mqtt_trigger) == 2:
+                self.mqtt_trig_expr = AstEval(
+                    f"{self.name} @mqtt_trigger()", self.global_ctx, logger_name=self.name,
+                )
+                Function.install_ast_funcs(self.mqtt_trig_expr)
+                self.mqtt_trig_expr.parse(self.mqtt_trigger[1], mode="eval")
+                exc = self.mqtt_trig_expr.get_exception_long()
+                if exc is not None:
+                    self.mqtt_trig_expr.get_logger().error(exc)
+                    return
             self.have_trigger = True
 
         self.setup_ok = True
@@ -944,6 +955,8 @@ class TrigInfo:
                         trig_ok = await self.event_trig_expr.eval(notify_info)
                 elif notify_type == "mqtt":
                     func_args = notify_info
+                    if self.mqtt_trig_expr:
+                        trig_ok = await self.mqtt_trig_expr.eval(notify_info)
 
                 else:
                     func_args = notify_info
