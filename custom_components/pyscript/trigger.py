@@ -16,6 +16,7 @@ import homeassistant.helpers.sun as sun
 from .const import LOGGER_PATH
 from .eval import AstEval
 from .event import Event
+from .mqtt import Mqtt
 from .function import Function
 from .state import STATE_VIRTUAL_ATTRS, State
 
@@ -149,6 +150,7 @@ class TrigTime:
         state_check_now=True,
         time_trigger=None,
         event_trigger=None,
+        mqtt_trigger=None,
         timeout=None,
         state_hold=None,
         state_hold_false=None,
@@ -260,6 +262,8 @@ class TrigTime:
                         State.notify_del(state_trig_ident, notify_q)
                     raise exc
             Event.notify_add(event_trigger[0], notify_q)
+        if mqtt_trigger is not None:
+            await Mqtt.notify_add(mqtt_trigger[0], notify_q)
         time0 = time.monotonic()
 
         if __test_handshake__:
@@ -297,7 +301,7 @@ class TrigTime:
                     this_timeout = time_left
                     state_trig_timeout = True
             if this_timeout is None:
-                if state_trigger is None and event_trigger is None:
+                if state_trigger is None and event_trigger is None and mqtt_trigger is None:
                     _LOGGER.debug(
                         "trigger %s wait_until no next time - returning with none", ast_ctx.name,
                     )
@@ -403,6 +407,9 @@ class TrigTime:
                 if event_trig_ok:
                     ret = notify_info
                     break
+            elif notify_type == "mqtt":
+                ret = notify_info
+                break
             else:
                 _LOGGER.error(
                     "trigger %s wait_until got unexpected queue message %s", ast_ctx.name, notify_type,
@@ -412,6 +419,8 @@ class TrigTime:
             State.notify_del(state_trig_ident, notify_q)
         if event_trigger is not None:
             Event.notify_del(event_trigger[0], notify_q)
+        if mqtt_trigger is not None:
+            Mqtt.notify_del(mqtt_trigger[0], notify_q)
         if exc:
             raise exc
         return ret
@@ -641,6 +650,7 @@ class TrigInfo:
         self.state_check_now = self.state_trigger_kwargs.get("state_check_now", False)
         self.time_trigger = trig_cfg.get("time_trigger", {}).get("args", None)
         self.event_trigger = trig_cfg.get("event_trigger", {}).get("args", None)
+        self.mqtt_trigger = trig_cfg.get("mqtt_trigger", {}).get("args", None)
         self.state_active = trig_cfg.get("state_active", {}).get("args", None)
         self.time_active = trig_cfg.get("time_active", {}).get("args", None)
         self.time_active_hold_off = trig_cfg.get("time_active", {}).get("kwargs", {}).get("hold_off", None)
@@ -726,6 +736,9 @@ class TrigInfo:
                     return
             self.have_trigger = True
 
+        if self.mqtt_trigger is not None:
+            self.have_trigger = True
+
         self.setup_ok = True
 
     def stop(self):
@@ -736,6 +749,8 @@ class TrigInfo:
                 State.notify_del(self.state_trig_ident, self.notify_q)
             if self.event_trigger is not None:
                 Event.notify_del(self.event_trigger[0], self.notify_q)
+            if self.mqtt_trigger is not None:
+                Mqtt.notify_del(self.mqtt_trigger[0], self.notify_q)
             if self.task:
                 Function.task_cancel(self.task)
 
@@ -765,6 +780,9 @@ class TrigInfo:
             if self.event_trigger is not None:
                 _LOGGER.debug("trigger %s adding event_trigger %s", self.name, self.event_trigger[0])
                 Event.notify_add(self.event_trigger[0], self.notify_q)
+            if self.mqtt_trigger is not None:
+                _LOGGER.debug("trigger %s adding mqtt_trigger %s", self.name, self.mqtt_trigger[0])
+                await Mqtt.notify_add(self.mqtt_trigger[0], self.notify_q)                
 
             last_trig_time = None
             last_state_trig_time = None
@@ -924,6 +942,8 @@ class TrigInfo:
                     func_args = notify_info
                     if self.event_trig_expr:
                         trig_ok = await self.event_trig_expr.eval(notify_info)
+                elif notify_type == "mqtt":
+                    func_args = notify_info
 
                 else:
                     func_args = notify_info
@@ -1038,4 +1058,6 @@ class TrigInfo:
                 State.notify_del(self.state_trig_ident, self.notify_q)
             if self.event_trigger is not None:
                 Event.notify_del(self.event_trigger[0], self.notify_q)
+            if self.mqtt_trigger is not None:
+                Mqtt.notify_del(self.mqtt_trigger[0], self.notify_q)
             return
