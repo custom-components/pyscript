@@ -1,4 +1,4 @@
-"""Handles event firing and notification."""
+"""Handles mqtt messages and notification."""
 
 import logging
 import json
@@ -19,7 +19,7 @@ class Mqtt:
     hass = None
 
     #
-    # notify message queues by event type
+    # notify message queues by mqtt message topic
     #
     notify = {}
     notify_remove = {}
@@ -53,7 +53,7 @@ class Mqtt:
 
     @classmethod
     async def notify_add(cls, topic, queue):
-        """Register to notify for mqtt message of given topic to be sent to queue."""
+        """Register to notify for mqtt messages of given topic to be sent to queue."""
 
         if topic not in cls.notify:
             cls.notify[topic] = set()
@@ -65,7 +65,7 @@ class Mqtt:
 
     @classmethod
     def notify_del(cls, topic, queue):
-        """Unregister to notify for events of given type for given queue."""
+        """Unregister to notify for mqtt messages of given topic for given queue."""
 
         if topic not in cls.notify or queue not in cls.notify[topic]:
             return
@@ -78,7 +78,7 @@ class Mqtt:
 
     @classmethod
     async def update(cls, topic, func_args):
-        """Deliver all notifications for an event of the given type."""
+        """Deliver all notifications for an mqtt message on the given topic."""
 
         _LOGGER.debug("mqtt.update(%s, %s, %s)", topic, vars, func_args)
         if topic in cls.notify:
