@@ -157,7 +157,7 @@ class TrigTime:
         __test_handshake__=None,
     ):
         """Wait for zero or more triggers, until an optional timeout."""
-        if state_trigger is None and time_trigger is None and event_trigger is None:
+        if state_trigger is None and time_trigger is None and event_trigger is None and mqtt_trigger is None:
             if timeout is not None:
                 await asyncio.sleep(timeout)
                 return {"trigger_type": "timeout"}
@@ -166,6 +166,7 @@ class TrigTime:
         state_trig_ident_any = set()
         state_trig_eval = None
         event_trig_expr = None
+        mqtt_trig_expr = None
         exc = None
         notify_q = asyncio.Queue(0)
 
@@ -263,6 +264,21 @@ class TrigTime:
                     raise exc
             Event.notify_add(event_trigger[0], notify_q)
         if mqtt_trigger is not None:
+            if isinstance(mqtt_trigger, str):
+                mqtt_trigger = [mqtt_trigger]
+            if len(mqtt_trigger) > 1:
+                mqtt_trig_expr = AstEval(
+                    f"{ast_ctx.name} mqtt_trigger",
+                    ast_ctx.get_global_ctx(),
+                    logger_name=ast_ctx.get_logger_name(),
+                )
+                Function.install_ast_funcs(mqtt_trig_expr)
+                mqtt_trig_expr.parse(mqtt_trigger[1], mode="eval")
+                exc = mqtt_trig_expr.get_exception_obj()
+                if exc is not None:
+                    if len(state_trig_ident) > 0:
+                        State.notify_del(state_trig_ident, notify_q)
+                    raise exc
             await Mqtt.notify_add(mqtt_trigger[0], notify_q)
         time0 = time.monotonic()
 
@@ -408,8 +424,16 @@ class TrigTime:
                     ret = notify_info
                     break
             elif notify_type == "mqtt":
-                ret = notify_info
-                break
+                if mqtt_trig_expr is None:
+                    ret = notify_info
+                    break
+                mqtt_trig_ok = await mqtt_trig_expr.eval(notify_info)
+                exc = mqtt_trig_expr.get_exception_obj()
+                if exc is not None:
+                    break
+                if mqtt_trig_ok:
+                    ret = notify_info
+                    break
             else:
                 _LOGGER.error(
                     "trigger %s wait_until got unexpected queue message %s", ast_ctx.name, notify_type,
