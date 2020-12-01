@@ -35,21 +35,25 @@ class Mqtt:
         cls.hass = hass
 
     @classmethod
-    async def mqtt_message_handler(cls, mqttmsg):
-        """Listen for MQTT messages."""
-        func_args = {
-            "trigger_type": "mqtt",
-            "topic": mqttmsg.topic,
-            "payload": mqttmsg.payload,
-            "qos": mqttmsg.qos,
-        }
+    def mqtt_message_handler_maker(cls, subscribed_topic):
 
-        try:
-            func_args["payload_json"] = json.loads(mqttmsg.payload)
-        except ValueError:
-            pass
+        async def mqtt_message_handler(mqttmsg):
+            """Listen for MQTT messages."""
+            func_args = {
+                "trigger_type": "mqtt",
+                "topic": mqttmsg.topic,
+                "payload": mqttmsg.payload,
+                "qos": mqttmsg.qos,
+            }
 
-        await cls.update(mqttmsg.topic, func_args)
+            try:
+                func_args["payload_json"] = json.loads(mqttmsg.payload)
+            except ValueError:
+                pass
+
+            await cls.update(subscribed_topic, func_args)
+
+        return mqtt_message_handler
 
     @classmethod
     async def notify_add(cls, topic, queue):
@@ -59,7 +63,7 @@ class Mqtt:
             cls.notify[topic] = set()
             _LOGGER.debug("mqtt.notify_add(%s) -> adding mqtt subscription", topic)
             cls.notify_remove[topic] = await mqtt.async_subscribe(
-                cls.hass, topic, cls.mqtt_message_handler, encoding='utf-8', qos=0
+                cls.hass, topic, cls.mqtt_message_handler_maker(topic), encoding='utf-8', qos=0
             )
         cls.notify[topic].add(queue)
 
