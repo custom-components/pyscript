@@ -166,13 +166,11 @@ class Function:
                 if name in cls.unique_name2task:
                     task = cls.unique_name2task[name]
                     if task in cls.unique_task2name:
-                        if name in cls.unique_task2name[task]:
-                            cls.unique_task2name[task].remove(name)
+                        cls.unique_task2name[task].discard(name)
                 cls.unique_name2task[name] = curr_task
                 if curr_task not in cls.unique_task2name:
-                    cls.unique_task2name[curr_task] = []
-                if name not in cls.unique_task2name[curr_task]:
-                    cls.unique_task2name[curr_task].append(name)
+                    cls.unique_task2name[curr_task] = set()
+                cls.unique_task2name[curr_task].add(name)
 
         return task_unique
 
