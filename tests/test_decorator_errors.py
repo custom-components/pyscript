@@ -179,7 +179,7 @@ def func_wrapup():
     )
     assert "SyntaxError: invalid syntax (file.hello.func3 @state_active(), line 1)" in caplog.text
     assert (
-        "func4 defined in file.hello: needs at least one trigger decorator (ie: event_trigger, state_trigger, time_trigger)"
+        "func4 defined in file.hello: needs at least one trigger decorator (ie: event_trigger, mqtt_trigger, state_trigger, time_trigger)"
         in caplog.text
     )
     assert (

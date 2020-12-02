@@ -32,6 +32,7 @@ from .const import (
 )
 from .eval import AstEval
 from .event import Event
+from .mqtt import Mqtt
 from .function import Function
 from .global_ctx import GlobalContext, GlobalContextMgr
 from .jupyter_kernel import Kernel
@@ -118,6 +119,7 @@ async def async_setup_entry(hass, config_entry):
 
     Function.init(hass)
     Event.init(hass)
+    Mqtt.init(hass)
     TrigTime.init(hass)
     State.init(hass)
     State.register_functions()

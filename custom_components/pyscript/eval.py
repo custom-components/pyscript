@@ -278,11 +278,13 @@ class EvalFunc:
             "time_trigger",
             "state_trigger",
             "event_trigger",
+            "mqtt_trigger",
         }
         trig_decorators = {
             "time_trigger",
             "state_trigger",
             "event_trigger",
+            "mqtt_trigger",
             "state_active",
             "time_active",
             "task_unique",
@@ -393,6 +395,7 @@ class EvalFunc:
         #
         arg_check = {
             "event_trigger": {"arg_cnt": {1, 2}},
+            "mqtt_trigger": {"arg_cnt": {1, 2}},
             "state_active": {"arg_cnt": {1}},
             "state_trigger": {"arg_cnt": {"*"}, "type": {list, set}},
             "task_unique": {"arg_cnt": {1}},
