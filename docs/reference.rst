@@ -569,6 +569,33 @@ see that the ``EVENT_CALL_SERVICE`` event has parameters ``domain`` set to ``lig
 This `wiki page <https://github.com/custom-components/pyscript/wiki/Event-based-triggers>`__ gives
 more examples of built-in and user events and how to create triggers for them.
 
+@mqtt_trigger
+^^^^^^^^^^^^^
+
+.. code:: python
+
+    @mqtt_trigger(topic, str_expr=None)
+
+``@mqtt_trigger`` subscribes to the given MQTT ``topic`` and triggers whenever a message is received
+on that topic. An optional ``str_expr`` can be used to match the MQTT message data, and the trigger
+will only occur if that expression evaluates to ``True`` or non-zero. This expression has available
+these four variables:
+
+- ``trigger_type`` is set to “mqtt”
+- ``topic`` is set to the topic the message was received on
+- ``payload`` is set to the string payload of the message
+- ``payload_json`` if the payload was valid JSON, this will be set to the native python object
+  representing that payload.
+
+When the ``@mqtt_trigger`` occurs, those same variables are passed as keyword arguments to the
+function in case it needs them.
+
+Wildcards in topics are supported. The ``topic`` variables will be set to the full expanded topic
+the message arrived on.
+
+NOTE: The `MQTT Integration in Home Assistant <https://www.home-assistant.io/integrations/mqtt/>`__
+must be set up to use ``@mqtt_trigger``. 
+
 @task_unique
 ^^^^^^^^^^^^
 
@@ -859,6 +886,9 @@ It takes the following keyword arguments (all are optional):
 - ``event_trigger=None`` can be set to a string or list of two strings, just like
   ``@event_trigger``. The first string is the name of the event, and the second string
   (when the setting is a two-element list) is an expression based on the event parameters.
+- ``mqtt_trigger=None`` can be set to a string or list of two strings, just like
+  ``@mqtt_trigger``. The first string is the MQTT topic, and the second string
+  (when the setting is a two-element list) is an expression based on the message variables.
 - ``timeout=None`` an overall timeout in seconds, which can be floating point.
 - ``state_check_now=True`` if set, ``task.wait_until()`` checks any ``state_trigger``
   immediately to see if it is already ``True``, and will return immediately if so. If
