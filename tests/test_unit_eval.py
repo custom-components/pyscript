@@ -145,6 +145,10 @@ chk.append([pyscript.var1, pyscript.var1.attr1, pyscript.var1.attr2])
 state.set("pyscript.var1", 200, attr3 = 'abc')
 chk.append([pyscript.var1.attr1, pyscript.var1.attr2, pyscript.var1.attr3])
 chk.append(state.getattr("pyscript.var1"))
+del pyscript.var1.attr3
+chk.append(state.getattr("pyscript.var1"))
+state.delete("pyscript.var1.attr2")
+chk.append(state.getattr("pyscript.var1"))
 state.set("pyscript.var1", pyscript.var1, {})
 chk.append(state.getattr("pyscript.var1"))
 state.set("pyscript.var1", pyscript.var1, new_attributes={"attr2": 8.5, "attr3": "xyz"})
@@ -166,6 +170,8 @@ chk
             ["100xyz", 1, 3.5],
             [1, 3.5, "abc"],
             {"attr1": 1, "attr2": 3.5, "attr3": "abc"},
+            {"attr1": 1, "attr2": 3.5},
+            {"attr1": 1},
             {},
             {"attr2": 8.5, "attr3": "xyz"},
             {"attr2": "abc", "attr3": "xyz"},
@@ -963,6 +969,14 @@ evalTestsExceptions = [
     ["f'xxx{'", "syntax error f-string: expecting '}' (test, line 1)"],
     ["f'xxx{foo() i}'", "syntax error invalid syntax (<fstring>, line 1)"],
     ["del xx", "Exception in test line 1 column 0: name 'xx' is not defined"],
+    [
+        "pyscript.var1 = 1; del pyscript.var1; pyscript.var1",
+        "Exception in test line 1 column 38: name 'pyscript.var1' is not defined",
+    ],
+    [
+        "pyscript.var1 = 1; state.delete('pyscript.var1'); pyscript.var1",
+        "Exception in test line 1 column 50: name 'pyscript.var1' is not defined",
+    ],
     ["return", "Exception in test line 1 column 0: return statement outside function"],
     ["break", "Exception in test line 1 column 0: break statement outside loop"],
     ["continue", "Exception in test line 1 column 0: continue statement outside loop"],

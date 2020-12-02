@@ -1221,7 +1221,7 @@ class AstEval:
                 return
             if dot_count > 0:
                 raise NameError(
-                    f"invalid name '{var_name}' (should be 'domain.entity' or 'domain.entity.attr'"
+                    f"invalid name '{var_name}' (should be 'domain.entity' or 'domain.entity.attr')"
                 )
             if self.curr_func and var_name in self.curr_func.global_names:
                 self.global_sym_table[var_name] = val
@@ -1284,6 +1284,11 @@ class AstEval:
                         del self.sym_table[arg1.id]
                 else:
                     raise NameError(f"name '{arg1.id}' is not defined")
+            elif isinstance(arg1, ast.Attribute):
+                var_name = await self.ast_attribute_collapse(arg1, check_undef=False)
+                if not isinstance(var_name, str):
+                    raise NameError("state name should be 'domain.entity' or 'domain.entity.attr'")
+                State.delete(var_name)
             else:
                 raise NotImplementedError(f"unknown target type {arg1} in del")
 

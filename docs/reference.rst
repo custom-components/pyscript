@@ -710,6 +710,9 @@ where the state variable name is computed dynamically). These functions allow yo
 variable using its string name. The set function also allows you to optionally set the attributes,
 which you can’t do if you are directly assigning to the variable:
 
+``state.delete(name)``
+  Deletes the given state variable or attribute.  The Python ``del`` statement can also be used
+  to delete a state variable or attribute.
 ``state.get(name)``
   Returns the value of the state variable given its string ``name``. A ``NameError`` exception
   is thrown if the name doesn't exist. If ``name`` is a string of the form ``DOMAIN.entity.attr``

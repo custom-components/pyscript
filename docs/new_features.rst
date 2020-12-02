@@ -11,12 +11,13 @@ to work at any random time.
 The latest release is 1.0.0, released on November 9, 2020.  Here is the `stable documentation <https://hacs-pyscript.readthedocs.io/en/stable>`__
 for that release.
 
-Since that release, the master (head of tree) version in GitHub has several new features and bug fixes.
-Here is the master `latest documentation <https://hacs-pyscript.readthedocs.io/en/latest>`__.
+Over time, the master (head of tree) version in GitHub will include new features and bug fixes.
+Here is the master `latest documentation <https://hacs-pyscript.readthedocs.io/en/latest>`__
+if you want to see the new features or bug fixes.
 
 Planned new features post 1.0.0 include:
 
-- ``del`` can delete state variables and state variable attributes
+- support mqtt triggers (#98, #105)
 - use ``aionofity`` to auto-reload newly written script files, at least on linux (#74)
 - consider allowing native Python functions inside pyscript (#71)
 - consider implementing function decorators (#43)
@@ -28,15 +29,18 @@ Planned new features post 1.0.0 include:
 
 The new features since 1.0.0 in master include:
 
-- Added ``state_hold_false=None`` optional period in seconds to ``@state_trigger`` and ``task.wait_until()``.
+- Added ``state_hold_false=None`` optional period in seconds to ``@state_trigger()`` and ``task.wait_until()``.
   This requires the trigger expression to be ``False`` for at least that period (including 0) before a
-  successful trigger.  Proposed by @tchef69 (#89).
+  successful trigger. Setting this optional parameter makes state triggers edge triggered (ie,
+  triggers only on transition from ``False`` to ``True``), instead of the default level trigger (ie,
+  only has to evaluate to ``True``). Proposed by @tchef69 (#89).
+- ``del`` and new function ``state.delete()` can delete state variables and state variable attributes
 
 Bug fixes since 1.0.0 in master include:
 
 - state setting now copies the attributes, to avoid a strange ``MappingProxyType`` recursion error
   inside HASS, reported by @github392 (#87).
-- the deprecated function ``state.get_attr`` was missing an ``await``, which caused an exception; in 1.0.0 use
+- the deprecated function ``state.get_attr`` was missing an ``await``, which causes an exception; in 1.0.0 use
   ``state.getattr``, reported and fixed by @dlashua (#88).
 - the ``packaging`` module is installed if not found, since certain HASS configurations might not include it;
   fixed by @raman325 (#90, #91).

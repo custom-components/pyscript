@@ -44,7 +44,7 @@ class State:
     # Last value of state variable notifications.  We maintain this
     # so that trigger evaluation can use the last notified value,
     # rather than fetching the current value, which is subject to
-    # race conditions when multiple state variables are set.
+    # race conditions when multiple state variables are set quickly.
     #
     notify_var_last = {}
 
@@ -308,6 +308,36 @@ class State:
             )
 
     @classmethod
+    def delete(cls, var_name, context=None):
+        """Delete a state variable or attribute from hass."""
+        parts = var_name.split(".")
+        if not context:
+            context = Function.task2context.get(asyncio.current_task(), None)
+        context_arg = {"context": context} if context else {}
+        if len(parts) == 2:
+            if var_name in cls.notify_var_last or var_name in cls.notify:
+                #
+                # immediately update a variable we are monitoring since it could take a while
+                # for the state changed event to propagate
+                #
+                cls.notify_var_last[var_name] = None
+            if not cls.hass.states.async_remove(var_name, **context_arg):
+                raise NameError(f"name '{var_name}' not defined")
+            return
+        if len(parts) == 3:
+            var_name = f"{parts[0]}.{parts[1]}"
+            value = cls.hass.states.get(var_name)
+            if value is None:
+                raise NameError(f"state {var_name} doesn't exist")
+            new_attr = value.attributes.copy()
+            if parts[2] not in new_attr:
+                raise AttributeError(f"state '{var_name}' has no attribute '{parts[2]}'")
+            del new_attr[parts[2]]
+            cls.set(f"{var_name}", value.state, new_attributes=new_attr, **context_arg)
+            return
+        raise NameError(f"invalid name '{var_name}' (should be 'domain.entity' or 'domain.entity.attr')")
+
+    @classmethod
     def getattr(cls, var_name):
         """Return a dict of attributes for a state variable."""
         if isinstance(var_name, StateVal):
@@ -374,6 +404,7 @@ class State:
             "state.getattr": cls.getattr,
             "state.get_attr": cls.get_attr,  # deprecated form; to be removed
             "state.persist": cls.persist,
+            "state.delete": cls.delete,
             "pyscript.config": cls.pyscript_config,
         }
         Function.register(functions)
