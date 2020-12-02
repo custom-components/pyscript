@@ -3,12 +3,14 @@
 from ast import literal_eval
 import asyncio
 from datetime import datetime as dt
+import re
 
-from custom_components.pyscript.const import CONF_ALLOW_ALL_IMPORTS, CONF_HASS_IS_GLOBAL, DOMAIN
+from custom_components.pyscript.const import CONF_ALLOW_ALL_IMPORTS, CONF_HASS_IS_GLOBAL, DOMAIN, FOLDER
 from custom_components.pyscript.function import Function
 import custom_components.pyscript.trigger as trigger
+from mock_open import MockOpen
 import pytest
-from pytest_homeassistant_custom_component.async_mock import MagicMock, Mock, mock_open, patch
+from pytest_homeassistant_custom_component.async_mock import MagicMock, Mock, patch
 
 from homeassistant.const import EVENT_HOMEASSISTANT_STARTED, EVENT_STATE_CHANGED
 from homeassistant.core import Context
@@ -100,21 +102,42 @@ async def test_service_completions(root, expected, hass, services):  # pylint: d
 
 async def setup_script(hass, notify_q, notify_q2, now, source, config=None):
     """Initialize and load the given pyscript."""
-    scripts = [
-        "/some/config/dir/pyscripts/hello.py",
-    ]
+
+    conf_dir = hass.config.path(FOLDER)
+
+    file_contents = {f"{conf_dir}/hello.py": source}
+
+    mock_open = MockOpen()
+    for key, value in file_contents.items():
+        mock_open[key].read_data = value
+
+    def isfile_side_effect(arg):
+        return arg in file_contents
+
+    def glob_side_effect(path, recursive=None):
+        result = []
+        path_re = path.replace("*", "[^/]*").replace(".", "\\.")
+        path_re = path_re.replace("[^/]*[^/]*/", ".*")
+        for this_path in file_contents:
+            if re.match(path_re, this_path):
+                result.append(this_path)
+        return result
 
     if not config:
         config = {DOMAIN: {CONF_ALLOW_ALL_IMPORTS: True}}
     with patch("custom_components.pyscript.os.path.isdir", return_value=True), patch(
-        "custom_components.pyscript.glob.iglob", return_value=scripts
-    ), patch("custom_components.pyscript.global_ctx.open", mock_open(read_data=source), create=True,), patch(
+        "custom_components.pyscript.glob.iglob"
+    ) as mock_glob, patch("custom_components.pyscript.global_ctx.open", mock_open), patch(
         "custom_components.pyscript.trigger.dt_now", return_value=now
     ), patch(
         "homeassistant.config.load_yaml_config_file", return_value=config
     ), patch(
         "custom_components.pyscript.install_requirements", return_value=None,
-    ):
+    ), patch(
+        "custom_components.pyscript.os.path.isfile"
+    ) as mock_isfile:
+        mock_isfile.side_effect = isfile_side_effect
+        mock_glob.side_effect = glob_side_effect
         assert await async_setup_component(hass, "pyscript", config)
 
     #

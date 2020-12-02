@@ -58,7 +58,12 @@ At startup, pyscript loads the following files. It also unloads and reloads thes
 the ``pyscript.reload`` service is called, which also reloads the ``yaml`` configuration.
 
 ``<config>/pyscript/*.py``
-  all files with a ``.py`` suffix are autoloaded
+  all files with a ``.py`` suffix are autoloaded.
+
+``<config>/pyscript/scripts/**/*.py``
+  all files with a ``.py`` suffix below the ``scripts`` directory, recursively to any depth,
+  are autoloaded. This is useful for organizing your scripts into subdirectories that are
+  related in some way.
 
 ``<config>/pyscript/apps/<app_name>.py``
   all files in the ``apps`` subdirectory with a ``.py`` suffix are autoloaded, provided ``app_name``
@@ -70,6 +75,12 @@ the ``pyscript.reload`` service is called, which also reloads the ``yaml`` confi
   provided ``app_name`` exists in the pyscript ``yaml`` configuration under ``apps``.
   This form is most convenient for sharing pyscript code, since all the files for one
   application are stored in its own directory.
+
+Any file name that starts with ``#`` is not loaded, and similarly scripts anywhere below a directory
+name that starts with ``#``, are not loaded. That's a convenient way to disable a specific script or
+entire directory below ``scripts`` - you can simply rename it with or without the leading ``#`` to
+disable or enable it at the next reload. Think of it as "commenting" the file name, rather than
+having to delete it or move it outside the pyscript directory.
 
 Like regular Python, functions within one source file can call each other, and can share global
 variables (if necessary), but just within that one file. Each file has its own separate global
@@ -1027,7 +1038,8 @@ module or package that is explicitly imported). In normal use you don’t need t
 contexts. But for interactive debugging and development, you might want your Jupyter session to
 access variables and functions defined in a script file.
 
-Here is the naming convention for each file's global context:
+Here is the naming convention for each file's global context (upper case mean any value;
+lower case are actual fixed names):
 
   ======================================= ===========================
   pyscript file path                      global context name
@@ -1039,6 +1051,9 @@ Here is the naming convention for each file's global context:
   ``pyscript/apps/APP.py``                ``apps.APP``
   ``pyscript/apps/APP/__init__.py``       ``apps.APP.__init__``
   ``pyscript/apps/APP/FILE.py``           ``apps.APP.FILE``
+  ``pyscript/scripts/FILE.py``            ``scripts.FILE``
+  ``pyscript/scripts/DIR1/FILE.py``       ``scripts.DIR1.FILE``
+  ``pyscript/scripts/DIR1/DIR2/FILE.py``  ``scripts.DIR1.DIR2.FILE``
   ======================================= ===========================
 
 The logging path uses the global context name, so you can customize logging verbosity for each

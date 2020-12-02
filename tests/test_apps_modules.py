@@ -74,6 +74,8 @@ def func10():
         f"{conf_dir}/modules/xyz2/__init__.py": """
 from .other import f_minus, other_name
 
+log.info(f"modules/xyz2 global_ctx={pyscript.get_global_ctx()};")
+
 x = 99
 
 def f_add(a, b):
@@ -102,6 +104,41 @@ def other_name():
 def func12()
     pass
 """,
+        #
+        # this script file should auto-load
+        #
+        f"{conf_dir}/scripts/func13.py": """
+@service
+def func13():
+    pass
+""",
+        #
+        # this script file should auto-load
+        #
+        f"{conf_dir}/scripts/a/b/c/d/func14.py": """
+@service
+def func14():
+    pass
+
+log.info(f"func14 global_ctx={pyscript.get_global_ctx()};")
+
+""",
+        #
+        # this script file should not auto-load
+        #
+        f"{conf_dir}/scripts/a/b/c/d/#func15.py": """
+@service
+def func15():
+    pass
+""",
+        #
+        # this script file should not auto-load
+        #
+        f"{conf_dir}/scripts/#a/b/c/d/func15.py": """
+@service
+def func15():
+    pass
+""",
     }
 
     mock_open = MockOpen()
@@ -114,10 +151,10 @@ def func12()
     def glob_side_effect(path, recursive=None):
         result = []
         path_re = path.replace("*", "[^/]*").replace(".", "\\.")
+        path_re = path_re.replace("[^/]*[^/]*/", ".*")
         for this_path in file_contents:
             if re.match(path_re, this_path):
                 result.append(this_path)
-        print(f"glob_side_effect: path={path}, path_re={path_re}, result={result}")
         return result
 
     conf = {"apps": {"world": {}}}
@@ -126,7 +163,7 @@ def func12()
     ) as mock_glob, patch("custom_components.pyscript.global_ctx.open", mock_open), patch(
         "homeassistant.config.load_yaml_config_file", return_value={"pyscript": conf}
     ), patch(
-        "os.path.isfile"
+        "custom_components.pyscript.os.path.isfile"
     ) as mock_isfile:
         mock_isfile.side_effect = isfile_side_effect
         mock_glob.side_effect = glob_side_effect
@@ -145,7 +182,9 @@ def func12()
 
     assert not hass.services.has_service("pyscript", "func10")
     assert not hass.services.has_service("pyscript", "func11")
-    assert not hass.services.has_service("pyscript", "func12")
+    assert hass.services.has_service("pyscript", "func13")
+    assert hass.services.has_service("pyscript", "func14")
+    assert not hass.services.has_service("pyscript", "func15")
 
     await hass.services.async_call("pyscript", "func1", {})
     ret = await wait_until_done(notify_q)
@@ -155,5 +194,7 @@ def func12()
     ret = await wait_until_done(notify_q)
     assert literal_eval(ret) == [99, "xyz2", "xyz2.other", 1 + 5, 3 * 6, 10 + 30, 50 - 30]
 
+    assert "modules/xyz2 global_ctx=modules.xyz2.__init__;" in caplog.text
+    assert "func14 global_ctx=scripts.a.b.c.d.func14;" in caplog.text
     assert "ModuleNotFoundError: import of no_such_package not allowed" in caplog.text
     assert "SyntaxError: invalid syntax (bad_module.py, line 2)" in caplog.text

@@ -14,7 +14,7 @@ from homeassistant.setup import async_setup_component
 async def setup_script(hass, notify_q, now, source):
     """Initialize and load the given pyscript."""
     scripts = [
-        "/some/config/dir/pyscripts/hello.py",
+        "/hello.py",
     ]
 
     with patch("custom_components.pyscript.os.path.isdir", return_value=True), patch(

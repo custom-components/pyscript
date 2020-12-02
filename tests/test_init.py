@@ -23,7 +23,7 @@ async def setup_script(hass, notify_q, now, source):
     """Initialize and load the given pyscript."""
 
     scripts = [
-        "/some/config/dir/pyscript/hello.py",
+        "/hello.py",
     ]
 
     with patch("custom_components.pyscript.os.path.isdir", return_value=True), patch(
@@ -437,7 +437,7 @@ def func5(var_name=None, value=None):
         # now reload the other source file
         #
         scripts = [
-            "/some/config/dir/pyscript/hello.py",
+            "/hello.py",
         ]
 
         with patch("custom_components.pyscript.os.path.isdir", return_value=True), patch(

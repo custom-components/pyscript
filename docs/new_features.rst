@@ -34,13 +34,17 @@ The new features since 1.0.0 in master include:
   successful trigger. Setting this optional parameter makes state triggers edge triggered (ie,
   triggers only on transition from ``False`` to ``True``), instead of the default level trigger (ie,
   only has to evaluate to ``True``). Proposed by @tchef69 (#89).
-- ``del`` and new function ``state.delete()` can delete state variables and state variable attributes
+- Adding new decorator ``@mqtt_trigger`` by @dlashua (#98, #105).
+- All .py files below the pyscript/scripts directory are autoloaded, recursively into all subdirectories.
+  Any file name or directory starting with ``#`` is skipped, which is an in-place way of disabling
+  a specific file or directory tree (#97).
+- ``del`` and new function ``state.delete()` can delete state variables and state variable attributes.
 
 Bug fixes since 1.0.0 in master include:
 
-- state setting now copies the attributes, to avoid a strange ``MappingProxyType`` recursion error
+- State setting now copies the attributes, to avoid a strange ``MappingProxyType`` recursion error
   inside HASS, reported by @github392 (#87).
-- the deprecated function ``state.get_attr`` was missing an ``await``, which causes an exception; in 1.0.0 use
+- The deprecated function ``state.get_attr`` was missing an ``await``, which causes an exception; in 1.0.0 use
   ``state.getattr``, reported and fixed by @dlashua (#88).
-- the ``packaging`` module is installed if not found, since certain HASS configurations might not include it;
+- The ``packaging`` module is installed if not found, since certain HASS configurations might not include it;
   fixed by @raman325 (#90, #91).

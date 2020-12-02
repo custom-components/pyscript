@@ -32,10 +32,10 @@ from .const import (
 )
 from .eval import AstEval
 from .event import Event
-from .mqtt import Mqtt
 from .function import Function
 from .global_ctx import GlobalContext, GlobalContextMgr
 from .jupyter_kernel import Kernel
+from .mqtt import Mqtt
 from .requirements import install_requirements
 from .state import State, StateVal
 from .trigger import TrigTime
@@ -98,7 +98,7 @@ def start_global_contexts(global_ctx_only=None):
     start_list = []
     for global_ctx_name, global_ctx in GlobalContextMgr.items():
         idx = global_ctx_name.find(".")
-        if idx < 0 or global_ctx_name[0:idx] not in {"file", "apps"}:
+        if idx < 0 or global_ctx_name[0:idx] not in {"file", "apps", "scripts"}:
             continue
         if global_ctx_only is not None:
             if global_ctx_name != global_ctx_only and not global_ctx_name.startswith(global_ctx_only + "."):
@@ -252,7 +252,7 @@ async def unload_scripts(global_ctx_only=None, unload_all=False):
     for global_ctx_name, global_ctx in GlobalContextMgr.items():
         if not unload_all:
             idx = global_ctx_name.find(".")
-            if idx < 0 or global_ctx_name[0:idx] not in {"file", "apps", "modules"}:
+            if idx < 0 or global_ctx_name[0:idx] not in {"file", "apps", "modules", "scripts"}:
                 continue
         if global_ctx_only is not None:
             if global_ctx_name != global_ctx_only and not global_ctx_name.startswith(global_ctx_only + "."):
@@ -273,33 +273,41 @@ async def load_scripts(hass, data, global_ctx_only=None):
         source_files = []
         apps_config = data.get("apps", None)
         for path, match, check_config in load_paths:
-            for this_path in sorted(glob.glob(os.path.join(pyscript_dir, path, match))):
+            for this_path in sorted(glob.glob(os.path.join(pyscript_dir, path, match), recursive=True)):
                 rel_import_path = None
-                elts = this_path.split("/")
-                if match.find("/") < 0:
-                    # last entry without the .py
-                    mod_name = elts[-1][0:-3]
-                else:
-                    # 2nd last entry
-                    mod_name = elts[-2]
-                    rel_import_path = f"{path}/mod_name"
+                rel_path = this_path
+                if rel_path.startswith(pyscript_dir):
+                    rel_path = rel_path[len(pyscript_dir) :]
+                if rel_path.startswith("/"):
+                    rel_path = rel_path[1:]
+                if rel_path[0] == "#" or rel_path.find("/#") >= 0:
+                    continue
+                rel_path = rel_path[0:-3]
+                if rel_path.endswith("/__init__"):
+                    rel_path = rel_path[0 : -len("/__init__")]
+                    rel_import_path = rel_path
+                mod_name = rel_path.replace("/", ".")
                 if path == "":
                     global_ctx_name = f"file.{mod_name}"
                     fq_mod_name = mod_name
                 else:
-                    global_ctx_name = f"{path}.{mod_name}"
-                    fq_mod_name = global_ctx_name
+                    fq_mod_name = global_ctx_name = mod_name
+                    i = fq_mod_name.find(".")
+                    if i >= 0:
+                        fq_mod_name = fq_mod_name[i + 1 :]
                 if check_config:
-                    if not isinstance(apps_config, dict) or mod_name not in apps_config:
+                    if not isinstance(apps_config, dict) or fq_mod_name not in apps_config:
                         _LOGGER.debug("load_scripts: skipping %s because config not present", this_path)
                         continue
                 source_files.append([global_ctx_name, this_path, rel_import_path, fq_mod_name])
+
         return source_files
 
     load_paths = [
         ["apps", "*.py", True],
         ["apps", "*/__init__.py", True],
         ["", "*.py", False],
+        ["scripts", "**/*.py", False],
     ]
 
     source_files = await hass.async_add_executor_job(glob_files, load_paths, data)
