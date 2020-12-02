@@ -48,7 +48,7 @@ class Mqtt:
             }
 
             try:
-                func_args["payload_json"] = json.loads(mqttmsg.payload)
+                func_args["payload_obj"] = json.loads(mqttmsg.payload)
             except ValueError:
                 pass
 

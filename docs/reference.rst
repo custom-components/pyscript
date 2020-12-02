@@ -584,7 +584,7 @@ these four variables:
 - ``trigger_type`` is set to “mqtt”
 - ``topic`` is set to the topic the message was received on
 - ``payload`` is set to the string payload of the message
-- ``payload_json`` if the payload was valid JSON, this will be set to the native python object
+- ``payload_obj`` if the payload was valid JSON, this will be set to the native python object
   representing that payload.
 
 When the ``@mqtt_trigger`` occurs, those same variables are passed as keyword arguments to the
