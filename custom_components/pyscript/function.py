@@ -278,7 +278,7 @@ class Function:
                         hass_args[keyword] = default
 
                 if len(args) != 0:
-                    raise (TypeError, f"service {domain}.{service} takes no positional arguments")
+                    raise TypeError(f"service {domain}.{service} takes only keyword arguments")
 
                 await cls.hass.services.async_call(domain, service, kwargs, **hass_args)
 
