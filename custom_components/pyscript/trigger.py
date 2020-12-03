@@ -16,8 +16,8 @@ import homeassistant.helpers.sun as sun
 from .const import LOGGER_PATH
 from .eval import AstEval
 from .event import Event
-from .mqtt import Mqtt
 from .function import Function
+from .mqtt import Mqtt
 from .state import STATE_VIRTUAL_ATTRS, State
 
 _LOGGER = logging.getLogger(LOGGER_PATH + ".trigger")
@@ -173,12 +173,8 @@ class TrigTime:
         last_state_trig_time = None
         state_trig_waiting = False
         state_trig_notify_info = [None, None]
-
-        #
-        # at startup we start our state_hold_false window,
-        # although it could get updated if state_check_now is set.
-        #
-        state_false_time = time.monotonic()
+        state_false_time = None
+        check_state_expr_on_start = state_check_now or state_hold_false is not None
 
         if state_trigger is not None:
             state_trig = []
@@ -214,16 +210,16 @@ class TrigTime:
                     raise exc
 
             state_trig_ident.update(state_trig_ident_any)
-            if state_check_now and state_trig_eval:
+            if check_state_expr_on_start and state_trig_eval:
                 #
-                # check straight away to see if the condition is met (to avoid race conditions)
+                # check straight away to see if the condition is met
                 #
                 new_vars = State.notify_var_get(state_trig_ident, {})
                 state_trig_ok = await state_trig_eval.eval(new_vars)
                 exc = state_trig_eval.get_exception_obj()
                 if exc is not None:
                     raise exc
-                if state_hold_false is not None:
+                if state_hold_false is not None and not state_check_now:
                     #
                     # if state_trig_ok we wait until it is false;
                     # otherwise we consider now to be the start of the false hold time
@@ -817,17 +813,14 @@ class TrigInfo:
                 Event.notify_add(self.event_trigger[0], self.notify_q)
             if self.mqtt_trigger is not None:
                 _LOGGER.debug("trigger %s adding mqtt_trigger %s", self.name, self.mqtt_trigger[0])
-                await Mqtt.notify_add(self.mqtt_trigger[0], self.notify_q)                
+                await Mqtt.notify_add(self.mqtt_trigger[0], self.notify_q)
 
             last_trig_time = None
             last_state_trig_time = None
             state_trig_waiting = False
             state_trig_notify_info = [None, None]
-            #
-            # at startup we start our state_hold_false window,
-            # although it could get updated if state_check_now is set.
-            #
-            state_false_time = time.monotonic()
+            state_false_time = None
+            check_state_expr_on_start = self.state_check_now or self.state_hold_false is not None
 
             while True:
                 timeout = None
@@ -841,7 +834,7 @@ class TrigInfo:
                     notify_type = "startup"
                     notify_info = {"trigger_type": "time", "trigger_time": None}
                     self.run_on_startup = False
-                elif self.state_check_now:
+                elif check_state_expr_on_start:
                     #
                     # first time only - skip wait and check state trigger
                     #
@@ -851,7 +844,7 @@ class TrigInfo:
                     else:
                         notify_vars = {}
                     notify_info = [notify_vars, {"trigger_type": notify_type}]
-                    self.state_check_now = False
+                    check_state_expr_on_start = False
                 else:
                     if self.time_trigger:
                         now = dt_now()
@@ -900,7 +893,7 @@ class TrigInfo:
 
                     if not ident_any_values_changed(func_args, self.state_trig_ident_any):
                         #
-                        # if var_name not in func_args we are state_check_now
+                        # if var_name not in func_args we are check_state_expr_on_start
                         #
                         if "var_name" in func_args and not ident_values_changed(
                             func_args, self.state_trig_ident
@@ -917,23 +910,26 @@ class TrigInfo:
                             if self.state_hold_false is not None:
                                 if "var_name" not in func_args:
                                     #
-                                    # this is state_check_now check
+                                    # this is check_state_expr_on_start check
                                     # if immediately true, force wait until False
                                     # otherwise start False wait now
                                     #
                                     state_false_time = None if trig_ok else time.monotonic()
-                                    continue
+                                    if not self.state_check_now:
+                                        continue
                                 if state_false_time is None:
                                     if trig_ok:
                                         #
-                                        # wasn't False, so ignore
+                                        # wasn't False, so ignore after initial check
                                         #
-                                        continue
-                                    #
-                                    # first False, so remember when it is
-                                    #
-                                    state_false_time = time.monotonic()
-                                elif trig_ok:
+                                        if "var_name" in func_args:
+                                            continue
+                                    else:
+                                        #
+                                        # first False, so remember when it is
+                                        #
+                                        state_false_time = time.monotonic()
+                                elif trig_ok and "var_name" in func_args:
                                     too_soon = time.monotonic() - state_false_time < self.state_hold_false
                                     state_false_time = None
                                     if too_soon:

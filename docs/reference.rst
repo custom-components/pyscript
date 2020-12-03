@@ -303,27 +303,24 @@ Optional arguments are:
   that number of seconds after the first state trigger.
 
 ``state_hold_false=None``
-  If set, the ``@state_trigger`` expression must evaluate to ``False`` for this duration in seconds
-  before the next trigger can occur. The default value of ``None`` means that triggers can occur
-  without the trigger expression having to be ``False`` between triggers. A value of ``0`` requires
-  the expression become ``False`` between triggers, but with no minimum time in that state.
-  If the expression evaluates to ``True`` during the ``state_hold_false`` period, that trigger is
-  ignored, and when the expression next is ``False`` the ``state_hold_false`` period starts over.
+  If set, the state trigger edge is triggered (triggers on a ``False`` to ``True`` transition),
+  versus the default of level triggered (triggers when ``True``). The ``@state_trigger`` expression
+  must evaluate to ``False`` for this duration in seconds before the next trigger can occur.
+  A value of ``0`` requires the expression be ``False`` before a trigger, but with no minimum
+  time in that state. If the expression evaluates to ``True`` during the ``state_hold_false`` period,
+  that trigger is ignored, and when the expression next is ``False`` the ``state_hold_false`` period
+  starts over.
 
   For example, by default the expression ``"int(sensor.temp_outside) >= 50"`` will trigger every
-  time ``sensor.temp_outside`` changes to a value that is 50 or more.  If instead
-  ``state_hold_false=0``, the trigger will only occur when ``sensor.temp_outside`` changes the first
-  time to 50 or more. It has to go back below 50 for ``state_hold_false`` seconds before a new
-  trigger can occur. To summarize, the default behavior is level triggered, and setting ``state_hold_false``
-  makes it edge triggered.
+  time ``sensor.temp_outside`` changes to a value that is 50 or more.  If instead ``state_hold_false=0``,
+  the trigger will only occur when ``sensor.temp_outside`` changes the first time to 50 or more.
+  It has to go back below 50 for ``state_hold_false`` seconds before a new trigger can occur.
 
-  The ``state_hold_false`` period applies at startup, although the expression is not checked at
-  startup if ``state_check_now==False``. So if ``state_hold_false=0`` the first trigger after startup
-  will succeed, whether or not the expression was previously ``False``. That behavior can be changed
-  by setting ``state_check_now=True``; the expression is checked at startup, and if ``True`` the
-  trigger will not occur, and a wait for the next ``False`` will begin. So setting ``state_check_now=True``
-  and ``state_hold_false`` enforces the need for the expression to be ``False`` before the first
-  trigger.
+  When ``state_hold_false`` is set, the state trigger expression is evaluated at startup. If ``False``
+  the ``state_hold_false`` period begins. If ``True``, a wait for the next ``False`` value begins.
+  If ``state_check_now`` is also set, the trigger will also occur at startup if the expression is
+  ``True`` at startup, while the ``state_hold_false`` logic will continue to wait until the expression
+  is ``False`` for that period before the next future trigger.
 
 All state variables in HASS have string values. So you’ll have to do comparisons against string
 values or cast the variable to an integer or float. These two examples are essentially equivalent

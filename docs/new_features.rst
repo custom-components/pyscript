@@ -29,15 +29,15 @@ Planned new features post 1.0.0 include:
 
 The new features since 1.0.0 in master include:
 
-- Added ``state_hold_false=None`` optional period in seconds to ``@state_trigger()`` and ``task.wait_until()``.
-  This requires the trigger expression to be ``False`` for at least that period (including 0) before a
-  successful trigger. Setting this optional parameter makes state triggers edge triggered (ie,
-  triggers only on transition from ``False`` to ``True``), instead of the default level trigger (ie,
-  only has to evaluate to ``True``). Proposed by @tchef69 (#89).
 - Adding new decorator ``@mqtt_trigger`` by @dlashua (#98, #105).
-- All .py files below the pyscript/scripts directory are autoloaded, recursively into all subdirectories.
-  Any file name or directory starting with ``#`` is skipped, which is an in-place way of disabling
-  a specific file or directory tree (#97).
+- Added ``state_hold_false=None`` optional period in seconds to ``@state_trigger()`` and ``task.wait_until()``.
+  This requires the trigger expression to be ``False`` for at least that period (including 0) before
+  a successful trigger. Setting this optional parameter makes state triggers edge triggered (ie,
+  triggers only on transition from ``False`` to ``True``), instead of the default level trigger
+  (ie, only has to evaluate to ``True``). Proposed by @tchef69 (#89).
+- All .py files below the ``pyscript/scripts`` directory are autoloaded, recursively.  Also, any
+  file name or directory starting with ``#`` is skipped (including top-level and ``apps``), which is
+  an in-place way of disabling a specific script, app or directory tree (#97).
 - ``del`` and new function ``state.delete()` can delete state variables and state variable attributes.
 
 Bug fixes since 1.0.0 in master include:

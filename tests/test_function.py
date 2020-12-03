@@ -420,10 +420,9 @@ def func4(trigger_type=None, event_type=None, **kwargs):
 def func4a_hold_false():
     global seq_num
 
-    while 1:
-        seq_num += 1
-        res = task.wait_until(state_trigger="int(pyscript.f4avar2) >= 10", state_hold_false=0, __test_handshake__=["pyscript.done2", seq_num], state_check_now=True)
-        pyscript.done = [seq_num, res["value"]]
+    seq_num += 1
+    res = task.wait_until(state_trigger="int(pyscript.f4avar2) >= 10", state_hold_false=0, __test_handshake__=["pyscript.done2", seq_num], state_check_now=True)
+    pyscript.done = [seq_num, res.get("value", None)]
 
 @service
 def func4b_hold_false():
@@ -442,7 +441,8 @@ def func4c_hold_false():
         # this should never trigger
         seq_num += 1
         res = task.wait_until(state_trigger="int(pyscript.f4bvar2) >= 10", state_hold_false=1000, __test_handshake__=["pyscript.done2", seq_num], state_check_now=True)
-        pyscript.done = [seq_num, res["value"]]
+        pyscript.f4bvar2 = 0
+        pyscript.done = [seq_num, res.get("value", None)]
 
 @state_trigger("pyscript.f5var1")
 @time_active("cron(* * * * *)")
@@ -842,18 +842,21 @@ def func9(var_name=None, value=None, old_value=None):
     hass.states.async_set("pyscript.f4avar2", 6)
     hass.states.async_set("pyscript.f4avar2", 15)
     assert literal_eval(await wait_until_done(notify_q)) == [seq_num, "15"]
-    # these won't retrigger
+
+    # will trigger immediately
     seq_num += 1
-    assert literal_eval(await wait_until_done(notify_q2)) == seq_num
-    hass.states.async_set("pyscript.f4avar2", 16)
-    hass.states.async_set("pyscript.f4avar2", 17)
-    hass.states.async_set("pyscript.f4avar2", 18)
+    await hass.services.async_call("pyscript", "func4a_hold_false", {})
+    assert literal_eval(await wait_until_done(notify_q)) == [seq_num, None]
+
+    seq_num += 1
     hass.states.async_set("pyscript.f4avar2", 6)
+    await hass.services.async_call("pyscript", "func4a_hold_false", {})
+    assert literal_eval(await wait_until_done(notify_q2)) == seq_num
+    hass.states.async_set("pyscript.f4avar2", 7)
+    hass.states.async_set("pyscript.f4avar2", 8)
     # this will trigger
     hass.states.async_set("pyscript.f4avar2", 19)
     assert literal_eval(await wait_until_done(notify_q)) == [seq_num, "19"]
-    seq_num += 1
-    assert literal_eval(await wait_until_done(notify_q2)) == seq_num
 
     hass.states.async_set("pyscript.f4bvar2", 6)
     seq_num += 1
@@ -873,6 +876,14 @@ def func9(var_name=None, value=None, old_value=None):
     hass.states.async_set("pyscript.f4bvar2", 1)
     hass.states.async_set("pyscript.f4bvar2", 20)
     assert literal_eval(await wait_until_done(notify_q)) == [seq_num, "20"]
+    seq_num += 1
+    assert literal_eval(await wait_until_done(notify_q2)) == seq_num
+    hass.states.async_set("pyscript.f4bvar2", 21)
+    hass.states.async_set("pyscript.f4bvar2", 22)
+    hass.states.async_set("pyscript.f4bvar2", 23)
+    hass.states.async_set("pyscript.f4bvar2", 1)
+    hass.states.async_set("pyscript.f4bvar2", 25)
+    assert literal_eval(await wait_until_done(notify_q)) == [seq_num, "25"]
     seq_num += 1
     assert literal_eval(await wait_until_done(notify_q2)) == seq_num
 
