@@ -38,7 +38,7 @@ The new features since 1.0.0 in master include:
 - All .py files below the ``pyscript/scripts`` directory are autoloaded, recursively.  Also, any
   file name or directory starting with ``#`` is skipped (including top-level and ``apps``), which is
   an in-place way of disabling a specific script, app or directory tree (#97).
-- ``del`` and new function ``state.delete()` can delete state variables and state variable attributes.
+- ``del`` and new function ``state.delete()`` can delete state variables and state variable attributes.
 
 Bug fixes since 1.0.0 in master include:
 

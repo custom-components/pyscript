@@ -1,6 +1,8 @@
 Reference
 =========
 
+..    include:: <mmlalias.txt>
+
 Configuration
 -------------
 
@@ -321,6 +323,22 @@ Optional arguments are:
   If ``state_check_now`` is also set, the trigger will also occur at startup if the expression is
   ``True`` at startup, while the ``state_hold_false`` logic will continue to wait until the expression
   is ``False`` for that period before the next future trigger.
+
+Here's a summary of the trigger behavior with these parameter settings:
+
+=================== ==================== ================= ========================
+``state_check_now`` ``state_hold_false`` trigger at start? trigger on state change?
+=================== ==================== ================= ========================
+default (``False``) default (``None``)   no                if expr ``True``
+default (``False``) 0                    no                if expr ``True``, only after ``False``
+default (``False``) 10                   no                if expr ``True``, only after ``False`` for |geq| 10 sec
+``True``            default (``None``)   if expr ``True``  if expr ``True``
+``True``            0                    if expr ``True``  if expr ``True``, only after ``False``
+``True``            10                   if expr ``True``  if expr ``True``, only after ``False`` for |geq| 10 sec
+=================== ==================== ================= ========================
+
+If ``state_hold`` is also specified, all the entries in the table that say "if expr ``True``"
+must remain ``True`` for that number of seconds for the trigger to occur.
 
 All state variables in HASS have string values. So you’ll have to do comparisons against string
 values or cast the variable to an integer or float. These two examples are essentially equivalent
