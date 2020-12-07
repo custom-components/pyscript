@@ -36,6 +36,7 @@ class GlobalContext:
         self.module = None
         self.rel_import_path = rel_import_path
         self.source = source
+        self.file_path = None
         self.mtime = mtime
         self.app_config = app_config
         self.imports = set()
@@ -96,6 +97,10 @@ class GlobalContext:
     def get_mtime(self):
         """Return the mtime."""
         return self.mtime
+
+    def get_file_path(self):
+        """Return the file path."""
+        return self.file_path
 
     def get_imports(self):
         """Return the imports."""
@@ -287,7 +292,7 @@ class GlobalContextMgr:
                 return name
 
     @classmethod
-    async def load_file(cls, global_ctx, file_path, source=None, force=False):
+    async def load_file(cls, global_ctx, file_path, source=None, reload=False):
         """Load, parse and run the given script file; returns error ast_ctx on error, or None if ok."""
 
         mtime = None
@@ -331,10 +336,11 @@ class GlobalContextMgr:
             global_ctx.stop()
             return False, ast_ctx
         global_ctx.source = source
+        global_ctx.file_path = file_path
         if mtime is not None:
             global_ctx.mtime = mtime
         cls.set(global_ctx.get_name(), global_ctx)
 
-        _LOGGER.info("Loaded %s", file_path)
+        _LOGGER.info("%s %s", "Reloaded" if reload else "Loaded", file_path)
 
         return True, None

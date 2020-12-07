@@ -495,7 +495,8 @@ async def load_scripts(hass, config_data, global_ctx_only=None):
         if global_ctx_name in ctx_all:
             global_ctx = ctx_all[global_ctx_name]
             global_ctx.stop()
-            _LOGGER.debug("reload: deleting global_ctx=%s", global_ctx_name)
+            if global_ctx_name not in ctx2files or not ctx2files[global_ctx_name].autoload:
+                _LOGGER.info("Unloaded %s", global_ctx.get_file_path())
             GlobalContextMgr.delete(global_ctx_name)
     await Function.reaper_sync()
 
@@ -514,4 +515,7 @@ async def load_scripts(hass, config_data, global_ctx_only=None):
             source=src_info.source,
             mtime=src_info.mtime,
         )
-        await GlobalContextMgr.load_file(global_ctx, src_info.file_path, source=src_info.source, force=True)
+        reload = src_info.global_ctx_name in ctx_delete
+        await GlobalContextMgr.load_file(
+            global_ctx, src_info.file_path, source=src_info.source, reload=reload
+        )
