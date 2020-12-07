@@ -690,6 +690,7 @@ class TrigInfo:
         self.have_trigger = False
         self.setup_ok = False
         self.run_on_startup = False
+        self.run_on_shutdown = False
 
         if self.state_active is not None:
             self.active_expr = AstEval(
@@ -702,14 +703,17 @@ class TrigInfo:
                 self.active_expr.get_logger().error(exc)
                 return
 
+        if "time_trigger" in trig_cfg and self.time_trigger is None:
+            self.run_on_startup = True
         if self.time_trigger is not None:
             while "startup" in self.time_trigger:
                 self.run_on_startup = True
                 self.time_trigger.remove("startup")
+            while "shutdown" in self.time_trigger:
+                self.run_on_shutdown = True
+                self.time_trigger.remove("shutdown")
             if len(self.time_trigger) == 0:
                 self.time_trigger = None
-        if "time_trigger" in trig_cfg and self.time_trigger is None:
-            self.run_on_startup = True
 
         if self.state_trigger is not None:
             state_trig = []
@@ -783,7 +787,12 @@ class TrigInfo:
             if self.mqtt_trigger is not None:
                 Mqtt.notify_del(self.mqtt_trigger[0], self.notify_q)
             if self.task:
-                Function.task_cancel(self.task)
+                Function.reaper_cancel(self.task)
+        if self.run_on_shutdown:
+            notify_type = "shutdown"
+            notify_info = {"trigger_type": "shutdown", "trigger_time": None}
+            action_future = self.call_action(notify_type, notify_info, run_task=False)
+            Function.reaper_await(action_future)
 
     def start(self):
         """Start this trigger task."""
@@ -1000,30 +1009,6 @@ class TrigInfo:
                     )
                     continue
 
-                action_ast_ctx = AstEval(
-                    f"{self.action.global_ctx_name}.{self.action.name}", self.action.global_ctx
-                )
-                Function.install_ast_funcs(action_ast_ctx)
-                task_unique_func = None
-                if self.task_unique is not None:
-                    task_unique_func = Function.task_unique_factory(action_ast_ctx)
-
-                #
-                # check for @task_unique with kill_me=True
-                #
-                if (
-                    self.task_unique is not None
-                    and self.task_unique_kwargs
-                    and self.task_unique_kwargs["kill_me"]
-                    and Function.unique_name_used(action_ast_ctx, self.task_unique)
-                ):
-                    _LOGGER.debug(
-                        "trigger %s got %s trigger, @task_unique kill_me=True prevented new action",
-                        notify_type,
-                        self.name,
-                    )
-                    continue
-
                 if (
                     self.time_active_hold_off is not None
                     and last_trig_time is not None
@@ -1037,49 +1022,8 @@ class TrigInfo:
                     )
                     continue
 
-                # Create new HASS Context with incoming as parent
-                if "context" in func_args and isinstance(func_args["context"], Context):
-                    hass_context = Context(parent_id=func_args["context"].id)
-                else:
-                    hass_context = Context()
-
-                # Fire an event indicating that pyscript is running
-                # Note: the event must have an entity_id for logbook to work correctly.
-                ev_name = self.name.replace(".", "_")
-                ev_entity_id = f"pyscript.{ev_name}"
-
-                event_data = dict(name=ev_name, entity_id=ev_entity_id, func_args=func_args)
-                Function.hass.bus.async_fire("pyscript_running", event_data, context=hass_context)
-
-                _LOGGER.debug(
-                    "trigger %s got %s trigger, running action (kwargs = %s)",
-                    self.name,
-                    notify_type,
-                    func_args,
-                )
-
-                async def do_func_call(func, ast_ctx, task_unique, task_unique_func, hass_context, **kwargs):
-                    # Store HASS Context for this Task
-                    Function.store_hass_context(hass_context)
-
-                    if task_unique and task_unique_func:
-                        await task_unique_func(task_unique)
-                    await func.call(ast_ctx, **kwargs)
-                    if ast_ctx.get_exception_obj():
-                        ast_ctx.get_logger().error(ast_ctx.get_exception_long())
-
-                last_trig_time = time.monotonic()
-
-                Function.create_task(
-                    do_func_call(
-                        self.action,
-                        action_ast_ctx,
-                        self.task_unique,
-                        task_unique_func,
-                        hass_context,
-                        **func_args,
-                    )
-                )
+                if self.call_action(notify_type, func_args):
+                    last_trig_time = time.monotonic()
 
         except asyncio.CancelledError:
             raise
@@ -1094,3 +1038,63 @@ class TrigInfo:
             if self.mqtt_trigger is not None:
                 Mqtt.notify_del(self.mqtt_trigger[0], self.notify_q)
             return
+
+    def call_action(self, notify_type, func_args, run_task=True):
+        """Call the trigger action function."""
+        action_ast_ctx = AstEval(f"{self.action.global_ctx_name}.{self.action.name}", self.action.global_ctx)
+        Function.install_ast_funcs(action_ast_ctx)
+        task_unique_func = None
+        if self.task_unique is not None:
+            task_unique_func = Function.task_unique_factory(action_ast_ctx)
+
+        #
+        # check for @task_unique with kill_me=True
+        #
+        if (
+            self.task_unique is not None
+            and self.task_unique_kwargs
+            and self.task_unique_kwargs["kill_me"]
+            and Function.unique_name_used(action_ast_ctx, self.task_unique)
+        ):
+            _LOGGER.debug(
+                "trigger %s got %s trigger, @task_unique kill_me=True prevented new action",
+                notify_type,
+                self.name,
+            )
+            return False
+
+        # Create new HASS Context with incoming as parent
+        if "context" in func_args and isinstance(func_args["context"], Context):
+            hass_context = Context(parent_id=func_args["context"].id)
+        else:
+            hass_context = Context()
+
+        # Fire an event indicating that pyscript is running
+        # Note: the event must have an entity_id for logbook to work correctly.
+        ev_name = self.name.replace(".", "_")
+        ev_entity_id = f"pyscript.{ev_name}"
+
+        event_data = dict(name=ev_name, entity_id=ev_entity_id, func_args=func_args)
+        Function.hass.bus.async_fire("pyscript_running", event_data, context=hass_context)
+
+        _LOGGER.debug(
+            "trigger %s got %s trigger, running action (kwargs = %s)", self.name, notify_type, func_args,
+        )
+
+        async def do_func_call(func, ast_ctx, task_unique, task_unique_func, hass_context, **kwargs):
+            # Store HASS Context for this Task
+            Function.store_hass_context(hass_context)
+
+            if task_unique and task_unique_func:
+                await task_unique_func(task_unique)
+            await func.call(ast_ctx, **kwargs)
+            if ast_ctx.get_exception_obj():
+                ast_ctx.get_logger().error(ast_ctx.get_exception_long())
+
+        func = do_func_call(
+            self.action, action_ast_ctx, self.task_unique, task_unique_func, hass_context, **func_args,
+        )
+        if run_task:
+            Function.create_task(func)
+            return True
+        return func

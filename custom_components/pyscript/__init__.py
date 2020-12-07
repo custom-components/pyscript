@@ -255,6 +255,7 @@ async def unload_scripts(global_ctx_only=None, unload_all=False):
         ctx_delete[global_ctx_name] = global_ctx
     for global_ctx_name, global_ctx in ctx_delete.items():
         GlobalContextMgr.delete(global_ctx_name)
+    await Function.reaper_sync()
 
 
 @bind_hass
@@ -307,7 +308,6 @@ async def load_scripts(hass, config_data, global_ctx_only=None):
                     continue
                 mod_name = rel_path[0:-3]
                 if mod_name.endswith("/__init__"):
-                    # mod_name = mod_name[0 : -len("/__init__")]
                     rel_import_path = mod_name
                 mod_name = mod_name.replace("/", ".")
                 if path == "":
@@ -497,6 +497,7 @@ async def load_scripts(hass, config_data, global_ctx_only=None):
             global_ctx.stop()
             _LOGGER.debug("reload: deleting global_ctx=%s", global_ctx_name)
             GlobalContextMgr.delete(global_ctx_name)
+    await Function.reaper_sync()
 
     #
     # now load the requested files, and files that depend on loaded files

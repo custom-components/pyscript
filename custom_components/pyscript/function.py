@@ -48,9 +48,10 @@ class Function:
     ast_functions = {}
 
     #
-    # task id of the task that cancel and waits for other tasks
+    # task id of the task that cancels and waits for other tasks,
+    # and also awaits on coros
     #
-    task_cancel_repeaer = None
+    task_repeaer = None
 
     def __init__(self):
         """Warn on Function instantiation."""
@@ -84,34 +85,63 @@ class Function:
         # start a task which is a reaper for canceled tasks, since some # functions
         # like TrigInfo.stop() can't be async (it's called from a __del__ method)
         #
-        async def task_cancel_reaper(reaper_q):
+        async def task_reaper(reaper_q):
             while True:
                 try:
-                    try:
-                        task = await reaper_q.get()
-                        if task is None:
-                            return
-                        task.cancel()
-                        await task
-                    except asyncio.CancelledError:
-                        pass
+                    cmd = await reaper_q.get()
+                    if cmd[0] == "exit":
+                        return
+                    if cmd[0] == "cancel":
+                        try:
+                            cmd[1].cancel()
+                            await cmd[1]
+                        except asyncio.CancelledError:
+                            pass
+                    elif cmd[0] == "await":
+                        await cmd[1]
+                    elif cmd[0] == "sync":
+                        await cmd[1].put(0)
+                    else:
+                        _LOGGER.error("task_reaper: unknown command %s", cmd[0])
                 except asyncio.CancelledError:
                     raise
                 except Exception:
-                    _LOGGER.error("task_cancel_reaper: got exception %s", traceback.format_exc(-1))
+                    _LOGGER.error("task_reaper: got exception %s", traceback.format_exc(-1))
 
-        if not cls.task_cancel_repeaer:
+        if not cls.task_repeaer:
             cls.task_reaper_q = asyncio.Queue(0)
-            cls.task_cancel_repeaer = Function.create_task(task_cancel_reaper(cls.task_reaper_q))
+            cls.task_repeaer = Function.create_task(task_reaper(cls.task_reaper_q))
 
     @classmethod
     async def reaper_stop(cls):
         """Tell the reaper task to exit by sending a special task None."""
-        if cls.task_cancel_repeaer:
-            cls.task_cancel(None)
-            await cls.task_cancel_repeaer
-            cls.task_cancel_repeaer = None
+        if cls.task_repeaer:
+            cls.task_reaper_q.put_nowait(["exit"])
+            await cls.task_repeaer
+            cls.task_repeaer = None
             cls.task_reaper_q = None
+
+    @classmethod
+    def reaper_cancel(cls, task):
+        """Send a task to be canceled by the reaper."""
+        cls.task_reaper_q.put_nowait(["cancel", task])
+
+    @classmethod
+    def reaper_await(cls, coro):
+        """Send a coro to be awaited by the reaper."""
+        cls.task_reaper_q.put_nowait(["await", coro])
+
+    @classmethod
+    async def reaper_sync(cls):
+        """Wait until the reaper queue is empty."""
+        sync_q = asyncio.Queue(0)
+        sync_q.put_nowait(["sync", sync_q])
+        await sync_q.get()
+
+    @classmethod
+    def reaper_exit(cls):
+        """Send an exit request to the reaper."""
+        cls.task_reaper_q.put_nowait(["exit"])
 
     @classmethod
     async def async_sleep(cls, duration):
@@ -152,7 +182,7 @@ class Function:
                         # it seems we can't cancel ourselves, so we
                         # tell the repeaer task to cancel us
                         #
-                        Function.task_cancel(curr_task)
+                        Function.reaper_cancel(curr_task)
                         # wait to be canceled
                         await asyncio.sleep(100000)
                 elif task != curr_task and task in cls.our_tasks:
@@ -313,8 +343,3 @@ class Function:
     def create_task(cls, coro):
         """Create a new task that runs a coroutine."""
         return cls.hass.loop.create_task(cls.run_coro(coro))
-
-    @classmethod
-    def task_cancel(cls, task):
-        """Send a task to be canceled by the reaper."""
-        cls.task_reaper_q.put_nowait(task)
