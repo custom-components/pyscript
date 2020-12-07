@@ -14,13 +14,13 @@ the ``pyscript.reload`` service for the new settings to take effect.
 
 Alternatively, for yaml configuration, add ``pyscript:`` to ``<config>/configuration.yaml``.
 You can't mix these two methods - your initial choice determines how you should update
-these settings later.  If you want to switch configuration methods you will need to
+these settings later. If you want to switch configuration methods you will need to
 uninstall and reinstall pyscript.
 
 Pyscript has two optional configuration parameters that allow any python package to be
 imported and exposes the ``hass`` variable as a global (both options default to ``false``).
 Assuming you didn't use the UI to configure pyscript, these can be set
-in `<config>/configuration.yaml``:
+in ``<config>/configuration.yaml``:
 
 .. code:: yaml
 
@@ -29,8 +29,8 @@ in `<config>/configuration.yaml``:
      hass_is_global: true
 
 The settings and behavior of your code can be controlled by additional user-defined yaml
-configuration settings.  If you configured pyscript using the UI flow, you can still
-add additional configuration settings via yaml.  Since they are free-form (no fixed
+configuration settings. If you configured pyscript using the UI flow, you can still
+add additional configuration settings via yaml. Since they are free-form (no fixed
 schema) there is no UI configuration available for these additional settings.
 
 All the pyscript configuration settings are available via the variable ``pyscript.config``
@@ -49,15 +49,16 @@ For example, applications ``my_app1`` and ``my_app2`` would be configured as:
            # any settings for my_app2 go here
 
 Note that if you used the UI flow to configure pyscript, the ``allow_all_imports`` and
-``hass_is_global`` configuration settings will be ignored in the yaml file.  In that case
+``hass_is_global`` configuration settings will be ignored in the yaml file. In that case
 you should omit them from the yaml, and just use yaml for pyscript app configuration.
 
 As explained below, the use of ``apps`` with entries for each application by name below,
 is used to determine which application scripts are autoloaded. That's the only configuration
 structure that pyscript checks - any other parameters can be added and used as you like.
 
-At startup, pyscript loads the following files. It also unloads and reloads these files when
-the ``pyscript.reload`` service is called, which also reloads the ``yaml`` configuration.
+At startup, pyscript loads the following files. It also unloads and reloads these files if
+they have changed when the ``pyscript.reload`` service is called, which also reloads the
+``yaml`` configuration.
 
 ``<config>/pyscript/*.py``
   all files with a ``.py`` suffix are autoloaded.
@@ -94,26 +95,54 @@ created by a script file, or even another Jupyter session.
 
 The optional ``<config>/pyscript/modules`` subdirectory can contain modules (files with a ``.py``
 extension) or packages (directories that contain at least a ``__init__.py`` file) that can be
-imported by any other pyscript files, applications or modules. Any modules or packages
-imported from ``<config>/pyscript/modules`` are unloaded if you call the ``pyscript.reload``
-service. They are not autoloaded. Importing modules and packages from ``<config>/pyscript/modules``
-are not restricted if ``allow_all_imports`` is ``False``. Typically common functions or
-features would be implemented in a module or package, and then imported and used by scripts
-in ``<config>/pyscript`` or applications in ``<config>/pyscript/apps``.
+imported by any other pyscript files, applications or modules. They are not autoloaded. Any modules
+or packages in ``<config>/pyscript/modules`` that are modified will be unloaded when you call the
+``pyscript.reload`` service. Importing modules and packages from ``<config>/pyscript/modules`` are
+not restricted if ``allow_all_imports`` is ``False``. Typically common functions or features would
+be implemented in a module or package, and then imported and used by scripts in
+``<config>/pyscript`` or applications in ``<config>/pyscript/apps``.
 
 Even if you can’t directly call one function from another script file, HASS state variables are
 global and services can be called from any script file.
 
-Reloading the ``.py`` files is accomplished by calling the ``pyscript.reload`` service, which is the
+Reloading Scripts
+-----------------
+
+Reloading any script files is accomplished by calling the ``pyscript.reload`` service, which is the
 one built-in service (so you can’t create your own service with that name). You can also reload by
-selecting Configuration -> Integrations -> Pyscript -> reload in the UI.  All function definitions,
-services and triggers are re-created on ``reload``, except for any active Jupyter sessions. Any
-currently running functions (ie, functions that have been triggered and are actively executing
-Python code or waiting inside ``task.sleep()`` or ``task.wait_until()``) are not stopped by
-``reload`` - they continue to run until they finish (return). You can terminate these running
-functions too on ``reload`` if you wish by calling ``task.unique()`` in the script file preamble
-(ie, outside any function definition), so it is executed on load and reload, which will terminate
-any running functions that have previously called ``task.unique()`` with the same argument.
+selecting Configuration -> Integrations -> Pyscript -> reload in the UI.
+
+By default, reload only reloads scripts, apps or modules that have changed since they were last
+loaded. A change means the script, app or module file contents or modification time has changed.
+Additionally, an app is considered changed if its yaml configuration has changed. When a change is
+detected, additional files are also reloaded if they depend on a changed file. Additional files
+include all other files in a particular module or app (meaning the entire module or app is reloaded
+if any of its files or imports are changed), and if a module has changed, any other module, app or
+script that imports that module directly or indirectly is reloaded too.
+
+A file is also considered changed if it is newly created or deleted (or "commented" by renaming it
+or a parent directory to start with ``#``). When reload detects a deleted file, the prior global
+context and all its triggers are deleted, just as when a file has changed.
+
+The ``pyscript.reload`` service takes an optional parameter ``global_ctx`` which specifies the name
+of a specific global context to reload. That is the one file considered to be changed by ``reload``,
+and other changes are ignored. For example, specifying ``file.example`` will just reload
+``example.py``, and ``apps.my_app1`` will just reload ``apps/my_app1.py``. See the `Global Context
+<#global-context>`__ section for the mapping of file or app names to global context names.
+Additional files might still be reloaded too (all other files in the module or app, and any
+modules, apps or scripts that import a module if ``global_ctx`` was set to a module).
+
+If you want to reload all scripts, apps and modules, set ``global_ctx`` to ``*`` when you call
+``pyscript.reload``.
+
+Any function definitions, services and triggers in the reloaded files are re-created. Jupyter
+sessions are not affected. Any currently running functions (ie, functions that have been triggered
+and are actively executing Python code or waiting inside ``task.sleep()`` or ``task.wait_until()``)
+are not stopped by ``reload`` - they continue to run until they finish (return). You can terminate
+these running functions too on ``reload`` if you wish by calling ``task.unique()`` in the script
+file preamble (ie, outside any function definition), so it is executed on load and reload, which
+will terminate any running functions that have previously called ``task.unique()`` with the same
+argument.
 
 State Variables
 ---------------
@@ -314,7 +343,7 @@ Optional arguments are:
   starts over.
 
   For example, by default the expression ``"int(sensor.temp_outside) >= 50"`` will trigger every
-  time ``sensor.temp_outside`` changes to a value that is 50 or more.  If instead ``state_hold_false=0``,
+  time ``sensor.temp_outside`` changes to a value that is 50 or more. If instead ``state_hold_false=0``,
   the trigger will only occur when ``sensor.temp_outside`` changes the first time to 50 or more.
   It has to go back below 50 for ``state_hold_false`` seconds before a new trigger can occur.
 
@@ -764,7 +793,7 @@ variable using its string name. The set function also allows you to optionally s
 which you can’t do if you are directly assigning to the variable:
 
 ``state.delete(name)``
-  Deletes the given state variable or attribute.  The Python ``del`` statement can also be used
+  Deletes the given state variable or attribute. The Python ``del`` statement can also be used
   to delete a state variable or attribute.
 ``state.get(name)``
   Returns the value of the state variable given its string ``name``. A ``NameError`` exception
@@ -773,7 +802,7 @@ which you can’t do if you are directly assigning to the variable:
   ``AttributeError`` exception is thrown if that attribute doesn't exist.
 ``state.getattr(name)``
   Returns a ``dict`` of attribute values for the state variable ``name`` string, or ``None`` if it
-  doesn’t exist.  Alternatively, ``name`` can be a state variable.  In pyscript prior to 1.0.0,
+  doesn’t exist. Alternatively, ``name`` can be a state variable. In pyscript prior to 1.0.0,
   this function was ``state.get_attr()``. That deprecated name is still supported, but it logs a
   warning message and will be removed in a future version.
 ``state.names(domain=None)``
@@ -782,7 +811,7 @@ which you can’t do if you are directly assigning to the variable:
 ``state.persist(entity_id, default_value=None, default_attributes=None)``
   Indicates that the entity ``entity_id`` should be persisted. Optionally, a default value and
   default attributes (a ``dict``) can be specified, which are applied to the entity if it doesn't
-  exist or doesn't have any attributes respectively.  "Persist" mean its value and attributes
+  exist or doesn't have any attributes respectively. "Persist" mean its value and attributes
   are preserved across HASS restarts. This only applies to entities in the ``pyscript``
   domain (ie, name starts with ``pyscript.``). See `this section <#persistent-state>`__ for
   more information
@@ -808,7 +837,7 @@ Service Calls
 ``service.call(domain, name, blocking=False, limit=10, **kwargs)``
   calls the service ``domain.name`` with the given keyword arguments as parameters. If ``blocking``
   is ``True``, pyscript will wait for the service to finish executing before continuing the current
-  routine, or will wait a maximum of the number of seconds specified in the `limit` keyword
+  routine, or will wait a maximum of the number of seconds specified in the ``limit`` keyword
   argument.
 ``service.has_service(domain, name)``
   returns whether the service ``domain.name`` exists.
@@ -1086,8 +1115,10 @@ global context, to the granularity of specific functions eg:
 
 Each Jupyter global context name is ``jupyter_NNN`` where ``NNN`` is a unique integer starting at 0.
 
-On reload, all global contexts whose names starts with ``file.``, ``modules.`` or ``apps.`` are
-removed. As each file is reloaded, the corresponding global context is created.
+When a file has changed (or an app's configuration has changed) and the ``pyscript.reload`` service
+is called, the corresponding global context whose names starts with ``file.``, ``modules.``,
+``apps.`` or ``scripts.`` is removed. As each file is reloaded, the corresponding global context
+is created.
 
 Three functions are provided for getting, setting and listing the global contexts. That allows
 you to interactively change the global context during a Jupyter session. You could also use these
@@ -1118,24 +1149,22 @@ Without Jupyter, the pyscript workflow involves editing scripts in the ``<config
 and calling the ``pyscript.reload`` service to reload the code. You will need to look at the log
 file for error messages (eg, syntax errors), or log output from your code.
 
-The ``pyscript.reload`` service takes an optional parameter ``global_ctx`` which specifies the name
-of a specific global context to reload; all others are unaffected. For example, specifying
-``file.example`` will just reload ``example.py``, and ``apps.my_app1`` will just reload
-``apps/my_app1.py`` or ``apps/my_app1/__init__.py``.  See the `Global Context <#global-context>`__
-section for the mapping of file or app names to global context names. Specifying ``global_ctx``
-makes it convenient to just reload the script file or application you are developing without
-affecting the others.
+The ``pyscript.reload`` service by default only reloads files that have been modified. That makes it
+convenient to test a new script without affecting others. If a module or app file (or an app's
+configuration) has changed, all files in that module or app get reloaded too, and also any other
+files that import that module. If you want to reload all the files, add the ``global_ctx=*``
+parameter when you call ``pyscript.reload``.
 
 A much better alternative to repeatedly modifying a script file and reloading it is to use Jupyter
 notebook to interactively develop and test functions, triggers and services.
 
-Jupyter auto-completion (with `<TAB>`) is supported in Jupyter notebook, console and lab. It should
-work after you have typed at least the first character. After you hit `<TAB>` you should see a list
+Jupyter auto-completion (with ``<TAB>``) is supported in Jupyter notebook, console and lab. It should
+work after you have typed at least the first character. After you hit ``<TAB>`` you should see a list
 of potential completions from which you can select. It's a great way to easily see available state
 variables, functions or services.
 
 In a Jupyter session, one or more functions can be defined in each code cell. Every time that cell
-is executed (eg, `<Shift>Return`), those functions are redefined, and any existing trigger
+is executed (eg, ``<Shift>Return``), those functions are redefined, and any existing trigger
 decorators with the same function name are canceled and replaced by the new definition. You might
 have other function and trigger definitions in another cell - they won't be affected (assuming those
 function names are different), and they will only be replaced when you re-execute that other cell.
@@ -1143,23 +1172,23 @@ function names are different), and they will only be replaced when you re-execut
 When the Jupyter session is terminated, its global context is deleted, which means any trigger
 rules, functions, services and variables you created are deleted. The pyscript Jupyter kernel is
 intended as an interactive sandbox. As you finalize specific functions, triggers and automation
-logic, you should copy them to a pyscript script file, and then use the `pyscript.reload` service to
+logic, you should copy them to a pyscript script file, and then use the ``pyscript.reload`` service to
 load them. That ensures they will be loaded and run each time you re-start HASS.
 
 If a function you define has been triggered and is currently executing Python code, then re-running
 the cell in which the function is defined, or exiting the Jupyter session, will not stop or cancel
-the already running function. This is the same behavior as `reload`. In pyscript, each triggered
+the already running function. This is the same behavior as ``reload``. In pyscript, each triggered
 function (ie, a trigger has occurred, the trigger conditions are met, and the function is actually
 executing Python code) runs as an independent task until it finishes. So if you are testing triggers
-of a long-running function (eg, one that uses `task.sleep()` or `task.wait_until()`) you could end
-up with many running instances. It's strongly recommended that you use `task.unique()` to make sure
+of a long-running function (eg, one that uses ``task.sleep()`` or ``task.wait_until()``) you could end
+up with many running instances. It's strongly recommended that you use ``task.unique()`` to make sure
 old running function tasks are terminated when a new one is triggered. Then you can manually call
-`task.unique()` to terminate that last running function before exiting the Jupyter session.
+``task.unique()`` to terminate that last running function before exiting the Jupyter session.
 
 If you switch global contexts to a script file's context, and create some new variables, triggers,
 functions or services there, then those objects will survive the termination of your Jupyter
-session. However, if you `reload` the scripts, then those newly-created objects will be removed.
-To make any additions or changes permanent (meaning they will be re-created on each `reload` or each
+session. However, if you ``reload`` the scripts, then those newly-created objects will be removed.
+To make any additions or changes permanent (meaning they will be re-created on each ``reload`` or each
 time your restart HASS) then you should copy the changes or additions to one of your pyscript script
 files.
 
@@ -1170,10 +1199,11 @@ Pyscript supports importing two types of packages or modules:
 
 - Pyscript code can be put into modules or packages and stored in the ``<config>/pyscript/modules`` folder.
   Any pyscript code can import and use these modules or packages. These modules are not autoloaded
-  on startup; they are only loaded when another script imports them. When you call the pyscript
-  reload service, all imported modules are unloaded. Imports of pyscript modules and packages
-  are not affected by the ``allow_all_imports`` setting - if a file is in the ``<config>/pyscript/modules``
-  folder then it can be imported.
+  on startup; they are only loaded when another script imports them. When you call the ``pyscript.reload``
+  service, any changes to a module's files will cause it to be unloaded, and any scripts or apps that
+  import that module will be reloaded. Imports of pyscript modules and packages are not affected by the
+  ``allow_all_imports`` setting - if a file is in the ``<config>/pyscript/modules`` folder then it can be
+  imported.
   
   Package-style layout is also supported where a PACKAGE is defined in
   ``<config>/pyscript/modules/PACKAGE/__init__.py``, and that file can, in turn,
@@ -1218,7 +1248,7 @@ when imported (note that none of the pyscript-specific features are available).
 
 Pyscript can install required Python packages if they are missing. Depending on how you run HASS
 (eg, using a minimal Docker container) it might not be convenient to manually install Python packages
-using `pip`. If your pyscript code requires particular Python packages that are not already installed
+using ``pip``. If your pyscript code requires particular Python packages that are not already installed
 by HASS, add a ``requirements.txt`` file the ``<config>/pyscript`` directory. This file lists each
 required package one per line, with an optional version if you require a specific version or minimum
 version of that package, eg:
@@ -1437,7 +1467,7 @@ You can use ``hass`` to compute sunrise and sunset times using the same method H
 this example is a bit contrived.)
 
 Here's another method that uses the installed version of ``astral`` directly, rather than the HASS
-helper function.  It's a bit more cryptic since it's a very old version of ``astral``, but you can
+helper function. It's a bit more cryptic since it's a very old version of ``astral``, but you can
 see how the HASS configuration values are used:
 
 .. code:: python
@@ -1538,7 +1568,7 @@ Persistent State
 ^^^^^^^^^^^^^^^^
 
 Pyscript has the ability to persist state variables in the ``pyscript.`` domain, meaning their
-values and attributes are preserved across HASS restarts.  To specify that the value of a particular
+values and attributes are preserved across HASS restarts. To specify that the value of a particular
 entity persists, you need to request persistence explicitly. This must be done in a code location
 that will be certain to run at startup.
 
@@ -1563,7 +1593,7 @@ Pyscript implements a Python interpreter in a fully-async manner, which means it
 main HASS event loop.
 
 The language coverage is relatively complete, but it's quite possible there are discrepancies with Python
-in certain cases.  If so, please report them.
+in certain cases. If so, please report them.
 
 Here are some areas where pyscript differs from real Python:
 
@@ -1578,11 +1608,18 @@ Here are some areas where pyscript differs from real Python:
 - Since pyscript is async, it detects whether functions are real or async, and calls them in the
   correct manner. So it's not necessary to use ``async`` and ``await`` in pyscript code - they are optional.
 - All pyscript functions are async. So if you call a Python module that takes a pyscript function as
-  a callback argument, that argument is an async function, not a normal function.  So a Python module
+  a callback argument, that argument is an async function, not a normal function. So a Python module
   won't be able to call that pyscript function unless it uses ``await``, which requires that function to
   be declared ``async``. Unless the Python module is designed to support async callbacks, it is not
   currently possible to have Python modules and packages call pyscript functions. The workaround is
   to move your callbacks from pyscript and make them native Python functions; see `Importing <#importing>`__.
+- pyscript and the HASS primitives that it uses are not thread safe - the code should only be executed
+  in the main event loop. The ``task.executor()`` function is one way that regular Python code
+  (not pyscript code) can safely be executed in a separate thread. The ``threading`` package can
+  potentially be used (although that is untested), so long as any threads created only run regular
+  Python code (and not call any pyscript functions, which are all async). Bad things will happen
+  if you call pyscript functions from a thread you create; currently there isn't error checking
+  for that case.
 
 A handful of language features are not supported:
 
@@ -1591,8 +1628,8 @@ A handful of language features are not supported:
   I/O in the main event loop, and also to avoid security issues if people share pyscripts. The ``print``
   function only logs a message, rather than implements the real ``print`` features, such as specifying
   an output file handle.
-- function decorators, beyond the builtin ones, are not yet supported.  If there is interest, support
-  for function decorators could be added.  Additionally, the builtin function decorators aren't
+- function decorators, beyond the builtin ones, are not yet supported. If there is interest, support
+  for function decorators could be added. Additionally, the builtin function decorators aren't
   functions that can be called and used in-line. There is a feature request to add this.
 
 Pyscript can call Python modules and packages, so you can always write your own native Python code

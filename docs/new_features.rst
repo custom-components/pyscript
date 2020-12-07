@@ -29,6 +29,10 @@ Planned new features post 1.0.0 include:
 
 The new features since 1.0.0 in master include:
 
+- ``pyscript.reload`` only reloads changed files (changed contents, mtime, or an app's yaml configuration).
+  All files in an app or module are reloaded if any one has changed, and any script, app or module that
+  imports a changed modules (directly or indirectly) is also reloaded. Setting the optional ``global_ctx``
+  service parameter to ``*`` forces reloading all files (which is the behavior in 1.0.0 and earlier).
 - Adding new decorator ``@mqtt_trigger`` by @dlashua (#98, #105).
 - Added ``state_hold_false=None`` optional period in seconds to ``@state_trigger()`` and ``task.wait_until()``.
   This requires the trigger expression to be ``False`` for at least that period (including 0) before

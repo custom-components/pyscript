@@ -850,7 +850,7 @@ class Kernel:
         if not self.iopub_server:
             # already shutdown, so quit
             return
-        await GlobalContextMgr.delete(self.global_ctx_name)
+        GlobalContextMgr.delete(self.global_ctx_name)
         self.ast_ctx.remove_logger_handler(self.console)
         # logging.getLogger("homeassistant.components.pyscript.func.").removeHandler(self.console)
         _LOGGER.info("Shutting down session %s", self.global_ctx_name)

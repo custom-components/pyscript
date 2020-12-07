@@ -10,8 +10,7 @@ install it.
 Option 2: Manual
 ----------------
 
-From the `latest
-release <https://github.com/custom-components/pyscript/releases>`__
+From the `latest release <https://github.com/custom-components/pyscript/releases>`__
 download the zip file ``hass-custom-pyscript.zip``
 
 .. code:: bash

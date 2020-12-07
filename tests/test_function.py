@@ -130,9 +130,15 @@ async def setup_script(hass, notify_q, notify_q2, now, source, config=None):
     ) as mock_glob, patch("custom_components.pyscript.global_ctx.open", mock_open), patch(
         "custom_components.pyscript.trigger.dt_now", return_value=now
     ), patch(
+        "custom_components.pyscript.open", mock_open
+    ), patch(
         "homeassistant.config.load_yaml_config_file", return_value=config
     ), patch(
         "custom_components.pyscript.install_requirements", return_value=None,
+    ), patch(
+        "custom_components.pyscript.os.path.getmtime", return_value=1000
+    ), patch(
+        "custom_components.pyscript.global_ctx.os.path.getmtime", return_value=1000
     ), patch(
         "custom_components.pyscript.os.path.isfile"
     ) as mock_isfile:
@@ -1073,6 +1079,10 @@ def set_add(entity_id=None, val1=None, val2=None):
     state.set(entity_id, val1 + val2)
     pyscript.done = [seq_num, entity_id, state.get(entity_id), type(hass).__name__]
 
+@time_trigger("startup")
+def service_call_exception():
+    pyscript.set_add("foo")
+
 """,
         config={DOMAIN: {CONF_ALLOW_ALL_IMPORTS: True, CONF_HASS_IS_GLOBAL: True}},
     )
@@ -1083,6 +1093,7 @@ def set_add(entity_id=None, val1=None, val2=None):
     assert literal_eval(await wait_until_done(notify_q)) == [4, "pyscript.var1", "32"]
     assert literal_eval(await wait_until_done(notify_q)) == [5, "pyscript.var1", "50", "HomeAssistant"]
     assert "TypeError: service pyscript.set_add takes no positional arguments" in caplog.text
+    assert "TypeError: service pyscript.set_add takes only keyword arguments" in caplog.text
 
 
 async def test_service_call_params(hass):

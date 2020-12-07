@@ -18,7 +18,7 @@ Configuration
 
 -  Add files with a suffix of ``.py`` in the folder ``<config>/pyscript``.
 -  Restart HASS after installing pyscript.
--  Whenever you change a script file, app or configuration, make a ``reload`` service call to ``pyscript``.
-   To reload just one file or app, use the optional ``global_ctx`` parameter (eg, ``file.example`` to
-   just reload ``example.py`` or ``apps.my_app1`` to just reload ``apps/my_app1.py``).
+-  Whenever you change a script file, app or configuration, make a ``reload`` service call to ``pyscript``
+   and just those changes will be reloaded. To reload all files and apps, set the optional ``global_ctx``
+   parameter to ``*``.
 -  Watch the HASS log for ``pyscript`` errors and logger output from your scripts.

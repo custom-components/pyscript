@@ -161,7 +161,13 @@ def func15():
     with patch("custom_components.pyscript.os.path.isdir", return_value=True), patch(
         "custom_components.pyscript.glob.iglob"
     ) as mock_glob, patch("custom_components.pyscript.global_ctx.open", mock_open), patch(
+        "custom_components.pyscript.open", mock_open
+    ), patch(
         "homeassistant.config.load_yaml_config_file", return_value={"pyscript": conf}
+    ), patch(
+        "custom_components.pyscript.os.path.getmtime", return_value=1000
+    ), patch(
+        "custom_components.pyscript.global_ctx.os.path.getmtime", return_value=1000
     ), patch(
         "custom_components.pyscript.os.path.isfile"
     ) as mock_isfile:

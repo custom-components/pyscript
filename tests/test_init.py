@@ -28,10 +28,16 @@ async def setup_script(hass, notify_q, now, source):
 
     with patch("custom_components.pyscript.os.path.isdir", return_value=True), patch(
         "custom_components.pyscript.glob.iglob", return_value=scripts
-    ), patch("custom_components.pyscript.global_ctx.open", mock_open(read_data=source), create=True,), patch(
+    ), patch("custom_components.pyscript.global_ctx.open", mock_open(read_data=source)), patch(
         "custom_components.pyscript.trigger.dt_now", return_value=now
     ), patch(
+        "custom_components.pyscript.open", mock_open(read_data=source)
+    ), patch(
         "homeassistant.config.load_yaml_config_file", return_value={}
+    ), patch(
+        "custom_components.pyscript.os.path.getmtime", return_value=1000
+    ), patch(
+        "custom_components.pyscript.global_ctx.os.path.getmtime", return_value=1000
     ), patch(
         "custom_components.pyscript.install_requirements", return_value=None,
     ):
@@ -442,12 +448,16 @@ def func5(var_name=None, value=None):
 
         with patch("custom_components.pyscript.os.path.isdir", return_value=True), patch(
             "custom_components.pyscript.glob.iglob", return_value=scripts
-        ), patch(
-            "custom_components.pyscript.global_ctx.open", mock_open(read_data=next_source), create=True,
+        ), patch("custom_components.pyscript.global_ctx.open", mock_open(read_data=next_source)), patch(
+            "custom_components.pyscript.open", mock_open(read_data=next_source)
         ), patch(
             "custom_components.pyscript.trigger.dt_now", return_value=now
         ), patch(
             "homeassistant.config.load_yaml_config_file", return_value={}
+        ), patch(
+            "custom_components.pyscript.os.path.getmtime", return_value=1000
+        ), patch(
+            "custom_components.pyscript.global_ctx.os.path.getmtime", return_value=1000
         ), patch(
             "custom_components.pyscript.install_requirements", return_value=None,
         ):

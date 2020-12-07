@@ -134,9 +134,15 @@ async def setup_script(hass, now, source, no_connect=False):
     ) as mock_glob, patch("custom_components.pyscript.global_ctx.open", mock_open), patch(
         "custom_components.pyscript.trigger.dt_now", return_value=now
     ), patch(
+        "custom_components.pyscript.open", mock_open
+    ), patch(
         "homeassistant.config.load_yaml_config_file", return_value={}
     ), patch(
         "custom_components.pyscript.install_requirements", return_value=None,
+    ), patch(
+        "custom_components.pyscript.os.path.getmtime", return_value=1000
+    ), patch(
+        "custom_components.pyscript.global_ctx.os.path.getmtime", return_value=1000
     ), patch(
         "custom_components.pyscript.os.path.isfile"
     ) as mock_isfile:
