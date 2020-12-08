@@ -970,11 +970,10 @@ It takes the following keyword arguments (all are optional):
   before a subsequent state trigger occurs. The default value of ``None`` means that the trigger can
   occur without the trigger expression having to be ``False``. A value of ``0`` requires the
   expression become ``False`` before the trigger, but with no minimum time in that state.
-  With the default of ``state_check_now=True``, the state trigger expression is checked at startup,
-  and if ``True`` the trigger will not occur, and a wait for the next ``False`` will begin.
-  If ``state_check_now==False``, the ``state_hold_false`` period applies at startup, although the
-  expression is not checked at startup. So if ``state_hold_false=0`` the first trigger after startup
-  will succeed, whether or not the expression was previously ``False``.
+  When ``state_hold_false`` is set, the state trigger expression is evaluated immediately. If ``False``
+  the ``state_hold_false`` period begins. If ``True``, a wait for the next ``False`` value begins.
+  If ``state_check_now`` is also set, ``task.wait_until()`` will still return immediately if the
+  expression is initially ``True``.
 
 When a trigger occurs, the return value is a ``dict`` containing the same keyword values that are
 passed into the function when the corresponding decorator trigger occurs. There will always be a key
