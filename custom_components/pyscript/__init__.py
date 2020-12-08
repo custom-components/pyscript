@@ -324,6 +324,9 @@ async def load_scripts(hass, config_data, global_ctx_only=None):
                     # the globs result in apps/APP/__init__.py matching twice, so skip the 2nd time
                     continue
 
+                if fq_mod_name.endswith(".__init__"):
+                    fq_mod_name = fq_mod_name[: -len(".__init__")]
+
                 if check_config:
                     app_name = fq_mod_name
                     i = fq_mod_name.find(".")

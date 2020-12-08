@@ -123,7 +123,7 @@ xyz = 123
         assert "modules/xyz2/other global_ctx=modules.xyz2.other;" in caplog.text
         assert "hello global_ctx=file.hello xyz=123 xyz2.xyz=123" in caplog.text
         assert "world2.other global_ctx=apps.world2.other" in caplog.text
-        assert "world2.__init__ global_ctx=apps.world2.__init__ var1=100, other_abc=987" in caplog.text
+        assert "world2 global_ctx=apps.world2.__init__ var1=100, other_abc=987" in caplog.text
 
         #
         # add a new script file
@@ -192,7 +192,7 @@ xyz = 456
         #
         conf["apps"]["world2"]["var1"] = 200
         await hass.services.async_call("pyscript", "reload", {}, blocking=True)
-        assert "world2.__init__ global_ctx=apps.world2.__init__ var1=200, other_abc=987" in caplog.text
+        assert "world2 global_ctx=apps.world2.__init__ var1=200, other_abc=987" in caplog.text
 
         #
         # change a module inside an app
@@ -208,7 +208,7 @@ log.info(f"{__name__} global_ctx={pyscript.get_global_ctx()}")
             f"{conf_dir}/apps/world2/other.py"
         ]
         await hass.services.async_call("pyscript", "reload", {}, blocking=True)
-        assert "world2.__init__ global_ctx=apps.world2.__init__ var1=200, other_abc=654" in caplog.text
+        assert "world2 global_ctx=apps.world2.__init__ var1=200, other_abc=654" in caplog.text
 
         #
         # now confirm certain files reloaded the correct number of times,
@@ -216,7 +216,7 @@ log.info(f"{__name__} global_ctx={pyscript.get_global_ctx()}")
         #
         for i in range(3):
             assert caplog.text.count("world global_ctx=apps.world xyz=") == 2 + i
-            assert caplog.text.count("world2.__init__ global_ctx=apps.world2.__init__ var1=") == 3 + i
+            assert caplog.text.count("world2 global_ctx=apps.world2.__init__ var1=") == 3 + i
             assert caplog.text.count("hello global_ctx=file.hello xyz=") == 4 + i
             assert caplog.text.count("modules/xyz2/other global_ctx=modules.xyz2.other") == 2 + i
             assert caplog.text.count("modules/xyz2 global_ctx=modules.xyz2.__init__") == 2 + i
