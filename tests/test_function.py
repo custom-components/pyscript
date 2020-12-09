@@ -911,7 +911,7 @@ def func_startup_sync(trigger_type=None, trigger_time=None):
     global seq_num
 
     seq_num += 1
-    pyscript.done = seq_num
+    pyscript.done = [seq_num, trigger_type, trigger_time]
 
 def factory(trig_value):
 
@@ -939,7 +939,7 @@ f = [factory(50), factory(51), factory(52), factory(53), factory(54)]
     seq_num += 1
     # fire event to start triggers, and handshake when they are running
     hass.bus.async_fire(EVENT_HOMEASSISTANT_STARTED)
-    assert literal_eval(await wait_until_done(notify_q)) == seq_num
+    assert literal_eval(await wait_until_done(notify_q)) == [seq_num, "time", "startup"]
 
     #
     # trigger them one at a time to make sure each is working

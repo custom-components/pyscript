@@ -29,20 +29,31 @@ Planned new features post 1.0.0 include:
 
 The new features since 1.0.0 in master include:
 
+- Adding new decorator ``@mqtt_trigger`` by @dlashua (#98, #105).
 - ``pyscript.reload`` only reloads changed files (changed contents, mtime, or an app's yaml configuration).
   All files in an app or module are reloaded if any one has changed, and any script, app or module that
   imports a changed modules (directly or indirectly) is also reloaded. Setting the optional ``global_ctx``
   service parameter to ``*`` forces reloading all files (which is the behavior in 1.0.0 and earlier).  See #106.
-- Adding new decorator ``@mqtt_trigger`` by @dlashua (#98, #105).
 - Added ``state_hold_false=None`` optional period in seconds to ``@state_trigger()`` and ``task.wait_until()``.
   This requires the trigger expression to be ``False`` for at least that period (including 0) before
   a successful trigger. Setting this optional parameter makes state triggers edge triggered (ie,
   triggers only on transition from ``False`` to ``True``), instead of the default level trigger
-  (ie, only has to evaluate to ``True``). Proposed by @tchef69 (#89).
+  (ie, only has to evaluate to ``True``). Proposed by @tchef69 (#89), with suggestions from @dlashua (#95).
+- ``@time_trigger`` now supports a ``"shutdown"`` trigger, which occurs on HASS shutdown or whenever
+  the trigger function is no longer referenced (eg: during reload, or redefinition in Jupyter),
+  requested by @dlashua (#103).
 - All .py files below the ``pyscript/scripts`` directory are autoloaded, recursively.  Also, any
   file name or directory starting with ``#`` is skipped (including top-level and ``apps``), which is
   an in-place way of disabling a specific script, app or directory tree (#97).
 - ``del`` and new function ``state.delete()`` can delete state variables and state variable attributes.
+
+Breaking changes since 1.0.0 include:
+
+- The ``pyscript.reload`` service only reloads changed files; prior behavior of reloading all files can be
+  requested by setting the optional ``global_ctx`` service parameter to ``*``.
+- The ``trigger_time`` trigger function argument is now set to ``startup`` for a startup trigger,
+  rather than ``None``. This was done to be consistent with the new ``shutdown`` trigger, which
+  calls the trigger function with `trigger_time="shutdown"``.
 
 Bug fixes since 1.0.0 in master include:
 

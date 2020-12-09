@@ -790,7 +790,7 @@ class TrigInfo:
                 Function.reaper_cancel(self.task)
         if self.run_on_shutdown:
             notify_type = "shutdown"
-            notify_info = {"trigger_type": "shutdown", "trigger_time": None}
+            notify_info = {"trigger_type": "time", "trigger_time": "shutdown"}
             action_future = self.call_action(notify_type, notify_info, run_task=False)
             Function.reaper_await(action_future)
 
@@ -841,7 +841,7 @@ class TrigInfo:
                     # first time only - skip waiting for other triggers
                     #
                     notify_type = "startup"
-                    notify_info = {"trigger_type": "time", "trigger_time": None}
+                    notify_info = {"trigger_type": "time", "trigger_time": "startup"}
                     self.run_on_startup = False
                 elif check_state_expr_on_start:
                     #

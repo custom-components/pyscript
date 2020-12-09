@@ -515,7 +515,9 @@ with the following features:
 
 In ``@time_trigger``, each string specification ``time_spec`` can take one of four forms:
 
-- ``"startup"`` triggers on HASS start and reload.
+- ``"startup"`` triggers on HASS start and reload (ie, on function definition)
+- ``"shutdown"`` triggers on HASS shutdown and reload (ie, when the trigger function is
+  no longer referenced)
 - ``"once(datetime)"`` triggers once on the date and time. If the year is
   omitted, it triggers once per year on the date and time (eg, birthday). If the date is just a day
   of week, it triggers once on that day of the week. If the date is omitted, it triggers once each
@@ -547,8 +549,8 @@ In ``@time_trigger``, each string specification ``time_spec`` can take one of fo
 
 When the ``@time_trigger`` occurs and the function is called, the keyword argument ``trigger_type``
 is set to ``"time"``, and ``trigger_time`` is the exact ``datetime`` of the time specification that
-caused the trigger (it will be slightly before the current time), or ``None`` in the case of a
-``startup`` trigger.
+caused the trigger (it will be slightly before the current time), or ``startup`` or ``shutdown``
+in the case of a ``startup`` or ``shutdown`` trigger.
 
 A final special form of ``@time_trigger`` has no arguments, which causes the function to run once
 automatically on startup or reload, which is the same as providing a single ``"startup"`` time
@@ -563,7 +565,16 @@ specification:
 
 The function is not re-started after it returns, unless a reload occurs. Startup occurs when the
 ``EVENT_HOMEASSISTANT_STARTED`` event is fired, which is after everything else is initialized and
-ready, so this function can call any services etc.
+ready, so this function can call any services etc. A startup trigger can also occur after
+HASS is started when a new trigger function is defined (eg, on reload, defined at run-time
+using inner function/closure, or interactively in Jupyter).
+
+Similarly, the ``shutdown`` trigger occurs when the ``EVENT_HOMEASSISTANT_STOP`` event is fired,
+meaning HASS is shutting down. It also occurs whenever a trigger function is no longer referenced
+(meaning it's being deleted), which happens during reload or redefined interactively in Jupyter.
+It's important that any trigger function based on ``shutdown`` runs as quickly as possible,
+since the shutdown of HASS (or reload completion) will be stalled until your function
+completes.
 
 @event_trigger
 ^^^^^^^^^^^^^^

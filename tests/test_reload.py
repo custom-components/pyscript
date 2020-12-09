@@ -55,6 +55,10 @@ def func3():
 other_abc = 987
 
 log.info(f"{__name__} global_ctx={pyscript.get_global_ctx()}")
+
+@time_trigger("shutdown")
+def shutdown(trigger_time=None):
+    log.info(f"{__name__} global_ctx={pyscript.get_global_ctx()} shutdown trigger_time={trigger_time}")
 """,
         f"{conf_dir}/modules/xyz2/__init__.py": """
 from .other import xyz
@@ -193,6 +197,7 @@ xyz = 456
         conf["apps"]["world2"]["var1"] = 200
         await hass.services.async_call("pyscript", "reload", {}, blocking=True)
         assert "world2 global_ctx=apps.world2.__init__ var1=200, other_abc=987" in caplog.text
+        assert "world2.other global_ctx=apps.world2.other shutdown trigger_time=shutdown" in caplog.text
 
         #
         # change a module inside an app
@@ -203,12 +208,17 @@ xyz = 456
 other_abc = 654
 
 log.info(f"{__name__} global_ctx={pyscript.get_global_ctx()}")
+
+@time_trigger("shutdown")
+def shutdown(trigger_time=None):
+    log.info(f"{__name__} global_ctx={pyscript.get_global_ctx()} shutdown_new trigger_time={trigger_time}")
 """
         mock_open[f"{conf_dir}/apps/world2/other.py"].read_data = file_contents[
             f"{conf_dir}/apps/world2/other.py"
         ]
         await hass.services.async_call("pyscript", "reload", {}, blocking=True)
         assert "world2 global_ctx=apps.world2.__init__ var1=200, other_abc=654" in caplog.text
+        assert "world2.other global_ctx=apps.world2.other shutdown trigger_time=shutdown" in caplog.text
 
         #
         # now confirm certain files reloaded the correct number of times,
@@ -220,5 +230,15 @@ log.info(f"{__name__} global_ctx={pyscript.get_global_ctx()}")
             assert caplog.text.count("hello global_ctx=file.hello xyz=") == 4 + i
             assert caplog.text.count("modules/xyz2/other global_ctx=modules.xyz2.other") == 2 + i
             assert caplog.text.count("modules/xyz2 global_ctx=modules.xyz2.__init__") == 2 + i
+            assert (
+                caplog.text.count("world2.other global_ctx=apps.world2.other shutdown trigger_time=shutdown")
+                == 2
+            )
+            assert (
+                caplog.text.count(
+                    "world2.other global_ctx=apps.world2.other shutdown_new trigger_time=shutdown"
+                )
+                == i
+            )
             if i < 2:
                 await hass.services.async_call("pyscript", "reload", {"global_ctx": "*"}, blocking=True)
