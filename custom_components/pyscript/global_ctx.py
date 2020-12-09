@@ -140,27 +140,22 @@ class GlobalContext:
                 if path.find("/") < 0 or idx < 0:
                     raise ImportError("attempted relative import above parent package")
                 ctx_name = ctx_name[0:idx]
-            idx = ctx_name.rfind(".")
-            if idx >= 0:
-                ctx_name = f"{ctx_name[0:idx]}.{module_name}"
-            file_paths.append([ctx_name, f"{path}/{module_path}.py", path])
+            ctx_name += f".{module_name}"
+            module_info = [ctx_name, f"{path}/{module_path}.py", path]
             path += f"/{module_path}"
-            file_paths.append([f"{ctx_name}.__init__", f"{path}/__init__.py", path])
+            file_paths.append([ctx_name, f"{path}/__init__.py", path])
+            file_paths.append(module_info)
             module_name = ctx_name[ctx_name.find(".") + 1 :]
 
         else:
             if self.rel_import_path is not None and self.rel_import_path.startswith("apps/"):
                 ctx_name = f"apps.{module_name}"
+                file_paths.append([ctx_name, f"apps/{module_path}/__init__.py", f"apps/{module_path}"])
                 file_paths.append([ctx_name, f"apps/{module_path}.py", f"apps/{module_path}"])
-                file_paths.append(
-                    [f"{ctx_name}.__init__", f"apps/{module_path}/__init__.py", f"apps/{module_path}"]
-                )
 
             ctx_name = f"modules.{module_name}"
+            file_paths.append([ctx_name, f"modules/{module_path}/__init__.py", f"modules/{module_path}"])
             file_paths.append([ctx_name, f"modules/{module_path}.py", None])
-            file_paths.append(
-                [f"{ctx_name}.__init__", f"modules/{module_path}/__init__.py", f"modules/{module_path}"]
-            )
 
         #
         # now see if we have loaded it already

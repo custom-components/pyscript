@@ -200,7 +200,7 @@ def func15():
     ret = await wait_until_done(notify_q)
     assert literal_eval(ret) == [99, "xyz2", "xyz2.other", 1 + 5, 3 * 6, 10 + 30, 50 - 30]
 
-    assert "modules/xyz2 global_ctx=modules.xyz2.__init__;" in caplog.text
+    assert "modules/xyz2 global_ctx=modules.xyz2;" in caplog.text
     assert "func14 global_ctx=scripts.a.b.c.d.func14;" in caplog.text
     assert "ModuleNotFoundError: import of no_such_package not allowed" in caplog.text
     assert "SyntaxError: invalid syntax (bad_module.py, line 2)" in caplog.text

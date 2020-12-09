@@ -70,6 +70,15 @@ log.info(f"modules/xyz2/other global_ctx={pyscript.get_global_ctx()};")
 
 xyz = 123
 """,
+        #
+        # these shouldn't load since the package takes precedence
+        #
+        f"{conf_dir}/modules/xyz2.py": """
+log.info(f"BOTCH shouldn't load {__name__}")
+""",
+        f"{conf_dir}/apps/world2.py": """
+log.info(f"BOTCH shouldn't load {__name__}")
+""",
     }
 
     mock_open = MockOpen()
@@ -123,11 +132,11 @@ xyz = 123
         assert hass.services.has_service("pyscript", "func2")
         assert hass.services.has_service("pyscript", "func3")
 
-        assert "modules/xyz2 global_ctx=modules.xyz2.__init__;" in caplog.text
+        assert "modules/xyz2 global_ctx=modules.xyz2;" in caplog.text
         assert "modules/xyz2/other global_ctx=modules.xyz2.other;" in caplog.text
         assert "hello global_ctx=file.hello xyz=123 xyz2.xyz=123" in caplog.text
         assert "world2.other global_ctx=apps.world2.other" in caplog.text
-        assert "world2 global_ctx=apps.world2.__init__ var1=100, other_abc=987" in caplog.text
+        assert "world2 global_ctx=apps.world2 var1=100, other_abc=987" in caplog.text
 
         #
         # add a new script file
@@ -196,7 +205,7 @@ xyz = 456
         #
         conf["apps"]["world2"]["var1"] = 200
         await hass.services.async_call("pyscript", "reload", {}, blocking=True)
-        assert "world2 global_ctx=apps.world2.__init__ var1=200, other_abc=987" in caplog.text
+        assert "world2 global_ctx=apps.world2 var1=200, other_abc=987" in caplog.text
         assert "world2.other global_ctx=apps.world2.other shutdown trigger_time=shutdown" in caplog.text
 
         #
@@ -217,7 +226,7 @@ def shutdown(trigger_time=None):
             f"{conf_dir}/apps/world2/other.py"
         ]
         await hass.services.async_call("pyscript", "reload", {}, blocking=True)
-        assert "world2 global_ctx=apps.world2.__init__ var1=200, other_abc=654" in caplog.text
+        assert "world2 global_ctx=apps.world2 var1=200, other_abc=654" in caplog.text
         assert "world2.other global_ctx=apps.world2.other shutdown trigger_time=shutdown" in caplog.text
 
         #
@@ -226,10 +235,10 @@ def shutdown(trigger_time=None):
         #
         for i in range(3):
             assert caplog.text.count("world global_ctx=apps.world xyz=") == 2 + i
-            assert caplog.text.count("world2 global_ctx=apps.world2.__init__ var1=") == 3 + i
+            assert caplog.text.count("world2 global_ctx=apps.world2 var1=") == 3 + i
             assert caplog.text.count("hello global_ctx=file.hello xyz=") == 4 + i
             assert caplog.text.count("modules/xyz2/other global_ctx=modules.xyz2.other") == 2 + i
-            assert caplog.text.count("modules/xyz2 global_ctx=modules.xyz2.__init__") == 2 + i
+            assert caplog.text.count("modules/xyz2 global_ctx=modules.xyz2") == 2 + i
             assert (
                 caplog.text.count("world2.other global_ctx=apps.world2.other shutdown trigger_time=shutdown")
                 == 2
@@ -242,3 +251,8 @@ def shutdown(trigger_time=None):
             )
             if i < 2:
                 await hass.services.async_call("pyscript", "reload", {"global_ctx": "*"}, blocking=True)
+
+        #
+        # make sure files that shouldn't load were not loaded
+        #
+        assert "BOTCH shouldn't load" not in caplog.text

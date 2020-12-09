@@ -309,6 +309,7 @@ async def load_scripts(hass, config_data, global_ctx_only=None):
                 mod_name = rel_path[0:-3]
                 if mod_name.endswith("/__init__"):
                     rel_import_path = mod_name
+                    mod_name = mod_name[: -len("/__init__")]
                 mod_name = mod_name.replace("/", ".")
                 if path == "":
                     global_ctx_name = f"file.{mod_name}"
@@ -322,14 +323,12 @@ async def load_scripts(hass, config_data, global_ctx_only=None):
 
                 if global_ctx_name in ctx2source:
                     # the globs result in apps/APP/__init__.py matching twice, so skip the 2nd time
+                    # also skip apps/APP.py if apps/APP/__init__.py is present
                     continue
-
-                if fq_mod_name.endswith(".__init__"):
-                    fq_mod_name = fq_mod_name[: -len(".__init__")]
 
                 if check_config:
                     app_name = fq_mod_name
-                    i = fq_mod_name.find(".")
+                    i = app_name.find(".")
                     if i >= 0:
                         app_name = app_name[0:i]
                     if not isinstance(apps_config, dict) or app_name not in apps_config:
@@ -365,11 +364,12 @@ async def load_scripts(hass, config_data, global_ctx_only=None):
         return ctx2source
 
     load_paths = [
-        # directory, glob, check_config, autoload
+        # path, glob, check_config, autoload
         ["", "*.py", False, True],
-        ["apps", "*.py", True, True],
         ["apps", "*/__init__.py", True, True],
+        ["apps", "*.py", True, True],
         ["apps", "*/**/*.py", False, False],
+        ["modules", "*/__init__.py", False, False],
         ["modules", "*.py", False, False],
         ["modules", "*/**/*.py", False, False],
         ["scripts", "**/*.py", False, True],

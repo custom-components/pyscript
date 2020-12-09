@@ -68,16 +68,17 @@ they have changed when the ``pyscript.reload`` service is called, which also rel
   are autoloaded. This is useful for organizing your scripts into subdirectories that are
   related in some way.
 
-``<config>/pyscript/apps/<app_name>.py``
-  all files in the ``apps`` subdirectory with a ``.py`` suffix are autoloaded, provided ``app_name``
-  exists in the pyscript ``yaml`` configuration under ``apps`` (that allows each app to be disabled by
-  simply removing its configuration and reloading).
-
 ``<config>/pyscript/apps/<app_name>/__init__.py``
   every ``__init__.py`` file in a subdirectory in the ``apps`` subdirectory is autoloaded,
   provided ``app_name`` exists in the pyscript ``yaml`` configuration under ``apps``.
-  This form is most convenient for sharing pyscript code, since all the files for one
-  application are stored in its own directory.
+  This package form is most convenient for sharing pyscript code, since all the files for
+  one application are stored in their own directory.
+
+``<config>/pyscript/apps/<app_name>.py``
+  all files in the ``apps`` subdirectory with a ``.py`` suffix are autoloaded, unless the
+  package form above was loaded instead, and provided ``app_name`` exists in the pyscript
+  ``yaml`` configuration under ``apps`` (that allows each app to be disabled by simply
+  removing its configuration and reloading).
 
 Any file name that starts with ``#`` is not loaded, and similarly scripts anywhere below a directory
 name that starts with ``#``, are not loaded. That's a convenient way to disable a specific script or
@@ -95,8 +96,9 @@ created by a script file, or even another Jupyter session.
 
 The optional ``<config>/pyscript/modules`` subdirectory can contain modules (files with a ``.py``
 extension) or packages (directories that contain at least a ``__init__.py`` file) that can be
-imported by any other pyscript files, applications or modules. They are not autoloaded. Any modules
-or packages in ``<config>/pyscript/modules`` that are modified will be unloaded when you call the
+imported by any other pyscript files, applications or modules. The module form is ignored if the
+package form is presemt. They are not autoloaded. Any modules or packages in
+``<config>/pyscript/modules`` that are modified will be unloaded when you call the
 ``pyscript.reload`` service. Importing modules and packages from ``<config>/pyscript/modules`` are
 not restricted if ``allow_all_imports`` is ``False``. Typically common functions or features would
 be implemented in a module or package, and then imported and used by scripts in
@@ -1100,10 +1102,10 @@ lower case are actual fixed names):
   ======================================= ===========================
   ``pyscript/FILE.py``                    ``file.FILE``
   ``pyscript/modules/MODULE.py``          ``modules.MODULE``
-  ``pyscript/modules/MODULE/__init__.py`` ``modules.MODULE.__init__``
+  ``pyscript/modules/MODULE/__init__.py`` ``modules.MODULE``
   ``pyscript/modules/MODULE/FILE.py``     ``modules.MODULE.FILE``
   ``pyscript/apps/APP.py``                ``apps.APP``
-  ``pyscript/apps/APP/__init__.py``       ``apps.APP.__init__``
+  ``pyscript/apps/APP/__init__.py``       ``apps.APP``
   ``pyscript/apps/APP/FILE.py``           ``apps.APP.FILE``
   ``pyscript/scripts/FILE.py``            ``scripts.FILE``
   ``pyscript/scripts/DIR1/FILE.py``       ``scripts.DIR1.FILE``
