@@ -1112,6 +1112,10 @@ lower case are actual fixed names):
   ``pyscript/scripts/DIR1/DIR2/FILE.py``  ``scripts.DIR1.DIR2.FILE``
   ======================================= ===========================
 
+Note that if the package form of an app or module (`pyscript/apps/APP/__init__.py`` or
+``pyscript/modules/MODULE/__init__.py``) exists, the module form (``pyscript/apps/APP.py``
+or ``pyscript/modules/MODULE.py``) is ignored.
+
 The logging path uses the global context name, so you can customize logging verbosity for each
 global context, to the granularity of specific functions eg:
 
