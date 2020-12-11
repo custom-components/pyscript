@@ -63,11 +63,11 @@ class Function:
         cls.hass = hass
         cls.functions.update(
             {
-                "task.executor": cls.task_executor,
                 "event.fire": cls.event_fire,
-                "task.sleep": cls.async_sleep,
                 "service.call": cls.service_call,
                 "service.has_service": cls.service_has_service,
+                "task.executor": cls.task_executor,
+                "task.sleep": cls.async_sleep,
             }
         )
         cls.ast_functions.update(
@@ -187,11 +187,7 @@ class Function:
                         await asyncio.sleep(100000)
                 elif task != curr_task and task in cls.our_tasks:
                     # only cancel tasks if they are ones we started
-                    try:
-                        task.cancel()
-                        await task
-                    except asyncio.CancelledError:
-                        pass
+                    Function.reaper_cancel(task)
             if curr_task in cls.our_tasks:
                 if name in cls.unique_name2task:
                     task = cls.unique_name2task[name]
@@ -325,7 +321,7 @@ class Function:
         try:
             task = asyncio.current_task()
             cls.our_tasks.add(task)
-            await coro
+            return await coro
         except asyncio.CancelledError:
             raise
         except Exception:

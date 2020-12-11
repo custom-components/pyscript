@@ -726,6 +726,10 @@ class EvalFuncVar:
         """Call the EvalFunc function."""
         return await self.func.call(ast_ctx, *args, **kwargs)
 
+    def get_name(self):
+        """Return the function name."""
+        return self.func.get_name()
+
     def __del__(self):
         """On deletion, stop any triggers for this function."""
         self.func.trigger_stop()
@@ -755,6 +759,10 @@ class EvalFuncVarAstCtx:
     async def call(self, ast_ctx, *args, **kwargs):
         """Call the EvalFunc function."""
         return await self.eval_func_var.call(ast_ctx, *args, **kwargs)
+
+    def get_name(self):
+        """Return the function name."""
+        return self.eval_func_var.get_name()
 
     async def __call__(self, *args, **kwargs):
         """Call the EvalFunc function using our saved ast ctx."""

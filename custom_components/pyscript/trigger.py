@@ -14,7 +14,7 @@ from homeassistant.core import Context
 import homeassistant.helpers.sun as sun
 
 from .const import LOGGER_PATH
-from .eval import AstEval
+from .eval import AstEval, EvalFuncVar, EvalFuncVarAstCtx
 from .event import Event
 from .function import Function
 from .mqtt import Mqtt
@@ -133,10 +133,51 @@ class TrigTime:
 
             return wait_until_call
 
+        def user_task_create_factory(ast_ctx):
+            """Return wapper to call to astFunction with the ast context."""
+
+            async def user_task_create(func, *args, **kwargs):
+                """Implement task.create()."""
+
+                async def func_call(func, new_ast_ctx, *args, **kwargs):
+                    """Call user function inside task.create()."""
+                    ret = await func.call(new_ast_ctx, *args, **kwargs)
+                    if new_ast_ctx.get_exception_obj():
+                        new_ast_ctx.get_logger().error(new_ast_ctx.get_exception_long())
+                    return ret
+
+                if not isinstance(func, (EvalFuncVar, EvalFuncVarAstCtx)):
+                    raise TypeError("function is not callable by task.create()")
+
+                new_ast_ctx = AstEval(
+                    f"{ast_ctx.get_global_ctx_name()}.{func.get_name()}", ast_ctx.get_global_ctx()
+                )
+                Function.install_ast_funcs(new_ast_ctx)
+                return Function.create_task(func_call(func, new_ast_ctx, *args, **kwargs))
+
+            return user_task_create
+
         ast_funcs = {
             "task.wait_until": wait_until_factory,
+            "task.create": user_task_create_factory,
         }
         Function.register_ast(ast_funcs)
+
+        def user_task_cancel(task):
+            """Implement task.cancel()."""
+            if not isinstance(task, asyncio.Task):
+                raise TypeError(f"{task} is not of type asyncio.Task")
+            Function.reaper_cancel(task)
+
+        async def user_task_wait(aws):
+            """Implement task.wait()."""
+            return await asyncio.wait(aws)
+
+        funcs = {
+            "task.cancel": user_task_cancel,
+            "task.wait": user_task_wait,
+        }
+        Function.register(funcs)
 
         for i in range(0, 7):
             cls.dow2int[locale.nl_langinfo(getattr(locale, f"ABDAY_{i + 1}")).lower()] = i
