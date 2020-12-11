@@ -51,7 +51,7 @@ class Function:
     # task id of the task that cancels and waits for other tasks,
     # and also awaits on coros
     #
-    task_repeaer = None
+    task_reaper = None
 
     def __init__(self):
         """Warn on Function instantiation."""
@@ -108,17 +108,17 @@ class Function:
                 except Exception:
                     _LOGGER.error("task_reaper: got exception %s", traceback.format_exc(-1))
 
-        if not cls.task_repeaer:
+        if not cls.task_reaper:
             cls.task_reaper_q = asyncio.Queue(0)
-            cls.task_repeaer = Function.create_task(task_reaper(cls.task_reaper_q))
+            cls.task_reaper = Function.create_task(task_reaper(cls.task_reaper_q))
 
     @classmethod
     async def reaper_stop(cls):
         """Tell the reaper task to exit by sending a special task None."""
-        if cls.task_repeaer:
+        if cls.task_reaper:
             cls.task_reaper_q.put_nowait(["exit"])
-            await cls.task_repeaer
-            cls.task_repeaer = None
+            await cls.task_reaper
+            cls.task_reaper = None
             cls.task_reaper_q = None
 
     @classmethod
@@ -180,7 +180,7 @@ class Function:
                     if task != curr_task:
                         #
                         # it seems we can't cancel ourselves, so we
-                        # tell the repeaer task to cancel us
+                        # tell the reaper task to cancel us
                         #
                         Function.reaper_cancel(curr_task)
                         # wait to be canceled
