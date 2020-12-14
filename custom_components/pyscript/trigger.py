@@ -614,6 +614,9 @@ class TrigTime:
                     this_match = start <= now <= end
                 else:  # Over midnight
                     this_match = now >= start or now <= end
+            else:
+                _LOGGER.error("Invalid time_active expression: %s", active_str)
+                return False
 
             if negate:
                 results["-"].append(not this_match)
