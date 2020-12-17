@@ -832,11 +832,12 @@ class TrigInfo:
                 Mqtt.notify_del(self.mqtt_trigger[0], self.notify_q)
             if self.task:
                 Function.reaper_cancel(self.task)
+                self.task = None
         if self.run_on_shutdown:
             notify_type = "shutdown"
             notify_info = {"trigger_type": "time", "trigger_time": "shutdown"}
             action_future = self.call_action(notify_type, notify_info, run_task=False)
-            Function.reaper_await(action_future)
+            Function.waiter_await(action_future)
 
     def start(self):
         """Start this trigger task."""

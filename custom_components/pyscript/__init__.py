@@ -166,12 +166,11 @@ async def async_setup_entry(hass, config_entry):
             global_ctx_name, global_sym_table={"__name__": global_ctx_name}, manager=GlobalContextMgr
         )
         global_ctx.set_auto_start(True)
-
         GlobalContextMgr.set(global_ctx_name, global_ctx)
 
         ast_ctx = AstEval(global_ctx_name, global_ctx)
         Function.install_ast_funcs(ast_ctx)
-        kernel = Kernel(call.data, ast_ctx, global_ctx_name)
+        kernel = Kernel(call.data, ast_ctx, global_ctx, global_ctx_name)
         await kernel.session_start()
         hass.states.async_set(call.data["state_var"], json.dumps(kernel.get_ports()))
 
@@ -215,7 +214,9 @@ async def async_setup_entry(hass, config_entry):
     async def hass_stop(event):
         _LOGGER.debug("stopping global contexts")
         await unload_scripts(unload_all=True)
-        # tell reaper task to exit (after other tasks are cancelled)
+        # sync with waiter, and then tell waiter and reaper tasks to exit
+        await Function.waiter_sync()
+        await Function.waiter_stop()
         await Function.reaper_stop()
 
     # Store callbacks to event listeners so we can unsubscribe on unload
@@ -255,7 +256,7 @@ async def unload_scripts(global_ctx_only=None, unload_all=False):
         ctx_delete[global_ctx_name] = global_ctx
     for global_ctx_name, global_ctx in ctx_delete.items():
         GlobalContextMgr.delete(global_ctx_name)
-    await Function.reaper_sync()
+    await Function.waiter_sync()
 
 
 @bind_hass
@@ -501,7 +502,7 @@ async def load_scripts(hass, config_data, global_ctx_only=None):
             if global_ctx_name not in ctx2files or not ctx2files[global_ctx_name].autoload:
                 _LOGGER.info("Unloaded %s", global_ctx.get_file_path())
             GlobalContextMgr.delete(global_ctx_name)
-    await Function.reaper_sync()
+    await Function.waiter_sync()
 
     #
     # now load the requested files, and files that depend on loaded files

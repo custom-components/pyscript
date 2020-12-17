@@ -49,9 +49,15 @@ class Function:
 
     #
     # task id of the task that cancels and waits for other tasks,
-    # and also awaits on coros
     #
     task_reaper = None
+    task_reaper_q = None
+
+    #
+    # task id of the task that awaits for coros (used by shutdown triggers)
+    #
+    task_waiter = None
+    task_waiter_q = None
 
     def __init__(self):
         """Warn on Function instantiation."""
@@ -97,10 +103,6 @@ class Function:
                             await cmd[1]
                         except asyncio.CancelledError:
                             pass
-                    elif cmd[0] == "await":
-                        await cmd[1]
-                    elif cmd[0] == "sync":
-                        await cmd[1].put(0)
                     else:
                         _LOGGER.error("task_reaper: unknown command %s", cmd[0])
                 except asyncio.CancelledError:
@@ -112,14 +114,35 @@ class Function:
             cls.task_reaper_q = asyncio.Queue(0)
             cls.task_reaper = Function.create_task(task_reaper(cls.task_reaper_q))
 
-    @classmethod
-    async def reaper_stop(cls):
-        """Tell the reaper task to exit by sending a special task None."""
-        if cls.task_reaper:
-            cls.task_reaper_q.put_nowait(["exit"])
-            await cls.task_reaper
-            cls.task_reaper = None
-            cls.task_reaper_q = None
+        #
+        # start a task which creates tasks to run coros, and then syncs on their completion;
+        # this is used by the shutdown trigger
+        #
+        async def task_waiter(waiter_q):
+            aws = []
+            while True:
+                try:
+                    cmd = await waiter_q.get()
+                    if cmd[0] == "exit":
+                        return
+                    if cmd[0] == "await":
+                        aws.append(cls.create_task(cmd[1]))
+                    elif cmd[0] == "sync":
+                        if len(aws) > 0:
+                            await asyncio.gather(*aws)
+                            aws = []
+                        await cmd[1].put(0)
+                    else:
+                        _LOGGER.error("task_waiter: unknown command %s", cmd[0])
+                except asyncio.CancelledError:
+                    raise
+                except Exception:
+                    _LOGGER.error("task_waiter: got exception %s", traceback.format_exc(-1))
+
+        if not cls.task_waiter:
+            cls.task_waiter_q = asyncio.Queue(0)
+            cls.task_waiter = Function.create_task(task_waiter(cls.task_waiter_q))
+            _LOGGER.debug("task_waiter: started")
 
     @classmethod
     def reaper_cancel(cls, task):
@@ -127,21 +150,35 @@ class Function:
         cls.task_reaper_q.put_nowait(["cancel", task])
 
     @classmethod
-    def reaper_await(cls, coro):
-        """Send a coro to be awaited by the reaper."""
-        cls.task_reaper_q.put_nowait(["await", coro])
+    async def reaper_stop(cls):
+        """Tell the reaper task to exit."""
+        if cls.task_reaper:
+            cls.task_reaper_q.put_nowait(["exit"])
+            await cls.task_reaper
+            cls.task_reaper = None
+            cls.task_reaper_q = None
 
     @classmethod
-    async def reaper_sync(cls):
-        """Wait until the reaper queue is empty."""
-        sync_q = asyncio.Queue(0)
-        sync_q.put_nowait(["sync", sync_q])
-        await sync_q.get()
+    def waiter_await(cls, coro):
+        """Send a coro to be awaited by the waiter task."""
+        cls.task_waiter_q.put_nowait(["await", coro])
 
     @classmethod
-    def reaper_exit(cls):
-        """Send an exit request to the reaper."""
-        cls.task_reaper_q.put_nowait(["exit"])
+    async def waiter_sync(cls):
+        """Wait until the waiter queue is empty."""
+        if cls.task_waiter:
+            sync_q = asyncio.Queue(0)
+            cls.task_waiter_q.put_nowait(["sync", sync_q])
+            await sync_q.get()
+
+    @classmethod
+    async def waiter_stop(cls):
+        """Tell the waiter task to exit."""
+        if cls.task_waiter:
+            cls.task_waiter_q.put_nowait(["exit"])
+            await cls.task_waiter
+            cls.task_waiter = None
+            cls.task_waiter_q = None
 
     @classmethod
     async def async_sleep(cls, duration):

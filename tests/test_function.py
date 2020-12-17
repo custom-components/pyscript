@@ -1134,10 +1134,11 @@ async def test_service_call_params(hass):
         assert call.call_args[1] == {"context": Context(id="test"), "blocking": False}
 
     # Stop all tasks to avoid conflicts with other tests
+    await Function.waiter_stop()
     await Function.reaper_stop()
 
 
-async def test_serive_call_blocking(hass, caplog):
+async def test_service_call_blocking(hass, caplog):
     """Test that service calls with blocking=True actually block."""
     notify_q = asyncio.Queue(0)
 
@@ -1171,6 +1172,9 @@ def func_startup():
     service.call("pyscript", "long_sleep", blocking=True, limit=1e-6)
     pyscript.done = [seq_num, pyscript.var1]
 
+    seq_num += 1
+    pyscript.done = [seq_num]
+
 @service
 def long_sleep():
     task.sleep(10000)
@@ -1187,3 +1191,4 @@ def service1():
     assert literal_eval(await wait_until_done(notify_q)) == [2, "3"]
     assert literal_eval(await wait_until_done(notify_q)) == [3, "4"]
     assert literal_eval(await wait_until_done(notify_q)) == [4, "5"]
+    assert literal_eval(await wait_until_done(notify_q)) == [5]

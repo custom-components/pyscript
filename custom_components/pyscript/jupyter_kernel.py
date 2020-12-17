@@ -189,9 +189,10 @@ class ZmqSocket:
 class Kernel:
     """Define a Jupyter Kernel class."""
 
-    def __init__(self, config, ast_ctx, global_ctx_name):
+    def __init__(self, config, ast_ctx, global_ctx, global_ctx_name):
         """Initialize a Kernel object, one instance per session."""
         self.config = config.copy()
+        self.global_ctx = global_ctx
         self.global_ctx_name = global_ctx_name
         self.ast_ctx = ast_ctx
 
@@ -346,11 +347,15 @@ class Kernel:
             if code.startswith("_rwho_ls = %who_ls"):
                 code = "print([])"
 
+            self.global_ctx.set_auto_start(False)
             self.ast_ctx.parse(code)
             exc = self.ast_ctx.get_exception_obj()
             if exc is None:
                 result = await self.ast_ctx.eval()
                 exc = self.ast_ctx.get_exception_obj()
+            await Function.waiter_sync()
+            self.global_ctx.set_auto_start(True)
+            self.global_ctx.start()
             if exc:
                 traceback_mesg = self.ast_ctx.get_exception_long().split("\n")
 

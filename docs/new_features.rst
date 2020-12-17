@@ -36,3 +36,6 @@ The new features since 1.1.0 in master include:
 Breaking changes since 1.1.0 include:
 
 Bug fixes since 1.1.0 include:
+
+- Fixed shutdown trigger for case where it calls ``task.unique()`` (#117).
+- Added error message for invalid ``@time_active`` argument, by @dlashua (#118).
