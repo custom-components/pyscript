@@ -372,9 +372,7 @@ class EvalFunc:
 
                     return pyscript_service_handler
 
-                Function.hass.services.async_register(
-                    DOMAIN, self.name, pyscript_service_factory(self.name, self),
-                )
+                Function.service_register(DOMAIN, self.name, pyscript_service_factory(self.name, self))
                 async_set_service_schema(Function.hass, DOMAIN, self.name, service_desc)
                 self.trigger_service = True
             else:
@@ -513,7 +511,7 @@ class EvalFunc:
             trigger.stop()
         if self.trigger_service:
             self.trigger_service = False
-            Function.hass.services.async_remove(DOMAIN, self.name)
+            Function.service_remove(DOMAIN, self.name)
 
     async def eval_decorators(self, ast_ctx):
         """Evaluate the function decorators arguments."""

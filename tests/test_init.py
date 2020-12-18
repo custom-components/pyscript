@@ -89,6 +89,11 @@ async def test_service_exists(hass, caplog):
 def func1():
     pass
 
+# make sure a double definition still keeps the service registered
+@service
+def func1():
+    pass
+
 def func2():
     pass
 

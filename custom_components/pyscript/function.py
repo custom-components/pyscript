@@ -59,6 +59,13 @@ class Function:
     task_waiter = None
     task_waiter_q = None
 
+    #
+    # reference counting for service registrations; the new @service trigger
+    # registers the service call before the old one is removed, so we only
+    # remove the service registration when the reference count goes to zero
+    #
+    service_cnt = {}
+
     def __init__(self):
         """Warn on Function instantiation."""
         _LOGGER.error("Function class is not meant to be instantiated")
@@ -376,3 +383,22 @@ class Function:
     def create_task(cls, coro):
         """Create a new task that runs a coroutine."""
         return cls.hass.loop.create_task(cls.run_coro(coro))
+
+    @classmethod
+    def service_register(cls, domain, service, callback):
+        """Register a new service callback."""
+        key = f"{domain}.{service}"
+        if key not in cls.service_cnt:
+            cls.service_cnt[key] = 0
+        cls.service_cnt[key] += 1
+        cls.hass.services.async_register(domain, service, callback)
+
+    @classmethod
+    def service_remove(cls, domain, service):
+        """Remove a service callback."""
+        key = f"{domain}.{service}"
+        if cls.service_cnt.get(key, 0) > 1:
+            cls.service_cnt[key] -= 1
+            return
+        cls.service_cnt[key] = 0
+        cls.hass.services.async_remove(domain, service)

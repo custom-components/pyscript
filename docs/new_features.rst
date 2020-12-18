@@ -38,4 +38,6 @@ Breaking changes since 1.1.0 include:
 Bug fixes since 1.1.0 include:
 
 - Fixed shutdown trigger for case where it calls ``task.unique()`` (#117).
+- Duplicate ``@service`` function definitions (with the same name) now correctly register the service,
+  reported by @wsw70 (#121)
 - Added error message for invalid ``@time_active`` argument, by @dlashua (#118).
