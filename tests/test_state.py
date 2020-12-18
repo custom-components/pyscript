@@ -21,7 +21,7 @@ async def test_service_call(hass):
         State.init(hass)
         await State.get_service_params()
 
-        func = await State.get("test.entity.test")
+        func = State.get("test.entity.test")
         await func(context=Context(id="test"), blocking=True, limit=1, other_service_data="test")
         assert call.called
         assert call.call_args[0] == (
@@ -32,7 +32,7 @@ async def test_service_call(hass):
         assert call.call_args[1] == {"context": Context(id="test"), "blocking": True, "limit": 1}
         call.reset_mock()
 
-        func = await State.get("test.entity.test")
+        func = State.get("test.entity.test")
         await func(context=Context(id="test"), blocking=False, other_service_data="test")
         assert call.called
         assert call.call_args[0] == (

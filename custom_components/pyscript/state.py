@@ -249,7 +249,7 @@ class State:
         return False
 
     @classmethod
-    async def get(cls, var_name):
+    def get(cls, var_name):
         """Get a state variable value or attribute from hass."""
         parts = var_name.split(".")
         if len(parts) != 2 and len(parts) != 3:

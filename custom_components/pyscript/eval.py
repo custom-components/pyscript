@@ -972,6 +972,22 @@ class AstEval:
 
     async def ast_functiondef(self, arg):
         """Evaluate function definition."""
+        for dec in arg.decorator_list:
+            if isinstance(dec, ast.Name):
+                if dec.id != "pyscript_compile":
+                    continue
+                arg.decorator_list = []
+                local_var = None
+                if arg.name in self.sym_table and isinstance(self.sym_table[arg.name], EvalLocalVar):
+                    local_var = self.sym_table[arg.name]
+                code = compile(ast.Module(body=[arg], type_ignores=[]), filename=self.filename, mode="exec")
+                exec(code, self.global_sym_table, self.sym_table)  # pylint: disable=exec-used
+                if local_var:
+                    func = self.sym_table[arg.name]
+                    self.sym_table[arg.name] = local_var
+                    self.sym_table[arg.name].set(func)
+                return
+
         func = EvalFunc(arg, self.code_list, self.code_str, self.global_ctx)
         await func.eval_defaults(self)
         await func.eval_decorators(self)
@@ -1374,7 +1390,7 @@ class AstEval:
             # a two-dot name for state.attr needs to exist
             #
             if num_dots == 1 or (num_dots == 2 and State.exist(arg.id)):
-                return await State.get(arg.id)
+                return State.get(arg.id)
             #
             # Couldn't find it, so return just the name wrapped in EvalName to
             # distinguish from a string variable value.  This is to support
