@@ -762,6 +762,14 @@ class EvalFuncVarAstCtx:
         """Return the function name."""
         return self.eval_func_var.get_name()
 
+    def get_ast_ctx(self):
+        """Return the ast context."""
+        return self.ast_ctx
+
+    def get_eval_func_var(self):
+        """Return the eval_func_var."""
+        return self.eval_func_var
+
     async def __call__(self, *args, **kwargs):
         """Call the EvalFunc function using our saved ast ctx."""
         return await self.eval_func_var.call(self.ast_ctx, *args, **kwargs)
@@ -1703,25 +1711,32 @@ class AstEval:
             else:
                 kwargs[kw_arg.arg] = await self.aeval(kw_arg.value)
         args = await self.eval_elt_list(arg.args)
-        arg_str = ", ".join(['"' + elt + '"' if isinstance(elt, str) else str(elt) for elt in args])
         #
         # try to deduce function name, although this only works in simple cases
         #
+        func_name = None
         if isinstance(arg.func, ast.Name):
             func_name = arg.func.id
         elif isinstance(arg.func, ast.Attribute):
             func_name = arg.func.attr
-        else:
-            func_name = "<function>"
         if isinstance(func, EvalLocalVar):
             func_name = func.get_name()
             func = func.get()
-        _LOGGER.debug("%s: calling %s(%s, %s)", self.name, func_name, arg_str, kwargs)
         return await self.call_func(func, func_name, *args, **kwargs)
 
     async def call_func(self, func, func_name, *args, **kwargs):
         """Call a function with the given arguments."""
-        if isinstance(func, (EvalFuncVar, EvalFuncVarAstCtx)):
+        if func_name is None:
+            try:
+                if isinstance(func, (EvalFunc, EvalFuncVar, EvalFuncVarAstCtx)):
+                    func_name = func.get_name()
+                else:
+                    func_name = func.__name__
+            except Exception:
+                func_name = "<function>"
+        arg_str = ", ".join(['"' + elt + '"' if isinstance(elt, str) else str(elt) for elt in args])
+        _LOGGER.debug("%s: calling %s(%s, %s)", self.name, func_name, arg_str, kwargs)
+        if isinstance(func, (EvalFunc, EvalFuncVar, EvalFuncVarAstCtx)):
             return await func.call(self, *args, **kwargs)
         if inspect.isclass(func) and hasattr(func, "__init__evalfunc_wrap__"):
             inst = func()

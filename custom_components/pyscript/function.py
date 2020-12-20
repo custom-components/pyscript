@@ -36,6 +36,11 @@ class Function:
     our_tasks = set()
 
     #
+    # Done callbacks for each task
+    #
+    task2cb = {}
+
+    #
     # initial list of available functions
     #
     functions = {}
@@ -149,7 +154,6 @@ class Function:
         if not cls.task_waiter:
             cls.task_waiter_q = asyncio.Queue(0)
             cls.task_waiter = Function.create_task(task_waiter(cls.task_waiter_q))
-            _LOGGER.debug("task_waiter: started")
 
     @classmethod
     def reaper_cancel(cls, task):
@@ -365,7 +369,12 @@ class Function:
         try:
             task = asyncio.current_task()
             cls.our_tasks.add(task)
-            return await coro
+            result = await coro
+            if task in cls.task2cb:
+                for callback, info in cls.task2cb[task]["cb"].items():
+                    ast_ctx, args, kwargs = info
+                    await ast_ctx.call_func(callback, None, *args, **kwargs)
+            return result
         except asyncio.CancelledError:
             raise
         except Exception:
@@ -375,8 +384,8 @@ class Function:
                 for name in cls.unique_task2name[task]:
                     del cls.unique_name2task[name]
                 del cls.unique_task2name[task]
-            if task in cls.task2context:
-                del cls.task2context[task]
+            cls.task2context.pop(task, None)
+            cls.task2cb.pop(task, None)
             cls.our_tasks.discard(task)
 
     @classmethod
@@ -402,3 +411,20 @@ class Function:
             return
         cls.service_cnt[key] = 0
         cls.hass.services.async_remove(domain, service)
+
+    @classmethod
+    def task_done_callback_ctx(cls, task, ast_ctx):
+        """Set the ast_ctx for a task, which is needed for done callbacks."""
+        cls.task2cb[task] = {"ctx": ast_ctx, "cb": {}}
+
+    @classmethod
+    def task_add_done_callback(cls, task, ast_ctx, callback, *args, **kwargs):
+        """Add a done callback to the given task."""
+        if ast_ctx is None:
+            ast_ctx = cls.task2cb[task]["ctx"]
+        cls.task2cb[task]["cb"][callback] = [ast_ctx, args, kwargs]
+
+    @classmethod
+    def task_remove_done_callback(cls, task, callback):
+        """Remove a done callback to the given task."""
+        cls.task2cb[task]["cb"].pop(callback, None)

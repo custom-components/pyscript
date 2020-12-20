@@ -14,7 +14,7 @@ from homeassistant.core import Context
 import homeassistant.helpers.sun as sun
 
 from .const import LOGGER_PATH
-from .eval import AstEval, EvalFuncVar, EvalFuncVarAstCtx
+from .eval import AstEval, EvalFunc, EvalFuncVar, EvalFuncVarAstCtx
 from .event import Event
 from .function import Function
 from .mqtt import Mqtt
@@ -139,21 +139,28 @@ class TrigTime:
             async def user_task_create(func, *args, **kwargs):
                 """Implement task.create()."""
 
-                async def func_call(func, new_ast_ctx, *args, **kwargs):
+                async def func_call(func, func_name, new_ast_ctx, *args, **kwargs):
                     """Call user function inside task.create()."""
-                    ret = await func.call(new_ast_ctx, *args, **kwargs)
+                    ret = await new_ast_ctx.call_func(func, func_name, *args, **kwargs)
                     if new_ast_ctx.get_exception_obj():
                         new_ast_ctx.get_logger().error(new_ast_ctx.get_exception_long())
                     return ret
 
-                if not isinstance(func, (EvalFuncVar, EvalFuncVarAstCtx)):
-                    raise TypeError("function is not callable by task.create()")
+                try:
+                    if isinstance(func, (EvalFunc, EvalFuncVar, EvalFuncVarAstCtx)):
+                        func_name = func.get_name()
+                    else:
+                        func_name = func.__name__
+                except Exception:
+                    func_name = "<function>"
 
                 new_ast_ctx = AstEval(
-                    f"{ast_ctx.get_global_ctx_name()}.{func.get_name()}", ast_ctx.get_global_ctx()
+                    f"{ast_ctx.get_global_ctx_name()}.{func_name}", ast_ctx.get_global_ctx()
                 )
                 Function.install_ast_funcs(new_ast_ctx)
-                return Function.create_task(func_call(func, new_ast_ctx, *args, **kwargs))
+                task = Function.create_task(func_call(func, func_name, new_ast_ctx, *args, **kwargs))
+                Function.task_done_callback_ctx(task, new_ast_ctx)
+                return task
 
             return user_task_create
 
@@ -173,9 +180,25 @@ class TrigTime:
             """Implement task.wait()."""
             return await asyncio.wait(aws)
 
+        async def user_task_add_done_callback(task, callback, *args, **kwargs):
+            """Implement task.add_done_callback()."""
+            ast_ctx = None
+            if type(callback) is EvalFuncVarAstCtx:
+                ast_ctx = callback.get_ast_ctx()
+                callback = callback.get_eval_func_var()
+            Function.task_add_done_callback(task, ast_ctx, callback, *args, **kwargs)
+
+        async def user_task_remove_done_callback(task, callback):
+            """Implement task.remove_done_callback()."""
+            if type(callback) is EvalFuncVarAstCtx:
+                callback = callback.get_eval_func_var()
+            Function.task_remove_done_callback(task, callback)
+
         funcs = {
             "task.cancel": user_task_cancel,
             "task.wait": user_task_wait,
+            "task.add_done_callback": user_task_add_done_callback,
+            "task.remove_done_callback": user_task_remove_done_callback,
         }
         Function.register(funcs)
 
@@ -1132,7 +1155,7 @@ class TrigInfo:
 
             if task_unique and task_unique_func:
                 await task_unique_func(task_unique)
-            await func.call(ast_ctx, **kwargs)
+            await ast_ctx.call_func(func, None, **kwargs)
             if ast_ctx.get_exception_obj():
                 ast_ctx.get_logger().error(ast_ctx.get_exception_long())
 
