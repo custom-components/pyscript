@@ -1454,6 +1454,20 @@ triggers and application logic, eg:
 
 Validating the configuration can be done either manually or with the ``voluptuous`` package.
 
+Secrets can also be bound to variables by substituting the value with ``!secret my_secret``. This is useful API keys and passwords needed for services on the network.
+
+Here is an example config for ``service_checker`` which needs a name (not a secret) and a URL and an API key:
+
+.. code:: yaml
+
+   pyscript:
+     allow_all_imports: true
+     apps:
+       service_checker:
+         - service_name: my_service
+           url: !secret my_secret_url
+           api_key: !secret my_secret_api_key
+
 Access to Hass
 ^^^^^^^^^^^^^^
 
