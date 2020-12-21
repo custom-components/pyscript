@@ -35,6 +35,8 @@ async def setup_script(hass, notify_q, now, source):
     ), patch(
         "homeassistant.config.load_yaml_config_file", return_value={}
     ), patch(
+        "custom_components.pyscript.watchdog_start", return_value=None
+    ), patch(
         "custom_components.pyscript.os.path.getmtime", return_value=1000
     ), patch(
         "custom_components.pyscript.global_ctx.os.path.getmtime", return_value=1000
@@ -70,7 +72,9 @@ async def test_setup_makedirs_on_no_dir(hass, caplog):
     """Test setup calls os.makedirs when no dir found."""
     with patch("custom_components.pyscript.os.path.isdir", return_value=False), patch(
         "custom_components.pyscript.os.makedirs"
-    ) as makedirs_call, patch("homeassistant.config.load_yaml_config_file", return_value={}):
+    ), patch("custom_components.pyscript.watchdog_start", return_value=None) as makedirs_call, patch(
+        "homeassistant.config.load_yaml_config_file", return_value={}
+    ):
         res = await async_setup_component(hass, "pyscript", {DOMAIN: {}})
 
     assert res

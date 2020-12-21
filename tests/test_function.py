@@ -136,6 +136,8 @@ async def setup_script(hass, notify_q, notify_q2, now, source, config=None):
     ), patch(
         "custom_components.pyscript.install_requirements", return_value=None,
     ), patch(
+        "custom_components.pyscript.watchdog_start", return_value=None
+    ), patch(
         "custom_components.pyscript.os.path.getmtime", return_value=1000
     ), patch(
         "custom_components.pyscript.global_ctx.os.path.getmtime", return_value=1000

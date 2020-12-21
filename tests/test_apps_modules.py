@@ -165,6 +165,8 @@ def func15():
     ), patch(
         "homeassistant.config.load_yaml_config_file", return_value={"pyscript": conf}
     ), patch(
+        "custom_components.pyscript.watchdog_start", return_value=None
+    ), patch(
         "custom_components.pyscript.os.path.getmtime", return_value=1000
     ), patch(
         "custom_components.pyscript.global_ctx.os.path.getmtime", return_value=1000

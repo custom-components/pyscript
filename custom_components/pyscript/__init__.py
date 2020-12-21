@@ -1,11 +1,16 @@
 """Component to allow running Python scripts."""
 
+import asyncio
 import glob
 import json
 import logging
 import os
+import time
+import traceback
 
 import voluptuous as vol
+from watchdog.events import DirModifiedEvent, FileSystemEventHandler
+import watchdog.observers
 
 from homeassistant.config import async_hass_config_yaml
 from homeassistant.config_entries import SOURCE_IMPORT
@@ -29,6 +34,8 @@ from .const import (
     LOGGER_PATH,
     SERVICE_JUPYTER_KERNEL_START,
     UNSUB_LISTENERS,
+    WATCHDOG_OBSERVER,
+    WATCHDOG_TASK,
 )
 from .eval import AstEval
 from .event import Event
@@ -109,6 +116,87 @@ def start_global_contexts(global_ctx_only=None):
         global_ctx.start()
 
 
+async def watchdog_start(hass, pyscript_folder, reload_scripts_handler):
+    """Start watchdog thread to look for changed files in pyscript_folder."""
+    if WATCHDOG_OBSERVER in hass.data[DOMAIN]:
+        return
+
+    class WatchDogHandler(FileSystemEventHandler):
+        """Class for handling watchdog events."""
+
+        def __init__(self, watchdog_q):
+            self.watchdog_q = watchdog_q
+
+        def process(self, event):
+            """Send watchdog events to main loop task."""
+            _LOGGER.debug("watchdog process(%s)", event)
+            hass.loop.call_soon_threadsafe(self.watchdog_q.put_nowait, event)
+
+        def on_modified(self, event):
+            """File modified."""
+            self.process(event)
+
+        def on_moved(self, event):
+            """File moved."""
+            self.process(event)
+
+        def on_created(self, event):
+            """File created."""
+            self.process(event)
+
+        def on_deleted(self, event):
+            """File deleted."""
+            self.process(event)
+
+    async def task_watchdog(watchdog_q):
+        def check_event(event, do_reload):
+            """Check if event should trigger a reload."""
+            if event.is_directory:
+                # don't reload if it's just a directory modified
+                if isinstance(event, DirModifiedEvent):
+                    return do_reload
+                return True
+            # only reload if it's a script or requirements.txt file
+            if event.src_path.endswith(".py") or event.src_path.endswith("/requirements.txt"):
+                return True
+            return do_reload
+
+        while True:
+            try:
+                #
+                # since some file/dir changes create multiple events, we consume all
+                # events in a small window; first # wait indefinitely for next event
+                #
+                do_reload = check_event(await watchdog_q.get(), False)
+                #
+                # now consume all additional events with 50ms timeout or 500ms elapsed
+                #
+                t_start = time.monotonic()
+                while time.monotonic() - t_start < 0.5:
+                    try:
+                        do_reload = check_event(
+                            await asyncio.wait_for(watchdog_q.get(), timeout=0.05), do_reload
+                        )
+                    except asyncio.TimeoutError:
+                        break
+                if do_reload:
+                    await reload_scripts_handler(None)
+
+            except asyncio.CancelledError:
+                raise
+            except Exception:
+                _LOGGER.error("task_watchdog: got exception %s", traceback.format_exc(-1))
+
+    watchdog_q = asyncio.Queue(0)
+    observer = watchdog.observers.Observer()
+    if observer is not None:
+        # don't run watchdog when we are testing (it patches to None)
+        hass.data[DOMAIN][WATCHDOG_OBSERVER] = observer
+        hass.data[DOMAIN][WATCHDOG_TASK] = Function.create_task(task_watchdog(watchdog_q))
+
+        observer.schedule(WatchDogHandler(watchdog_q), pyscript_folder, recursive=True)
+
+
 async def async_setup_entry(hass, config_entry):
     """Initialize the pyscript config entry."""
     if Function.hass:
@@ -148,7 +236,7 @@ async def async_setup_entry(hass, config_entry):
 
         await State.get_service_params()
 
-        global_ctx_only = call.data.get("global_ctx", None)
+        global_ctx_only = call.data.get("global_ctx", None) if call else None
 
         await install_requirements(hass, config_entry, pyscript_folder)
         await load_scripts(hass, config_entry.data, global_ctx_only=global_ctx_only)
@@ -210,8 +298,19 @@ async def async_setup_entry(hass, config_entry):
         await State.get_service_params()
         hass.data[DOMAIN][UNSUB_LISTENERS].append(hass.bus.async_listen(EVENT_STATE_CHANGED, state_changed))
         start_global_contexts()
+        if WATCHDOG_OBSERVER in hass.data[DOMAIN]:
+            observer = hass.data[DOMAIN][WATCHDOG_OBSERVER]
+            observer.start()
 
     async def hass_stop(event):
+        if WATCHDOG_OBSERVER in hass.data[DOMAIN]:
+            observer = hass.data[DOMAIN][WATCHDOG_OBSERVER]
+            observer.stop()
+            observer.join()
+            del hass.data[DOMAIN][WATCHDOG_OBSERVER]
+            Function.reaper_cancel(hass.data[DOMAIN][WATCHDOG_TASK])
+            del hass.data[DOMAIN][WATCHDOG_TASK]
+
         _LOGGER.debug("stopping global contexts")
         await unload_scripts(unload_all=True)
         # sync with waiter, and then tell waiter and reaper tasks to exit
@@ -224,6 +323,8 @@ async def async_setup_entry(hass, config_entry):
         hass.bus.async_listen(EVENT_HOMEASSISTANT_STARTED, hass_started)
     )
     hass.data[DOMAIN][UNSUB_LISTENERS].append(hass.bus.async_listen(EVENT_HOMEASSISTANT_STOP, hass_stop))
+
+    await watchdog_start(hass, pyscript_folder, reload_scripts_handler)
 
     return True
 
