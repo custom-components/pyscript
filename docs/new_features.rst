@@ -21,11 +21,8 @@ in the latest documentation.
 
 Planned new features post 1.1.0 include:
 
-- use ``aionofity`` to auto-reload newly written script files, at least on linux (#74)
-- consider allowing native Python functions inside pyscript (#71)
-- consider allowing new tasks to be created via `task.create` (#112)
-- consider implementing function decorators (#43)
-- consider supporting the built-in functions that do I/O, such as ``open``, ``read`` and ``write``, which
+- Consider implementing function decorators (#43)
+- Consider supporting the built-in functions that do I/O, such as ``open``, ``read`` and ``write``, which
   are not currently supported to avoid I/O in the main event loop, and also to avoid security issues if people
   share pyscripts. The ``print`` function only logs a message, rather than implements the real ``print`` features,
   such as specifying an output file handle. Support might be added in the future using an executor job, perhaps
@@ -33,11 +30,26 @@ Planned new features post 1.1.0 include:
 
 The new features since 1.1.0 in master include:
 
+- Reload is automatically done whenever a script file, ``requirements.txt`` or ``yaml`` file below the
+  ``pyscripts`` folder is modified, created, renamed or deleted, or a directory is renamed, created or
+  deleted (see #74).
+- New functions ``task.create``, ``task.cancel``, ``task.wait``, ``task.add_done_callback``,
+  ``task.remove_done_callback`` allow new background (async) tasks to be created, canceled, waited on,
+  and completion callbacks to be added or deleted (see #112).
+- New function decorator ``@pyscript.compile`` compiles a native Python function inside pyscript, which
+  is helpful if you need a regular function (all pyscript functions are coroutines) for callbacks or
+  other uses like ``map()``, or if you have code you want to run at compiled speed (see #71). The
+  function body can't contain any pyscript-specific features, and closure of variables for an inner
+  function that uses ``@pyscript.compile`` won't work either, since in pyscript local variables with
+  scope binding are objects, not their native types.  Note also that this is an experimental feature
+  and the decorator name or other features might change prior to release; feedback welcome.
+
 Breaking changes since 1.1.0 include:
 
 Bug fixes since 1.1.0 include:
 
 - Fixed shutdown trigger for case where it calls ``task.unique()`` (#117).
-- Duplicate ``@service`` function definitions (with the same name) now correctly register the service,
-  reported by @wsw70 (#121)
+- Duplicate ``@service`` function definitions (ie, with the same name) now correctly register
+  the service, reported by @wsw70 (#121)
 - Added error message for invalid ``@time_active`` argument, by @dlashua (#118).
+- The ``scripts`` subdirectory is now recursively traversed for ``requirements.txt`` files.

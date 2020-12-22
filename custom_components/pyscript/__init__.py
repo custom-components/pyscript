@@ -32,6 +32,7 @@ from .const import (
     DOMAIN,
     FOLDER,
     LOGGER_PATH,
+    REQUIREMENTS_FILE,
     SERVICE_JUPYTER_KERNEL_START,
     UNSUB_LISTENERS,
     WATCHDOG_OBSERVER,
@@ -156,9 +157,10 @@ async def watchdog_start(hass, pyscript_folder, reload_scripts_handler):
                 if isinstance(event, DirModifiedEvent):
                     return do_reload
                 return True
-            # only reload if it's a script or requirements.txt file
-            if event.src_path.endswith(".py") or event.src_path.endswith("/requirements.txt"):
-                return True
+            # only reload if it's a script, yaml, or requirements.txt file
+            for valid_suffix in [".py", ".yaml", "/" + REQUIREMENTS_FILE]:
+                if event.src_path.endswith(valid_suffix):
+                    return True
             return do_reload
 
         while True:
