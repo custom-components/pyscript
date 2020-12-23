@@ -413,7 +413,7 @@ class State:
     def set_pyscript_config(cls, config):
         """Set pyscript yaml config."""
         #
-        # have to update inplace, since dist is already used as value
+        # have to update inplace, since dest is already used as value
         #
         cls.pyscript_config.clear()
         for name, value in config.items():
