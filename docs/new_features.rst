@@ -31,7 +31,7 @@ Planned new features post 1.1.0 include:
 The new features since 1.1.0 in master include:
 
 - Reload is automatically done whenever a script file, ``requirements.txt`` or ``yaml`` file below the
-  ``pyscripts`` folder is modified, created, renamed or deleted, or a directory is renamed, created or
+  ``pyscript`` folder is modified, created, renamed or deleted, or a directory is renamed, created or
   deleted (see #74).
 - New functions ``task.create``, ``task.cancel``, ``task.wait``, ``task.add_done_callback``,
   ``task.remove_done_callback`` allow new background (async) tasks to be created, canceled, waited on,
