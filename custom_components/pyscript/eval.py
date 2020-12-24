@@ -535,8 +535,17 @@ class EvalFunc:
             else:
                 dec_funcs.append(await ast_ctx.aeval(dec))
 
+        def make_dec_call(func):
+            async def dec_call(*args_tuple, **kwargs):
+                args = list(args_tuple)
+                if len(args) > 0 and isinstance(args[0], AstEval):
+                    args.pop(0)
+                return await func(ast_ctx, *args, **kwargs)
+
+            return dec_call
+
         for func in reversed(dec_funcs):
-            self.call = await ast_ctx.call_func(func, None, self.call)
+            self.call = await ast_ctx.call_func(func, None, make_dec_call(self.call))
 
         ast_ctx.code_str, ast_ctx.code_list = code_str, code_list
 
