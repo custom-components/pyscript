@@ -53,6 +53,7 @@ TRIG_DECORATORS = {
 
 ALL_DECORATORS = TRIG_DECORATORS.union({"service"})
 
+
 def ast_eval_exec_factory(ast_ctx, mode):
     """Generate a function that executes eval() or exec() with given ast_ctx."""
 
@@ -291,11 +292,20 @@ class EvalFunc:
             "event_trigger",
             "mqtt_trigger",
         }
+        arg_check = {
+            "event_trigger": {"arg_cnt": {1, 2}},
+            "mqtt_trigger": {"arg_cnt": {1, 2}},
+            "state_active": {"arg_cnt": {1}},
+            "state_trigger": {"arg_cnt": {"*"}, "type": {list, set}},
+            "task_unique": {"arg_cnt": {1}},
+            "time_active": {"arg_cnt": {0, "*"}},
+            "time_trigger": {"arg_cnt": {0, "*"}},
+        }
 
         decorator_used = set()
         for dec in self.decorators:
             dec_name, dec_args, dec_kwargs = dec[0], dec[1], dec[2]
-            if dec_name in decorator_used:
+            if dec_name in decorator_used and "*" not in arg_check.get(dec_name, {"arg_cnt": {}})["arg_cnt"]:
                 self.logger.error(
                     "%s defined in %s: decorator %s repeated; ignoring decorator",
                     self.name,
@@ -313,7 +323,10 @@ class EvalFunc:
                 if dec_args is not None:
                     trig_args[dec_name]["args"] += dec_args
                 if dec_kwargs is not None:
-                    trig_args[dec_name]["kwargs"] = dec_kwargs
+                    if "kwargs" in trig_args[dec_name]:
+                        trig_args[dec_name]["kwargs"].update(dec_kwargs)
+                    else:
+                        trig_args[dec_name]["kwargs"] = dec_kwargs
             elif dec_name == "service":
                 if dec_args is not None:
                     self.logger.error(
@@ -394,15 +407,6 @@ class EvalFunc:
         # check that we have the right number of arguments, and that they are
         # strings
         #
-        arg_check = {
-            "event_trigger": {"arg_cnt": {1, 2}},
-            "mqtt_trigger": {"arg_cnt": {1, 2}},
-            "state_active": {"arg_cnt": {1}},
-            "state_trigger": {"arg_cnt": {"*"}, "type": {list, set}},
-            "task_unique": {"arg_cnt": {1}},
-            "time_active": {"arg_cnt": {0, "*"}},
-            "time_trigger": {"arg_cnt": {0, "*"}},
-        }
         for dec_name, arg_info in arg_check.items():
             arg_cnt = arg_info["arg_cnt"]
             if dec_name not in trig_args:
@@ -518,36 +522,27 @@ class EvalFunc:
 
     async def eval_decorators(self, ast_ctx):
         """Evaluate the function decorators arguments."""
-        self.decorators = []
         code_str, code_list = ast_ctx.code_str, ast_ctx.code_list
         ast_ctx.code_str, ast_ctx.code_list = self.code_str, self.code_list
 
-        dec_funcs = []
+        dec_other = []
+        dec_trig = []
         for dec in self.func_def.decorator_list:
-            if isinstance(dec, ast.Call) and isinstance(dec.func, ast.Name) and dec.func.id in ALL_DECORATORS:
+            if (
+                isinstance(dec, ast.Call)
+                and isinstance(dec.func, ast.Name)
+                and dec.func.id in ALL_DECORATORS
+            ):
                 args = [await ast_ctx.aeval(arg) for arg in dec.args]
                 kwargs = {keyw.arg: await ast_ctx.aeval(keyw.value) for keyw in dec.keywords}
-                if len(kwargs) == 0:
-                    kwargs = None
-                self.decorators.append([dec.func.id, args, kwargs])
+                dec_trig.append([dec.func.id, args, kwargs if len(kwargs) > 0 else None])
             elif isinstance(dec, ast.Name) and dec.id in ALL_DECORATORS:
-                self.decorators.append([dec.id, None, None])
+                dec_trig.append([dec.id, None, None])
             else:
-                dec_funcs.append(await ast_ctx.aeval(dec))
-
-        def make_dec_call(func):
-            async def dec_call(*args_tuple, **kwargs):
-                args = list(args_tuple)
-                if len(args) > 0 and isinstance(args[0], AstEval):
-                    args.pop(0)
-                return await func(ast_ctx, *args, **kwargs)
-
-            return dec_call
-
-        for func in reversed(dec_funcs):
-            self.call = await ast_ctx.call_func(func, None, make_dec_call(self.call))
+                dec_other.append(await ast_ctx.aeval(dec))
 
         ast_ctx.code_str, ast_ctx.code_list = code_str, code_list
+        return dec_trig, reversed(dec_other)
 
     async def resolve_nonlocals(self, ast_ctx):
         """Tag local variables and resolve nonlocals."""
@@ -729,10 +724,17 @@ class EvalFuncVar:
     def __init__(self, func):
         """Initialize instance with given EvalFunc function."""
         self.func = func
+        self.ast_ctx = None
 
     def get_func(self):
         """Return the EvalFunc function."""
         return self.func
+
+    def remove_func(self):
+        """Remove and return the EvalFunc function."""
+        func = self.func
+        self.func = None
+        return func
 
     async def call(self, ast_ctx, *args, **kwargs):
         """Call the EvalFunc function."""
@@ -742,9 +744,22 @@ class EvalFuncVar:
         """Return the function name."""
         return self.func.get_name()
 
+    def set_ast_ctx(self, ast_ctx):
+        """Set the ast context."""
+        self.ast_ctx = ast_ctx
+
+    def get_ast_ctx(self):
+        """Return the ast context."""
+        return self.ast_ctx
+
     def __del__(self):
         """On deletion, stop any triggers for this function."""
-        self.func.trigger_stop()
+        if self.func:
+            self.func.trigger_stop()
+
+    async def __call__(self, *args, **kwargs):
+        """Call the EvalFunc function using our saved ast ctx."""
+        return await self.func.call(self.ast_ctx, *args, **kwargs)
 
 
 class EvalFuncVarClassInst(EvalFuncVar):
@@ -758,35 +773,6 @@ class EvalFuncVarClassInst(EvalFuncVar):
     async def call(self, ast_ctx, *args, **kwargs):
         """Call the EvalFunc function."""
         return await self.func.call(ast_ctx, self.class_inst, *args, **kwargs)
-
-
-class EvalFuncVarAstCtx:
-    """Class for a callable pyscript function with ast context."""
-
-    def __init__(self, ast_ctx, eval_func_var):
-        """Initialize instance with given EvalFunc function."""
-        self.eval_func_var = eval_func_var
-        self.ast_ctx = ast_ctx
-
-    async def call(self, ast_ctx, *args, **kwargs):
-        """Call the EvalFunc function."""
-        return await self.eval_func_var.call(ast_ctx, *args, **kwargs)
-
-    def get_name(self):
-        """Return the function name."""
-        return self.eval_func_var.get_name()
-
-    def get_ast_ctx(self):
-        """Return the ast context."""
-        return self.ast_ctx
-
-    def get_eval_func_var(self):
-        """Return the eval_func_var."""
-        return self.eval_func_var
-
-    async def __call__(self, *args, **kwargs):
-        """Call the EvalFunc function using our saved ast ctx."""
-        return await self.eval_func_var.call(self.ast_ctx, *args, **kwargs)
 
 
 class AstEval:
@@ -833,7 +819,7 @@ class AstEval:
             if undefined_check and isinstance(val, EvalName):
                 raise NameError(f"name '{val.name}' is not defined")
             if isinstance(val, EvalFuncVar):
-                return EvalFuncVarAstCtx(self, val)
+                val.set_ast_ctx(self)
             return val
         except Exception as err:
             if not self.exception_obj:
@@ -1012,11 +998,22 @@ class AstEval:
 
         func = EvalFunc(arg, self.code_list, self.code_str, self.global_ctx)
         await func.eval_defaults(self)
-        await func.eval_decorators(self)
         await func.resolve_nonlocals(self)
-        await func.trigger_init()
         name = func.get_name()
-        func_var = EvalFuncVar(func)
+        dec_trig, dec_other = await func.eval_decorators(self)
+        for dec_func in dec_other:
+            func = await self.call_func(dec_func, None, func)
+            if isinstance(func, EvalFuncVar):
+                func = func.remove_func()
+                dec_trig += func.decorators
+        if isinstance(func, EvalFunc):
+            func.decorators = dec_trig
+            func.trigger_stop()
+            await func.trigger_init()
+            func_var = EvalFuncVar(func)
+        else:
+            func_var = func
+
         if name in self.sym_table and isinstance(self.sym_table[name], EvalLocalVar):
             self.sym_table[name].set(func_var)
         else:
@@ -1742,7 +1739,7 @@ class AstEval:
         """Call a function with the given arguments."""
         if func_name is None:
             try:
-                if isinstance(func, (EvalFunc, EvalFuncVar, EvalFuncVarAstCtx)):
+                if isinstance(func, (EvalFunc, EvalFuncVar)):
                     func_name = func.get_name()
                 else:
                     func_name = func.__name__
@@ -1750,7 +1747,7 @@ class AstEval:
                 func_name = "<function>"
         arg_str = ", ".join(['"' + elt + '"' if isinstance(elt, str) else str(elt) for elt in args])
         _LOGGER.debug("%s: calling %s(%s, %s)", self.name, func_name, arg_str, kwargs)
-        if isinstance(func, (EvalFunc, EvalFuncVar, EvalFuncVarAstCtx)):
+        if isinstance(func, (EvalFunc, EvalFuncVar)):
             return await func.call(self, *args, **kwargs)
         if inspect.isclass(func) and hasattr(func, "__init__evalfunc_wrap__"):
             inst = func()

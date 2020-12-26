@@ -475,7 +475,6 @@ b()
     ],
     [
         """
-@dec_test("abc")
 def foo(cnt=4):
     sum = 0
     for i in range(cnt):
@@ -583,6 +582,78 @@ def foo(cnt):
 [foo(3), foo(6), foo(10), foo(20)]
 """,
         [sum(range(3)), sum(range(6)), 1000 + sum(range(7)), 1000 + sum(range(7))],
+    ],
+    [
+        """
+def twice(func):
+    def twice_func(*args, **kwargs):
+        func(*args, **kwargs)
+        return func(*args, **kwargs)
+    return twice_func
+
+val = 0
+val_list = []
+
+@twice
+def foo1():
+    global val, val_list
+    val_list.append(val)
+    val += 1
+
+@twice
+@twice
+@twice
+def foo2():
+    global val, val_list
+    val_list.append(val)
+    val += 1
+
+foo1()
+foo2()
+val_list
+""",
+        list(range(0, 10)),
+    ],
+    [
+        """
+def twice(func):
+    def twice_func(*args, **kwargs):
+        func(*args, **kwargs)
+        return func(*args, **kwargs)
+    return twice_func
+
+def repeat(num_times):
+    def decorator_repeat(func):
+        nonlocal num_times
+        def wrapper_repeat(*args, **kwargs):
+            for _ in range(num_times):
+                value = func(*args, **kwargs)
+            return value
+        return wrapper_repeat
+    return decorator_repeat
+
+val = 0
+val_list = []
+
+@twice
+@repeat(3)
+def foo1():
+    global val, val_list
+    val_list.append(val)
+    val += 1
+
+@repeat(3)
+@twice
+def foo2():
+    global val, val_list
+    val_list.append(val)
+    val += 1
+
+foo1()
+foo2()
+val_list
+""",
+        list(range(0, 12)),
     ],
     [
         """

@@ -14,7 +14,7 @@ from homeassistant.core import Context
 import homeassistant.helpers.sun as sun
 
 from .const import LOGGER_PATH
-from .eval import AstEval, EvalFunc, EvalFuncVar, EvalFuncVarAstCtx
+from .eval import AstEval, EvalFunc, EvalFuncVar
 from .event import Event
 from .function import Function
 from .mqtt import Mqtt
@@ -147,7 +147,7 @@ class TrigTime:
                     return ret
 
                 try:
-                    if isinstance(func, (EvalFunc, EvalFuncVar, EvalFuncVarAstCtx)):
+                    if isinstance(func, (EvalFunc, EvalFuncVar)):
                         func_name = func.get_name()
                     else:
                         func_name = func.__name__
@@ -183,15 +183,12 @@ class TrigTime:
         async def user_task_add_done_callback(task, callback, *args, **kwargs):
             """Implement task.add_done_callback()."""
             ast_ctx = None
-            if type(callback) is EvalFuncVarAstCtx:
+            if type(callback) is EvalFuncVar:
                 ast_ctx = callback.get_ast_ctx()
-                callback = callback.get_eval_func_var()
             Function.task_add_done_callback(task, ast_ctx, callback, *args, **kwargs)
 
         async def user_task_remove_done_callback(task, callback):
             """Implement task.remove_done_callback()."""
-            if type(callback) is EvalFuncVarAstCtx:
-                callback = callback.get_eval_func_var()
             Function.task_remove_done_callback(task, callback)
 
         funcs = {
