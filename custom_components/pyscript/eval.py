@@ -802,6 +802,7 @@ class AstEval:
         self.logger = None
         self.set_logger_name(logger_name if logger_name is not None else self.name)
         self.config_entry = Function.hass.data.get(DOMAIN, {}).get(CONFIG_ENTRY, {})
+        self.dec_eval_depth = 0
 
     async def ast_not_implemented(self, arg, *args):
         """Raise NotImplementedError exception for unimplemented AST types."""
@@ -1001,16 +1002,21 @@ class AstEval:
         await func.resolve_nonlocals(self)
         name = func.get_name()
         dec_trig, dec_other = await func.eval_decorators(self)
+        self.dec_eval_depth += 1
         for dec_func in dec_other:
             func = await self.call_func(dec_func, None, func)
             if isinstance(func, EvalFuncVar):
                 func = func.remove_func()
                 dec_trig += func.decorators
+        self.dec_eval_depth -= 1
         if isinstance(func, EvalFunc):
             func.decorators = dec_trig
-            func.trigger_stop()
-            await func.trigger_init()
-            func_var = EvalFuncVar(func)
+            if self.dec_eval_depth == 0:
+                func.trigger_stop()
+                await func.trigger_init()
+                func_var = EvalFuncVar(func)
+            else:
+                func_var = EvalFuncVar(func)
         else:
             func_var = func
 

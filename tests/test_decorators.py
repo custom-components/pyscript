@@ -77,13 +77,11 @@ async def test_decorator_errors(hass, caplog):
         """
 seq_num = 0
 
-@time_trigger("startup")
-def func_startup_sync(trigger_type=None, trigger_time=None):
-    global seq_num
-
-    seq_num += 1
-    log.info(f"func_startup_sync setting pyscript.done = {seq_num}, trigger_type = {trigger_type}, trigger_time = {trigger_time}")
-    pyscript.done = seq_num
+def add_startup_trig(func):
+    @time_trigger("startup")
+    def dec_add_startup_wrapper(*args, **kwargs):
+        return func(*args, **kwargs)
+    return dec_add_startup_wrapper
 
 def once(func):
     def once_func(*args, **kwargs):
@@ -95,6 +93,16 @@ def twice(func):
         func(*args, **kwargs)
         return func(*args, **kwargs)
     return twice_func
+
+@twice
+@add_startup_trig
+@twice
+def func_startup_sync(trigger_type=None, trigger_time=None):
+    global seq_num
+
+    seq_num += 1
+    log.info(f"func_startup_sync setting pyscript.done = {seq_num}, trigger_type = {trigger_type}, trigger_time = {trigger_time}")
+    pyscript.done = seq_num
 
 @state_trigger("pyscript.var1 == '1'")
 @once
@@ -143,6 +151,23 @@ def func4():
     seq_num += 1
     pyscript.done = seq_num
 
+@state_trigger("pyscript.var1 == '5'")
+def func5(value=None):
+    global seq_num
+    global startup_test_save
+
+    seq_num += 1
+    pyscript.done = [seq_num, int(value)]
+
+    @add_startup_trig
+    def startup_test():
+        global seq_num
+
+        seq_num += 1
+        pyscript.done = [seq_num, int(value)]
+
+    startup_test_save = startup_test
+
 def add_state_trig(value):
     def dec_add_state_trig(func):
         nonlocal value
@@ -153,24 +178,24 @@ def add_state_trig(value):
         return dec_add_state_wrapper
     return dec_add_state_trig
 
-
-@add_state_trig(5)              # same as @state_trigger("pyscript.var1 == '5'")
-@add_state_trig(7)              # same as @state_trigger("pyscript.var1 == '7'")
-@state_trigger("pyscript.var1 == '9'")
-def func5():
+@add_state_trig(6)              # same as @state_trigger("pyscript.var1 == '6'")
+@add_state_trig(8)              # same as @state_trigger("pyscript.var1 == '8'")
+@state_trigger("pyscript.var1 == '10'")
+def func6(value):
     global seq_num
 
     seq_num += 1
-    pyscript.done = seq_num
+    pyscript.done = [seq_num, int(value)]
 
 """,
     )
     seq_num = 0
 
-    seq_num += 1
     # fire event to start triggers, and handshake when they are running
     hass.bus.async_fire(EVENT_HOMEASSISTANT_STARTED)
-    assert literal_eval(await wait_until_done(notify_q)) == seq_num
+    for _ in range(4):
+        seq_num += 1
+        assert literal_eval(await wait_until_done(notify_q)) == seq_num
 
     hass.states.async_set("pyscript.var1", 0)
     hass.states.async_set("pyscript.var1", 1)
@@ -192,7 +217,12 @@ def func5():
         seq_num += 1
         assert literal_eval(await wait_until_done(notify_q)) == seq_num
 
-    for i in range(3):
-        hass.states.async_set("pyscript.var1", 5 + 2 * i)
+    hass.states.async_set("pyscript.var1", 5)
+    for _ in range(2):
         seq_num += 1
-        assert literal_eval(await wait_until_done(notify_q)) == seq_num
+        assert literal_eval(await wait_until_done(notify_q)) == [seq_num, 5]
+
+    for i in range(3):
+        hass.states.async_set("pyscript.var1", 6 + 2 * i)
+        seq_num += 1
+        assert literal_eval(await wait_until_done(notify_q)) == [seq_num, 6 + 2 * i]
