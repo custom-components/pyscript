@@ -563,7 +563,9 @@ class EvalFunc:
         var_names = set(args)
         local_names = set(args)
         for stmt in self.func_def.body:
-            self.has_closure = self.has_closure or isinstance(stmt, ast.FunctionDef)
+            self.has_closure = self.has_closure or isinstance(
+                stmt, (ast.FunctionDef, ast.ClassDef, ast.AsyncFunctionDef)
+            )
             var_names = var_names.union(
                 await ast_ctx.get_names(
                     stmt, nonlocal_names=nonlocal_names, global_names=global_names, local_names=local_names,
@@ -1839,7 +1841,7 @@ class AstEval:
             names.add(lhs.id)
         return names
 
-    async def get_names_set(self, arg, names, nonlocal_names=None, global_names=None, local_names=None):
+    async def get_names_set(self, arg, names, nonlocal_names, global_names, local_names):
         """Recursively find all the names mentioned in the AST tree."""
 
         cls_name = arg.__class__.__name__
@@ -1891,51 +1893,38 @@ class AstEval:
                         local_names.add(handler.name)
                         names.add(handler.name)
             elif cls_name == "Call":
-                await self.get_names_set(
-                    arg.func,
-                    names,
-                    nonlocal_names=nonlocal_names,
-                    global_names=global_names,
-                    local_names=local_names,
-                )
+                await self.get_names_set(arg.func, names, nonlocal_names, global_names, local_names)
                 for this_arg in arg.args:
-                    await self.get_names_set(
-                        this_arg,
-                        names,
-                        nonlocal_names=nonlocal_names,
-                        global_names=global_names,
-                        local_names=local_names,
-                    )
+                    await self.get_names_set(this_arg, names, nonlocal_names, global_names, local_names)
                 return
             elif cls_name in {"FunctionDef", "ClassDef", "AsyncFunctionDef"}:
                 local_names.add(arg.name)
                 names.add(arg.name)
+                for dec in arg.decorator_list:
+                    await self.get_names_set(dec, names, nonlocal_names, global_names, local_names)
+                #
+                # find unbound names from the body of the function or class
+                #
+                inner_global, inner_names, inner_local = set(), set(), set()
+                for child in arg.body:
+                    await self.get_names_set(child, inner_names, None, inner_global, inner_local)
+                for name in inner_names:
+                    if name not in inner_local and name not in inner_global:
+                        names.add(name)
                 return
             elif cls_name == "Delete":
                 for arg1 in arg.targets:
                     if isinstance(arg1, ast.Name):
                         local_names.add(arg1.id)
         for child in ast.iter_child_nodes(arg):
-            await self.get_names_set(
-                child,
-                names,
-                nonlocal_names=nonlocal_names,
-                global_names=global_names,
-                local_names=local_names,
-            )
+            await self.get_names_set(child, names, nonlocal_names, global_names, local_names)
 
     async def get_names(self, this_ast=None, nonlocal_names=None, global_names=None, local_names=None):
         """Return set of all the names mentioned in our AST tree."""
         names = set()
         this_ast = this_ast or self.ast
         if this_ast:
-            await self.get_names_set(
-                this_ast,
-                names,
-                nonlocal_names=nonlocal_names,
-                global_names=global_names,
-                local_names=local_names,
-            )
+            await self.get_names_set(this_ast, names, nonlocal_names, global_names, local_names)
         return names
 
     def parse(self, code_str, filename=None, mode="exec"):

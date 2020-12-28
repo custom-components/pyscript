@@ -133,9 +133,8 @@ def func3():
     pyscript.done = seq_num
 
 def repeat(num_times):
+    num_times += 0
     def decorator_repeat(func):
-        nonlocal num_times
-
         @state_trigger("pyscript.var1 == '4'")
         def wrapper_repeat(*args, **kwargs):
             for _ in range(num_times):
@@ -167,8 +166,6 @@ def func5(value=None):
 
 def add_state_trig(value):
     def dec_add_state_trig(func):
-        nonlocal value
-
         @state_trigger(f"pyscript.var1 == '{value}'")
         def dec_add_state_wrapper(*args, **kwargs):
             return func(*args, **kwargs)

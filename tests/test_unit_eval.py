@@ -585,6 +585,22 @@ def foo(cnt):
     ],
     [
         """
+def f1(x, y, z):
+    def f2():
+        y = 5
+        def f3():
+            nonlocal x, y
+            x += 1
+            y += 1
+            return x + y + z
+        return f3()
+    return [x, y, z, f2()]
+f1(10, 20, 30)
+""",
+        [10, 20, 30, 47],
+    ],
+    [
+        """
 def twice(func):
     def twice_func(*args, **kwargs):
         func(*args, **kwargs)
@@ -624,7 +640,6 @@ def twice(func):
 
 def repeat(num_times):
     def decorator_repeat(func):
-        nonlocal num_times
         def wrapper_repeat(*args, **kwargs):
             for _ in range(num_times):
                 value = func(*args, **kwargs)
@@ -654,6 +669,37 @@ foo2()
 val_list
 """,
         list(range(0, 12)),
+    ],
+    [
+        """
+def repeat(num_times):
+    def decorator_repeat(func):
+        def wrapper_repeat(*args, **kwargs):
+            for _ in range(num_times):
+                value = func(*args, **kwargs)
+            return value
+        return wrapper_repeat
+    return decorator_repeat
+
+def repeat2(num_times):
+    def decorator_repeat(func):
+        nonlocal num_times
+        def wrapper_repeat(*args, **kwargs):
+            for _ in range(num_times):
+                value = func(*args, **kwargs)
+            return value
+        return wrapper_repeat
+    return decorator_repeat
+
+x = 0
+def func(incr):
+    global x
+    x += incr
+    return x
+
+[repeat(3)(func)(10), repeat2(3)(func)(20)]
+""",
+        [30, 90],
     ],
     [
         """
