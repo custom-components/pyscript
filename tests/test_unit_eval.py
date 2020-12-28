@@ -657,6 +657,31 @@ val_list
     ],
     [
         """
+def foo():
+    global f_bar
+    def f_bar():
+        return "hello"
+
+foo()
+f_bar()
+""",
+        "hello",
+    ],
+    [
+        """
+def foo():
+    global inner_class
+    class inner_class:
+        def method1():
+            return 1234
+
+foo()
+inner_class.method1()
+""",
+        1234,
+    ],
+    [
+        """
 def foo(x=30, *args, y = 123, **kwargs):
     return [x, y, args, kwargs]
 [foo(a = 10, b = 3), foo(40, 7, 8, 9, a = 10, y = 3), foo(x=42)]

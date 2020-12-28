@@ -153,8 +153,7 @@ def func4():
 
 @state_trigger("pyscript.var1 == '5'")
 def func5(value=None):
-    global seq_num
-    global startup_test_save
+    global seq_num, startup_test
 
     seq_num += 1
     pyscript.done = [seq_num, int(value)]
@@ -165,8 +164,6 @@ def func5(value=None):
 
         seq_num += 1
         pyscript.done = [seq_num, int(value)]
-
-    startup_test_save = startup_test
 
 def add_state_trig(value):
     def dec_add_state_trig(func):

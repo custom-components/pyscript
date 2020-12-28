@@ -961,7 +961,11 @@ class AstEval:
     async def ast_classdef(self, arg):
         """Evaluate class definition."""
         bases = [(await self.aeval(base)) for base in arg.bases]
-        self.sym_table[arg.name] = EvalLocalVar(arg.name)
+        if self.curr_func and arg.name in self.curr_func.global_names:
+            sym_table_assign = self.global_sym_table
+        else:
+            sym_table_assign = self.sym_table
+        sym_table_assign[arg.name] = EvalLocalVar(arg.name)
         sym_table = {}
         self.sym_table_stack.append(self.sym_table)
         self.sym_table = sym_table
@@ -977,7 +981,7 @@ class AstEval:
         if "__init__" in sym_table:
             sym_table["__init__evalfunc_wrap__"] = sym_table["__init__"]
             del sym_table["__init__"]
-        self.sym_table[arg.name].set(type(arg.name, tuple(bases), sym_table))
+        sym_table_assign[arg.name].set(type(arg.name, tuple(bases), sym_table))
 
     async def ast_functiondef(self, arg):
         """Evaluate function definition."""
@@ -1020,10 +1024,14 @@ class AstEval:
         else:
             func_var = func
 
-        if name in self.sym_table and isinstance(self.sym_table[name], EvalLocalVar):
-            self.sym_table[name].set(func_var)
+        if self.curr_func and name in self.curr_func.global_names:
+            sym_table = self.global_sym_table
         else:
-            self.sym_table[name] = func_var
+            sym_table = self.sym_table
+        if name in sym_table and isinstance(sym_table[name], EvalLocalVar):
+            sym_table[name].set(func_var)
+        else:
+            sym_table[name] = func_var
 
     async def ast_lambda(self, arg):
         """Evaluate lambda definition."""

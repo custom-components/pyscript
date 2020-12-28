@@ -53,3 +53,5 @@ Bug fixes since 1.1.0 include:
   the service, reported by @wsw70 (#121)
 - Added error message for invalid ``@time_active`` argument, by @dlashua (#118).
 - The ``scripts`` subdirectory is now recursively traversed for ``requirements.txt`` files.
+- Inner functions and classes (defined inside a function) are added to global symbol table
+  if declared as global.
