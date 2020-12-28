@@ -83,19 +83,28 @@ class PyscriptEntity(Entity):
     async def async_update(self):
         self.async_write_ha_state()
 
+    def set_state(self, state):
+        self._state = state
+
+    def set_attribute(self, attribute, value):
+        self._attributes[attribute] = value
+
+    def set_all_attributes(self, attributes={}):
+        self._attributes = attributes
+
 
     # TO BE USED IN PYSCRIPT
     ######################################
 
     async def set(self, state=None, new_attributes=None, **kwargs):
         if state is not None:
-            self._state = state
+            self.set_state(state)
 
         if new_attributes is not None:
-            self._attributes = new_attributes
+            self.set_all_attributes(new_attributes)
 
         for attribute_name in kwargs:
-            self._attributes[attribute_name] = kwargs[attribute_name]
+            self.set_attribute(attribute_name, kwargs[attribute_name])
 
 
         _LOGGER.debug(
