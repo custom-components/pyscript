@@ -65,7 +65,7 @@ PYSCRIPT_SCHEMA = vol.Schema(
 
 CONFIG_SCHEMA = vol.Schema({DOMAIN: PYSCRIPT_SCHEMA}, extra=vol.ALLOW_EXTRA)
 
-PLATFORMS = ["sensor", "binary_sensor"]
+PLATFORMS = ["sensor", "binary_sensor", "switch"]
 
 async def async_setup(hass: HomeAssistant, config: Config) -> bool:
     """Component setup, run import config flow for each entry in config."""
