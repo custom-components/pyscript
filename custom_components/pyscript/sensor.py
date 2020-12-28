@@ -1,23 +1,15 @@
 from homeassistant.helpers.entity import Entity
 from .const import DOMAIN
-
-ENTITY_ADDER = None
+from .entity_manager import EntityManager
 
 async def async_setup_platform(hass, config, async_add_entities, discovery_info=None):
-    global ENTITY_ADDER
-
-    # async_add_entities([VersionSensor(haversion, name)], True)
-    ENTITY_ADDER = async_add_entities
+    EntityManager.register_platform('sensor', async_add_entities, PyscriptSensor)
 
 async def async_setup_entry(hass, config_entry, async_add_entities):
     return await async_setup_platform(
         hass, config_entry.data, async_add_entities, discovery_info=None
     )
 
-async def create(hass, name):
-    new_sensor = PyscriptSensor(hass, name)
-    ENTITY_ADDER([new_sensor])
-    return new_sensor
 
 class PyscriptSensor(Entity):
 

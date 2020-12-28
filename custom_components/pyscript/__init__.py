@@ -51,6 +51,7 @@ from .mqtt import Mqtt
 from .requirements import install_requirements
 from .state import State, StateVal
 from .trigger import TrigTime
+from .entity_manager import EntityManager
 
 _LOGGER = logging.getLogger(LOGGER_PATH)
 
@@ -241,6 +242,7 @@ async def async_setup_entry(hass: HomeAssistant, config_entry: ConfigEntry) -> b
     State.init(hass)
     State.register_functions()
     GlobalContextMgr.init()
+    EntityManager.init(hass)
 
     pyscript_folder = hass.config.path(FOLDER)
     if not await hass.async_add_executor_job(os.path.isdir, pyscript_folder):

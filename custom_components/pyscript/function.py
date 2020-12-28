@@ -8,6 +8,7 @@ import traceback
 from homeassistant.core import Context
 
 from .const import LOGGER_PATH
+from .entity_manager import EntityManager
 
 _LOGGER = logging.getLogger(LOGGER_PATH + ".function")
 
@@ -90,6 +91,7 @@ class Function:
                 "task.remove_done_callback": cls.user_task_remove_done_callback,
                 "task.sleep": cls.async_sleep,
                 "task.wait": cls.user_task_wait,
+                "em": EntityManager,
             }
         )
         cls.ast_functions.update(
