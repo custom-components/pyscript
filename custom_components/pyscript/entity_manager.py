@@ -25,24 +25,25 @@ class EntityManager:
         cls.registered_entities[platform] = {}
 
     @classmethod
-    def get(cls, platform, name):
+    def get(cls, ast_ctx, platform, name):
         if platform not in cls.registered_entities or name not in cls.registered_entities[platform]:
-            cls.create(platform, name)
+            cls.create(ast_ctx, platform, name)
 
         return cls.registered_entities[platform][name]
 
     @classmethod
-    def create(cls, platform, name):
-        new_entity = cls.platform_classes[platform](cls.hass, name)
+    def create(cls, ast_ctx, platform, name):
+        new_entity = cls.platform_classes[platform](cls.hass, ast_ctx, name)
         cls.platform_adders[platform]([new_entity])
         cls.registered_entities[platform][name] = new_entity
         
 
 class PyscriptEntity(Entity):
 
-    def __init__(self, hass, unique_id):
+    def __init__(self, hass, ast_ctx, unique_id):
         self._added = False
         self.hass = hass
+        self.ast_ctx = ast_ctx
 
         self._unique_id = f"{DOMAIN}_{self.platform}_{unique_id}"
 
@@ -55,6 +56,8 @@ class PyscriptEntity(Entity):
             "Entity Initialized %s",
             self._unique_id,
         )
+
+        self.init()
 
     @property
     def state(self):
@@ -83,6 +86,9 @@ class PyscriptEntity(Entity):
     async def async_update(self):
         self.async_write_ha_state()
 
+    # OPTIONALLY OVERRIDDEN IN EXTENDED CLASSES
+    #####################################
+
     def set_state(self, state):
         self._state = state
 
@@ -91,6 +97,9 @@ class PyscriptEntity(Entity):
 
     def set_all_attributes(self, attributes={}):
         self._attributes = attributes
+
+    def init(self):
+        pass
 
 
     # TO BE USED IN PYSCRIPT
