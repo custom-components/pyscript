@@ -64,6 +64,7 @@ PYSCRIPT_SCHEMA = vol.Schema(
 
 CONFIG_SCHEMA = vol.Schema({DOMAIN: PYSCRIPT_SCHEMA}, extra=vol.ALLOW_EXTRA)
 
+PLATFORMS = ["sensor"]
 
 async def async_setup(hass: HomeAssistant, config: Config) -> bool:
     """Component setup, run import config flow for each entry in config."""
@@ -354,6 +355,11 @@ async def async_setup_entry(hass: HomeAssistant, config_entry: ConfigEntry) -> b
     hass.data[DOMAIN][UNSUB_LISTENERS].append(hass.bus.async_listen(EVENT_HOMEASSISTANT_STOP, hass_stop))
 
     await watchdog_start(hass, pyscript_folder, reload_scripts_handler)
+
+    for component in PLATFORMS:
+        hass.async_create_task(
+            hass.config_entries.async_forward_entry_setup(config_entry, component)
+        )
 
     return True
 
