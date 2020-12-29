@@ -1,32 +1,40 @@
-from .const import DOMAIN
+"""Pyscript Switch Entity"""
 from .entity_manager import EntityManager, PyscriptEntity
 from .eval import EvalFunc
 
-PLATFORM = 'switch'
+PLATFORM = "switch"
+
 
 async def async_setup_platform(hass, config, async_add_entities, discovery_info=None):
+    """Initialize Pyscript Switch Platform"""
     EntityManager.register_platform(PLATFORM, async_add_entities, PyscriptSwitch)
 
+
 async def async_setup_entry(hass, config_entry, async_add_entities):
-    return await async_setup_platform(
-        hass, config_entry.data, async_add_entities, discovery_info=None
-    )
+    """Initialize Pyscript Switch Config"""
+    return await async_setup_platform(hass, config_entry.data, async_add_entities, discovery_info=None)
 
 
 class PyscriptSwitch(PyscriptEntity):
+    """A Pysript Switch Entity"""
     platform = PLATFORM
 
-    def init(self):
+    def __init__(self, *args, **kwargs):
+        """Initialize Pyscript Switch"""
+        super().__init__(*args, **kwargs)
         self._turn_on_handler = None
         self._turn_off_handler = None
 
     def on_turn_on(self, func):
+        """Setup handler for turn_on functionality"""
         self._turn_on_handler = func
 
     def on_turn_off(self, func):
+        """Setup handler for turn_off functionality"""
         self._turn_off_handler = func
 
     async def async_turn_on(self, **kwargs):
+        """Handle turn_on request."""
         if self._turn_on_handler is None:
             return
 
@@ -38,6 +46,7 @@ class PyscriptSwitch(PyscriptEntity):
             raise RuntimeError(f"Unable to Call turn_on_handler of type {type(self._turn_on_handler)}")
 
     async def async_turn_off(self, **kwargs):
+        """Handle turn_off request."""
         if self._turn_off_handler is None:
             return
 
@@ -49,9 +58,10 @@ class PyscriptSwitch(PyscriptEntity):
             raise RuntimeError(f"Unable to Call turn_off_handler of type {type(self._turn_off_handler)}")
 
     def set_state(self, state):
+        """Handle state validation"""
         state = state.lower()
 
-        if state not in ('on', 'off'):
+        if state not in ("on", "off"):
             raise ValueError('Switch state must be "on" or "off"')
-            
-        self._state = state
+
+        super().set_state(state)

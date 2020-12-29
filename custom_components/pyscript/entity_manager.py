@@ -1,26 +1,27 @@
+"""Pyscript Entity Manager"""
 from homeassistant.helpers.entity import Entity
-from .const import DOMAIN, LOGGER_PATH
+from .const import LOGGER_PATH
 import logging
-import asyncio
 
 _LOGGER = logging.getLogger(LOGGER_PATH + ".entity_manager")
 
 
 class EntityManager:
-
+    """Entity Manager."""
     hass = None
 
     platform_adders = {}
     platform_classes = {}
     registered_entities = {}
 
-
     @classmethod
     def init(cls, hass):
+        """Initialize Class Variables"""
         cls.hass = hass
 
     @classmethod
     def register_platform(cls, platform, adder, entity_class):
+        """Register platform from Home Assistant"""
         _LOGGER.debug(
             "Platform %s Registered",
             platform,
@@ -31,6 +32,7 @@ class EntityManager:
 
     @classmethod
     async def get(cls, ast_ctx, platform, name):
+        """Get an Entity from pyscript"""
         await cls.wait_platform_registered(platform)
         if platform not in cls.registered_entities or name not in cls.registered_entities[platform]:
             await cls.create(ast_ctx, platform, name)
@@ -39,21 +41,23 @@ class EntityManager:
 
     @classmethod
     async def create(cls, ast_ctx, platform, name):
+        """Create entity from pyscript."""
         await cls.wait_platform_registered(platform)
         new_entity = cls.platform_classes[platform](cls.hass, ast_ctx, name)
         cls.platform_adders[platform]([new_entity])
         cls.registered_entities[platform][name] = new_entity
 
     @classmethod
-    async def wait_platform_registered(cls, platform):        
+    async def wait_platform_registered(cls, platform):
+        """Wait for platform registration."""
         if platform not in cls.platform_classes:
             raise KeyError(f"Platform {platform} not registered.")
 
         return True
-        
+
 
 class PyscriptEntity(Entity):
-
+    """Base Class for all Pyscript Entities"""
     def __init__(self, hass, ast_ctx, unique_id):
         self._added = False
         self.hass = hass
@@ -67,13 +71,10 @@ class PyscriptEntity(Entity):
         self._icon = None
         self._name = None
 
-
         _LOGGER.debug(
             "Entity Initialized %s",
             self._unique_id,
         )
-
-        self.init()
 
     @property
     def state(self):
@@ -95,17 +96,18 @@ class PyscriptEntity(Entity):
         """Return the name to use in the frontend, if any."""
         return self._name
 
-
     @property
     def unique_id(self):
         """Return a unique ID."""
         return self._unique_id
 
     async def async_added_to_hass(self):
+        """Called when Home Assistant adds the entity to the registry"""
         self._added = True
         await self.async_update()
 
     async def async_update(self):
+        """Request an entity update from Home Assistant"""
         if self._added:
             self.async_write_ha_state()
 
@@ -113,22 +115,23 @@ class PyscriptEntity(Entity):
     #####################################
 
     def set_state(self, state):
+        """Set the State"""
         self._state = state
 
     def set_attribute(self, attribute, value):
+        """Set a single attribute"""
         self._attributes[attribute] = value
 
     def set_all_attributes(self, attributes={}):
+        """Set all Attributes and clear existing values"""
         self._attributes = attributes
-
-    def init(self):
-        pass
 
 
     # TO BE USED IN PYSCRIPT
     ######################################
 
     async def set(self, state=None, new_attributes=None, **kwargs):
+        """Set state and/or attributes from pyscript"""
         if state is not None:
             self.set_state(state)
 
@@ -137,7 +140,6 @@ class PyscriptEntity(Entity):
 
         for attribute_name in kwargs:
             self.set_attribute(attribute_name, kwargs[attribute_name])
-
 
         _LOGGER.debug(
             "%s state is now %s (%s)",
@@ -149,9 +151,11 @@ class PyscriptEntity(Entity):
         await self.async_update()
 
     async def set_name(self, name):
+        """set name of entity"""
         self._name = name
         await self.async_update()
 
     async def set_icon(self, icon):
+        """set icon of entity"""
         self._icon = icon
         await self.async_update()

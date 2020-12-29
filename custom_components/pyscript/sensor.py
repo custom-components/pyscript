@@ -1,21 +1,25 @@
-from .const import DOMAIN
+"""Pyscript Sensor Entity"""
 from .entity_manager import EntityManager, PyscriptEntity
 
-PLATFORM = 'sensor'
+PLATFORM = "sensor"
+
 
 async def async_setup_platform(hass, config, async_add_entities, discovery_info=None):
+    """Initialize Pyscript Sensor Platform"""
     EntityManager.register_platform(PLATFORM, async_add_entities, PyscriptSensor)
 
+
 async def async_setup_entry(hass, config_entry, async_add_entities):
-    return await async_setup_platform(
-        hass, config_entry.data, async_add_entities, discovery_info=None
-    )
+    """Initialize Pyscript Sensor Config"""
+    return await async_setup_platform(hass, config_entry.data, async_add_entities, discovery_info=None)
 
 
 class PyscriptSensor(PyscriptEntity):
+    """A Pyscript Sensor Entity"""
     platform = PLATFORM
 
-    def init(self):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
         self._device_class = None
         self._unit_of_measurement = None
 
@@ -33,9 +37,11 @@ class PyscriptSensor(PyscriptEntity):
     ######################################
 
     async def set_device_class(self, device_class):
+        """Set device class of entity"""
         self._device_class = device_class
         await self.async_update()
 
     async def set_unit(self, unit):
+        """Set unit_of_measurement of entity"""
         self._unit_of_measurement = unit
         await self.async_update()

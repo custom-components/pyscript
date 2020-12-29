@@ -1,21 +1,25 @@
-from .const import DOMAIN
+"""Pyscript Binary Sensor Entity"""
 from .entity_manager import EntityManager, PyscriptEntity
 
-PLATFORM = 'binary_sensor'
+PLATFORM = "binary_sensor"
+
 
 async def async_setup_platform(hass, config, async_add_entities, discovery_info=None):
+    """Initialize Pyscript Binary Sensor Platform"""
     EntityManager.register_platform(PLATFORM, async_add_entities, PyscriptBinarySensor)
 
+
 async def async_setup_entry(hass, config_entry, async_add_entities):
-    return await async_setup_platform(
-        hass, config_entry.data, async_add_entities, discovery_info=None
-    )
+    """Initialize Pyscript Binary Sensor Config"""
+    return await async_setup_platform(hass, config_entry.data, async_add_entities, discovery_info=None)
 
 
 class PyscriptBinarySensor(PyscriptEntity):
+    """A Pyscript Binary Sensor Entity"""
     platform = PLATFORM
 
-    def init(self):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
         self._device_class = None
 
     @property
@@ -24,9 +28,10 @@ class PyscriptBinarySensor(PyscriptEntity):
         return self._device_class
 
     # TO BE USED IN PYSCRIPT
-    ######################################        
+    ######################################
 
     def set_state(self, state):
+        """Handle State Validation"""
         if state is True:
             state = "on"
 
@@ -35,11 +40,12 @@ class PyscriptBinarySensor(PyscriptEntity):
 
         state = state.lower()
 
-        if state not in ('on', 'off'):
+        if state not in ("on", "off"):
             raise ValueError('BinarySensor state must be "on" or "off"')
 
-        self._state = state
+        super().set_state(state)
 
     async def set_device_class(self, device_class):
+        """Set Device Class of Entity"""
         self._device_class = device_class
         await self.async_update()
