@@ -25,14 +25,6 @@ class PyscriptSwitch(PyscriptEntity):
         self._turn_on_handler = None
         self._turn_off_handler = None
 
-    def on_turn_on(self, func):
-        """Setup handler for turn_on functionality"""
-        self._turn_on_handler = func
-
-    def on_turn_off(self, func):
-        """Setup handler for turn_off functionality"""
-        self._turn_off_handler = func
-
     async def async_turn_on(self, **kwargs):
         """Handle turn_on request."""
         if self._turn_on_handler is None:
@@ -65,3 +57,14 @@ class PyscriptSwitch(PyscriptEntity):
             raise ValueError('Switch state must be "on" or "off"')
 
         super().set_state(state)
+
+    # TO BE USED IN PYSCRIPT
+    ######################################
+
+    def on_turn_on(self, func):
+        """Setup handler for turn_on functionality"""
+        self._turn_on_handler = func
+
+    def on_turn_off(self, func):
+        """Setup handler for turn_off functionality"""
+        self._turn_off_handler = func

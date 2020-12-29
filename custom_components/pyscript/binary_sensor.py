@@ -27,9 +27,6 @@ class PyscriptBinarySensor(PyscriptEntity):
         """Return the device class of the sensor."""
         return self._device_class
 
-    # TO BE USED IN PYSCRIPT
-    ######################################
-
     def set_state(self, state):
         """Handle State Validation"""
         if state is True:
@@ -44,6 +41,9 @@ class PyscriptBinarySensor(PyscriptEntity):
             raise ValueError('BinarySensor state must be "on" or "off"')
 
         super().set_state(state)
+
+    # TO BE USED IN PYSCRIPT
+    ######################################
 
     async def set_device_class(self, device_class):
         """Set Device Class of Entity"""
