@@ -1,5 +1,6 @@
 from .const import DOMAIN
 from .entity_manager import EntityManager, PyscriptEntity
+from .eval import EvalFunc
 
 PLATFORM = 'switch'
 
@@ -29,10 +30,28 @@ class PyscriptSwitch(PyscriptEntity):
         if self._turn_on_handler is None:
             return
 
-        await self._turn_on_handler.call(self.ast_ctx, self, **kwargs)
+        if callable(self._turn_on_handler):
+            await self._turn_on_handler(self, **kwargs)
+        elif isinstance(self._turn_on_handler, EvalFunc):
+            await self._turn_on_handler.call(self.ast_ctx, self, **kwargs)
+        else:
+            raise RuntimeError(f"Unable to Call turn_on_handler of type {type(self._turn_on_handler)}")
 
     async def async_turn_off(self, **kwargs):
         if self._turn_off_handler is None:
             return
 
-        await self._turn_off_handler.call(self.ast_ctx, self, **kwargs)
+        if callable(self._turn_off_handler):
+            await self._turn_off_handler(self, **kwargs)
+        elif isinstance(self._turn_off_handler, EvalFunc):
+            await self._turn_off_handler.call(self.ast_ctx, self, **kwargs)
+        else:
+            raise RuntimeError(f"Unable to Call turn_off_handler of type {type(self._turn_off_handler)}")
+
+    def set_state(self, state):
+        state = state.lower()
+
+        if state not in ('on', 'off'):
+            raise ValueError('Switch state must be "on" or "off"')
+            
+        self._state = state

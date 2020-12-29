@@ -15,6 +15,17 @@ async def async_setup_entry(hass, config_entry, async_add_entities):
 class PyscriptBinarySensor(PyscriptEntity):
     platform = PLATFORM
 
+    def init(self):
+        self._device_class = None
+
+    @property
+    def device_class(self):
+        """Return the device class of the sensor."""
+        return self._device_class
+
+    # TO BE USED IN PYSCRIPT
+    ######################################        
+
     def set_state(self, state):
         if state is True:
             state = "on"
@@ -26,5 +37,9 @@ class PyscriptBinarySensor(PyscriptEntity):
 
         if state not in ('on', 'off'):
             raise ValueError('BinarySensor state must be "on" or "off"')
-            
+
         self._state = state
+
+    async def set_device_class(self, device_class):
+        self._device_class = device_class
+        await self.async_update()

@@ -208,7 +208,7 @@ class Function:
     def entity_manager_get_factory(cls, ctx):
         
         async def entity_manager_get(platform, name):
-            return EntityManager.get(ctx, platform, name)
+            return await EntityManager.get(ctx, platform, name)
 
         return entity_manager_get
 
