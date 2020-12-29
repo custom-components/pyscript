@@ -244,6 +244,11 @@ async def async_setup_entry(hass: HomeAssistant, config_entry: ConfigEntry) -> b
     GlobalContextMgr.init()
     EntityManager.init(hass)
 
+    for component in PLATFORMS:
+        hass.async_create_task(
+            hass.config_entries.async_forward_entry_setup(config_entry, component)
+        )
+
     pyscript_folder = hass.config.path(FOLDER)
     if not await hass.async_add_executor_job(os.path.isdir, pyscript_folder):
         _LOGGER.debug("Folder %s not found in configuration folder, creating it", FOLDER)
@@ -357,11 +362,6 @@ async def async_setup_entry(hass: HomeAssistant, config_entry: ConfigEntry) -> b
     hass.data[DOMAIN][UNSUB_LISTENERS].append(hass.bus.async_listen(EVENT_HOMEASSISTANT_STOP, hass_stop))
 
     await watchdog_start(hass, pyscript_folder, reload_scripts_handler)
-
-    for component in PLATFORMS:
-        hass.async_create_task(
-            hass.config_entries.async_forward_entry_setup(config_entry, component)
-        )
 
     return True
 
