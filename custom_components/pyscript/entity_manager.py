@@ -1,6 +1,7 @@
 from homeassistant.helpers.entity import Entity
 from .const import DOMAIN, LOGGER_PATH
 import logging
+import asyncio
 
 _LOGGER = logging.getLogger(LOGGER_PATH + ".entity_manager")
 
@@ -20,22 +21,35 @@ class EntityManager:
 
     @classmethod
     def register_platform(cls, platform, adder, entity_class):
+        _LOGGER.debug(
+            "Platform %s Registered",
+            platform,
+        )
         cls.platform_adders[platform] = adder
         cls.platform_classes[platform] = entity_class
         cls.registered_entities[platform] = {}
 
     @classmethod
-    def get(cls, ast_ctx, platform, name):
+    async def get(cls, ast_ctx, platform, name):
+        await cls.wait_platform_registered(platform)
         if platform not in cls.registered_entities or name not in cls.registered_entities[platform]:
-            cls.create(ast_ctx, platform, name)
+            await cls.create(ast_ctx, platform, name)
 
         return cls.registered_entities[platform][name]
 
     @classmethod
-    def create(cls, ast_ctx, platform, name):
+    async def create(cls, ast_ctx, platform, name):
+        await cls.wait_platform_registered(platform)
         new_entity = cls.platform_classes[platform](cls.hass, ast_ctx, name)
         cls.platform_adders[platform]([new_entity])
         cls.registered_entities[platform][name] = new_entity
+
+    @classmethod
+    async def wait_platform_registered(cls, platform):        
+        if platform not in cls.platform_classes:
+            raise KeyError(f"Platform {platform} not registered.")
+
+        return True
         
 
 class PyscriptEntity(Entity):
@@ -45,11 +59,13 @@ class PyscriptEntity(Entity):
         self.hass = hass
         self.ast_ctx = ast_ctx
 
-        self._unique_id = f"{DOMAIN}_{self.platform}_{unique_id}"
+        self._unique_id = unique_id
 
         self._state = None
         self._attributes = {}
+
         self._icon = None
+        self._name = None
 
 
         _LOGGER.debug(
@@ -75,6 +91,12 @@ class PyscriptEntity(Entity):
         return self._icon
 
     @property
+    def name(self):
+        """Return the name to use in the frontend, if any."""
+        return self._name
+
+
+    @property
     def unique_id(self):
         """Return a unique ID."""
         return self._unique_id
@@ -84,7 +106,8 @@ class PyscriptEntity(Entity):
         await self.async_update()
 
     async def async_update(self):
-        self.async_write_ha_state()
+        if self._added:
+            self.async_write_ha_state()
 
     # OPTIONALLY OVERRIDDEN IN EXTENDED CLASSES
     #####################################
@@ -123,5 +146,12 @@ class PyscriptEntity(Entity):
             self._attributes,
         )
 
-        if self._added:
-            await self.async_update()
+        await self.async_update()
+
+    async def set_name(self, name):
+        self._name = name
+        await self.async_update()
+
+    async def set_icon(self, icon):
+        self._icon = icon
+        await self.async_update()
