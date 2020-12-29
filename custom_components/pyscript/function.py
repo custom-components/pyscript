@@ -206,8 +206,10 @@ class Function:
 
     @classmethod
     def entity_manager_get_factory(cls, ctx):
+        """Define and return em for this context."""
         
         async def entity_manager_get(platform, name):
+            """Implement em"""
             return await EntityManager.get(ctx, platform, name)
 
         return entity_manager_get

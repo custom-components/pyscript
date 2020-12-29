@@ -122,7 +122,7 @@ class PyscriptEntity(Entity):
         """Set a single attribute"""
         self._attributes[attribute] = value
 
-    def set_all_attributes(self, attributes={}):
+    def set_all_attributes(self, attributes):
         """Set all Attributes and clear existing values"""
         self._attributes = attributes
 
