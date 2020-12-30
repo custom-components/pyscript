@@ -5,6 +5,7 @@ from custom_components.pyscript.eval import AstEval
 from custom_components.pyscript.function import Function
 from custom_components.pyscript.global_ctx import GlobalContext, GlobalContextMgr
 from custom_components.pyscript.state import State
+from custom_components.pyscript.trigger import TrigTime
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
 evalTests = [
@@ -1082,6 +1083,18 @@ func()
 """,
         3,
     ],
+    [
+        """
+def func(arg):
+    task.unique("func")
+    task.sleep(10000)
+
+id = task.create(func, 19)
+done, pending = task.wait({id}, timeout=0)
+[len(done), len(pending), id in pending, task.name2id("func") == id, task.name2id()["func"] == id]
+""",
+        [0, 1, True, True, True],
+    ],
 ]
 
 
@@ -1090,6 +1103,7 @@ async def run_one_test(test_data):
     source, expect = test_data
     global_ctx = GlobalContext("test", global_sym_table={}, manager=GlobalContextMgr)
     ast = AstEval("test", global_ctx=global_ctx)
+    Function.install_ast_funcs(ast)
     ast.parse(source)
     if ast.get_exception() is not None:
         print(f"Parsing {source} failed: {ast.get_exception()}")
@@ -1104,6 +1118,7 @@ async def test_eval(hass):
     Function.init(hass)
     State.init(hass)
     State.register_functions()
+    TrigTime.init(hass)
 
     for test_data in evalTests:
         await run_one_test(test_data)
@@ -1153,6 +1168,7 @@ evalTestsExceptions = [
     ["raise", "Exception in test line 1 column 0: No active exception to reraise"],
     ["yield", "Exception in test line 1 column 0: test: not implemented ast ast_yield"],
     ["task.executor(5)", "Exception in test line 1 column 14: function is not callable by task.executor()"],
+    ["task.name2id('notask')", "Exception in test line 1 column 13: task name 'notask' is unknown"],
     [
         "state.get('pyscript.xyz1.abc')",
         "Exception in test line 1 column 10: name 'pyscript.xyz1' is not defined",
@@ -1277,6 +1293,7 @@ async def run_one_test_exception(test_data):
     source, expect = test_data
     global_ctx = GlobalContext("test", global_sym_table={}, manager=GlobalContextMgr)
     ast = AstEval("test", global_ctx=global_ctx)
+    Function.install_ast_funcs(ast)
     ast.parse(source)
     exc = ast.get_exception()
     if exc is not None:
@@ -1296,6 +1313,7 @@ async def test_eval_exceptions(hass):
     Function.init(hass)
     State.init(hass)
     State.register_functions()
+    TrigTime.init(hass)
 
     for test_data in evalTestsExceptions:
         await run_one_test_exception(test_data)

@@ -285,14 +285,16 @@ class Function:
                     if task_name.startswith(prefix):
                         ret[task_name[len(prefix) :]] = task_id
                 return ret
-            return cls.unique_name2task.get(prefix + name, None)
+            if prefix + name in cls.unique_name2task:
+                return cls.unique_name2task[prefix + name]
+            raise NameError(f"task name '{name}' is unknown")
 
         return user_task_name2id
 
     @classmethod
-    async def user_task_wait(cls, aws):
+    async def user_task_wait(cls, aws, **kwargs):
         """Implement task.wait()."""
-        return await asyncio.wait(aws)
+        return await asyncio.wait(aws, **kwargs)
 
     @classmethod
     def user_task_remove_done_callback(cls, task, callback):
