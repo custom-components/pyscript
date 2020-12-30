@@ -170,16 +170,6 @@ class TrigTime:
         }
         Function.register_ast(ast_funcs)
 
-        def user_task_cancel(task):
-            """Implement task.cancel()."""
-            if not isinstance(task, asyncio.Task):
-                raise TypeError(f"{task} is not of type asyncio.Task")
-            Function.reaper_cancel(task)
-
-        async def user_task_wait(aws):
-            """Implement task.wait()."""
-            return await asyncio.wait(aws)
-
         async def user_task_add_done_callback(task, callback, *args, **kwargs):
             """Implement task.add_done_callback()."""
             ast_ctx = None
@@ -187,15 +177,8 @@ class TrigTime:
                 ast_ctx = callback.get_ast_ctx()
             Function.task_add_done_callback(task, ast_ctx, callback, *args, **kwargs)
 
-        async def user_task_remove_done_callback(task, callback):
-            """Implement task.remove_done_callback()."""
-            Function.task_remove_done_callback(task, callback)
-
         funcs = {
-            "task.cancel": user_task_cancel,
-            "task.wait": user_task_wait,
             "task.add_done_callback": user_task_add_done_callback,
-            "task.remove_done_callback": user_task_remove_done_callback,
         }
         Function.register(funcs)
 

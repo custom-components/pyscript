@@ -957,6 +957,13 @@ occurs.
   simpler alternative to the ``task_id.cancel()`` method, which also requires waiting for the
   task to cancel.
 
+``task.current_task()``
+  Returns the task id of the current task.
+
+``task.name2id(name=None)``
+  Returns the task id given a name that task passed to ``task.unique``. With no arguments it returns a dict mapping
+  all names to task ids. The names are specific to the current global context.
+
 ``task.wait(task_set)``
   Waits until the given set of tasks complete. This function calls ``asyncio.wait``, so it takes the same arguments.
   ``task_set`` is a set or list of task ids, and it returns two sets of done and pending task ids.  An example:

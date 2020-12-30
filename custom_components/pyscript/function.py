@@ -85,7 +85,11 @@ class Function:
                 "service.call": cls.service_call,
                 "service.has_service": cls.service_has_service,
                 "task.executor": cls.task_executor,
+                "task.cancel": cls.user_task_cancel,
+                "task.current_task": cls.user_task_current_task,
+                "task.remove_done_callback": cls.user_task_remove_done_callback,
                 "task.sleep": cls.async_sleep,
+                "task.wait": cls.user_task_wait,
             }
         )
         cls.ast_functions.update(
@@ -95,6 +99,7 @@ class Function:
                 "log.info": lambda ast_ctx: ast_ctx.get_logger().info,
                 "log.warning": lambda ast_ctx: ast_ctx.get_logger().warning,
                 "print": lambda ast_ctx: ast_ctx.get_logger().debug,
+                "task.name2id": cls.task_name2id_factory,
                 "task.unique": cls.task_unique_factory,
             }
         )
@@ -124,7 +129,7 @@ class Function:
 
         if not cls.task_reaper:
             cls.task_reaper_q = asyncio.Queue(0)
-            cls.task_reaper = Function.create_task(task_reaper(cls.task_reaper_q))
+            cls.task_reaper = cls.create_task(task_reaper(cls.task_reaper_q))
 
         #
         # start a task which creates tasks to run coros, and then syncs on their completion;
@@ -153,7 +158,7 @@ class Function:
 
         if not cls.task_waiter:
             cls.task_waiter_q = asyncio.Queue(0)
-            cls.task_waiter = Function.create_task(task_waiter(cls.task_waiter_q))
+            cls.task_waiter = cls.create_task(task_waiter(cls.task_waiter_q))
 
     @classmethod
     def reaper_cancel(cls, task):
@@ -230,12 +235,12 @@ class Function:
                         # it seems we can't cancel ourselves, so we
                         # tell the reaper task to cancel us
                         #
-                        Function.reaper_cancel(curr_task)
+                        cls.reaper_cancel(curr_task)
                         # wait to be canceled
                         await asyncio.sleep(100000)
                 elif task != curr_task and task in cls.our_tasks:
                     # only cancel tasks if they are ones we started
-                    Function.reaper_cancel(task)
+                    cls.reaper_cancel(task)
             if curr_task in cls.our_tasks:
                 if name in cls.unique_name2task:
                     task = cls.unique_name2task[name]
@@ -254,6 +259,45 @@ class Function:
         if asyncio.iscoroutinefunction(func) or not callable(func):
             raise TypeError("function is not callable by task.executor()")
         return await cls.hass.async_add_executor_job(functools.partial(func, **kwargs), *args)
+
+    @classmethod
+    def user_task_cancel(cls, task):
+        """Implement task.cancel()."""
+        if not isinstance(task, asyncio.Task):
+            raise TypeError(f"{task} is not of type asyncio.Task")
+        cls.reaper_cancel(task)
+
+    @classmethod
+    async def user_task_current_task(cls):
+        """Implement task.current_task()."""
+        return asyncio.current_task()
+
+    @classmethod
+    def task_name2id_factory(cls, ctx):
+        """Define and return task.name2id() for this context."""
+
+        def user_task_name2id(name=None):
+            """Implement task.name2id()."""
+            prefix = f"{ctx.get_global_ctx_name()}."
+            if name is None:
+                ret = {}
+                for task_name, task_id in cls.unique_name2task.items():
+                    if task_name.startswith(prefix):
+                        ret[task_name[len(prefix) :]] = task_id
+                return ret
+            return cls.unique_name2task.get(prefix + name, None)
+
+        return user_task_name2id
+
+    @classmethod
+    async def user_task_wait(cls, aws):
+        """Implement task.wait()."""
+        return await asyncio.wait(aws)
+
+    @classmethod
+    def user_task_remove_done_callback(cls, task, callback):
+        """Implement task.remove_done_callback()."""
+        cls.task2cb[task]["cb"].pop(callback, None)
 
     @classmethod
     def unique_name_used(cls, ctx, name):
@@ -423,8 +467,3 @@ class Function:
         if ast_ctx is None:
             ast_ctx = cls.task2cb[task]["ctx"]
         cls.task2cb[task]["cb"][callback] = [ast_ctx, args, kwargs]
-
-    @classmethod
-    def task_remove_done_callback(cls, task, callback):
-        """Remove a done callback to the given task."""
-        cls.task2cb[task]["cb"].pop(callback, None)

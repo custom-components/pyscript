@@ -81,6 +81,8 @@ def funcStartupSync():
     # stick around so the task.unique() still applies
     #
     task.unique("func6")
+    assert task.current_task() == task.name2id("func6")
+    assert task.current_task() == task.name2id()["func6"]
     task.sleep(10000)
 
 @state_trigger("pyscript.f0var1 == '1'")
