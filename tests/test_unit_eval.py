@@ -703,6 +703,34 @@ def func(incr):
     ],
     [
         """
+def f1(value):
+    i = 1
+    def f2(value):
+        i = 2
+        def f3(value):
+            return value + i
+        return f3(2 * value)
+    return f2(2 * value)
+f1(10)
+""",
+        42,
+    ],
+    [
+        """
+def f1(value):
+    i = 1
+    def f2(value):
+        i = 2
+        def f3():
+            return value + i
+        return f3()
+    return f2(2 * value)
+f1(10)
+""",
+        22,
+    ],
+    [
+        """
 def foo():
     global f_bar
     def f_bar():

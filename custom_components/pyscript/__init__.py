@@ -29,6 +29,7 @@ from .const import (
     CONF_ALLOW_ALL_IMPORTS,
     CONF_HASS_IS_GLOBAL,
     CONFIG_ENTRY,
+    CONFIG_ENTRY_OLD,
     DOMAIN,
     FOLDER,
     LOGGER_PATH,
@@ -99,6 +100,24 @@ async def update_yaml_config(hass, config_entry):
     #
     if config != config_entry.data:
         await hass.config_entries.flow.async_init(DOMAIN, context={"source": SOURCE_IMPORT}, data=config)
+
+    #
+    # if hass_is_global or allow_all_imports have changed, we need to reload all scripts
+    # since they affect all scripts
+    #
+    config_save = {
+        param: config_entry.data.get(param, False) for param in {CONF_HASS_IS_GLOBAL, CONF_ALLOW_ALL_IMPORTS}
+    }
+    if DOMAIN not in hass.data:
+        hass.data.setdefault(DOMAIN, {})
+    if CONFIG_ENTRY_OLD in hass.data[DOMAIN]:
+        old_entry = hass.data[DOMAIN][CONFIG_ENTRY_OLD]
+        hass.data[DOMAIN][CONFIG_ENTRY_OLD] = config_save
+        for param in {CONF_HASS_IS_GLOBAL, CONF_ALLOW_ALL_IMPORTS}:
+            if old_entry.get(param, False) != config_entry.data.get(param, False):
+                return True
+    hass.data[DOMAIN][CONFIG_ENTRY_OLD] = config_save
+    return False
 
 
 def start_global_contexts(global_ctx_only=None):
@@ -192,7 +211,7 @@ async def watchdog_start(hass, pyscript_folder, reload_scripts_handler):
     watchdog_q = asyncio.Queue(0)
     observer = watchdog.observers.Observer()
     if observer is not None:
-        # don't run watchdog when we are testing (it patches to None)
+        # don't run watchdog when we are testing (Observer() patches to None)
         hass.data[DOMAIN][WATCHDOG_OBSERVER] = observer
         hass.data[DOMAIN][WATCHDOG_TASK] = Function.create_task(task_watchdog(watchdog_q))
 
@@ -201,11 +220,13 @@ async def watchdog_start(hass, pyscript_folder, reload_scripts_handler):
 
 async def async_setup_entry(hass, config_entry):
     """Initialize the pyscript config entry."""
+    global_ctx_only = None
     if Function.hass:
         #
         # reload yaml if this isn't the first time (ie, on reload)
         #
-        await update_yaml_config(hass, config_entry)
+        if await update_yaml_config(hass, config_entry):
+            global_ctx_only = "*"
 
     Function.init(hass)
     Event.init(hass)
@@ -227,18 +248,19 @@ async def async_setup_entry(hass, config_entry):
     State.set_pyscript_config(config_entry.data)
 
     await install_requirements(hass, config_entry, pyscript_folder)
-    await load_scripts(hass, config_entry.data)
+    await load_scripts(hass, config_entry.data, global_ctx_only=global_ctx_only)
 
     async def reload_scripts_handler(call):
         """Handle reload service calls."""
         _LOGGER.debug("reload: yaml, reloading scripts, and restarting")
 
-        await update_yaml_config(hass, config_entry)
+        global_ctx_only = call.data.get("global_ctx", None) if call else None
+
+        if await update_yaml_config(hass, config_entry):
+            global_ctx_only = "*"
         State.set_pyscript_config(config_entry.data)
 
         await State.get_service_params()
-
-        global_ctx_only = call.data.get("global_ctx", None) if call else None
 
         await install_requirements(hass, config_entry, pyscript_folder)
         await load_scripts(hass, config_entry.data, global_ctx_only=global_ctx_only)
@@ -333,14 +355,13 @@ async def async_setup_entry(hass, config_entry):
 
 async def async_unload_entry(hass, config_entry):
     """Unload a config entry."""
-    # Unload scripts
+    _LOGGER.info("Unloading all scripts")
     await unload_scripts()
 
-    # Unsubscribe from listeners
     for unsub_listener in hass.data[DOMAIN][UNSUB_LISTENERS]:
         unsub_listener()
+    hass.data[DOMAIN][UNSUB_LISTENERS] = []
 
-    hass.data.pop(DOMAIN)
     return True
 
 

@@ -9,8 +9,8 @@ Configuration
 Pyscript can be configured using the UI, or via yaml. To use the UI, go to the
 Configuration -> Integrations page and selection "+" to add ``Pyscript Python scripting``.
 After that, you can change the settings anytime by selecting "Options" under Pyscript
-in the Configuration page. You will need to select "reload" under Pyscript, or call
-the ``pyscript.reload`` service for the new settings to take effect.
+in the Configuration -> Integrations page. You will need to select "reload" under Pyscript,
+or call the ``pyscript.reload`` service for the new settings to take effect.
 
 Alternatively, for yaml configuration, add ``pyscript:`` to ``<config>/configuration.yaml``.
 You can't mix these two methods - your initial choice determines how you should update
@@ -135,13 +135,13 @@ Reloading Scripts
 Manually reloading scripts via the ``pyscript.reload`` service is no longer necessary starting
 in 1.2.0, since changes are automatically detected and a reload is triggered.
 
-By default, reloading only reloads scripts, apps or modules that have changed since they were last
-loaded. A change means the script, app or module file contents or modification time has changed.
-Additionally, an app is considered changed if its yaml configuration has changed. When a change is
-detected, additional files are also reloaded if they depend on a changed file. Additional files
-include all other files in a particular module or app (meaning the entire module or app is reloaded
-if any of its files or imports are changed), and if a module has changed, any other module, app or
-script that imports that module directly or indirectly is reloaded too.
+By default, calling the reload service only reloads scripts, apps or modules that have changed since
+they were last loaded. A change means the script, app or module file contents or modification time
+has changed.  Additionally, an app is considered changed if its yaml configuration has changed. When
+a change is detected, additional files are also reloaded if they depend on a changed file.
+Additional files include all other files in a particular module or app (meaning the entire module or
+app is reloaded if any of its files or imports are changed), and if a module has changed, any other
+module, app or script that imports that module directly or indirectly is reloaded too.
 
 A file is also considered changed if it is newly created or deleted (or "commented" by renaming it
 or a parent directory to start with ``#``). When reload detects a deleted file, the prior global
@@ -157,7 +157,8 @@ Additional files might still be reloaded too (all other files in the module or a
 modules, apps or scripts that import a module if ``global_ctx`` was set to a module).
 
 If you want to manually reload all scripts, apps and modules, set ``global_ctx`` to ``*`` when
-you call ``pyscript.reload``.
+you call ``pyscript.reload``.  Alternatively, the ``Reload`` option under pyscript in the
+in the Configuration -> Integrations page will always do a full reload.
 
 Any function definitions, services and triggers in the reloaded files are re-created. Jupyter
 sessions are not affected. Any currently running functions (ie, functions that have been triggered

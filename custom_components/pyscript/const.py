@@ -3,6 +3,7 @@
 DOMAIN = "pyscript"
 
 CONFIG_ENTRY = "config_entry"
+CONFIG_ENTRY_OLD = "config_entry_old"
 UNSUB_LISTENERS = "unsub_listeners"
 
 FOLDER = "pyscript"
