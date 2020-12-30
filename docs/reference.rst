@@ -939,8 +939,8 @@ providing asycnhronous (actually collaborative serial) execution.  They are part
 run any Python code, provided it does not block (eg, for I/O) or run without giving up control for
 too long (which will prevent other tasks from running).
 
-Creating new tasks
-~~~~~~~~~~~~~~~~~~
+Task Management
+~~~~~~~~~~~~~~~
 
 These functions allow new tasks to be created and managed. Normally you won't need to create your own
 tasks, since trigger functions automatically create a new task to run the function every time the trigger
@@ -961,8 +961,9 @@ occurs.
   Returns the task id of the current task.
 
 ``task.name2id(name=None)``
-  Returns the task id given a name that task passed to ``task.unique``. With no arguments it returns a dict mapping
-  all names to task ids. The names are specific to the current global context.
+  Returns the task id given a name that task previously passed to ``task.unique``. A ``NameError`` exception
+  is raised if the task name is unknown. With no arguments it returns a dict mapping all names to task ids.
+  The names are specific to the current global context.
 
 ``task.wait(task_set)``
   Waits until the given set of tasks complete. This function calls ``asyncio.wait``, so it takes the same arguments.
@@ -1026,10 +1027,17 @@ Task unique
 Note that ``task.unique`` is specific to the current global context, so names used in one
 global context will not affect another.
 
+Once a task calls ``task.unique`` with a name, that name can be used to look up the task
+id by name using ``task.name2id``. So even if ``task.unique`` is not used to kill a prior
+task, it can be used to associate that task with a name which might be helpful if you need
+to manage specific tasks (eg, cancel them, wait for them to complete, or get their return
+value when they finish).
+
 A task can call ``task.unique`` multiple times with different names, which will kill
 any tasks that previously called ``task.unique`` with each of those names. The task
 continues to "own" all of those names, so any one of them could subsequently be used
-by a different task to kill the original task.
+by a different task to kill the original task. Any of those names can be used to find
+the task id by name using ``task.name2id``.
 
 ``task.unique`` can also be called outside a function, for example in the preamble of a script file
 or interactively using Jupyter. That causes any currently running functions (ie, functions that have
@@ -1041,7 +1049,7 @@ causes ``task.unique`` to do nothing.
 
 The ``task.unique`` functionality is also provided via a decorator ``@task_unique``. If your
 function immediately and always calls ``task.unique``, you could choose instead to use the
-function decorator form.
+equivalent function decorator form.
 
 Task waiting
 ~~~~~~~~~~~~
@@ -1745,9 +1753,9 @@ A handful of language features are not supported:
   I/O in the main event loop, and also to avoid security issues if people share pyscripts. The ``print``
   function only logs a message, rather than implements the real ``print`` features, such as specifying
   an output file handle.
-- function decorators, beyond the builtin ones, are not yet supported. If there is interest, support
-  for function decorators could be added. Additionally, the builtin function decorators aren't
-  functions that can be called and used in-line. There is a feature request to add this.
+- The builtin function decorators (eg, ``state_trigger``) aren't functions that can be called and used
+  in-line. However, you can define your own function decorators that could include those decorators on
+  the inner functions they define. Currently none of Python's builtin decorators are supported.
 
 Pyscript can call Python modules and packages, so you can always write your own native Python code
 (eg, if you need a generator or other unsupported feature) that can be called by pyscript
