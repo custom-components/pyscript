@@ -63,13 +63,13 @@ class PyscriptEntity(Entity):
         self.hass = hass
         self.ast_ctx = ast_ctx
 
-        self._unique_id = unique_id
+        self._unique_id = f"{self.platform}_{unique_id}"
 
         self._state = None
         self._attributes = {}
 
         self._icon = None
-        self._name = None
+        self._name = unique_id
 
         _LOGGER.debug(
             "Entity Initialized %s",
@@ -84,7 +84,12 @@ class PyscriptEntity(Entity):
     @property
     def device_state_attributes(self):
         """Return attributes for the sensor."""
-        return self._attributes
+        attributes = dict(self._attributes)
+        attributes.update({
+            "_unique_id": self._unique_id,
+            "_global_ctx": self.ast_ctx.name,
+        })
+        return attributes
 
     @property
     def icon(self):
@@ -102,7 +107,7 @@ class PyscriptEntity(Entity):
         return self._unique_id
 
     async def async_added_to_hass(self):
-        """Called when Home Assistant adds the entity to the registry"""
+        """Called when Home Assistant adds the entity to the registry"""    
         self._added = True
         await self.async_update()
 
@@ -110,6 +115,7 @@ class PyscriptEntity(Entity):
         """Request an entity update from Home Assistant"""
         if self._added:
             self.async_write_ha_state()
+
 
     # OPTIONALLY OVERRIDDEN IN EXTENDED CLASSES
     #####################################
