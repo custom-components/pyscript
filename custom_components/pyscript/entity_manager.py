@@ -31,21 +31,21 @@ class EntityManager:
         cls.registered_entities[platform] = {}
 
     @classmethod
-    async def get(cls, ast_ctx, platform, name):
+    async def get(cls, ast_ctx, platform, unique_id):
         """Get an Entity from pyscript"""
         await cls.wait_platform_registered(platform)
-        if platform not in cls.registered_entities or name not in cls.registered_entities[platform]:
-            await cls.create(ast_ctx, platform, name)
+        if platform not in cls.registered_entities or unique_id not in cls.registered_entities[platform]:
+            await cls.create(ast_ctx, platform, unique_id)
 
-        return cls.registered_entities[platform][name]
+        return cls.registered_entities[platform][unique_id]
 
     @classmethod
-    async def create(cls, ast_ctx, platform, name):
+    async def create(cls, ast_ctx, platform, unique_id):
         """Create entity from pyscript."""
         await cls.wait_platform_registered(platform)
-        new_entity = cls.platform_classes[platform](cls.hass, ast_ctx, name)
+        new_entity = cls.platform_classes[platform](cls.hass, ast_ctx, unique_id)
         cls.platform_adders[platform]([new_entity])
-        cls.registered_entities[platform][name] = new_entity
+        cls.registered_entities[platform][unique_id] = new_entity
 
     @classmethod
     async def wait_platform_registered(cls, platform):
@@ -75,6 +75,9 @@ class PyscriptEntity(Entity):
             "Entity Initialized %s",
             self._unique_id,
         )
+
+    # USED BY HOME ASSISTANT
+    ####################################
 
     @property
     def state(self):
@@ -110,6 +113,14 @@ class PyscriptEntity(Entity):
         """Called when Home Assistant adds the entity to the registry"""    
         self._added = True
         await self.async_update()
+        _LOGGER.debug(
+            "Entity %s Added to Hass as %s",
+            self._unique_id,
+            self.entity_id,
+        )
+
+    # USED INTERNALLY
+    #####################################
 
     async def async_update(self):
         """Request an entity update from Home Assistant"""
@@ -148,8 +159,9 @@ class PyscriptEntity(Entity):
             self.set_attribute(attribute_name, kwargs[attribute_name])
 
         _LOGGER.debug(
-            "%s state is now %s (%s)",
+            "%s (%s) state is now %s (%s)",
             self._unique_id,
+            self.entity_id,
             self._state,
             self._attributes,
         )
