@@ -7,21 +7,24 @@ import logging
 import os
 import time
 import traceback
+from typing import Any, Callable, Dict, List, Set
 
 import voluptuous as vol
-from watchdog.events import DirModifiedEvent, FileSystemEventHandler
+from watchdog.events import DirModifiedEvent, FileSystemEvent, FileSystemEventHandler
 import watchdog.observers
 
 from homeassistant.config import async_hass_config_yaml
-from homeassistant.config_entries import SOURCE_IMPORT
+from homeassistant.config_entries import SOURCE_IMPORT, ConfigEntry
 from homeassistant.const import (
     EVENT_HOMEASSISTANT_STARTED,
     EVENT_HOMEASSISTANT_STOP,
     EVENT_STATE_CHANGED,
     SERVICE_RELOAD,
 )
+from homeassistant.core import Config, HomeAssistant, ServiceCall
 from homeassistant.exceptions import HomeAssistantError
 import homeassistant.helpers.config_validation as cv
+from homeassistant.helpers.event import Event as HAEvent
 from homeassistant.helpers.restore_state import RestoreStateData
 from homeassistant.loader import bind_hass
 
@@ -62,7 +65,7 @@ PYSCRIPT_SCHEMA = vol.Schema(
 CONFIG_SCHEMA = vol.Schema({DOMAIN: PYSCRIPT_SCHEMA}, extra=vol.ALLOW_EXTRA)
 
 
-async def async_setup(hass, config):
+async def async_setup(hass: HomeAssistant, config: Config) -> bool:
     """Component setup, run import config flow for each entry in config."""
     await restore_state(hass)
     if DOMAIN in config:
@@ -75,7 +78,7 @@ async def async_setup(hass, config):
     return True
 
 
-async def restore_state(hass):
+async def restore_state(hass: HomeAssistant) -> None:
     """Restores the persisted pyscript state."""
     restore_data = await RestoreStateData.async_get_instance(hass)
     for entity_id, value in restore_data.last_states.items():
@@ -84,7 +87,7 @@ async def restore_state(hass):
             hass.states.async_set(entity_id, last_state.state, last_state.attributes)
 
 
-async def update_yaml_config(hass, config_entry):
+async def update_yaml_config(hass: HomeAssistant, config_entry: ConfigEntry) -> bool:
     """Update the yaml config."""
     try:
         conf = await async_hass_config_yaml(hass)
@@ -120,7 +123,7 @@ async def update_yaml_config(hass, config_entry):
     return False
 
 
-def start_global_contexts(global_ctx_only=None):
+def start_global_contexts(global_ctx_only: str = None) -> None:
     """Start all the file and apps global contexts."""
     start_list = []
     for global_ctx_name, global_ctx in GlobalContextMgr.items():
@@ -136,7 +139,9 @@ def start_global_contexts(global_ctx_only=None):
         global_ctx.start()
 
 
-async def watchdog_start(hass, pyscript_folder, reload_scripts_handler):
+async def watchdog_start(
+    hass: HomeAssistant, pyscript_folder: str, reload_scripts_handler: Callable[[None], None]
+) -> None:
     """Start watchdog thread to look for changed files in pyscript_folder."""
     if WATCHDOG_OBSERVER in hass.data[DOMAIN]:
         return
@@ -144,32 +149,32 @@ async def watchdog_start(hass, pyscript_folder, reload_scripts_handler):
     class WatchDogHandler(FileSystemEventHandler):
         """Class for handling watchdog events."""
 
-        def __init__(self, watchdog_q):
+        def __init__(self, watchdog_q: asyncio.Queue) -> None:
             self.watchdog_q = watchdog_q
 
-        def process(self, event):
+        def process(self, event: FileSystemEvent) -> None:
             """Send watchdog events to main loop task."""
             _LOGGER.debug("watchdog process(%s)", event)
             hass.loop.call_soon_threadsafe(self.watchdog_q.put_nowait, event)
 
-        def on_modified(self, event):
+        def on_modified(self, event: FileSystemEvent) -> None:
             """File modified."""
             self.process(event)
 
-        def on_moved(self, event):
+        def on_moved(self, event: FileSystemEvent) -> None:
             """File moved."""
             self.process(event)
 
-        def on_created(self, event):
+        def on_created(self, event: FileSystemEvent) -> None:
             """File created."""
             self.process(event)
 
-        def on_deleted(self, event):
+        def on_deleted(self, event: FileSystemEvent) -> None:
             """File deleted."""
             self.process(event)
 
-    async def task_watchdog(watchdog_q):
-        def check_event(event, do_reload):
+    async def task_watchdog(watchdog_q: asyncio.Queue) -> None:
+        def check_event(event, do_reload: bool) -> bool:
             """Check if event should trigger a reload."""
             if event.is_directory:
                 # don't reload if it's just a directory modified
@@ -218,7 +223,7 @@ async def watchdog_start(hass, pyscript_folder, reload_scripts_handler):
         observer.schedule(WatchDogHandler(watchdog_q), pyscript_folder, recursive=True)
 
 
-async def async_setup_entry(hass, config_entry):
+async def async_setup_entry(hass: HomeAssistant, config_entry: ConfigEntry) -> bool:
     """Initialize the pyscript config entry."""
     global_ctx_only = None
     if Function.hass:
@@ -250,7 +255,7 @@ async def async_setup_entry(hass, config_entry):
     await install_requirements(hass, config_entry, pyscript_folder)
     await load_scripts(hass, config_entry.data, global_ctx_only=global_ctx_only)
 
-    async def reload_scripts_handler(call):
+    async def reload_scripts_handler(call: ServiceCall) -> None:
         """Handle reload service calls."""
         _LOGGER.debug("reload: yaml, reloading scripts, and restarting")
 
@@ -269,7 +274,7 @@ async def async_setup_entry(hass, config_entry):
 
     hass.services.async_register(DOMAIN, SERVICE_RELOAD, reload_scripts_handler)
 
-    async def jupyter_kernel_start(call):
+    async def jupyter_kernel_start(call: ServiceCall) -> None:
         """Handle Jupyter kernel start call."""
         _LOGGER.debug("service call to jupyter_kernel_start: %s", call.data)
 
@@ -293,7 +298,7 @@ async def async_setup_entry(hass, config_entry):
 
     hass.services.async_register(DOMAIN, SERVICE_JUPYTER_KERNEL_START, jupyter_kernel_start)
 
-    async def state_changed(event):
+    async def state_changed(event: HAEvent) -> None:
         var_name = event.data["entity_id"]
         if event.data.get("new_state", None):
             new_val = StateVal(event.data["new_state"])
@@ -317,7 +322,7 @@ async def async_setup_entry(hass, config_entry):
         }
         await State.update(new_vars, func_args)
 
-    async def hass_started(event):
+    async def hass_started(event: HAEvent) -> None:
         _LOGGER.debug("adding state changed listener and starting global contexts")
         await State.get_service_params()
         hass.data[DOMAIN][UNSUB_LISTENERS].append(hass.bus.async_listen(EVENT_STATE_CHANGED, state_changed))
@@ -326,7 +331,7 @@ async def async_setup_entry(hass, config_entry):
             observer = hass.data[DOMAIN][WATCHDOG_OBSERVER]
             observer.start()
 
-    async def hass_stop(event):
+    async def hass_stop(event: HAEvent) -> None:
         if WATCHDOG_OBSERVER in hass.data[DOMAIN]:
             observer = hass.data[DOMAIN][WATCHDOG_OBSERVER]
             observer.stop()
@@ -353,7 +358,7 @@ async def async_setup_entry(hass, config_entry):
     return True
 
 
-async def async_unload_entry(hass, config_entry):
+async def async_unload_entry(hass: HomeAssistant, config_entry: ConfigEntry) -> bool:
     """Unload a config entry."""
     _LOGGER.info("Unloading all scripts")
     await unload_scripts()
@@ -365,7 +370,7 @@ async def async_unload_entry(hass, config_entry):
     return True
 
 
-async def unload_scripts(global_ctx_only=None, unload_all=False):
+async def unload_scripts(global_ctx_only: str = None, unload_all: bool = False) -> None:
     """Unload all scripts from GlobalContextMgr with given name prefixes."""
     ctx_delete = {}
     for global_ctx_name, global_ctx in GlobalContextMgr.items():
@@ -384,7 +389,7 @@ async def unload_scripts(global_ctx_only=None, unload_all=False):
 
 
 @bind_hass
-async def load_scripts(hass, config_data, global_ctx_only=None):
+async def load_scripts(hass: HomeAssistant, config_data: Dict[str, Any], global_ctx_only: str = None):
     """Load all python scripts in FOLDER."""
 
     class SourceFile:
@@ -417,7 +422,9 @@ async def load_scripts(hass, config_data, global_ctx_only=None):
 
     pyscript_dir = hass.config.path(FOLDER)
 
-    def glob_read_files(load_paths, apps_config):
+    def glob_read_files(
+        load_paths: List[Set[str, str, bool, bool]], apps_config: Dict[str, Any]
+    ) -> Dict[str, SourceFile]:
         """Expand globs and read all the source files."""
         ctx2source = {}
         for path, match, check_config, autoload in load_paths:
