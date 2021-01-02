@@ -7,7 +7,7 @@ import logging
 import os
 import time
 import traceback
-from typing import Any, Callable, Dict, List, Set
+from typing import Any, Callable, Dict, List, Set, Union
 
 import voluptuous as vol
 from watchdog.events import DirModifiedEvent, FileSystemEvent, FileSystemEventHandler
@@ -423,7 +423,7 @@ async def load_scripts(hass: HomeAssistant, config_data: Dict[str, Any], global_
     pyscript_dir = hass.config.path(FOLDER)
 
     def glob_read_files(
-        load_paths: List[Set[str, str, bool, bool]], apps_config: Dict[str, Any]
+        load_paths: List[Set[Union[str, bool]]], apps_config: Dict[str, Any]
     ) -> Dict[str, SourceFile]:
         """Expand globs and read all the source files."""
         ctx2source = {}

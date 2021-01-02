@@ -120,7 +120,7 @@ class GlobalContext:
         module_path = module_name.replace(".", "/")
         file_paths = []
 
-        def find_first_file(file_paths: List[Set[str, str, str]]) -> List[Optional[Union[str, ModuleType]]]:
+        def find_first_file(file_paths: List[Set[str]]) -> List[Optional[Union[str, ModuleType]]]:
             for ctx_name, path, rel_path in file_paths:
                 abs_path = os.path.join(pyscript_dir, path)
                 if os.path.isfile(abs_path):
@@ -268,7 +268,7 @@ class GlobalContextMgr:
         cls.contexts[name] = global_ctx
 
     @classmethod
-    def items(cls) -> List[Set[str, GlobalContext]]:
+    def items(cls) -> List[Set[Union[str, GlobalContext]]]:
         """Return all the global context items."""
         return sorted(cls.contexts.items())
 
@@ -292,13 +292,13 @@ class GlobalContextMgr:
     @classmethod
     async def load_file(
         cls, global_ctx: GlobalContext, file_path: str, source: str = None, reload: bool = False
-    ) -> Set[bool, AstEval]:
+    ) -> Set[Union[bool, AstEval]]:
         """Load, parse and run the given script file; returns error ast_ctx on error, or None if ok."""
 
         mtime = None
         if source is None:
 
-            def read_file(path: str) -> Set[str, float]:
+            def read_file(path: str) -> Set[Union[str, float]]:
                 try:
                     with open(path) as file_desc:
                         source = file_desc.read()
