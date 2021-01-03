@@ -109,6 +109,11 @@ files when they are changed, renamed, created or deleted:
   ``yaml`` configuration under ``apps`` (that allows each app to be disabled by simply
   removing its configuration and reloading).
 
+The idea is that the top-level directory ``pyscript`` and ``pyscript/scripts`` are for your own use
+(and are always loaded), and ``pyscript/apps/`` is for things you've gotten from others or things
+you've written with the intent to reuse or share (and only are loaded if there is a configuration
+entry, which can be empty).
+
 Any file name that starts with ``#`` is not loaded, and similarly scripts anywhere below a directory
 name that starts with ``#``, are not loaded. That's a convenient way to disable a specific script or
 entire directory below ``scripts`` - you can simply rename it with or without the leading ``#`` to
