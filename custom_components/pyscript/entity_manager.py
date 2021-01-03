@@ -117,6 +117,12 @@ class PyscriptEntity(Entity):
             self.entity_id,
         )
 
+    @property
+    def should_poll(self):
+        """Return True if entity has to be polled for state.
+        False if entity pushes its state to HA.
+        """
+        return False
 
     # USED INTERNALLY
     #####################################
