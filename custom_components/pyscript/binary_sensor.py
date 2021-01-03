@@ -1,5 +1,6 @@
 """Pyscript Binary Sensor Entity"""
 from .entity_manager import EntityManager, PyscriptEntity
+from homeassistant.components.binary_sensor import BinarySensorEntity
 
 PLATFORM = "binary_sensor"
 
@@ -14,7 +15,7 @@ async def async_setup_entry(hass, config_entry, async_add_entities):
     return await async_setup_platform(hass, config_entry.data, async_add_entities, discovery_info=None)
 
 
-class PyscriptBinarySensor(PyscriptEntity):
+class PyscriptBinarySensor(PyscriptEntity, BinarySensorEntity):
     """A Pyscript Binary Sensor Entity"""
     platform = PLATFORM
 
@@ -22,10 +23,24 @@ class PyscriptBinarySensor(PyscriptEntity):
         super().__init__(*args, **kwargs)
         self._device_class = None
 
+
+    # USED BY HOME ASSISTANT
+    ##############################
+
+    @property
+    def is_on(self):
+        """Return true if binary sensor is on"""
+        if self._state == 'on':
+            return True
+        return False
+
     @property
     def device_class(self):
         """Return the device class of the sensor."""
         return self._device_class
+
+    # OVERRIDDEN FROM PyscriptEntity
+    ################################ 
 
     def set_state(self, state):
         """Handle State Validation"""
@@ -42,7 +57,7 @@ class PyscriptBinarySensor(PyscriptEntity):
 
         super().set_state(state)
 
-    # TO BE USED IN PYSCRIPT
+    # USED IN PYSCRIPT
     ######################################
 
     async def set_device_class(self, device_class):

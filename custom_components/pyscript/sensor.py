@@ -1,5 +1,6 @@
 """Pyscript Sensor Entity"""
 from .entity_manager import EntityManager, PyscriptEntity
+from homeassistant.helpers.entity import Entity
 
 PLATFORM = "sensor"
 
@@ -14,7 +15,8 @@ async def async_setup_entry(hass, config_entry, async_add_entities):
     return await async_setup_platform(hass, config_entry.data, async_add_entities, discovery_info=None)
 
 
-class PyscriptSensor(PyscriptEntity):
+# inheriting from Entity here because HASS doesn't have SensorEntity
+class PyscriptSensor(PyscriptEntity, Entity):
     """A Pyscript Sensor Entity"""
     platform = PLATFORM
 
@@ -22,6 +24,15 @@ class PyscriptSensor(PyscriptEntity):
         super().__init__(*args, **kwargs)
         self._device_class = None
         self._unit_of_measurement = None
+
+
+    # USED BY HOME ASSISTANT
+    ##############################
+
+    @property
+    def state(self):
+        """Return the state of the sensor."""
+        return self._state    
 
     @property
     def device_class(self):
@@ -33,7 +44,8 @@ class PyscriptSensor(PyscriptEntity):
         """Return the unit of measurement for the sensor."""
         return self._unit_of_measurement
 
-    # TO BE USED IN PYSCRIPT
+
+    # USED IN PYSCRIPT
     ######################################
 
     async def set_device_class(self, device_class):

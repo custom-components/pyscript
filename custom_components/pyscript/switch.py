@@ -1,5 +1,6 @@
 """Pyscript Switch Entity"""
 from .entity_manager import EntityManager, PyscriptEntity
+from homeassistant.helpers.entity import ToggleEntity
 from .eval import EvalFunc
 
 PLATFORM = "switch"
@@ -15,7 +16,7 @@ async def async_setup_entry(hass, config_entry, async_add_entities):
     return await async_setup_platform(hass, config_entry.data, async_add_entities, discovery_info=None)
 
 
-class PyscriptSwitch(PyscriptEntity):
+class PyscriptSwitch(PyscriptEntity, ToggleEntity):
     """A Pysript Switch Entity"""
     platform = PLATFORM
 
@@ -24,6 +25,16 @@ class PyscriptSwitch(PyscriptEntity):
         super().__init__(*args, **kwargs)
         self._turn_on_handler = None
         self._turn_off_handler = None
+
+
+    # USED BY HOME ASSISTANT
+    ##############################
+    @property
+    def is_on(self):
+        """Return true if binary sensor is on"""
+        if self._state == 'on':
+            return True
+        return False
 
     async def async_turn_on(self, **kwargs):
         """Handle turn_on request."""
@@ -49,6 +60,9 @@ class PyscriptSwitch(PyscriptEntity):
         else:
             raise RuntimeError(f"Unable to Call turn_off_handler of type {type(self._turn_off_handler)}")
 
+    # OVERRIDDEN FROM PyscriptEntity
+    ################################ 
+
     def set_state(self, state):
         """Handle state validation"""
         state = state.lower()
@@ -58,7 +72,7 @@ class PyscriptSwitch(PyscriptEntity):
 
         super().set_state(state)
 
-    # TO BE USED IN PYSCRIPT
+    # USED IN PYSCRIPT
     ######################################
 
     def on_turn_on(self, func):

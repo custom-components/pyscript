@@ -80,21 +80,6 @@ class PyscriptEntity(Entity):
     ####################################
 
     @property
-    def state(self):
-        """Return the state of the sensor."""
-        return self._state
-
-    @property
-    def device_state_attributes(self):
-        """Return attributes for the sensor."""
-        attributes = dict(self._attributes)
-        attributes.update({
-            "_unique_id": self._unique_id,
-            "_global_ctx": self.ast_ctx.name,
-        })
-        return attributes
-
-    @property
     def icon(self):
         """Return the icon to use in the frontend, if any."""
         return self._icon
@@ -109,6 +94,19 @@ class PyscriptEntity(Entity):
         """Return a unique ID."""
         return self._unique_id
 
+    @property
+    def state_attributes(self):
+        """Return the state attributes."""
+        return self._attributes
+
+    @property
+    def device_state_attributes(self):
+        """Return device specific state attributes."""
+        return {
+            "_unique_id": self._unique_id,
+            "_global_ctx": self.ast_ctx.name,
+        }
+
     async def async_added_to_hass(self):
         """Called when Home Assistant adds the entity to the registry"""    
         self._added = True
@@ -118,6 +116,7 @@ class PyscriptEntity(Entity):
             self._unique_id,
             self.entity_id,
         )
+
 
     # USED INTERNALLY
     #####################################
