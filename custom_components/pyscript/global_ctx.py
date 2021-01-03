@@ -46,6 +46,8 @@ class GlobalContext:
             # expose hass as a global variable if configured
             #
             self.global_sym_table["hass"] = Function.hass
+        if app_config:
+            self.global_sym_table["pyscript.app_config"] = app_config.copy()
 
     def trigger_register(self, func):
         """Register a trigger function; return True if start now."""

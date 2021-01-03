@@ -42,10 +42,9 @@ configuration settings. If you configured pyscript using the UI flow, you can st
 add additional configuration settings via yaml. Since they are free-form (no fixed
 schema) there is no UI configuration available for these additional settings.
 
-All the pyscript configuration settings are available via the variable ``pyscript.config``
-(see `this section <#accessing-yaml-configuration>`__). The recommended structure is
-to have entries for each application you write stored under an ``apps`` entry.
-For example, applications ``my_app1`` and ``my_app2`` would be configured as:
+Each application should have its configuration stored using the application's name under
+an ``apps`` entry. For example, applications ``my_app1`` and ``my_app2`` would be configured
+as:
 
 .. code:: yaml
 
@@ -68,22 +67,30 @@ If the include above is used, the ``pyscript/config.yaml`` would look like:
      my_app2:
        # any settings for my_app2 go here
 
-The ``apps`` section could also include other configuration files if you prefer to arrange
-things in that manner.
+The ``apps`` section could also include other configuration files if you prefer to put
+each application's configuration in its own file.
+
+An application will not be loaded unless it has a configuration entry (even if it is empty).
+That provides an easy was to enable or disable an application.
+
+An application's configuration (eg, all the settings below ``my_app1`` in the example above)
+are available in the variable ``pyscript.app_config`` in the global scope of the application's
+main file (eg, ``apps/my_app1.py`` or ``apps/my_app1/__init__.py``).  Additionally, all the pyscript
+configuration settings are available via the variable ``pyscript.config``, which also includes
+all the application configuration below the ``apps`` key. However, in a future release the
+``apps`` entry will be removed so that apps do not have access to another app's configuration
+(which might include token, passwords or keys).  See `this section <#accessing-yaml-configuration>`__
+for more information.
 
 Note that if you used the UI flow to configure pyscript, the ``allow_all_imports`` and
 ``hass_is_global`` configuration settings will be ignored in the yaml file. In that case
 you should omit them from the yaml, and just use yaml for pyscript app configuration.
 
-As explained below, the use of ``apps`` with entries for each application by name below,
-is used to determine which application scripts are autoloaded. That's the only configuration
-structure that pyscript checks - any other parameters can be added and used as you like.
-
 At startup, pyscript loads the following files. It also automatically unloads and reloads
 files when they are changed, renamed, created or deleted:
 
 ``<config>/pyscript/*.py``
-  all files with a ``.py`` suffix are autoloaded.
+  all files with a ``.py`` suffix in the top-level directory are autoloaded.
 
 ``<config>/pyscript/scripts/**/*.py``
   all files with a ``.py`` suffix below the ``scripts`` directory, recursively to any depth,
@@ -1467,20 +1474,24 @@ A ``dict`` could be used instead of a list, with a key that combines the unique 
 of the trigger. That way a new trigger with the same parameters will replace an old one
 when the ``dict`` entry is set, if that's the behavior you want.
 
-Accessing YAML configuration
+Accessing YAML Configuration
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-Pyscript binds all of its ``yaml`` configuration to the variable ``pyscript.config``. That
-allows you to add configuration settings that can be processed by your pyscript code.
+Pyscript binds all of its ``yaml`` configuration to the variable ``pyscript.config``. That allows
+you to add configuration settings that can be processed by your pyscript code. Additionally, an
+application's configuration (eg, for an application ``app_name``, all the settings in ``app_name``
+below ``apps``) are available in the variable ``pyscript.app_config`` in the global scope of the
+application's main file (eg, ``apps/app_name.py`` or ``apps/app_name/__init__.py``).
 
 One motivation is to allow pyscript apps to be developed and shared that can instantiate triggers
 and logic based on ``yaml`` configuration. That allows other users to use and configure your
 pyscript code without needing to edit or even understand it - they just need to add the
 corresponding ``yaml`` configuration.
 
-A recommended convention is to put the settings for a pyscript application called ``auto_lights``
-below an entry ``apps``. That entry could contain a list of settings (eg, for handling multiple
-rooms or locations).
+The configuration for an application should be placed below that application's name under the
+``apps`` configuration key.  For example, the settings for a pyscript application called
+``auto_lights`` below an entry ``apps``. That entry could contain a list of settings (eg, for
+handling multiple rooms or locations).
 
 Here's an example ``yaml`` configuration with settings for two applications, ``auto_lights``
 and ``motion_light``:
@@ -1508,8 +1519,22 @@ and ``motion_light``:
            light: side_flood
          - sensor: front_patio
            light: front_porch
+     global:
+       setting1: 10
+       setting2: true
 
-The corresponding ``pyscript.config`` variable value will be:
+For the ``auto_lights`` application, those settings are available to that application's main
+source file (eg, ``apps/auto_lights.py`` or ``apps/auto_lights/__init__.py``) in the global
+variable ``pyscript.app_config``, which will be set to:
+
+.. code:: python
+
+   [
+       {"room": "living", "level": 60, "some_list": [1, 20]},
+       {"room": "dining", "level": 80, "some_list": [1, 20]},
+   ],
+
+The corresponding global ``pyscript.config`` variable value will be:
 
 .. code:: python
 
@@ -1526,14 +1551,22 @@ The corresponding ``pyscript.config`` variable value will be:
                {"sensor": "front_patio", "light": "front_porch"},
            ],
        },
+       "global": {
+           "setting1": 10,
+           "setting2": True,
+       },
    }
+
+Note that accessing ``pyscript.config["apps"]`` is deprecated.  The ``apps`` entry will be removed
+in a future release so that apps do not have access to another app's configuration
+(which might include token, passwords or keys).
 
 Your application code for ``auto_lights`` would be in either
 
 - ``<config>/pyscript/apps/auto_lights.py``
 - ``<config>/pyscript/apps/auto_lights/__init__.py``
 
-It can simply iterate over ``pyscript.config["apps"]["auto_lights"]`` settings up the necessary
+It can simply iterate over ``pyscript.app_config`` settings up the necessary
 triggers and application logic, eg:
 
 .. code:: python
@@ -1544,7 +1577,7 @@ triggers and application logic, eg:
        #
        pass
 
-   for inst in pyscript.config["apps"]["auto_lights"]:
+   for inst in pyscript.app_config:
        setup_triggers(**inst)
 
 Validating the configuration can be done either manually or with the ``voluptuous`` package.

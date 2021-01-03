@@ -21,6 +21,15 @@ async def test_reload(hass, caplog):
 import xyz2
 from xyz2 import xyz
 
+#
+# ensure a regular script doesn't have pyscript.app_config set
+#
+try:
+    x = pyscript.app_config
+    assert False
+except NameError:
+    pass
+
 log.info(f"{__name__} global_ctx={pyscript.get_global_ctx()} xyz={xyz} xyz2.xyz={xyz2.xyz}")
 
 @service
@@ -45,6 +54,8 @@ def func2():
         f"{conf_dir}/apps/world2/__init__.py": """
 from .other import *
 
+assert pyscript.config['apps']['world2'] == pyscript.app_config
+
 log.info(f"{__name__} global_ctx={pyscript.get_global_ctx()} var1={pyscript.config['apps']['world2']['var1']}, other_abc={other_abc}")
 
 @service
@@ -56,12 +67,30 @@ other_abc = 987
 
 log.info(f"{__name__} global_ctx={pyscript.get_global_ctx()}")
 
+#
+# ensure a sub file in the app doesn't have pyscript.app_config set
+#
+try:
+    x = pyscript.app_config
+    assert False
+except NameError:
+    pass
+
 @time_trigger("shutdown")
 def shutdown(trigger_time=None):
     log.info(f"{__name__} global_ctx={pyscript.get_global_ctx()} shutdown trigger_time={trigger_time}")
 """,
         f"{conf_dir}/modules/xyz2/__init__.py": """
 from .other import xyz
+
+#
+# ensure a module doesn't have pyscript.app_config set
+#
+try:
+    x = pyscript.app_config
+    assert False
+except NameError:
+    pass
 
 log.info(f"modules/xyz2 global_ctx={pyscript.get_global_ctx()};")
 """,
