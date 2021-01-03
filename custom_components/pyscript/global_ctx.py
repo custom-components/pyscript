@@ -3,9 +3,12 @@
 import logging
 import os
 from types import ModuleType
+from typing import Any, Callable, Dict, List, Optional, Set, Union
+
+from homeassistant.config_entries import ConfigEntry
 
 from .const import CONF_HASS_IS_GLOBAL, CONFIG_ENTRY, DOMAIN, FOLDER, LOGGER_PATH
-from .eval import AstEval
+from .eval import AstEval, EvalFunc
 from .function import Function
 from .trigger import TrigInfo
 
@@ -18,29 +21,29 @@ class GlobalContext:
     def __init__(
         self,
         name,
-        global_sym_table=None,
+        global_sym_table: Dict[str, Any] = None,
         manager=None,
-        rel_import_path=None,
-        app_config=None,
-        source=None,
-        mtime=None,
-    ):
+        rel_import_path: str = None,
+        app_config: Dict[str, Any] = None,
+        source: str = None,
+        mtime: float = None,
+    ) -> None:
         """Initialize GlobalContext."""
-        self.name = name
-        self.global_sym_table = global_sym_table if global_sym_table else {}
-        self.triggers = set()
-        self.triggers_delay_start = set()
-        self.logger = logging.getLogger(LOGGER_PATH + "." + name)
-        self.manager = manager
-        self.auto_start = False
-        self.module = None
-        self.rel_import_path = rel_import_path
-        self.source = source
-        self.file_path = None
-        self.mtime = mtime
-        self.app_config = app_config
-        self.imports = set()
-        config_entry = Function.hass.data.get(DOMAIN, {}).get(CONFIG_ENTRY, {})
+        self.name: str = name
+        self.global_sym_table: Dict[str, Any] = global_sym_table if global_sym_table else {}
+        self.triggers: Set[EvalFunc] = set()
+        self.triggers_delay_start: Set[EvalFunc] = set()
+        self.logger: logging.Logger = logging.getLogger(LOGGER_PATH + "." + name)
+        self.manager: GlobalContextMgr = manager
+        self.auto_start: bool = False
+        self.module: ModuleType = None
+        self.rel_import_path: str = rel_import_path
+        self.source: str = source
+        self.file_path: str = None
+        self.mtime: float = mtime
+        self.app_config: Dict[str, Any] = app_config
+        self.imports: Set[str] = set()
+        config_entry: ConfigEntry = Function.hass.data.get(DOMAIN, {}).get(CONFIG_ENTRY, {})
         if config_entry.data.get(CONF_HASS_IS_GLOBAL, False):
             #
             # expose hass as a global variable if configured
@@ -49,7 +52,7 @@ class GlobalContext:
         if app_config:
             self.global_sym_table["pyscript.app_config"] = app_config.copy()
 
-    def trigger_register(self, func):
+    def trigger_register(self, func: EvalFunc) -> bool:
         """Register a trigger function; return True if start now."""
         self.triggers.add(func)
         if self.auto_start:
@@ -57,22 +60,22 @@ class GlobalContext:
         self.triggers_delay_start.add(func)
         return False
 
-    def trigger_unregister(self, func):
+    def trigger_unregister(self, func: EvalFunc) -> None:
         """Unregister a trigger function."""
         self.triggers.discard(func)
         self.triggers_delay_start.discard(func)
 
-    def set_auto_start(self, auto_start):
+    def set_auto_start(self, auto_start: bool) -> None:
         """Set the auto-start flag."""
         self.auto_start = auto_start
 
-    def start(self):
+    def start(self) -> None:
         """Start any unstarted triggers."""
         for func in self.triggers_delay_start:
             func.trigger_start()
         self.triggers_delay_start = set()
 
-    def stop(self):
+    def stop(self) -> None:
         """Stop all triggers and auto_start."""
         for func in self.triggers:
             func.trigger_stop()
@@ -80,46 +83,46 @@ class GlobalContext:
         self.triggers_delay_start = set()
         self.set_auto_start(False)
 
-    def get_name(self):
+    def get_name(self) -> str:
         """Return the global context name."""
         return self.name
 
-    def get_global_sym_table(self):
+    def get_global_sym_table(self) -> Dict[str, Any]:
         """Return the global symbol table."""
         return self.global_sym_table
 
-    def get_source(self):
+    def get_source(self) -> str:
         """Return the source code."""
         return self.source
 
-    def get_app_config(self):
+    def get_app_config(self) -> Dict[str, Any]:
         """Return the app config."""
         return self.app_config
 
-    def get_mtime(self):
+    def get_mtime(self) -> float:
         """Return the mtime."""
         return self.mtime
 
-    def get_file_path(self):
+    def get_file_path(self) -> str:
         """Return the file path."""
         return self.file_path
 
-    def get_imports(self):
+    def get_imports(self) -> Set[str]:
         """Return the imports."""
         return self.imports
 
-    def get_trig_info(self, name, trig_args):
+    def get_trig_info(self, name: str, trig_args: Dict[str, Any]) -> TrigInfo:
         """Return a new trigger info instance with the given args."""
         return TrigInfo(name, trig_args, self)
 
-    async def module_import(self, module_name, import_level):
+    async def module_import(self, module_name: str, import_level: int) -> List[Optional[str]]:
         """Import a pyscript module from the pyscript/modules or apps folder."""
 
         pyscript_dir = Function.hass.config.path(FOLDER)
         module_path = module_name.replace(".", "/")
         file_paths = []
 
-        def find_first_file(file_paths):
+        def find_first_file(file_paths: List[Set[str]]) -> List[Optional[Union[str, ModuleType]]]:
             for ctx_name, path, rel_path in file_paths:
                 abs_path = os.path.join(pyscript_dir, path)
                 if os.path.isfile(abs_path):
@@ -209,15 +212,15 @@ class GlobalContextMgr:
     #
     name_seq = 0
 
-    def __init__(self):
+    def __init__(self) -> None:
         """Report an error if GlobalContextMgr in instantiated."""
         _LOGGER.error("GlobalContextMgr class is not meant to be instantiated")
 
     @classmethod
-    def init(cls):
+    def init(cls) -> None:
         """Initialize GlobalContextMgr."""
 
-        def get_global_ctx_factory(ast_ctx):
+        def get_global_ctx_factory(ast_ctx: AstEval) -> Callable[[], str]:
             """Generate a pyscript.get_global_ctx() function with given ast_ctx."""
 
             async def get_global_ctx():
@@ -225,7 +228,7 @@ class GlobalContextMgr:
 
             return get_global_ctx
 
-        def list_global_ctx_factory(ast_ctx):
+        def list_global_ctx_factory(ast_ctx: AstEval) -> Callable[[], List[str]]:
             """Generate a pyscript.list_global_ctx() function with given ast_ctx."""
 
             async def list_global_ctx():
@@ -236,7 +239,7 @@ class GlobalContextMgr:
 
             return list_global_ctx
 
-        def set_global_ctx_factory(ast_ctx):
+        def set_global_ctx_factory(ast_ctx: AstEval) -> Callable[[str], None]:
             """Generate a pyscript.set_global_ctx() function with given ast_ctx."""
 
             async def set_global_ctx(name):
@@ -257,22 +260,22 @@ class GlobalContextMgr:
         Function.register_ast(ast_funcs)
 
     @classmethod
-    def get(cls, name):
+    def get(cls, name: str) -> Optional[str]:
         """Return the GlobalContext given a name."""
         return cls.contexts.get(name, None)
 
     @classmethod
-    def set(cls, name, global_ctx):
+    def set(cls, name: str, global_ctx: GlobalContext) -> None:
         """Save the GlobalContext by name."""
         cls.contexts[name] = global_ctx
 
     @classmethod
-    def items(cls):
+    def items(cls) -> List[Set[Union[str, GlobalContext]]]:
         """Return all the global context items."""
         return sorted(cls.contexts.items())
 
     @classmethod
-    def delete(cls, name):
+    def delete(cls, name: str) -> None:
         """Delete the given GlobalContext."""
         if name in cls.contexts:
             global_ctx = cls.contexts[name]
@@ -280,7 +283,7 @@ class GlobalContextMgr:
             del cls.contexts[name]
 
     @classmethod
-    def new_name(cls, root):
+    def new_name(cls, root: str) -> str:
         """Find a unique new name by appending a sequence number to root."""
         while True:
             name = f"{root}{cls.name_seq}"
@@ -289,13 +292,15 @@ class GlobalContextMgr:
                 return name
 
     @classmethod
-    async def load_file(cls, global_ctx, file_path, source=None, reload=False):
+    async def load_file(
+        cls, global_ctx: GlobalContext, file_path: str, source: str = None, reload: bool = False
+    ) -> Set[Union[bool, AstEval]]:
         """Load, parse and run the given script file; returns error ast_ctx on error, or None if ok."""
 
         mtime = None
         if source is None:
 
-            def read_file(path):
+            def read_file(path: str) -> Set[Union[str, float]]:
                 try:
                     with open(path) as file_desc:
                         source = file_desc.read()

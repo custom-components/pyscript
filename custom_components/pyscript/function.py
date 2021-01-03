@@ -412,6 +412,7 @@ class Function:
         #
         # Add a placeholder for the new task so we know it's one we started
         #
+        task: asyncio.Task = None
         try:
             task = asyncio.current_task()
             cls.our_tasks.add(task)
