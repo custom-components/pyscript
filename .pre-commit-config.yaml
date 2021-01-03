@@ -55,3 +55,9 @@ repos:
         entry: venv/bin/pylint
         language: system
         files: ^(custom_components|tests)/.+\.py$
+  - repo: https://github.com/pre-commit/mirrors-mypy
+    rev: v0.790
+    hooks:
+      - id: mypy
+        name: mypy
+        files: ^(custom_components|tests)/.+\.py$

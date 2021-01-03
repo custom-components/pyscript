@@ -1,9 +1,9 @@
 """Handles mqtt messages and notification."""
 
-import logging
 import json
-from homeassistant.components import mqtt
+import logging
 
+from homeassistant.components import mqtt
 
 from .const import LOGGER_PATH
 
@@ -36,8 +36,8 @@ class Mqtt:
 
     @classmethod
     def mqtt_message_handler_maker(cls, subscribed_topic):
-        """closure for mqtt_message_handler"""
-        
+        """Closure for mqtt_message_handler."""
+
         async def mqtt_message_handler(mqttmsg):
             """Listen for MQTT messages."""
             func_args = {
@@ -64,7 +64,7 @@ class Mqtt:
             cls.notify[topic] = set()
             _LOGGER.debug("mqtt.notify_add(%s) -> adding mqtt subscription", topic)
             cls.notify_remove[topic] = await mqtt.async_subscribe(
-                cls.hass, topic, cls.mqtt_message_handler_maker(topic), encoding='utf-8', qos=0
+                cls.hass, topic, cls.mqtt_message_handler_maker(topic), encoding="utf-8", qos=0
             )
         cls.notify[topic].add(queue)
 
