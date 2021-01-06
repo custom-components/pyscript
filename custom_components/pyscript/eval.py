@@ -10,6 +10,7 @@ import io
 import keyword
 import logging
 import sys
+import traceback
 
 import yaml
 
@@ -767,14 +768,19 @@ class EvalFuncVar:
 class EvalFuncVarClassInst(EvalFuncVar):
     """Class for a callable pyscript class instance function."""
 
-    def __init__(self, func, class_inst):
+    def __init__(self, func, ast_ctx, class_inst):
         """Initialize instance with given EvalFunc function."""
         super().__init__(func)
+        self.ast_ctx = ast_ctx
         self.class_inst = class_inst
 
     async def call(self, ast_ctx, *args, **kwargs):
         """Call the EvalFunc function."""
         return await self.func.call(ast_ctx, self.class_inst, *args, **kwargs)
+
+    async def __call__(self, *args, **kwargs):
+        """Call the function using our saved ast ctx and class instance."""
+        return await self.func.call(self.ast_ctx, self.class_inst, *args, **kwargs)
 
 
 class AstEval:
@@ -821,8 +827,6 @@ class AstEval:
             val = await getattr(self, name, self.ast_not_implemented)(arg)
             if undefined_check and isinstance(val, EvalName):
                 raise NameError(f"name '{val.name}' is not defined")
-            if isinstance(val, EvalFuncVar):
-                val.set_ast_ctx(self)
             return val
         except Exception as err:
             if not self.exception_obj:
@@ -1023,6 +1027,7 @@ class AstEval:
                 func_var = EvalFuncVar(func)
             else:
                 func_var = EvalFuncVar(func)
+            func_var.set_ast_ctx(self)
         else:
             func_var = func
 
@@ -1771,7 +1776,7 @@ class AstEval:
                 value = getattr(inst, name)
                 if type(value) is not EvalFuncVar:
                     continue
-                setattr(inst, name, EvalFuncVarClassInst(value.get_func(), inst))
+                setattr(inst, name, EvalFuncVarClassInst(value.get_func(), value.get_ast_ctx(), inst))
             if getattr(func, "__init__evalfunc_wrap__") is not None:
                 #
                 # since our __init__ function is async, call the renamed one
@@ -1822,7 +1827,10 @@ class AstEval:
 
     async def ast_await(self, arg):
         """Evaluate await expr."""
-        return await self.aeval(arg.value)
+        coro = await self.aeval(arg.value)
+        if coro:
+            return await coro
+        return None
 
     async def get_target_names(self, lhs):
         """Recursively find all the target names mentioned in the AST tree."""
@@ -1984,7 +1992,7 @@ class AstEval:
         else:
             mesg = f"Exception in <{self.filename}>:\n"
             mesg += f"{type(exc).__name__}: {exc}"
-        return mesg
+        return mesg + "\n" + traceback.format_exc(-5)
 
     def get_exception(self):
         """Return the last exception str."""

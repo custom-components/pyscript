@@ -968,6 +968,40 @@ msgs
     ],
     [
         """
+class Test:
+    x = 10
+    def __init__(self, value):
+        self.y = value
+
+    def set_x(self, value):
+        Test.x += 2
+        self.x = value
+
+@pyscript_compile
+async def f3(t, val):
+    await t.set_x(val)
+    return [t.x, t.y, Test.x]
+
+t = Test(25)
+f3(t, 50)
+""",
+        [50, 25, 12],
+    ],
+    [
+        """
+def func(arg, mul=1):
+    return mul * arg
+
+@pyscript_compile
+async def f2(arg, mul=1):
+    return await func(arg, mul=mul)
+
+[f2(10), f2(10, mul=2)]
+""",
+        [10, 20],
+    ],
+    [
+        """
 def func1(m):
     def func2():
         m[0] += 1
