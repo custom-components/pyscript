@@ -10,7 +10,6 @@ import io
 import keyword
 import logging
 import sys
-import traceback
 
 import yaml
 
@@ -1992,7 +1991,7 @@ class AstEval:
         else:
             mesg = f"Exception in <{self.filename}>:\n"
             mesg += f"{type(exc).__name__}: {exc}"
-        return mesg + "\n" + traceback.format_exc(-5)
+        return mesg
 
     def get_exception(self):
         """Return the last exception str."""
