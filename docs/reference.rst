@@ -964,10 +964,11 @@ occurs.
   supports `several methods <https://docs.python.org/3/library/asyncio-task.html#task-object>`__.
   The function ``func`` runs asynchronously until it returns or the task is cancelled.
 
-``task.cancel(task_id)``
+``task.cancel(task_id=None)``
   Cancels (kills) the task specified by the ``task_id`` returned by ``task.create``. This is a
   simpler alternative to the ``task_id.cancel()`` method, which also requires waiting for the
-  task to cancel.
+  task to cancel. With no argument, `task.cancel` cancels the current task, which you might prefer
+  to use in a trigger function on error, instead of a `return` or raising an exception.
 
 ``task.current_task()``
   Returns the task id of the current task.

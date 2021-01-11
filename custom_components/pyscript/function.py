@@ -261,11 +261,18 @@ class Function:
         return await cls.hass.async_add_executor_job(functools.partial(func, **kwargs), *args)
 
     @classmethod
-    def user_task_cancel(cls, task):
+    async def user_task_cancel(cls, task=None):
         """Implement task.cancel()."""
-        if not isinstance(task, asyncio.Task):
-            raise TypeError(f"{task} is not of type asyncio.Task")
+        do_sleep = False
+        if not task:
+            task = asyncio.current_task()
+            do_sleep = True
+        if task not in cls.our_tasks:
+            raise TypeError(f"{task} is not a user-started task")
         cls.reaper_cancel(task)
+        if do_sleep:
+            # wait to be canceled
+            await asyncio.sleep(100000)
 
     @classmethod
     async def user_task_current_task(cls):

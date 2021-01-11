@@ -90,6 +90,25 @@ pyscript.var4 = 1
 done, pending = task.wait({t4})
 log.info(f"task4() result = {t4.result()}, len(done) = {len(done)};")
 
+#
+# make sure we can't cancel a non-user task
+#
+try:
+    task.cancel()
+except TypeError as exc:
+    log.info(f"task.cancel: {exc}")
+
+#
+# check that we can cancel ourselves
+#
+def task5(arg=None):
+    log.info(f"task5 arg = {arg}")
+    task.cancel()
+    log.info(f"task5 BOTCH")
+
+t5 = task.create(task5, 83)
+done, pending = task.wait({t5})
+
 """,
     }
 
@@ -149,3 +168,6 @@ log.info(f"task4() result = {t4.result()}, len(done) = {len(done)};")
     assert caplog.text.count("callback4b arg =") == 1
     assert "callback4b arg = 100" in caplog.text
     assert "callback4c arg =" not in caplog.text
+    assert caplog.text.count("is not a user-started task") == 1
+    assert "task5 arg = 83" in caplog.text
+    assert "task5 BOTCH" not in caplog.text
