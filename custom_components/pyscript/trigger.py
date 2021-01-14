@@ -158,7 +158,9 @@ class TrigTime:
                     f"{ast_ctx.get_global_ctx_name()}.{func_name}", ast_ctx.get_global_ctx()
                 )
                 Function.install_ast_funcs(new_ast_ctx)
-                task = Function.create_task(func_call(func, func_name, new_ast_ctx, *args, **kwargs))
+                task = Function.create_task(
+                    func_call(func, func_name, new_ast_ctx, *args, **kwargs), ast_ctx=new_ast_ctx
+                )
                 Function.task_done_callback_ctx(task, new_ast_ctx)
                 return task
 
@@ -1143,6 +1145,7 @@ class TrigInfo:
             self.action, action_ast_ctx, self.task_unique, task_unique_func, hass_context, **func_args,
         )
         if run_task:
-            Function.create_task(func)
+            task = Function.create_task(func, ast_ctx=action_ast_ctx)
+            Function.task_done_callback_ctx(task, action_ast_ctx)
             return True
         return func

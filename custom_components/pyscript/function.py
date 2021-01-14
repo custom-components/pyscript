@@ -414,7 +414,7 @@ class Function:
         return service_call_factory(domain, service)
 
     @classmethod
-    async def run_coro(cls, coro):
+    async def run_coro(cls, coro, ast_ctx=None):
         """Run coroutine task and update unique task on start and exit."""
         #
         # Add a placeholder for the new task so we know it's one we started
@@ -423,6 +423,8 @@ class Function:
         try:
             task = asyncio.current_task()
             cls.our_tasks.add(task)
+            if ast_ctx is not None:
+                cls.task_done_callback_ctx(task, ast_ctx)
             result = await coro
             if task in cls.task2cb:
                 for callback, info in cls.task2cb[task]["cb"].items():
@@ -443,9 +445,9 @@ class Function:
             cls.our_tasks.discard(task)
 
     @classmethod
-    def create_task(cls, coro):
+    def create_task(cls, coro, ast_ctx=None):
         """Create a new task that runs a coroutine."""
-        return cls.hass.loop.create_task(cls.run_coro(coro))
+        return cls.hass.loop.create_task(cls.run_coro(coro, ast_ctx=ast_ctx))
 
     @classmethod
     def service_register(cls, domain, service, callback):
@@ -469,7 +471,8 @@ class Function:
     @classmethod
     def task_done_callback_ctx(cls, task, ast_ctx):
         """Set the ast_ctx for a task, which is needed for done callbacks."""
-        cls.task2cb[task] = {"ctx": ast_ctx, "cb": {}}
+        if task not in cls.task2cb or "ctx" not in cls.task2cb[task]:
+            cls.task2cb[task] = {"ctx": ast_ctx, "cb": {}}
 
     @classmethod
     def task_add_done_callback(cls, task, ast_ctx, callback, *args, **kwargs):
