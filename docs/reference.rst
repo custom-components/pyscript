@@ -539,8 +539,9 @@ with the following features:
 - There is no time-zone (local is assumed).
 - Seconds can include a decimal (fractional) portion if you need finer resolution.
 - The date is optional, and the year can be omitted with just ``mm/dd``.
-- The date can also be replaced by a day of the week (either full like ``sunday``
-  or 3-letters like ``sun``, based on the locale).
+- The date can also be replaced by a day of the week (either full like ``sunday`` or 3-letters like
+  ``sun``, in your local languarge based on the locale; however, on Windows and other platforms that
+  lack ``locale.nl_langinfo``, the days of week default to English).
 - The meaning of partial or missing dates depends on the trigger, as explained below.
 - The time can instead be ``sunrise``, ``sunset``, ``noon`` or ``midnight``.
 - The ``datetime`` can be followed by an optional offset

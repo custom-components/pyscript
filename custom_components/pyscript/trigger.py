@@ -184,9 +184,24 @@ class TrigTime:
         }
         Function.register(funcs)
 
-        for i in range(0, 7):
-            cls.dow2int[locale.nl_langinfo(getattr(locale, f"ABDAY_{i + 1}")).lower()] = i
-            cls.dow2int[locale.nl_langinfo(getattr(locale, f"DAY_{i + 1}")).lower()] = i
+        try:
+            for i in range(0, 7):
+                cls.dow2int[locale.nl_langinfo(getattr(locale, f"ABDAY_{i + 1}")).lower()] = i
+                cls.dow2int[locale.nl_langinfo(getattr(locale, f"DAY_{i + 1}")).lower()] = i
+        except AttributeError:
+            # Win10 Python doesn't have locale.nl_langinfo, so default to English days of week
+            dow = [
+                "sunday",
+                "monday",
+                "tuesday",
+                "wednesday",
+                "thursday",
+                "friday",
+                "saturday",
+            ]
+            for idx, name in enumerate(dow):
+                cls.dow2int[name] = idx
+                cls.dow2int[name[0:3]] = idx
 
     @classmethod
     async def wait_until(
