@@ -76,7 +76,7 @@ def process_all_requirements(pyscript_folder, requirements_paths, requirements_f
     all_requirements_to_process = {}
     for root in requirements_paths:
         for requirements_path in glob.glob(os.path.join(pyscript_folder, root, requirements_file)):
-            with open(requirements_path, "r") as requirements_fp:
+            with open(requirements_path, "r", encoding="utf-8") as requirements_fp:
                 all_requirements_to_process[requirements_path] = requirements_fp.readlines()
 
     all_requirements_to_install = {}

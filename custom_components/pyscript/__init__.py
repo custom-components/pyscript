@@ -473,7 +473,7 @@ async def load_scripts(hass: HomeAssistant, config_data: Dict[str, Any], global_
                     app_config = apps_config[app_name]
 
                 try:
-                    with open(this_path) as file_desc:
+                    with open(this_path, encoding="utf-8") as file_desc:
                         source = file_desc.read()
                     mtime = os.path.getmtime(this_path)
                 except Exception as exc:

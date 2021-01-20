@@ -302,7 +302,7 @@ class GlobalContextMgr:
 
             def read_file(path: str) -> Set[Union[str, float]]:
                 try:
-                    with open(path) as file_desc:
+                    with open(path, encoding="utf-8") as file_desc:
                         source = file_desc.read()
                     return source, os.path.getmtime(path)
                 except Exception as exc:
