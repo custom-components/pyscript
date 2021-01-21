@@ -21,7 +21,6 @@ in the latest documentation.
 
 Planned new features post 1.1.0 include:
 
-- Consider implementing function decorators (#43)
 - Consider supporting the built-in functions that do I/O, such as ``open``, ``read`` and ``write``, which
   are not currently supported to avoid I/O in the main event loop, and also to avoid security issues if people
   share pyscripts. The ``print`` function only logs a message, rather than implements the real ``print`` features,
@@ -33,9 +32,11 @@ The new features since 1.1.0 in master include:
 - Reload is automatically done whenever a script file, ``requirements.txt`` or ``yaml`` file below the
   ``pyscript`` folder is modified, created, renamed or deleted, or a directory is renamed, created or
   deleted (see #74).
-- New functions ``task.create``, ``task.cancel``, ``task.wait``, ``task.add_done_callback``,
-  ``task.remove_done_callback`` allow new background (async) tasks to be created, canceled, waited on,
-  and completion callbacks to be added or deleted (see #112).
+- Function decorators are now supported. However, the existing trigger decorators are still hardcoded
+  (ie, not available as function calls), and decorators on classes are not yet supported.  (See #43.)
+- New functions ``task.create``, ``task.current_task``, ``task.cancel``, ``task.name2id``, ``task.wait``,
+  ``task.add_done_callback``, ``task.remove_done_callback`` allow new background (async) tasks to be
+  created, canceled, waited on, and completion callbacks to be added or deleted (see #112).
 - New function decorator ``@pyscript.compile`` compiles a native Python function inside pyscript, which
   is helpful if you need a regular function (all pyscript functions are coroutines) for callbacks or
   other uses like ``map()``, or if you have code you want to run at compiled speed (see #71). The
@@ -43,8 +44,19 @@ The new features since 1.1.0 in master include:
   function that uses ``@pyscript.compile`` won't work either, since in pyscript local variables with
   scope binding are objects, not their native types.  Note also that this is an experimental feature
   and the decorator name or other features might change prior to release; feedback welcome.
+- A new variable ``pyscript.app_config`` is available in the global address space of an app's main
+  file (ie, ``apps/YOUR_APP.py`` or ``apps/YOUR_APP/__init__.py``) and is set to the YAML configuration
+  for your app (ie, ``pyscript.config["apps"][YOUR_APP]``). The latter is still available, but is
+  deprecated and the ``apps`` entry in ``pyscript.config`` will be removed in a future release to
+  prevent wayward applications from seeing configuration settings for other apps.
 
 Breaking changes since 1.1.0 include:
+
+None.  However, the use of ``pyscript.config["apps"][YOUR_APP]`` to get application configuration
+is still available but now deprecated. The ``apps`` entry in ``pyscript.config`` will be removed in
+a future release. This is to prevent wayward applications from seeing configuration settings for other
+apps. The new ``pyscript.app_config`` variable should be used instead - it is set to
+``pyscript.config["apps"][YOUR_APP]`` for each app.
 
 Bug fixes since 1.1.0 include:
 
@@ -55,3 +67,10 @@ Bug fixes since 1.1.0 include:
 - The ``scripts`` subdirectory is now recursively traversed for ``requirements.txt`` files.
 - Inner functions and classes (defined inside a function) are added to global symbol table
   if declared as global.
+- Calls to ``open()`` now set ``encoding=utf-8`` so Windows platforms use the correct encoding
+  (see #145).
+- Pyscript user-defined functions (which are all async) can now be called from native python async
+  code (see #137).
+- On Windows, python is missing ``locale.nl_langinfo``, which caused startup to fail when the
+  locale-specific days of week were extracted.  Now the days of week in time trigger expressions
+  are available on Windows, but only in English (see #145).
