@@ -7,7 +7,7 @@ Configuration
 -------------
 
 Pyscript can be configured using the UI, or via yaml. To use the UI, go to the
-Configuration -> Integrations page and selection "+" to add ``Pyscript Python scripting``.
+Configuration -> Integrations page and select "+" to add ``Pyscript Python scripting``.
 After that, you can change the settings anytime by selecting "Options" under Pyscript
 in the Configuration -> Integrations page. You will need to select "reload" under Pyscript,
 or call the ``pyscript.reload`` service for the new settings to take effect.
