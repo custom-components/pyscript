@@ -1002,6 +1002,34 @@ async def f2(arg, mul=1):
     ],
     [
         """
+x = []
+class TestClass:
+    def __init__(self):
+        x.append(1)
+
+    @pyscript_compile
+    def incr(self, a):
+        x.append(a)
+        return a + 1
+
+    def incr2(self, a):
+        x.append(a)
+        return a + 1
+
+    @pyscript_compile
+    def __del__(self):
+        x.append(-1)
+
+c = TestClass()
+c.incr(10)
+c.incr2(20)
+del c
+x
+""",
+        [1, 10, 20, -1],
+    ],
+    [
+        """
 def func1(m):
     def func2():
         m[0] += 1

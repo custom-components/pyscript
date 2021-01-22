@@ -10,6 +10,7 @@ import io
 import keyword
 import logging
 import sys
+import weakref
 
 import yaml
 
@@ -697,6 +698,7 @@ class EvalFunc:
         self.exception_long = None
         prev_func = ast_ctx.curr_func
         ast_ctx.curr_func = self
+        del args, kwargs
         for arg1 in self.func_def.body:
             val = await self.try_aeval(ast_ctx, arg1)
             if isinstance(val, EvalReturn):
@@ -767,19 +769,19 @@ class EvalFuncVar:
 class EvalFuncVarClassInst(EvalFuncVar):
     """Class for a callable pyscript class instance function."""
 
-    def __init__(self, func, ast_ctx, class_inst):
+    def __init__(self, func, ast_ctx, class_inst_weak):
         """Initialize instance with given EvalFunc function."""
         super().__init__(func)
         self.ast_ctx = ast_ctx
-        self.class_inst = class_inst
+        self.class_inst_weak = class_inst_weak
 
     async def call(self, ast_ctx, *args, **kwargs):
         """Call the EvalFunc function."""
-        return await self.func.call(ast_ctx, self.class_inst, *args, **kwargs)
+        return await self.func.call(ast_ctx, self.class_inst_weak(), *args, **kwargs)
 
     async def __call__(self, *args, **kwargs):
         """Call the function using our saved ast ctx and class instance."""
-        return await self.func.call(self.ast_ctx, self.class_inst, *args, **kwargs)
+        return await self.func.call(self.ast_ctx, self.class_inst_weak(), *args, **kwargs)
 
 
 class AstEval:
@@ -1771,11 +1773,17 @@ class AstEval:
             return await func.call(self, *args, **kwargs)
         if inspect.isclass(func) and hasattr(func, "__init__evalfunc_wrap__"):
             inst = func()
+            #
+            # we use weak references when we bind the method calls to the instance inst;
+            # otherwise these self references cause the object to not be deleted until
+            # it is later garbage collected
+            #
+            inst_weak = weakref.ref(inst)
             for name in inst.__dir__():
                 value = getattr(inst, name)
                 if type(value) is not EvalFuncVar:
                     continue
-                setattr(inst, name, EvalFuncVarClassInst(value.get_func(), value.get_ast_ctx(), inst))
+                setattr(inst, name, EvalFuncVarClassInst(value.get_func(), value.get_ast_ctx(), inst_weak))
             if getattr(func, "__init__evalfunc_wrap__") is not None:
                 #
                 # since our __init__ function is async, call the renamed one
