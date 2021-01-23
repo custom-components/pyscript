@@ -191,7 +191,11 @@ async def test_state_trigger(hass, caplog):
         hass,
         notify_q,
         notify_q2,
-        [dt(2020, 7, 1, 10, 59, 59, 999998), dt(2020, 7, 1, 11, 59, 59, 999998)],
+        [
+            dt(2020, 7, 1, 10, 59, 59, 999998),
+            dt(2020, 7, 1, 10, 59, 59, 999998),
+            dt(2020, 7, 1, 11, 59, 59, 999998),
+        ],
         """
 
 from math import sqrt

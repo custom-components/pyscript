@@ -1,6 +1,6 @@
 """Unit tests for time trigger functions."""
 
-from datetime import datetime as dt
+from datetime import datetime as dt, timedelta
 
 from custom_components.pyscript.function import Function
 from custom_components.pyscript.trigger import TrigTime
@@ -13,9 +13,9 @@ parseDateTimeTests = [
     ["2019/9/12 13:45:23", 0, dt(2019, 9, 12, 13, 45, 23, 0)],
     ["2019/9/12", 0, dt(2019, 9, 12, 0, 0, 0, 0)],
     ["2019/9/12 noon", 1, dt(2019, 9, 12, 12, 0, 0, 0)],
-    ["2019/9/12 noon +1 min", 2, dt(2019, 9, 12, 12, 1, 0, 0)],
+    ["2019/9/12 noon+1 min", 2, dt(2019, 9, 12, 12, 1, 0, 0)],
     ["2019/9/12 noon +2.5min", 1, dt(2019, 9, 12, 12, 2, 30, 0)],
-    ["2019/9/12 noon +3 hr", 4, dt(2019, 9, 12, 15, 0, 0, 0)],
+    ["2019/9/12 noon+3 hr", 4, dt(2019, 9, 12, 15, 0, 0, 0)],
     ["2019/9/12 noon - 30 sec", 3, dt(2019, 9, 12, 11, 59, 30, 0)],
     ["2019/9/12 midnight", 3, dt(2019, 9, 12, 0, 0, 0, 0)],
     ["2019/9/12 midnight + 30 min", 3, dt(2019, 9, 12, 0, 30, 0, 0)],
@@ -25,12 +25,14 @@ parseDateTimeTests = [
     ["tomorrow noon", 0, dt(2019, 9, 2, 12, 0, 0, 0)],
     ["today", 0, dt(2019, 9, 1, 0, 0, 0, 0)],
     ["sunday", 0, dt(2019, 9, 1, 0, 0, 0, 0)],
-    ["monday + 2.5 hours", 0, dt(2019, 9, 2, 2, 30, 0, 0)],
+    ["monday+2.5 hours", 0, dt(2019, 9, 2, 2, 30, 0, 0)],
     ["monday + 1 day", 0, dt(2019, 9, 3, 0, 0, 0, 0)],
     ["monday + 1 week", 0, dt(2019, 9, 9, 0, 0, 0, 0)],
     ["tuesday", 0, dt(2019, 9, 3, 0, 0, 0, 0)],
     ["wednesday", 0, dt(2019, 9, 4, 0, 0, 0, 0)],
     ["thursday", 0, dt(2019, 9, 5, 0, 0, 0, 0)],
+    ["thursday 00:00", 0, dt(2019, 9, 5, 0, 0, 0, 0)],
+    ["thursday 0:0:0", 0, dt(2019, 9, 5, 0, 0, 0, 0)],
     ["friday", 0, dt(2019, 9, 6, 0, 0, 0, 0)],
     ["saturday", 0, dt(2019, 9, 7, 0, 0, 0, 0)],
     ["sun", 0, dt(2019, 9, 1, 0, 0, 0, 0)],
@@ -51,6 +53,9 @@ parseDateTimeTests = [
     ["tuesday sunrise", 0, dt(2019, 9, 3, 6, 38, 58, 0)],
     ["sunrise + 1hr", 0, dt(2019, 9, 1, 7, 37, 15, 0)],
     ["sunset", 0, dt(2019, 9, 1, 19, 39, 15, 0)],
+    ["now", 0, dt(2019, 9, 1, 13, 0, 0, 0)],
+    ["now +1 min", 0, dt(2019, 9, 1, 13, 1, 0, 0)],
+    ["now +1 hours", 0, dt(2019, 9, 1, 14, 0, 0, 0)],
     ["2019/11/4 sunset + 1min", 0, dt(2019, 11, 4, 17, 7, 56, 0)],
     ["11/4 sunset + 2min", 0, dt(2019, 11, 4, 17, 8, 56, 0)],
     ["+5 min", 0, dt(2019, 9, 1, 0, 5, 0, 0)],
@@ -82,7 +87,7 @@ async def test_parse_date_time(hass, caplog):
     ):
         for test_data in parseDateTimeTests:
             spec, date_offset, expect = test_data
-            out = TrigTime.parse_date_time(spec, date_offset, now)
+            out = TrigTime.parse_date_time(spec, date_offset, now, now)
             assert out == expect
 
 
@@ -117,7 +122,7 @@ async def test_parse_date_time_day_names(hass, caplog):
     ):
         for test_data in parseDateTimeTestsDayNames:
             spec, date_offset, expect = test_data
-            out = TrigTime.parse_date_time(spec, date_offset, now)
+            out = TrigTime.parse_date_time(spec, date_offset, now, now)
             assert out == expect
 
 
@@ -139,6 +144,13 @@ async def test_parse_date_time_day_names(hass, caplog):
         ("range(2019/9/1 8:00, 2019/9/3  6:00)", dt(2019, 9, 1, 8, 0, 0, 0), True),
         ("range(2019/9/1 8:00, 2019/9/3  6:00)", dt(2019, 9, 3, 6, 0, 0, 0), True),
         ("range(2019/9/1 8:00, 2019/9/3  6:00)", dt(2019, 9, 3, 6, 0, 0, 1), False),
+        ("range(now, now)", dt(2019, 9, 1, 12, 59, 59, 999999), False),
+        ("range(now, now)", dt(2019, 9, 1, 13, 0, 0, 0), True),
+        ("range(now, now)", dt(2019, 9, 1, 13, 0, 0, 1), False),
+        ("range(now + 1min, now + 1hour)", dt(2019, 9, 1, 13, 0, 59, 999999), False),
+        ("range(now + 1min, now + 1hour)", dt(2019, 9, 1, 13, 1, 0, 0), True),
+        ("range(now + 1min, now + 1hour)", dt(2019, 9, 1, 14, 0, 0, 0), True),
+        ("range(now + 1min, now + 1hour)", dt(2019, 9, 1, 14, 0, 0, 1), False),
         ("range(10:00, 20:00)", dt(2019, 9, 3, 9, 59, 59, 999999), False),
         ("range(10:00, 20:00)", dt(2019, 9, 3, 10, 0, 0, 0), True),
         ("range(10:00, 20:00)", dt(2019, 9, 3, 20, 0, 0, 0), True),
@@ -168,9 +180,11 @@ async def test_parse_date_time_day_names(hass, caplog):
 def test_timer_active_check(hass, spec, now, expected):
     """Run time active check tests."""
 
+    startup_time = dt(2019, 9, 1, 13, 0, 0, 0)
     Function.init(hass)
     TrigTime.init(hass)
-    out = TrigTime.timer_active_check(spec, now)
+    print(f"calling timer_active_check({spec}, {now}, {startup_time})")
+    out = TrigTime.timer_active_check(spec, now, startup_time)
     assert out == expected
 
 
@@ -178,10 +192,13 @@ timerTriggerNextTests = [
     [["once(2019/9/1 8:00)"], [None]],
     [["once(2019/9/1 15:00)"], [dt(2019, 9, 1, 15, 0, 0, 0)]],
     [["once(15:00)"], [dt(2019, 9, 1, 15, 0, 0, 0)]],
-    [["once(13:00:0.1)"], [dt(2019, 9, 2, 13, 0, 0, 100000)]],
+    [["once(13:00:0.09)"], [dt(2019, 9, 2, 13, 0, 0, 90000)]],
     [["once(9:00)"], [dt(2019, 9, 2, 9, 0, 0, 0)]],
     [["once(wed 9:00)"], [dt(2019, 9, 4, 9, 0, 0, 0)]],
     [["once(2019/9/10 23:59:13)"], [dt(2019, 9, 10, 23, 59, 13, 0)]],
+    [["once(now)"], [dt(2019, 9, 1, 13, 0, 0, 100000), None]],
+    [["once(now + 1min)"], [dt(2019, 9, 1, 13, 1, 0, 100000), None]],
+    [["once(now + 1day)"], [dt(2019, 9, 2, 13, 0, 0, 100000), None]],
     [
         ["period(2019/9/1 13:00, 120s)"],
         [dt(2019, 9, 1, 13, 2, 0, 0), dt(2019, 9, 1, 13, 4, 0, 0), dt(2019, 9, 1, 13, 6, 0, 0)],
@@ -287,6 +304,24 @@ timerTriggerNextTests = [
             dt(2019, 11, 5, 0, 1, 0, 0),
             dt(2019, 11, 6, 0, 1, 0, 0),
             dt(2019, 11, 7, 0, 1, 0, 0),
+        ],
+    ],
+    [
+        ["period(now, 1 day)"],
+        [
+            dt(2019, 9, 1, 13, 0, 0, 100000),
+            dt(2019, 9, 2, 13, 0, 0, 100000),
+            dt(2019, 9, 3, 13, 0, 0, 100000),
+        ],
+    ],
+    [
+        ["period(now +1 hours, 1 hours, now+4 hours)"],
+        [
+            dt(2019, 9, 1, 14, 0, 0, 100000),
+            dt(2019, 9, 1, 15, 0, 0, 100000),
+            dt(2019, 9, 1, 16, 0, 0, 100000),
+            dt(2019, 9, 1, 17, 0, 0, 100000),
+            None,
         ],
     ],
     [
@@ -406,12 +441,15 @@ def test_timer_trigger_next(hass):
     TrigTime.init(hass)
 
     for test_data in timerTriggerNextTests:
-        now = dt(2019, 9, 1, 13, 0, 0, 100000)
+        startup_time = now = dt(2019, 9, 1, 13, 0, 0, 100000)
         spec, expect_seq = test_data
         for expect in expect_seq:
-            t_next = TrigTime.timer_trigger_next(spec, now)
+            print(f"calling timer_trigger_next({spec}, {now}, {startup_time})")
+            t_next = TrigTime.timer_trigger_next(spec, now, startup_time)
             assert t_next == expect
-            now = t_next
+            if t_next is None:
+                break
+            now = t_next + timedelta(microseconds=1)
 
 
 timerTriggerNextTestsMonthRollover = [
@@ -516,9 +554,9 @@ def test_timer_trigger_next_month_rollover(hass):
     TrigTime.init(hass)
 
     for test_data in timerTriggerNextTestsMonthRollover:
-        now = dt(2020, 6, 30, 13, 0, 0, 100000)
+        startup_time = now = dt(2020, 6, 30, 13, 0, 0, 100000)
         spec, expect_seq = test_data
         for expect in expect_seq:
-            t_next = TrigTime.timer_trigger_next(spec, now)
+            t_next = TrigTime.timer_trigger_next(spec, now, startup_time)
             assert t_next == expect
             now = t_next

@@ -537,37 +537,48 @@ Several of the time specifications use a ``datetime`` format, which is ISO: ``yy
 with the following features:
 
 - There is no time-zone (local is assumed).
-- Seconds can include a decimal (fractional) portion if you need finer resolution.
 - The date is optional, and the year can be omitted with just ``mm/dd``.
 - The date can also be replaced by a day of the week (either full like ``sunday`` or 3-letters like
   ``sun``, in your local languarge based on the locale; however, on Windows and other platforms that
   lack ``locale.nl_langinfo``, the days of week default to English).
 - The meaning of partial or missing dates depends on the trigger, as explained below.
+- The date and time can be replaced with ``now``, which means the current date and time when the
+  trigger was first evaluated (eg, at startup or when created as an inner function or closure),
+  and remains fixed for the lifetime of the trigger.
 - The time can instead be ``sunrise``, ``sunset``, ``noon`` or ``midnight``.
+- If the time is missing, midnight is assumed (so ``thursday`` is the same as ``thursday 00:00:00``)
+- Seconds are optional, and can include a decimal (fractional) portion if you need finer resolution.
 - The ``datetime`` can be followed by an optional offset
-  of the form ``[+-]number{seconds|minutes|hours|days|weeks}`` and abbreviations ``{s|m|h|d|w}`` or
-  ``{sec|min|hr|day|week}`` can be used. That allows things like ``sunrise + 30m`` to mean 30
-  minutes after sunrise, or ``sunday sunset - 1h`` to mean an hour before sunset on Sundays. The
-  ``number`` can be floating point. (Note, there is no i18n support for those offset abbreviations -
-  they are in English.)
+  of the form ``[+-]number{seconds|minutes|hours|days|weeks}`` with abbreviations:
+
+  - ``{s|sec|second|seconds}`` or empty for seconds,
+  - ``{m|min|mins|minute|minutes}`` for minutes,
+  - ``{h|hr|hour|hours}`` for hours,
+  - ``{d|day|days}`` for days,
+  - ``{w|week|weeks}`` for weeks.
+  That allows things like ``sunrise + 30m`` to mean 30 minutes after sunrise, or ``sunday sunset - 1.5 hour``
+  to mean 1.5 hours before sunset on Sundays. The ``number`` can be floating point. (Note, there is no
+  i18n support for those offset abbreviations - they are in English.)
 
 In ``@time_trigger``, each string specification ``time_spec`` can take one of four forms:
 
-- ``"startup"`` triggers on HASS start and reload (ie, on function definition)
+- ``"startup"`` triggers on HASS start and reload (ie, on function definition), and is
+  equivalent to ``"once(now)"``
 - ``"shutdown"`` triggers on HASS shutdown and reload (ie, when the trigger function is
   no longer referenced)
 - ``"once(datetime)"`` triggers once on the date and time. If the year is
   omitted, it triggers once per year on the date and time (eg, birthday). If the date is just a day
   of week, it triggers once on that day of the week. If the date is omitted, it triggers once each
-  day at the indicated time.
+  day at the indicated time. ``once(now + 5 min)`` means trigger once 5 minutes after startup.
 - ``"period(datetime_start, interval, datetime_end)"`` or
   ``"period(datetime_start, interval)"`` triggers every interval starting at the starting datetime
   and finishing at the optional ending datetime. When there is no ending datetime, the periodic
   trigger runs forever. The interval has the form ``number{sec|min|hours|days|weeks}`` (the same as
-  datetime offset without the leading sign), and single-letter abbreviations can be used.
-- ``"cron(min hr dom mon dow)"`` triggers
-  according to Linux-style crontab. Each of the five entries are separated by spaces and correspond
-  to minutes, hours, day-of-month, month, day-of-week (0 = sunday):
+  datetime offset without the leading sign), and the same abbreviations can be used. Period start
+  and ends can also be based on ``now``, for example ``period(now + 10m, 5min, now + 30min)`` will
+  cause five triggers at 10, 15, 20, 25 and 30 minutes after startup.
+- ``"cron(min hr dom mon dow)"`` triggers according to Linux-style crontab. Each of the five entries
+  are separated by spaces and correspond to minutes, hours, day-of-month, month, day-of-week (0 = sunday):
 
   ============ ==============
   field        allowed values
@@ -583,7 +594,11 @@ In ``@time_trigger``, each string specification ``time_spec`` can take one of fo
   numbers or ranges (no spaces). Ranges are inclusive. For example, if you specify hours as
   ``6,10-13`` that means hours of 6,10,11,12,13. The trigger happens on the next minute, hour, day
   that matches the specification. See any Linux documentation for examples and more details (note:
-  names for days of week and months are not supported; only their integer values are).
+  names for days of week and months are not supported; only their integer values are). The cron
+  features use the ``croniter`` package, so check its `documentation <https://pypi.org/project/croniter/>`
+  for additional specification formats that are supported (eg: ``*/5`` repeats every 5th unit,
+  days of week can be specified with English abbreviations, and an optional 6th field allows seconds
+  to be specified).
 
 When the ``@time_trigger`` occurs and the function is called, the keyword argument ``trigger_type``
 is set to ``"time"``, and ``trigger_time`` is the exact ``datetime`` of the time specification that
