@@ -906,7 +906,7 @@ class TrigInfo:
             state_trig_waiting = False
             state_trig_notify_info = [None, None]
             state_false_time = None
-            startup_time = None
+            now = startup_time = None
             check_state_expr_on_start = self.state_check_now or self.state_hold_false is not None
 
             while True:
@@ -914,9 +914,6 @@ class TrigInfo:
                 state_trig_timeout = False
                 notify_info = None
                 notify_type = None
-                now = dt_now()
-                if startup_time is None:
-                    startup_time = now
                 if self.run_on_startup:
                     #
                     # first time only - skip waiting for other triggers
@@ -937,6 +934,9 @@ class TrigInfo:
                     check_state_expr_on_start = False
                 else:
                     if self.time_trigger:
+                        now = dt_now()
+                        if startup_time is None:
+                            startup_time = now
                         time_next = TrigTime.timer_trigger_next(self.time_trigger, now, startup_time)
                         _LOGGER.debug(
                             "trigger %s time_next = %s, now = %s", self.name, time_next, now,
@@ -1081,6 +1081,10 @@ class TrigInfo:
                         self.active_expr.get_logger().error(exc)
                         trig_ok = False
                 if trig_ok and self.time_active:
+                    if now is None:
+                        now = dt_now()
+                        if startup_time is None:
+                            startup_time = now
                     trig_ok = TrigTime.timer_active_check(self.time_active, now, startup_time)
 
                 if not trig_ok:

@@ -191,11 +191,7 @@ async def test_state_trigger(hass, caplog):
         hass,
         notify_q,
         notify_q2,
-        [
-            dt(2020, 7, 1, 10, 59, 59, 999998),
-            dt(2020, 7, 1, 10, 59, 59, 999998),
-            dt(2020, 7, 1, 11, 59, 59, 999998),
-        ],
+        [dt(2020, 7, 1, 10, 59, 59, 999998), dt(2020, 7, 1, 11, 59, 59, 999998)],
         """
 
 from math import sqrt
@@ -206,12 +202,13 @@ seq_num = 0
 #
 # Instead of just a bare @time_trigger, do a real time trigger.
 # The first value of now() causes func_startup_sync() to start almost
-# immediately.  The remaining values of now() are all and hour later at
+# immediately.  The remaining values of now() are all an hour later at
 # 11:59:59.999998, so this trigger won't happen again for another 24 hours.
 # (we don't use 11:59:59.999999 because of a bug in croniter.match();
 # see https://github.com/taichino/croniter/issues/151)
 #
 @time_trigger("once(2020/07/01 11:00:00)")
+#@time_trigger("startup")
 def func_startup_sync(trigger_type=None, trigger_time=None):
     global seq_num
 
