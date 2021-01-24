@@ -318,10 +318,10 @@ access the names of those built-in events by importing from ``homeassistant.cons
 
    from homeassistant.const import EVENT_CALL_SERVICE
 
-Function Decorators
--------------------
+Function Trigger Decorators
+---------------------------
 
-There are three decorators for defining state, time and event triggers and two decorators for
+There are four decorators for defining state, time, event and MQTT triggers, and two decorators for
 defining whether any trigger actually causes the function to run (i.e., is active), based on
 state-based expressions or one or more time-windows. The decorators should appear immediately before
 the function they refer to. A single function can have any or all of the decorator types specified,
@@ -715,18 +715,6 @@ the message arrived on.
 NOTE: The `MQTT Integration in Home Assistant <https://www.home-assistant.io/integrations/mqtt/>`__
 must be set up to use ``@mqtt_trigger``. 
 
-@task_unique
-^^^^^^^^^^^^
-
-.. code:: python
-
-    @task_unique(task_name, kill_me=False)
-
-This decorator is equivalent to calling ``task.unique()`` at the start of the function when that
-function is triggered. Like all the decorators, if the function is called directly from another
-Python function, this decorator has no effect. See `this section <#task-unique-function>`__ for more
-details.
-
 @state_active
 ^^^^^^^^^^^^^
 
@@ -791,6 +779,61 @@ true if the current time doesn’t match any of the “not” (negative) specifi
 allows multiple arguments with and without ``not``. The condition will be met if the current time
 matches any of the positive arguments, and none of the negative arguments.
 
+Other Function Decorators
+-------------------------
+
+@pyscript_compile
+^^^^^^^^^^^^^^^^^
+
+By default in pysript all functions are async, so they cannot be used as callbacks or methods
+in python packages that expect regular functions, or used with built-in functions like ``map``
+or special class methods that are called by python internals (eg, ``__getattr__`` or ``__del__``).
+
+The ``@pyscript_compile`` decorator causes the function to be treated as native Python and
+compiled, which results in a regular python function being defined, and it will run at full
+compiled speed.
+
+For example:
+
+.. code:: python
+
+   @pyscript_compile
+   def incr(x):
+       return x + 1
+
+   x = list(map(incr, [0, 5, 10]))
+
+sets ``x`` to ``[1, 6, 11]``.
+
+One use for ``@pyscript_compile`` is to encapsulate functions that block (eg, doing I/O), so they can
+be called from ``task.executor``. This might be a more convenient way to create native python functions
+called by ``task.executor``, instead of moving them all to an external module or package outside
+of ``config/pyscript``. This example reads a file using a native compiled function called by
+``task.executor``:
+
+.. code:: python
+
+   @pyscript_compile
+   def read_file(file_name):
+       try:
+           with open(file_name, encoding="utf-8") as file_desc:
+              return file_desc.read(), None
+       except Exception as exc:
+           return None, exc
+
+   contents, exception = task.executor(read_file, "config/configuration.yaml")
+   if exception:
+       raise exception
+   log.info(f"contents = {contents}")
+
+This is an experimental feature and might change in the future. Restrictions include:
+
+- since it's native python, the function cannot use any pyscript-specific features;
+  but since it's native python, all language features are available, including ``open``,
+  ``yield`` etc
+- closure (binding) of variables in an inner function with `@pyscript_compile` doesn't
+  work; this might be supported in the future
+
 @service
 ^^^^^^^^
 
@@ -827,6 +870,18 @@ Alternatively, if the ``doc_string`` starts with ``yaml``, the rest of the strin
            light.turn_on(entity_id=id, brightness=255)
        elif action == "fire" and id is not None:
            event.fire(id)
+
+@task_unique
+^^^^^^^^^^^^
+
+.. code:: python
+
+    @task_unique(task_name, kill_me=False)
+
+This decorator is equivalent to calling ``task.unique()`` at the start of the function when that
+function is triggered. Like all the decorators, if the function is called directly from another
+Python function, this decorator has no effect. See `this section <#task-unique-function>`__ for more
+details.
 
 Functions
 ---------
