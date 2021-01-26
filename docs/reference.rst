@@ -1434,7 +1434,7 @@ One way to do that is in one of your pyscript script files, add this code:
 
     import sys
 
-    if "config/pyscript_module" not in sys.path:
+    if "config/pyscript_modules" not in sys.path:
         sys.path.append("config/pyscript_modules")
 
 This adds a new folder ``config/pyscript_modules`` to Python's module search path. You can then add
