@@ -1229,7 +1229,11 @@ evalTestsExceptions = [
     ["continue", "Exception in test line 1 column 0: continue statement outside loop"],
     ["raise", "Exception in test line 1 column 0: No active exception to reraise"],
     ["yield", "Exception in test line 1 column 0: test: not implemented ast ast_yield"],
-    ["task.executor(5)", "Exception in test line 1 column 14: function is not callable by task.executor()"],
+    ["task.executor(5)", "Exception in test line 1 column 14: function 5 is not callable by task.executor"],
+    [
+        "task.executor(task.sleep)",
+        "Exception in test line 1 column 14: function <bound method Function.async_sleep of <class 'custom_components.pyscript.function.Function'>> is not callable by task.executor",
+    ],
     ["task.name2id('notask')", "Exception in test line 1 column 13: task name 'notask' is unknown"],
     [
         "state.get('pyscript.xyz1.abc')",

@@ -2,6 +2,7 @@
 
 import asyncio
 import datetime as dt
+import functools
 import locale
 import logging
 import math
@@ -185,6 +186,7 @@ class TrigTime:
 
         funcs = {
             "task.add_done_callback": user_task_add_done_callback,
+            "task.executor": cls.user_task_executor,
         }
         Function.register(funcs)
 
@@ -512,6 +514,17 @@ class TrigTime:
         if exc:
             raise exc
         return ret
+
+    @classmethod
+    async def user_task_executor(cls, func, *args, **kwargs):
+        """Implement task.executor()."""
+        if asyncio.iscoroutinefunction(func) or not callable(func):
+            raise TypeError(f"function {func} is not callable by task.executor")
+        if isinstance(func, EvalFuncVar):
+            raise TypeError(
+                "pyscript functions can't be called from task.executor - must be a regular python function"
+            )
+        return await cls.hass.async_add_executor_job(functools.partial(func, **kwargs), *args)
 
     @classmethod
     def parse_date_time(cls, date_time_str, day_offset, now, startup_time):

@@ -1,7 +1,6 @@
 """Function call handling."""
 
 import asyncio
-import functools
 import logging
 import traceback
 
@@ -84,7 +83,6 @@ class Function:
                 "event.fire": cls.event_fire,
                 "service.call": cls.service_call,
                 "service.has_service": cls.service_has_service,
-                "task.executor": cls.task_executor,
                 "task.cancel": cls.user_task_cancel,
                 "task.current_task": cls.user_task_current_task,
                 "task.remove_done_callback": cls.user_task_remove_done_callback,
@@ -252,13 +250,6 @@ class Function:
                 cls.unique_task2name[curr_task].add(name)
 
         return task_unique
-
-    @classmethod
-    async def task_executor(cls, func, *args, **kwargs):
-        """Implement task.executor()."""
-        if asyncio.iscoroutinefunction(func) or not callable(func):
-            raise TypeError("function is not callable by task.executor()")
-        return await cls.hass.async_add_executor_job(functools.partial(func, **kwargs), *args)
 
     @classmethod
     async def user_task_cancel(cls, task=None):
