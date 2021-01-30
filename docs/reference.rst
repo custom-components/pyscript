@@ -556,6 +556,7 @@ with the following features:
   - ``{h|hr|hour|hours}`` for hours,
   - ``{d|day|days}`` for days,
   - ``{w|week|weeks}`` for weeks.
+
   That allows things like ``sunrise + 30m`` to mean 30 minutes after sunrise, or ``sunday sunset - 1.5 hour``
   to mean 1.5 hours before sunset on Sundays. The ``number`` can be floating point. (Note, there is no
   i18n support for those offset abbreviations - they are in English.)
