@@ -786,9 +786,10 @@ Other Function Decorators
 @pyscript_compile
 ^^^^^^^^^^^^^^^^^
 
-By default in pysript all functions are async, so they cannot be used as callbacks or methods
-in python packages that expect regular functions, or used with built-in functions like ``map``
-or special class methods that are called by python internals (eg, ``__getattr__`` or ``__del__``).
+By default in pysript all functions are async, so they cannot be used in ``task.executor``,
+as callbacks or methods in python packages that expect regular functions, or used with built-in
+functions like ``map`` or special class methods that are called by python internals (eg,
+``__getattr__`` or ``__del__``).
 
 The ``@pyscript_compile`` decorator causes the function to be treated as native Python and
 compiled, which results in a regular python function being defined, and it will run at full
@@ -833,8 +834,8 @@ This is an experimental feature and might change in the future. Restrictions inc
   but since it's native python, all language features are available, including ``open``,
   ``yield`` etc
 - if you use ``@pyscript_compile`` on an inner function (ie, defined inside a pyscript
-  function), then binding of variables defined outside the scope of the inner function do
-  not work.
+  function), then binding of variables defined outside the scope of the inner function
+  does not work.
 
 @service
 ^^^^^^^^
