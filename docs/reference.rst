@@ -832,8 +832,9 @@ This is an experimental feature and might change in the future. Restrictions inc
 - since it's native python, the function cannot use any pyscript-specific features;
   but since it's native python, all language features are available, including ``open``,
   ``yield`` etc
-- closure (binding) of variables in an inner function with `@pyscript_compile` doesn't
-  work; this might be supported in the future
+- if you use ``@pyscript_compile`` on an inner function (ie, defined inside a pyscript
+  function), then binding of variables defined outside the scope of the inner function do
+  not work.
 
 @service
 ^^^^^^^^
