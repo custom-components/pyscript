@@ -1437,12 +1437,14 @@ One way to do that is in one of your pyscript script files, add this code:
 
     import sys
 
-    if "config/pyscript_modules" not in sys.path:
-        sys.path.append("config/pyscript_modules")
+    if "/config/pyscript_modules" not in sys.path:
+        sys.path.append("/config/pyscript_modules")
 
-This adds a new folder ``config/pyscript_modules`` to Python's module search path. You can then add
-modules (files ending in ``.py``) to that folder, which will contain native python that is compiled
-when imported (note that none of the pyscript-specific features are available).
+This adds the directory ``/config/pyscript_modules`` to Python's module search path (you should use
+the correct full path specific to your installation). You will need to set the ``allow_all_imports``
+configuration parameter to ``true``  to allow importing of ``sys``. You can then add modules (files
+ending in ``.py``) to that folder, which will contain native python that is compiled when imported
+(note that none of the pyscript-specific features are available in those modules).
 
 Pyscript can install required Python packages if they are missing. Depending on how you run HASS
 (eg, using a minimal Docker container) it might not be convenient to manually install Python packages

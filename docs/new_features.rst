@@ -84,8 +84,8 @@ Bug fixes since 1.1.0 include:
 - Inner functions and classes are added to global symbol table if declared as ``global``.
 - Pyscript user-defined functions (which are all async) can now be called from native python async
   code; see #137.
-- Calls to ``open()`` now set ``encoding=utf-8`` so Windows platforms use the correct encoding;
-  see #145.
+- Internals that call ``open()`` now set ``encoding=utf-8`` so Windows platforms use the correct
+  encoding; see #145.
 - On Windows, python is missing ``locale.nl_langinfo``, which caused startup to fail when the
   locale-specific days of week were extracted.  Now the days of week in time trigger expressions
   are available on Windows, but only in English; see #145.
