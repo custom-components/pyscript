@@ -4,7 +4,7 @@ Overview
 This HACS custom integration allows you to write Python functions and
 scripts that can implement a wide range of automation, logic and
 triggers. State variables are bound to Python variables and services are
-callable as Python functions, so it’s easy and concise to implement
+callable as Python functions, so it's easy and concise to implement
 logic.
 
 Functions you write can be configured to be called as a service or run
@@ -16,7 +16,7 @@ as small programs that run in parallel, independently of each other, and
 they could be active for extended periods of time.
 
 State, event and time triggers are specified by Python function
-decorators (the “@” lines immediately before each function definition).
+decorators (the "@" lines immediately before each function definition).
 A state trigger can be any Python expression using state variables - the
 trigger is evaluated only when a state variable it references changes,
 and the trigger occurs when the expression is true or non-zero. A time
@@ -30,7 +30,7 @@ Python trigger test based on the event data that runs the Python
 function if true.
 
 Pyscript implements a Python interpreter using the ast parser output, in
-a fully async manner. That allows several of the “magic” features to be
+a fully async manner. That allows several of the "magic" features to be
 implemented in a seamless Pythonic manner, such as binding of variables
 to states and functions to services. Pyscript supports imports, although
 by default the valid import list is restricted for security reasons

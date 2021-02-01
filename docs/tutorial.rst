@@ -55,14 +55,14 @@ action is ``"turn_on"`` and the ``id`` is specified, the
 ``light.turn_on`` service is called. Otherwise, if the action is
 ``"fire"`` then an event type with that ``id`` is fired with the given
 parameters. You can experiment by calling the service with different
-parameters. (Of course, it doesn’t make much sense to have a function
+parameters. (Of course, it doesn't make much sense to have a function
 that either does nothing, calls another service, or fires an event, but,
 hey, this is just an example.)
 
 .. note::
 
-   You’ll need to look at the log messages to see the output (unless you are using Jupyter, in which
-   case all log messages will be displayed, independent of the log setting). The log message won’t
+   You'll need to look at the log messages to see the output (unless you are using Jupyter, in which
+   case all log messages will be displayed, independent of the log setting). The log message won't
    be visible unless the ``Logger`` is enabled at least for level ``info``, for example:
 
    .. code:: yaml
@@ -75,7 +75,7 @@ hey, this is just an example.)
 An example using triggers
 -------------------------
 
-Here’s another example:
+Here's another example:
 
 .. code:: python
 
@@ -92,7 +92,7 @@ This introduces two new function decorators
 
 -  ``@state_trigger`` describes the condition(s) that trigger the
    function (the other two trigger types are ``@time_trigger`` and
-   ``@event_trigger``, which we’ll describe below). This condition is
+   ``@event_trigger``, which we'll describe below). This condition is
    evaluated each time the variables it refers to change, and if it
    evaluates to ``True`` or non-zero then the trigger occurs.
 
@@ -102,7 +102,7 @@ This introduces two new function decorators
    from 20 minutes before sunset to 15 minutes after sunrise, ie: from
    dusk to dawn. Whenever the trigger is ``True`` and the active
    conditions are met, the function is executed as a new task. The
-   trigger logic doesn’t wait for the function to finish; it goes right
+   trigger logic doesn't wait for the function to finish; it goes right
    back to checking for the next condition. The function turns on the
    rear outside light, waits for 5 minutes, and then turns it off.
 
@@ -114,7 +114,7 @@ each earlier one finishes the light will be turned off, which could be
 much less than 5 minutes after the most recent motion event.
 
 There is a special function provided to ensure just one function
-uniquely handles a task, if that’s the behavior you prefer. Here’s the
+uniquely handles a task, if that's the behavior you prefer. Here's the
 improved example:
 
 .. code:: python
@@ -147,7 +147,7 @@ function will be terminated. Depending on your application, either
 behavior might be preferred.
 
 There are some other improvements we could make. We could check if the
-light is already on so we don’t have to turn it on again, by checking
+light is already on so we don't have to turn it on again, by checking
 the relevant state variable:
 
 .. code:: python
@@ -169,7 +169,7 @@ You could also create another function that calls
 the motion logic is stopped when there is a manual event that you want
 to override the motion logic.
 
-We’ve introduced some of the main features. Now for some more formal
+We've introduced some of the main features. Now for some more formal
 descriptions of the decorators and the handful of extra built-in
 functions available.
 

@@ -6,7 +6,7 @@ Pyscript: Python Scripting for Home Assistant
 This HACS custom integration for Home Assistant allows you to write Python functions
 and scripts that can implement a wide range of automation, logic and triggers.
 State variables are bound to Python variables and services are callable as Python
-functions, so it’s easy and concise to implement logic.
+functions, so it's easy and concise to implement logic.
 
 Contents
 ~~~~~~~~

@@ -131,14 +131,14 @@ created by a script file, or even another Jupyter session.
 The optional ``<config>/pyscript/modules`` subdirectory can contain modules (files with a ``.py``
 extension) or packages (directories that contain at least a ``__init__.py`` file) that can be
 imported by any other pyscript files, applications or modules. The module form is ignored if the
-package form is presemt. They are not autoloaded. Any modules or packages in
+package form is present. They are not autoloaded. Any modules or packages in
 ``<config>/pyscript/modules`` that are modified will be unloaded when they are modified, and any
 scripts or apps that depend on those modules will be reloaded. Importing modules and packages from
 ``<config>/pyscript/modules`` are not restricted if ``allow_all_imports`` is ``False``. Typically
 common functions or features would be implemented in a module or package, and then imported and used
 by scripts in ``<config>/pyscript`` or applications in ``<config>/pyscript/apps``.
 
-Even if you can’t directly call one function from another script file, HASS state variables are
+Even if you can't directly call one function from another script file, HASS state variables are
 global and services can be called from any script file.
 
 Reloading Scripts
@@ -207,7 +207,7 @@ The function ``state.names(domain=None)`` returns a list of all state variable n
 variable (entity) names.
 
 Also, service names (which are called as functions) take priority over state variable names, so if a
-component has a state variable name that collides with one of its services, you’ll need to use
+component has a state variable name that collides with one of its services, you'll need to use
 ``state.get(name)`` to access that state variable.
 
 Accessing state variables that don't exist will throw a ``NameError`` exception, and accessing
@@ -282,7 +282,7 @@ Calling services
 ----------------
 
 Any service can be called by using the service name as a function, with keyword parameters to
-specify the service parameters. You’ll need to look up the service in the Service tab of Developer
+specify the service parameters. You'll need to look up the service in the Service tab of Developer
 Tools to find the exact name and parameters. For example, inside any function you can call:
 
 .. code:: python
@@ -406,7 +406,7 @@ default (``False``) 10                   no                if expr ``True``, onl
 If ``state_hold`` is also specified, all the entries in the table that say "if expr ``True``"
 must remain ``True`` for that number of seconds for the trigger to occur.
 
-All state variables in HASS have string values. So you’ll have to do comparisons against string
+All state variables in HASS have string values. So you'll have to do comparisons against string
 values or cast the variable to an integer or float. These two examples are essentially equivalent
 (note the use of single quotes inside the outer double quotes):
 
@@ -418,7 +418,7 @@ values or cast the variable to an integer or float. These two examples are essen
 
    @state_trigger("int(domain.light_level) == 255 or int(domain.light2_level) == 0")
 
-although the second will throw an exception if the variable string doesn’t represent a valid integer.
+although the second will throw an exception if the variable string doesn't represent a valid integer.
 If you want numerical inequalities you should use the second form, since string lexicographic
 ordering is not the same as numeric ordering.
 
@@ -451,7 +451,7 @@ The trigger can include arguments with any mixture of string expressions (that a
 when any of the underlying state variables change) and string state variable or attribute
 names (that trigger whenever that variable or attribute changes).
 
-Note that if a state variable and attributes are set to the same value, HASS doesn’t generate a
+Note that if a state variable and attributes are set to the same value, HASS doesn't generate a
 state change event, so the ``@state_trigger`` condition will not be checked. It is only evaluated
 each time a state variable or any of its attributes change to a new value.
 
@@ -492,7 +492,7 @@ the keyword catch-all declaration instead:
    def light_turned_on(**kwargs)
        log.info(f"got arguments {kwargs}")
 
-and all those values will simply get passed in into kwargs as a ``dict``. That’s the most useful
+and all those values will simply get passed in into kwargs as a ``dict``. That's the most useful
 form to use if you have multiple decorators, since each one passes different variables into the
 function (although all of them set ``trigger_type``).
 
@@ -539,7 +539,7 @@ with the following features:
 - There is no time-zone (local is assumed).
 - The date is optional, and the year can be omitted with just ``mm/dd``.
 - The date can also be replaced by a day of the week (either full like ``sunday`` or 3-letters like
-  ``sun``, in your local languarge based on the locale; however, on Windows and other platforms that
+  ``sun``, in your local language based on the locale; however, on Windows and other platforms that
   lack ``locale.nl_langinfo``, the days of week default to English).
 - The meaning of partial or missing dates depends on the trigger, as explained below.
 - The date and time can be replaced with ``now``, which means the current date and time when the
@@ -591,7 +591,7 @@ In ``@time_trigger``, each string specification ``time_spec`` can take one of fo
   day of week  0-6 (0 is Sun)
   ============ ==============
 
-  Each field can be a ``*`` (which means “all”), a single number, a range or comma-separated list of
+  Each field can be a ``*`` (which means "all"), a single number, a range or comma-separated list of
   numbers or ranges (no spaces). Ranges are inclusive. For example, if you specify hours as
   ``6,10-13`` that means hours of 6,10,11,12,13. The trigger happens on the next minute, hour, day
   that matches the specification. See any Linux documentation for examples and more details (note:
@@ -642,7 +642,7 @@ match the event data, and the trigger will only occur if that expression evaluat
 non-zero. This expression has available all the event parameters sent with the event, together with
 these two variables:
 
-- ``trigger_type`` is set to “event”
+- ``trigger_type`` is set to "event"
 - ``event_type`` is the string event type, which will be the same as the
   first argument to ``@event_trigger``
 
@@ -701,7 +701,7 @@ on that topic. An optional ``str_expr`` can be used to match the MQTT message da
 will only occur if that expression evaluates to ``True`` or non-zero. This expression has available
 these four variables:
 
-- ``trigger_type`` is set to “mqtt”
+- ``trigger_type`` is set to "mqtt"
 - ``topic`` is set to the topic the message was received on
 - ``payload`` is set to the string payload of the message
 - ``payload_obj`` if the payload was valid JSON, this will be set to the native python object
@@ -750,7 +750,7 @@ first time (so there is no prior value).
 
 ``@time_active`` takes zero or more strings that specify time-based ranges. When any trigger occurs
 (whether time, state or event), each time range specification is checked. If the current time
-doesn’t fall within any range specified, the trigger is ignored and the trigger function is not
+doesn't fall within any range specified, the trigger is ignored and the trigger function is not
 called. The optional numeric ``hold_off`` setting in seconds will ignore any triggers that are
 within that amount of time from the last successful one. Think of this as making the trigger
 inactive for that number of seconds immediately following each successful trigger. This can be used
@@ -773,10 +773,10 @@ Each string specification ``time_spec`` can take two forms:
   mean a time interval from 6:00 to immediately prior to 11:00.
 
 Each argument specification can optionally start with ``not``, which inverts the meaning of that
-range or cron specification. If you specify multiple arguments without ‘not’, they are logically
-or’ed together, meaning the active check is true if any of the (positive) time ranges are met. If
-you have several ``not`` arguments, they are logically and’ed together, so the active check will be
-true if the current time doesn’t match any of the “not” (negative) specifications. ``@time_active``
+range or cron specification. If you specify multiple arguments without ``not``, they are logically
+or'ed together, meaning the active check is true if any of the (positive) time ranges are met. If
+you have several ``not`` arguments, they are logically and'ed together, so the active check will be
+true if the current time doesn't match any of the "not" (negative) specifications. ``@time_active``
 allows multiple arguments with and without ``not``. The condition will be met if the current time
 matches any of the positive arguments, and none of the negative arguments.
 
@@ -786,7 +786,7 @@ Other Function Decorators
 @pyscript_compile
 ^^^^^^^^^^^^^^^^^
 
-By default in pysript all functions are async, so they cannot be used in ``task.executor``,
+By default in pyscript all functions are async, so they cannot be used in ``task.executor``,
 as callbacks or methods in python packages that expect regular functions, or used with built-in
 functions like ``map`` or special class methods that are called by python internals (eg,
 ``__getattr__`` or ``__del__``).
@@ -841,7 +841,7 @@ This is an experimental feature and might change in the future. Restrictions inc
 ^^^^^^^^
 
 The ``@service`` decorator causes the function to be registered as a service so it can be called
-externally. The ``@state_active`` and ``@time_active`` decorators don’t affect the service - those
+externally. The ``@state_active`` and ``@time_active`` decorators don't affect the service - those
 only apply to time, state and event triggers specified by other decorators.
 
 The function is called with keyword parameters set to the service call parameters, plus
@@ -852,7 +852,7 @@ description that appears is in the Services tab of the Developer Tools page. The
 names are used as the service parameter names, but there is no description.
 
 Alternatively, if the ``doc_string`` starts with ``yaml``, the rest of the string is used as a
-``yaml`` service description. Here’s the first example above, with a more detailed ``doc_string``:
+``yaml`` service description. Here's the first example above, with a more detailed ``doc_string``:
 
 .. code:: python
 
@@ -893,7 +893,7 @@ Most of these have been mentioned already, but here is the complete list of addi
 made available by ``pyscript``.
 
 Note that even though the function names contain a period, the left portion is not a class (e.g.,
-``state`` is not a class, and in fact isn’t even defined). These are simply functions whose name
+``state`` is not a class, and in fact isn't even defined). These are simply functions whose name
 includes a period. This is one aspect where the interpreter behaves slightly differently from real
 Python.
 
@@ -912,7 +912,7 @@ State variables can be used and set just by using them as normal Python variable
 could be cases where you want to dynamically generate the variable name (eg, in a function or loop
 where the state variable name is computed dynamically). These functions allow you to get and set a
 variable using its string name. The set function also allows you to optionally set the attributes,
-which you can’t do if you are directly assigning to the variable:
+which you can't do if you are directly assigning to the variable:
 
 ``state.delete(name)``
   Deletes the given state variable or attribute. The Python ``del`` statement can also be used
@@ -924,7 +924,7 @@ which you can’t do if you are directly assigning to the variable:
   ``AttributeError`` exception is thrown if that attribute doesn't exist.
 ``state.getattr(name)``
   Returns a ``dict`` of attribute values for the state variable ``name`` string, or ``None`` if it
-  doesn’t exist. Alternatively, ``name`` can be a state variable. In pyscript prior to 1.0.0,
+  doesn't exist. Alternatively, ``name`` can be a state variable. In pyscript prior to 1.0.0,
   this function was ``state.get_attr()``. That deprecated name is still supported, but it logs a
   warning message and will be removed in a future version.
 ``state.names(domain=None)``
@@ -984,7 +984,7 @@ Five logging functions are provided, with increasing levels of severity:
 ``log.error(str)``
   log a message at error level
 ``print(str)``
-  same as ``log.debug(str)``; currently ``print`` doesn’t support other arguments.
+  same as ``log.debug(str)``; currently ``print`` doesn't support other arguments.
 
 The ``Logger`` component can be used to specify the logging level. Log messages below the configured
 level will not appear in the log. Each log message function uses a log name of the form:
@@ -1020,7 +1020,7 @@ Tasks
 ^^^^^
 
 A task is a lightweight execution context that runs a function inside an event loop, effectively
-providing asycnhronous (actually collaborative serial) execution.  They are part of Python's
+providing asynchronous (actually collaborative serial) execution.  They are part of Python's
 ``asyncio`` package and are central to how HASS and pyscript handle multiple activities. Tasks can
 run any Python code, provided it does not block (eg, for I/O) or run without giving up control for
 too long (which will prevent other tasks from running).
@@ -1163,9 +1163,9 @@ It takes the following keyword arguments (all are optional):
   immediately to see if it is already ``True``, and will return immediately if so. If
   ``state_check_now=False``, ``task.wait_until()`` waits until a state variable change occurs,
   before checking the expression. Using ``True`` is safer to help avoid race conditions, although
-  ``False`` makes ``task.wait_until()`` behave like ``@state_trigger``, which by default doesn’t check
+  ``False`` makes ``task.wait_until()`` behave like ``@state_trigger``, which by default doesn't check
   at startup. However, if you use the default of ``True``, and your function will call
-  ``task.wait_until()`` again, it’s recommended you set that state variable to some other value
+  ``task.wait_until()`` again, it's recommended you set that state variable to some other value
   immediately after ``task.wait_until()`` returns. Otherwise the next call will also return
   immediately. Note that entries in ``state_trigger`` that are plain state variable names
   (which mean trigger on any change) are ignored during this initial check; only expressions
@@ -1200,7 +1200,7 @@ In the special case that ``state_check_now=True`` and ``task.wait_until()`` retu
 other return variables that capture the variable name and value that just caused the trigger are not
 included in the ``dict`` - it will just contain ``trigger_type="state"``.
 
-Here’s an example. Whenever a door is opened, we want to do something if the door closes within 30
+Here's an example. Whenever a door is opened, we want to do something if the door closes within 30
 seconds. If a timeout of more than 30 seconds elapses (ie, the door is still open), we want to do
 some other action. We use a decorator trigger when the door is opened, and we use
 ``task.wait_until`` to wait for either the door to close, or a timeout of 30 seconds to elapse. The
@@ -1258,7 +1258,7 @@ Logically they are the similar, but the important differences are:
   its default value of ``True`` is to help avoid this race condition for state triggers. Time
   triggers should generally be safe.
 
-- The decorators run each trigger function as a new independent task, and don’t wait for it to
+- The decorators run each trigger function as a new independent task, and don't wait for it to
   finish. So a function will be run for every matching event. In contrast, if your code runs for a
   while before calling ``task.wait_until()`` again (e.g., ``task.sleep()`` or any code), or even if
   there is no other code in the ``while`` loop, some events or state changes of interest will be
@@ -1273,7 +1273,7 @@ Global Context
 
 Each pyscript file that is loaded, and each Jupyter session, runs inside its own global context,
 which means its global variables and functions are isolated from each other (unless they are a
-module or package that is explicitly imported). In normal use you don’t need to worry about global
+module or package that is explicitly imported). In normal use you don't need to worry about global
 contexts. But for interactive debugging and development, you might want your Jupyter session to
 access variables and functions defined in a script file.
 
@@ -1333,8 +1333,8 @@ space isolation among the script files. Here are the functions:
 
 When you exit a Jupyter session, its global context is deleted, which means any triggers, functions,
 services and variables you created are deleted (HASS state variables survive). If you switch to a
-script file’s context, then any triggers, functions, services or variables you interactively create
-there will persist after you exit the Jupyter session. However, if you don’t update the
+script file's context, then any triggers, functions, services or variables you interactively create
+there will persist after you exit the Jupyter session. However, if you don't update the
 corresponding script file, whenever the script is modified and automatically reloaded,
 or upon HASS restart, those interactive changes will be lost, since reloading a script
 file recreates a new global context.
@@ -1842,7 +1842,7 @@ Here are some areas where pyscript differs from real Python:
   (to the left of the period). For example, while ``pyscript.reload`` and ``state.get`` are functions, ``pyscript``
   and ``state`` aren't defined. However, if you set ``pyscript`` or ``state`` to some value (ie: assign them
   as a variable), then ``pyscript.reload`` and ``state.get`` are now treated as accessing those attributes
-  in the ``pyscript`` or ``state`` object, rather than calls to the builtin functions, which are no longer
+  in the ``pyscript`` or ``state`` object, rather than calls to the built-in functions, which are no longer
   available. That's similar to regular Python, where if you set ``bytes`` to some value, the ``bytes.fromhex``
   function is no longer available.
 - Since pyscript is async, it detects whether functions are real or async, and calls them in the
@@ -1868,9 +1868,9 @@ A handful of language features are not supported:
   I/O in the main event loop, and also to avoid security issues if people share pyscripts. The ``print``
   function only logs a message, rather than implements the real ``print`` features, such as specifying
   an output file handle.
-- The builtin function decorators (eg, ``state_trigger``) aren't functions that can be called and used
+- The built-in function decorators (eg, ``state_trigger``) aren't functions that can be called and used
   in-line. However, you can define your own function decorators that could include those decorators on
-  the inner functions they define. Currently none of Python's builtin decorators are supported.
+  the inner functions they define. Currently none of Python's built-in decorators are supported.
 
 Pyscript can call Python modules and packages, so you can always write your own native Python code
 (eg, if you need a generator or other unsupported feature) that can be called by pyscript
