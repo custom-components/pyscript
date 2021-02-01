@@ -18,3 +18,24 @@ to see the development version of the documentation.
 If you want to see development progress since 1.2.0, see
 `new features <https://hacs-pyscript.readthedocs.io/en/latest/new_features.html>`__
 in the latest documentation.
+
+Planned new features post 1.2.0 include:
+
+- Consider supporting the built-in functions that do I/O, such as ``open``, ``read`` and ``write``, which
+  are not currently supported to avoid I/O in the main event loop, and also to avoid security issues if people
+  share pyscripts. The ``print`` function only logs a message, rather than implements the real ``print`` features,
+  such as specifying an output file handle. Support might be added in the future using an executor job, perhaps
+  enabled when ``allow_all_imports`` is set.
+- Consider adding an option argument to `@pyscript_compile` that wraps the function with `task.executor`.
+
+The new features since 1.2.0 in master include:
+
+- None yet.
+
+Breaking changes since 1.2.0 include:
+
+- None yet.
+
+Bug fixes since 1.2.0 include:
+
+- None yet.
