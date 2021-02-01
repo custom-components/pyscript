@@ -23,9 +23,9 @@ See the documentation if you want to install pyscript manually.
 
 ## Configuration
 
-* Go to the Integrations menu in the Home Assistant Configuration UI and add `Pyscript Python scripting` from there, or add `pyscript:` to `<config>/configuration.yaml`; see docs for optional parameters
+* Go to the Integrations menu in the Home Assistant Configuration UI and add `Pyscript Python scripting` from there, or add `pyscript:` to `<config>/configuration.yaml`; see docs for optional parameters.
 * Add files with a suffix of `.py` in the folder `<config>/pyscript`.
-* Whenever you change a script file, make a `reload` service call to `pyscript`.
+* Whenever you change a script file it will be auto-reloaded.
 * Watch the HASS log for `pyscript` errors and logger output from your scripts.
 * Consider installing the optional Jupyter kernel, so you can use pyscript interactively.
 
@@ -35,5 +35,6 @@ See the documentation if you want to install pyscript manually.
 * [Using Jupyter](https://github.com/craigbarratt/hass-pyscript-jupyter)
 * [Jupyter notebook tutorial](https://nbviewer.jupyter.org/github/craigbarratt/hass-pyscript-jupyter/blob/master/pyscript_tutorial.ipynb)
 * [GitHub repository](https://github.com/custom-components/pyscript) (please add a star if you like pyscript!)
+* [Release notes](https://github.com/custom-components/pyscript/releases)
 * [Issues](https://github.com/custom-components/pyscript/issues)
 * [Wiki](https://github.com/custom-components/pyscript/wiki)

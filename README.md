@@ -59,10 +59,11 @@ this [README](https://github.com/craigbarratt/hass-pyscript-jupyter/blob/master/
 
 ## Configuration
 
-* Go to the Integrations menu in the Home Assistant Configuration UI and add `Pyscript Python scripting` from there, or add `pyscript:` to `<config>/configuration.yaml`; pyscript has one optional configuration parameter that allows any python package to be imported if set, eg:
+* Go to the Integrations menu in the Home Assistant Configuration UI and add `Pyscript Python scripting` from there. Alternatively, add `pyscript:` to `<config>/configuration.yaml`; pyscript has two optional configuration parameters that allow any python package to be imported if set and to expose `hass` as a variable; both default to `false`:
     ```yaml
     pyscript:
       allow_all_imports: true
+      hass_is_global: true
     ```
 * Add files with a suffix of `.py` in the folder `<config>/pyscript`.
 * Restart HASS.
@@ -83,6 +84,7 @@ for setting up a development environment and running tests.
 * [Issues](https://github.com/custom-components/pyscript/issues)
 * [Wiki](https://github.com/custom-components/pyscript/wiki)
 * [GitHub repository](https://github.com/custom-components/pyscript) (please add a star if you like pyscript!)
+* [Release notes](https://github.com/custom-components/pyscript/releases)
 * [Jupyter notebook tutorial](https://nbviewer.jupyter.org/github/craigbarratt/hass-pyscript-jupyter/blob/master/pyscript_tutorial.ipynb)
 
 ## Copyright
