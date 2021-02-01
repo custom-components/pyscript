@@ -30,7 +30,8 @@ Planned new features post 1.2.0 include:
 
 The new features since 1.2.0 in master include:
 
-- None yet.
+- ``lambda`` functions are compiled so they behave like regular python lambda functions. Previously they were
+  async, which meant they didn't work when called by functions like `filter` or `map`.
 
 Breaking changes since 1.2.0 include:
 
