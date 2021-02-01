@@ -1042,13 +1042,21 @@ class AstEval:
             sym_table[name] = func_var
 
     async def ast_lambda(self, arg):
-        """Evaluate lambda definition."""
-        funcdef = ast.FunctionDef(
-            args=arg.args, body=[ast.Return(value=arg.body)], name="lambda", decorator_list=None,
+        """Evaluate lambda definition by compiling a regular function."""
+        name = "__lambda_defn_temp__"
+        await self.aeval(
+            ast.FunctionDef(
+                args=arg.args,
+                body=[ast.Return(value=arg.body, lineno=arg.body.lineno, col_offset=arg.body.col_offset)],
+                name=name,
+                decorator_list=[ast.Name(id="pyscript_compile", ctx=ast.Load())],
+                lineno=arg.col_offset,
+                col_offset=arg.col_offset,
+            )
         )
-        func = EvalFunc(funcdef, self.code_list, self.code_str, self.global_ctx)
-        await func.eval_defaults(self)
-        return EvalFuncVar(func)
+        func = self.sym_table[name]
+        del self.sym_table[name]
+        return func
 
     async def ast_asyncfunctiondef(self, arg):
         """Evaluate async function definition."""

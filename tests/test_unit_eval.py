@@ -123,6 +123,7 @@ evalTests = [
     ["d = {'x': 123}; d['x'] += 10; d", {"x": 133}],
     ["d = [20, 30]; d[1] += 10; d", [20, 40]],
     ["func = lambda m=2: 2 * m; [func(), func(3), func(m=4)]", [4, 6, 8]],
+    ["thres = 1; list(filter(lambda x: x < thres, range(-5, 5)))", [-5, -4, -3, -2, -1, 0]],
     ["y = 5; y = y + (x := 2 * y); [x, y]", [10, 15]],
     ["Foo = type('Foo', (), {'x': 100}); Foo.x = 10; Foo.x", 10],
     ["Foo = type('Foo', (), {'x': 100}); Foo.x += 10; Foo.x", 110],

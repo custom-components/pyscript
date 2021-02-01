@@ -788,12 +788,14 @@ Other Function Decorators
 
 By default in pyscript all functions are async, so they cannot be used in ``task.executor``,
 as callbacks or methods in python packages that expect regular functions, or used with built-in
-functions like ``map`` or special class methods that are called by python internals (eg,
-``__getattr__`` or ``__del__``).
+functions like ``filter``, ``map`` or special class methods that are called by python internals
+(eg, ``__getattr__`` or ``__del__``).
 
 The ``@pyscript_compile`` decorator causes the function to be treated as native Python and
 compiled, which results in a regular python function being defined, and it will run at full
-compiled speed.
+compiled speed. A ``lambda`` function is automatically compiled so it behaves like a regular
+python ``lambda`` function (which means the lambda function body cannot contain pyscript
+features).
 
 For example:
 
