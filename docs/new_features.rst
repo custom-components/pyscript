@@ -26,7 +26,7 @@ Planned new features post 1.2.0 include:
   share pyscripts. The ``print`` function only logs a message, rather than implements the real ``print`` features,
   such as specifying an output file handle. Support might be added in the future using an executor job, perhaps
   enabled when ``allow_all_imports`` is set.
-- Consider adding an option argument to `@pyscript_compile` that wraps the function with `task.executor`.
+- Consider adding an option argument to ``@pyscript_compile`` that wraps the function with ``task.executor``.
 
 The new features since 1.2.0 in master include:
 
