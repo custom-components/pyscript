@@ -166,6 +166,14 @@ async def test_parse_date_time_day_names(hass, caplog):
         ("not range(20:00, 10:00)", dt(2019, 9, 3, 19, 59, 59, 999999), True),
         ("not range(20:00, 10:00)", dt(2019, 9, 3, 12, 0, 0, 0), True),
         ("not range(20:00, 10:00)", dt(2019, 9, 3, 0, 0, 0, 0), False),
+        ("range(sunrise, sunset)", dt(2019, 9, 1, 6, 37, 14, 0), False),
+        ("range(sunrise, sunset)", dt(2019, 9, 1, 6, 37, 16, 0), True),
+        ("range(sunrise, sunset - 20m)", dt(2019, 9, 1, 19, 19, 14, 0), True),
+        ("range(sunrise, sunset - 20m)", dt(2019, 9, 1, 19, 19, 16, 0), False),
+        ("range(sunrise + 20m, sunset)", dt(2019, 9, 2, 6, 58, 5, 0), False),
+        ("range(sunrise + 20m, sunset)", dt(2019, 9, 2, 6, 58, 7, 0), True),
+        ("range(sunrise, sunset + 1m)", dt(2019, 11, 4, 17, 7, 55, 0), True),
+        ("range(sunrise, sunset + 1m)", dt(2019, 11, 4, 17, 7, 57, 0), False),
         ("cron(* * * * *)", dt(2019, 9, 3, 6, 0, 0, 0), True),
         ("cron(* * * 9 *)", dt(2019, 9, 3, 6, 0, 0, 0), True),
         ("cron(* * 3 9 *)", dt(2019, 9, 3, 6, 0, 0, 0), True),
@@ -179,6 +187,15 @@ async def test_parse_date_time_day_names(hass, caplog):
 )
 def test_timer_active_check(hass, spec, now, expected):
     """Run time active check tests."""
+
+    #
+    # Hardcode a location and timezone so we can check sunrise
+    # and sunset.
+    #
+    hass.config.latitude = 38
+    hass.config.longitude = -122
+    hass.config.elevation = 0
+    hass.config.time_zone = "America/Los_Angeles"
 
     startup_time = dt(2019, 9, 1, 13, 0, 0, 0)
     Function.init(hass)
