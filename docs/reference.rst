@@ -34,8 +34,7 @@ which includes rereading the configuration parameters:
 
 .. code:: yaml
 
-   pyscript:
-      config: !include pyscript/config.yaml
+   pyscript: !include pyscript/config.yaml
 
 The settings and behavior of your code can be controlled by additional user-defined yaml
 configuration settings. If you configured pyscript using the UI flow, you can still
