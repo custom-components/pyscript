@@ -8,18 +8,18 @@ You can also install the master (head of tree) version from GitHub, either using
 Because pyscript has quite a few unit tests, generally the master version should work ok. But it's not
 guaranteed to work at any random time, and newly-added features might change.
 
-The latest release is 1.2.0, released on January 31, 2021.  Here is the `stable documentation
+The latest release is 1.2.1, released on February 9, 2021.  Here is the `stable documentation
 <https://hacs-pyscript.readthedocs.io/en/stable>`__ for that release.
 
 Over time, the master (head of tree) version in GitHub will include new features and bug fixes.
 Here is the `latest documentation <https://hacs-pyscript.readthedocs.io/en/latest>`__ if you want
 to see the development version of the documentation.
 
-If you want to see development progress since 1.2.0, see
+If you want to see development progress since 1.2.1, see
 `new features <https://hacs-pyscript.readthedocs.io/en/latest/new_features.html>`__
 in the latest documentation.
 
-Planned new features post 1.2.0 include:
+Planned new features post 1.2.1 include:
 
 - Consider supporting the built-in functions that do I/O, such as ``open``, ``read`` and ``write``, which
   are not currently supported to avoid I/O in the main event loop, and also to avoid security issues if people
@@ -28,15 +28,14 @@ Planned new features post 1.2.0 include:
   enabled when ``allow_all_imports`` is set.
 - Consider adding an option argument to ``@pyscript_compile`` that wraps the function with ``task.executor``.
 
-The new features since 1.2.0 in master include:
-
-- ``lambda`` functions are compiled so they behave like regular python lambda functions. Previously they were
-  async, which meant they didn't work when called by functions like `filter` or `map`.
-
-Breaking changes since 1.2.0 include:
+The new features since 1.2.1 in master include:
 
 - None yet.
 
-Bug fixes since 1.2.0 include:
+Breaking changes since 1.2.1 include:
+
+- None yet.
+
+Bug fixes since 1.2.1 include:
 
 - None yet.
