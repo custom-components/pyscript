@@ -38,4 +38,5 @@ Breaking changes since 1.2.1 include:
 
 Bug fixes since 1.2.1 include:
 
-- None yet.
+- Fixed subscripts when running python 3.9.x.
+- When exception text is created, ensure lineno is inside code_list[]; with lambda function or eval it might not be.
