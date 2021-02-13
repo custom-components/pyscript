@@ -2002,7 +2002,7 @@ class AstEval:
         """Format an multi-line exception message using lineno if available."""
         if code_list is None:
             code_list = self.code_list
-        if lineno is not None:
+        if lineno is not None and lineno <= len(code_list):
             if short:
                 mesg = f"In <{self.filename}> line {lineno}:\n"
                 mesg += "    " + code_list[lineno - 1]
