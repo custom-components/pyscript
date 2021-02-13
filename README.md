@@ -89,5 +89,5 @@ for setting up a development environment and running tests.
 
 ## Copyright
 
-Copyright (c) 2020 Craig Barratt.  May be freely used and copied according to the terms of the
+Copyright (c) 2020-2021 Craig Barratt.  May be freely used and copied according to the terms of the
 [Apache 2.0 License](LICENSE).

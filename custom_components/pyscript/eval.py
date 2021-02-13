@@ -1278,11 +1278,13 @@ class AstEval:
             if isinstance(lhs.slice, ast.Index):
                 ind = await self.aeval(lhs.slice.value)
                 var[ind] = val
-            else:
+            elif isinstance(lhs.slice, ast.Slice):
                 lower = await self.aeval(lhs.slice.lower) if lhs.slice.lower else None
                 upper = await self.aeval(lhs.slice.upper) if lhs.slice.upper else None
                 step = await self.aeval(lhs.slice.step) if lhs.slice.step else None
                 var[slice(lower, upper, step)] = val
+            else:
+                var[await self.aeval(lhs.slice)] = val
         else:
             var_name = await self.aeval(lhs)
             if isinstance(var_name, EvalAttrSet):
@@ -1347,7 +1349,7 @@ class AstEval:
                         step = await self.aeval(arg1.slice.step)
                     del var[slice(lower, upper, step)]
                 else:
-                    raise NotImplementedError(f"{self.name}: not implemented slice type {arg1.slice} in del")
+                    del var[await self.aeval(arg1.slice)]
             elif isinstance(arg1, ast.Name):
                 if self.curr_func and arg1.id in self.curr_func.global_names:
                     if arg1.id in self.global_sym_table:
@@ -1737,8 +1739,8 @@ class AstEval:
                 upper = (await self.aeval(arg.slice.upper)) if arg.slice.upper else None
                 step = (await self.aeval(arg.slice.step)) if arg.slice.step else None
                 return var[slice(lower, upper, step)]
-        else:
-            return None
+            return var[await self.aeval(arg.slice)]
+        return None
 
     async def ast_index(self, arg):
         """Evaluate index."""

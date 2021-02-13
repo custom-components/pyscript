@@ -520,7 +520,7 @@ class Kernel:
                 # if the syntax error is right at the end, then we label it incomplete,
                 # otherwise it's invalid
                 #
-                if str(exc).find("EOF while") >= 0:
+                if "EOF while" in str(exc) or "expected an indented block" in str(exc):
                     # if error is at ":" then increase indent
                     if hasattr(exc, "lineno"):
                         line = code.split("\n")[exc.lineno - 1]

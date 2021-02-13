@@ -81,10 +81,6 @@ evalTests = [
         "x = dict(key1 = 'value1', key2 = 'value2', key3 = 'value3'); del x['key1']; x",
         {"key2": "value2", "key3": "value3"},
     ],
-    [
-        "x = dict(key1 = 'value1', key2 = 'value2', key3 = 'value3'); del x[['key1', 'key2']]; x",
-        {"key3": "value3"},
-    ],
     ["z = {'foo', 'bar', 12}; z.remove(12); z.add(20); z", {"foo", "bar", 20}],
     ["z = [0, 1, 2, 3, 4, 5, 6]; z[1:5:2] = [4, 5]; z", [0, 4, 2, 5, 4, 5, 6]],
     ["[0, 1, 2, 3, 4, 5, 6, 7, 8][1:5:2]", [1, 3]],
@@ -1216,7 +1212,13 @@ evalTestsExceptions = [
         "Exception in test line 1 column 13: module 'math' has no attribute 'sinXYZ'",
     ],
     ["f'xxx{'", "syntax error f-string: expecting '}' (test, line 1)"],
-    ["f'xxx{foo() i}'", "syntax error invalid syntax (<fstring>, line 1)"],
+    [
+        "f'xxx{foo() i}'",
+        {
+            "syntax error invalid syntax (<fstring>, line 1)",  # < 3.9
+            "syntax error f-string: invalid syntax (test, line 1)",  # >= 3.9
+        },
+    ],
     ["del xx", "Exception in test line 1 column 0: name 'xx' is not defined"],
     [
         "pyscript.var1 = 1; del pyscript.var1; pyscript.var1",
@@ -1374,7 +1376,10 @@ async def run_one_test_exception(test_data):
     ast.parse(source)
     exc = ast.get_exception()
     if exc is not None:
-        assert exc == expect
+        if type(expect) == set:
+            assert exc in expect
+        else:
+            assert exc == expect
         return
     await ast.eval()
     exc = ast.get_exception()

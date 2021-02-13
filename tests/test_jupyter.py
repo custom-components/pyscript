@@ -357,6 +357,10 @@ async def test_jupyter_kernel_msgs(hass, caplog):
     assert reply["header"]["msg_type"] == "is_complete_reply"
     assert reply["content"]["status"] == "incomplete"
 
+    reply = await shell_msg(sock, "is_complete_request", {"code": "if 1:    \n"})
+    assert reply["header"]["msg_type"] == "is_complete_reply"
+    assert reply["content"]["status"] == "incomplete"
+
     #
     # test code execution
     #
