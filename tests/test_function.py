@@ -196,6 +196,7 @@ async def test_state_trigger(hass, caplog):
 
 from math import sqrt
 from homeassistant.core import Context
+import asyncio
 
 seq_num = 0
 
@@ -215,7 +216,8 @@ def func1(var_name=None, value=None):
     log.info(f"func1 var = {var_name}, value = {value}")
     pyscript.done = [seq_num, var_name, int(value), sqrt(1024), __name__]
 
-@state_trigger("pyscript.f1var1 == '1'", "pyscript.f2var2 == '2'", "pyscript.no_such_var == '10'", "pyscript.no_such_var.attr == 100")
+@state_trigger("pyscript.f1var1 == '1'", "pyscript.f2var2 == '2'")
+@state_trigger("pyscript.no_such_var == '10'", "pyscript.no_such_var.attr == 100")
 @state_active("pyscript.f2var3 == '3' and pyscript.f2var4 == '4'")
 def func2(var_name=None, value=None):
     global seq_num
@@ -225,15 +227,20 @@ def func2(var_name=None, value=None):
     pyscript.done = [seq_num, var_name, int(value), sqrt(4096)]
 
 #
-# trigger every time int(pyscript.f1var1) >= 11
+# trigger every time int(pyscript.f1var1) >= 11 and twice if it's 13;
+# use a lock since two tasks will run at almost the same time
 #
+func2a_lock = asyncio.Lock()
+
 @state_trigger("int(pyscript.f1var1) >= 11", state_hold_false=None)
+@state_trigger("int(pyscript.f1var1) == 13")
 def func2a(var_name=None, value=None):
     global seq_num
 
-    seq_num += 1
-    log.info(f"func2a var = {var_name}, value = {value}")
-    pyscript.done = [seq_num, var_name, int(value)]
+    async with func2a_lock:
+        seq_num += 1
+        log.info(f"func2a var = {var_name}, value = {value}")
+        pyscript.done = [seq_num, var_name, int(value)]
 
 #
 # just trigger the first time int(pyscript.f1var1) >= 10
@@ -263,6 +270,7 @@ def fire_event(**kwargs):
     context = Context(user_id="1234", parent_id="5678", id="8901")
     event.fire(kwargs["new_event"], arg1=kwargs["arg1"], arg2=kwargs["arg2"], context=context)
 
+@event_trigger("test_event3", "arg1 == 20 and arg2 == 131")
 @event_trigger("test_event3", "arg1 == 20 and arg2 == 30")
 def func3(trigger_type=None, event_type=None, **kwargs):
     global seq_num
@@ -445,10 +453,16 @@ def func9(var_name=None, value=None, old_value=None):
     #
     # now check state_hold_false
     #
-    for num in range(10, 14):
+    for num in range(10, 15):
         seq_num += 1
         hass.states.async_set("pyscript.f1var1", num)
         assert literal_eval(await wait_until_done(notify_q)) == [seq_num, "pyscript.f1var1", num]
+        if num == 13:
+            #
+            # when num == 13 it triggers twice
+            #
+            seq_num += 1
+            assert literal_eval(await wait_until_done(notify_q)) == [seq_num, "pyscript.f1var1", num]
 
     seq_num += 1
     hass.states.async_set("pyscript.f2var4", 4)
@@ -962,7 +976,8 @@ def func_startup_sync(trigger_type=None, trigger_time=None):
 
 def factory(trig_value):
 
-    @state_trigger(f"pyscript.var1 == '{trig_value}'", "100 <= int(pyscript.var1) <= 101")
+    @state_trigger(f"pyscript.var1 == '{trig_value}'")
+    @state_trigger("100 <= int(pyscript.var1) <= 101")
     def func_trig(var_name=None, value=None):
         global seq_num, f
         if value == '100':

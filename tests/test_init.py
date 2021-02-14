@@ -100,54 +100,123 @@ def func1():
 
 def func2():
     pass
-
-@service
-def reload():
-    pass
-
-@state_active("arg1", "too many args")
-def func4():
-    pass
-
-@service("too many args")
-def func5():
-    pass
-
-@time_trigger("wrong arg type", 50)
-def func6():
-    pass
-
-@time_trigger("invalid kwargs", arg=10)
-@task_unique("invalid kwargs", arg=10)
-def func7():
-    pass
 """,
     )
     assert hass.services.has_service("pyscript", "func1")
     assert hass.services.has_service("pyscript", "reload")
     assert not hass.services.has_service("pyscript", "func2")
-    assert (
-        "function 'reload' in file.hello with @service conflicts with builtin service; ignoring (please rename function)"
-        in caplog.text
+
+
+async def test_service_reload_error(hass, caplog):
+    """Test using a reserved name generates an error."""
+
+    await setup_script(
+        hass,
+        None,
+        dt(2020, 7, 1, 11, 59, 59, 999999),
+        """
+@service
+def reload():
+    pass
+""",
     )
     assert (
-        "func4 defined in file.hello: decorator @state_active got 2 arguments, expected 1; ignoring decorator"
+        "SyntaxError: function 'reload' defined in file.hello: @service conflicts with builtin service"
         in caplog.text
     )
-    assert (
-        "func5 defined in file.hello: decorator @service takes no arguments; ignoring decorator"
-        in caplog.text
+
+
+async def test_service_state_active_extra_args(hass, caplog):
+    """Test using extra args to state_active generates an error."""
+
+    await setup_script(
+        hass,
+        None,
+        dt(2020, 7, 1, 11, 59, 59, 999999),
+        """
+@state_active("arg1", "too many args")
+def func4():
+    pass
+""",
     )
     assert (
-        "func6 defined in file.hello: decorator @time_trigger argument 2 should be a string; ignoring decorator"
+        "TypeError: function 'func4' defined in file.hello: decorator @state_active got 2 arguments, expected 1"
         in caplog.text
     )
-    assert (
-        "func7 defined in file.hello: decorator @time_trigger doesn't take keyword arguments; ignored"
-        in caplog.text
+
+
+async def test_service_too_many_args(hass, caplog):
+    """Test using too many args with service an error."""
+
+    await setup_script(
+        hass,
+        None,
+        dt(2020, 7, 1, 11, 59, 59, 999999),
+        """
+@service("too many args")
+def func5():
+    pass
+""",
     )
     assert (
-        "func7 defined in file.hello: decorator @task_unique valid keyword arguments are: kill_me; others ignored"
+        "TypeError: function 'func5' defined in file.hello: decorator @service got 1 argument, expected 0"
+        in caplog.text
+    )
+
+
+async def test_time_trigger_wrong_arg_type(hass, caplog):
+    """Test using wrong argument type generates an error."""
+
+    await setup_script(
+        hass,
+        None,
+        dt(2020, 7, 1, 11, 59, 59, 999999),
+        """
+@time_trigger("wrong arg type", 50)
+def func6():
+    pass
+""",
+    )
+    assert (
+        "TypeError: function 'func6' defined in file.hello: decorator @time_trigger argument 2 should be a string"
+        in caplog.text
+    )
+
+
+async def test_decorator_kwargs(hass, caplog):
+    """Test invalid keyword arguments generates an error."""
+
+    await setup_script(
+        hass,
+        None,
+        dt(2020, 7, 1, 11, 59, 59, 999999),
+        """
+@time_trigger("invalid kwargs", arg=10)
+def func7():
+    pass
+""",
+    )
+    assert (
+        "TypeError: function 'func7' defined in file.hello: decorator @time_trigger doesn't take keyword arguments"
+        in caplog.text
+    )
+
+
+async def test_decorator_kwargs2(hass, caplog):
+    """Test invalid keyword arguments generates an error."""
+
+    await setup_script(
+        hass,
+        None,
+        dt(2020, 7, 1, 11, 59, 59, 999999),
+        """
+@task_unique("invalid kwargs", arg=10)
+def func7():
+    pass
+""",
+    )
+    assert (
+        "TypeError: function 'func7' defined in file.hello: decorator @task_unique valid keyword arguments are: kill_me"
         in caplog.text
     )
 

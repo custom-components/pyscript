@@ -98,10 +98,6 @@ def func2():
 def func3():
     pass
 
-@state_active("z + ")
-def func4():
-    pass
-
 @state_trigger("1 / int(pyscript.var1)")
 def func5():
     pass
@@ -132,23 +128,6 @@ def func7():
 
     seq_num += 1
     pyscript.done = seq_num
-
-@state_trigger
-def func8():
-    pass
-
-@event_trigger
-def func9():
-    pass
-
-@state_trigger([None])
-def func10():
-    pass
-
-@state_trigger(False)
-def func11():
-    pass
-
 
 @state_trigger("pyscript.var_done")
 def func_wrapup():
@@ -187,10 +166,6 @@ def func_wrapup():
     )
     assert "SyntaxError: invalid syntax (file.hello.func3 @state_active(), line 1)" in caplog.text
     assert (
-        "func4 defined in file.hello: needs at least one trigger decorator (ie: event_trigger, mqtt_trigger, state_trigger, time_trigger)"
-        in caplog.text
-    )
-    assert (
         """Exception in <file.hello.func5 @state_trigger()> line 1:
     1 / int(pyscript.var1)
             ^
@@ -208,19 +183,98 @@ TypeError: unsupported operand type(s) for /: 'int' and 'StateVal'"""
 
     assert "unexpected EOF while parsing (file.hello.func7 state_trigger, line 1)" in caplog.text
     assert 'can only concatenate str (not "int") to str' in caplog.text
-    assert (
-        "func8 defined in file.hello: decorator @state_trigger needs at least one argument; ignoring decorator"
-        in caplog.text
+
+
+async def test_decorator_errors_missing_trigger(hass, caplog):
+    """Test decorator syntax and run-time errors."""
+    notify_q = asyncio.Queue(0)
+    await setup_script(
+        hass,
+        notify_q,
+        [dt(2020, 7, 1, 10, 59, 59, 999999)],
+        """
+@state_active("z + ")
+def func4():
+    pass
+""",
     )
     assert (
-        "func9 defined in file.hello: decorator @event_trigger needs at least one argument; ignoring decorator"
+        "func4 defined in file.hello: needs at least one trigger decorator (ie: event_trigger, mqtt_trigger, state_trigger, time_trigger)"
         in caplog.text
     )
-    assert (
-        "func10 defined in file.hello: decorator @state_trigger argument 1 should be a string, or list, or set; ignoring decorator"
-        in caplog.text
+
+
+async def test_decorator_errors_missing_arg(hass, caplog):
+    """Test decorator syntax and run-time errors."""
+    notify_q = asyncio.Queue(0)
+    await setup_script(
+        hass,
+        notify_q,
+        [dt(2020, 7, 1, 10, 59, 59, 999999)],
+        """
+@state_trigger
+def func8():
+    pass
+""",
     )
     assert (
-        "func11 defined in file.hello: decorator @state_trigger argument 1 should be a string; ignoring decorator"
+        "TypeError: function 'func8' defined in file.hello: decorator @state_trigger needs at least one argument"
+        in caplog.text
+    )
+
+
+async def test_decorator_errors_missing_arg2(hass, caplog):
+    """Test decorator syntax and run-time errors."""
+    notify_q = asyncio.Queue(0)
+    await setup_script(
+        hass,
+        notify_q,
+        [dt(2020, 7, 1, 10, 59, 59, 999999)],
+        """
+@event_trigger
+def func9():
+    pass
+""",
+    )
+    assert (
+        "TypeError: function 'func9' defined in file.hello: decorator @event_trigger needs at least one argument"
+        in caplog.text
+    )
+
+
+async def test_decorator_errors_bad_arg_type(hass, caplog):
+    """Test decorator syntax and run-time errors."""
+    notify_q = asyncio.Queue(0)
+    await setup_script(
+        hass,
+        notify_q,
+        [dt(2020, 7, 1, 10, 59, 59, 999999)],
+        """
+@state_trigger([None])
+def func10():
+    pass
+""",
+    )
+    assert (
+        "TypeError: function 'func10' defined in file.hello: decorator @state_trigger argument 1 should be a string, or list, or set"
+        in caplog.text
+    )
+
+
+async def test_decorator_errors_bad_arg_type2(hass, caplog):
+    """Test decorator syntax and run-time errors."""
+    notify_q = asyncio.Queue(0)
+    await setup_script(
+        hass,
+        notify_q,
+        [dt(2020, 7, 1, 10, 59, 59, 999999)],
+        """
+@state_trigger(False)
+def func11():
+    pass
+""",
+    )
+    assert (
+        "TypeError: function 'func11' defined in file.hello: decorator @state_trigger argument 1 should be a string"
         in caplog.text
     )

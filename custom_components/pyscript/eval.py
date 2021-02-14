@@ -266,7 +266,7 @@ class EvalFunc:
         self.exception = None
         self.exception_obj = None
         self.exception_long = None
-        self.trigger = None
+        self.trigger = []
         self.trigger_service = False
         self.has_closure = False
 
@@ -287,7 +287,9 @@ class EvalFunc:
     async def trigger_init(self):
         """Initialize decorator triggers for this function."""
         trig_args = {}
+        trig_decs = {}
         got_reqd_dec = False
+        exc_mesg = f"function '{self.name}' defined in {self.global_ctx_name}"
         trig_decorators_reqd = {
             "time_trigger",
             "state_trigger",
@@ -295,55 +297,74 @@ class EvalFunc:
             "mqtt_trigger",
         }
         arg_check = {
-            "event_trigger": {"arg_cnt": {1, 2}},
-            "mqtt_trigger": {"arg_cnt": {1, 2}},
+            "event_trigger": {"arg_cnt": {1, 2}, "rep_ok": True},
+            "mqtt_trigger": {"arg_cnt": {1, 2}, "rep_ok": True},
             "state_active": {"arg_cnt": {1}},
-            "state_trigger": {"arg_cnt": {"*"}, "type": {list, set}},
+            "state_trigger": {"arg_cnt": {"*"}, "type": {list, set}, "rep_ok": True},
+            "service": {"arg_cnt": {0}},
             "task_unique": {"arg_cnt": {1}},
             "time_active": {"arg_cnt": {0, "*"}},
-            "time_trigger": {"arg_cnt": {0, "*"}},
+            "time_trigger": {"arg_cnt": {0, "*"}, "rep_ok": True},
+        }
+        kwarg_check = {
+            "task_unique": {"kill_me"},
+            "time_active": {"hold_off"},
+            "state_trigger": {"state_hold", "state_check_now", "state_hold_false"},
         }
 
-        decorator_used = set()
         for dec in self.decorators:
             dec_name, dec_args, dec_kwargs = dec[0], dec[1], dec[2]
-            if dec_name in decorator_used and "*" not in arg_check.get(dec_name, {"arg_cnt": {}})["arg_cnt"]:
-                self.logger.error(
-                    "%s defined in %s: decorator %s repeated; ignoring decorator",
-                    self.name,
-                    self.global_ctx_name,
-                    dec_name,
-                )
-                continue
-            decorator_used.add(dec_name)
+            if dec_name not in ALL_DECORATORS:
+                raise SyntaxError(f"{exc_mesg}: unknown decorator @{dec_name}")
             if dec_name in trig_decorators_reqd:
                 got_reqd_dec = True
-            if dec_name in TRIG_DECORATORS:
-                if dec_name not in trig_args:
-                    trig_args[dec_name] = {}
-                    trig_args[dec_name]["args"] = []
-                if dec_args is not None:
-                    trig_args[dec_name]["args"] += dec_args
+            arg_info = arg_check.get(dec_name, {})
+            #
+            # check that we have the right number of arguments, and that they are
+            # strings
+            #
+            arg_cnt = arg_info["arg_cnt"]
+            if dec_args is None and 0 not in arg_cnt:
+                raise TypeError(f"{exc_mesg}: decorator @{dec_name} needs at least one argument")
+            if dec_args:
+                if "*" not in arg_cnt and len(dec_args) not in arg_cnt:
+                    raise TypeError(
+                        f"{exc_mesg}: decorator @{dec_name} got {len(dec_args)} argument{'s' if len(dec_args) > 1 else ''}, expected {' or '.join([str(cnt) for cnt in sorted(arg_cnt)])}"
+                    )
+                for arg_num, arg in enumerate(dec_args):
+                    if isinstance(arg, str):
+                        continue
+                    mesg = "string"
+                    if "type" in arg_info:
+                        if type(arg) in arg_info["type"]:
+                            for val in arg:
+                                if not isinstance(val, str):
+                                    break
+                            else:
+                                continue
+                            mesg += ", or " + ", or ".join(
+                                sorted([ok_type.__name__ for ok_type in arg_info["type"]])
+                            )
+                    raise TypeError(
+                        f"{exc_mesg}: decorator @{dec_name} argument {arg_num + 1} should be a {mesg}"
+                    )
+            if arg_cnt == {1}:
+                dec_args = dec_args[0]
+
+            if dec_name not in kwarg_check and dec_kwargs is not None:
+                raise TypeError(f"{exc_mesg}: decorator @{dec_name} doesn't take keyword arguments")
+            if dec_name in kwarg_check:
                 if dec_kwargs is not None:
-                    if "kwargs" in trig_args[dec_name]:
-                        trig_args[dec_name]["kwargs"].update(dec_kwargs)
-                    else:
-                        trig_args[dec_name]["kwargs"] = dec_kwargs
-            elif dec_name == "service":
-                if dec_args is not None:
-                    self.logger.error(
-                        "%s defined in %s: decorator @service takes no arguments; ignoring decorator",
-                        self.name,
-                        self.global_ctx_name,
-                    )
-                    continue
+                    used_kw = set(dec_kwargs.keys())
+                    if not used_kw.issubset(kwarg_check[dec_name]):
+                        raise TypeError(
+                            f"{exc_mesg}: decorator @{dec_name} valid keyword arguments are: {', '.join(sorted(kwarg_check[dec_name]))}"
+                        )
+                if dec_kwargs is None:
+                    dec_kwargs = {}
+            if dec_name == "service":
                 if self.name in (SERVICE_RELOAD, SERVICE_JUPYTER_KERNEL_START):
-                    self.logger.error(
-                        "function '%s' in %s with @service conflicts with builtin service; ignoring (please rename function)",
-                        self.name,
-                        self.global_ctx_name,
-                    )
-                    return
+                    raise SyntaxError(f"{exc_mesg}: @service conflicts with builtin service")
                 desc = self.doc_string
                 if desc is None or desc == "":
                     desc = f"pyscript function {self.name}()"
@@ -393,100 +414,15 @@ class EvalFunc:
                 Function.service_register(DOMAIN, self.name, pyscript_service_factory(self.name, self))
                 async_set_service_schema(Function.hass, DOMAIN, self.name, service_desc)
                 self.trigger_service = True
-            else:
-                self.logger.warning(
-                    "%s defined in %s: unknown decorator @%s: ignored",
-                    self.name,
-                    self.global_ctx_name,
-                    dec_name,
-                )
-
-        for dec_name in TRIG_DECORATORS:
-            if dec_name in trig_args and len(trig_args[dec_name]["args"]) == 0:
-                trig_args[dec_name]["args"] = None
-
-        #
-        # check that we have the right number of arguments, and that they are
-        # strings
-        #
-        for dec_name, arg_info in arg_check.items():
-            arg_cnt = arg_info["arg_cnt"]
-            if dec_name not in trig_args:
                 continue
-            if trig_args[dec_name]["args"] is None:
-                if 0 not in arg_cnt:
-                    self.logger.error(
-                        "%s defined in %s: decorator @%s needs at least one argument; ignoring decorator",
-                        self.name,
-                        self.global_ctx_name,
-                        dec_name,
-                    )
-                    del trig_args[dec_name]
-                continue
-            if "*" not in arg_cnt and len(trig_args[dec_name]["args"]) not in arg_cnt:
-                self.logger.error(
-                    "%s defined in %s: decorator @%s got %d argument%s, expected %s; ignoring decorator",
-                    self.name,
-                    self.global_ctx_name,
-                    dec_name,
-                    len(trig_args[dec_name]["args"]),
-                    "s" if len(trig_args[dec_name]["args"]) > 1 else "",
-                    " or ".join([str(cnt) for cnt in sorted(arg_cnt)]),
-                )
-                del trig_args[dec_name]
-                continue
-            for arg_num, arg in enumerate(trig_args[dec_name]["args"]):
-                if isinstance(arg, str):
-                    continue
-                mesg = "string"
-                if "type" in arg_info:
-                    if type(arg) in arg_info["type"]:
-                        for val in arg:
-                            if not isinstance(val, str):
-                                break
-                        else:
-                            continue
-                        mesg += ", or " + ", or ".join(
-                            sorted([ok_type.__name__ for ok_type in arg_info["type"]])
-                        )
-                self.logger.error(
-                    "%s defined in %s: decorator @%s argument %d should be a %s; ignoring decorator",
-                    self.name,
-                    self.global_ctx_name,
-                    dec_name,
-                    arg_num + 1,
-                    mesg,
-                )
-                del trig_args[dec_name]
-                continue
-            if arg_cnt == {1}:
-                trig_args[dec_name]["args"] = trig_args[dec_name]["args"][0]
 
-        kwarg_check = {
-            "task_unique": {"kill_me"},
-            "time_active": {"hold_off"},
-            "state_trigger": {"state_hold", "state_check_now", "state_hold_false"},
-        }
-        for dec_name in trig_args:
-            if dec_name not in kwarg_check and "kwargs" in trig_args[dec_name]:
-                self.logger.error(
-                    "%s defined in %s: decorator @%s doesn't take keyword arguments; ignored",
-                    self.name,
-                    self.global_ctx_name,
-                    dec_name,
-                )
-            if dec_name in kwarg_check and "kwargs" in trig_args[dec_name]:
-                used_kw = set(trig_args[dec_name]["kwargs"].keys())
-                if not used_kw.issubset(kwarg_check[dec_name]):
-                    self.logger.error(
-                        "%s defined in %s: decorator @%s valid keyword arguments are: %s; others ignored",
-                        self.name,
-                        self.global_ctx_name,
-                        dec_name,
-                        ", ".join(sorted(kwarg_check[dec_name])),
-                    )
+            if dec_name not in trig_decs:
+                trig_decs[dec_name] = []
+            if len(trig_decs[dec_name]) > 0 and "rep_ok" not in arg_info:
+                raise SyntaxError(f"{exc_mesg}: decorator @{dec_name} can only be used once")
+            trig_decs[dec_name].append({"args": dec_args, "kwargs": dec_kwargs})
 
-        if not got_reqd_dec and len(trig_args) > 0:
+        if not got_reqd_dec and len(trig_decs) > 0:
             self.logger.error(
                 "%s defined in %s: needs at least one trigger decorator (ie: %s)",
                 self.name,
@@ -495,29 +431,51 @@ class EvalFunc:
             )
             return
 
-        if len(trig_args) == 0:
+        if len(trig_decs) == 0:
             if self.trigger_service:
                 self.global_ctx.trigger_register(self)
             return
 
-        trig_args["action"] = self
-        trig_args["global_sym_table"] = self.global_ctx.global_sym_table
+        #
+        # start one or more triggers until they are all consumed
+        # each trigger task can handle at most one of each type of
+        # trigger; all get the same state_active, time_active and
+        # task_unique decorators
+        #
+        while True:
+            trig_args = {
+                "action": self,
+                "global_sym_table": self.global_ctx.global_sym_table,
+            }
+            got_trig = False
+            for trig in trig_decorators_reqd:
+                if trig not in trig_decs or len(trig_decs[trig]) == 0:
+                    continue
+                trig_args[trig] = trig_decs[trig].pop(0)
+                got_trig = True
+            if not got_trig:
+                break
+            for dec_name in {"state_active", "time_active", "task_unique"}:
+                if dec_name in trig_decs:
+                    trig_args[dec_name] = trig_decs[dec_name][0]
 
-        self.trigger = self.global_ctx.get_trig_info(f"{self.global_ctx_name}.{self.name}", trig_args)
+            self.trigger.append(
+                self.global_ctx.get_trig_info(f"{self.global_ctx_name}.{self.name}", trig_args)
+            )
+
         if self.global_ctx.trigger_register(self):
             self.trigger_start()
 
     def trigger_start(self):
         """Start any triggers for this function."""
-        if self.trigger:
-            self.trigger.start()
+        for trigger in self.trigger:
+            trigger.start()
 
     def trigger_stop(self):
         """Stop any triggers for this function."""
-        if self.trigger:
-            trigger = self.trigger
-            self.trigger = None
+        for trigger in self.trigger:
             trigger.stop()
+        self.trigger = []
         if self.trigger_service:
             self.trigger_service = False
             Function.service_remove(DOMAIN, self.name)
@@ -1006,8 +964,18 @@ class AstEval:
                     local_var = self.sym_table[arg.name]
                 code = compile(ast.Module(body=[arg], type_ignores=[]), filename=self.filename, mode="exec")
                 exec(code, self.global_sym_table, self.sym_table)  # pylint: disable=exec-used
+
+                func = self.sym_table[arg.name]
+                if not asyncio.iscoroutinefunction(func):
+
+                    def executor_wrap_factory(func):
+                        def executor_wrap(*args, **kwargs):
+                            return func(*args, **kwargs)
+
+                        return executor_wrap
+
+                    self.sym_table[arg.name] = executor_wrap_factory(func)
                 if local_var:
-                    func = self.sym_table[arg.name]
                     self.sym_table[arg.name] = local_var
                     self.sym_table[arg.name].set(func)
                 return
@@ -2015,6 +1983,11 @@ class AstEval:
         else:
             mesg = f"Exception in <{self.filename}>:\n"
             mesg += f"{type(exc).__name__}: {exc}"
+        #
+        # to get a more detailed traceback on exception (eg, when chasing an internal
+        # error), add an "import traceback" above, and uncomment this next line
+        #
+        # return mesg + "\n" + traceback.format_exc(-1)
         return mesg
 
     def get_exception(self):

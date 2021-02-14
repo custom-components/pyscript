@@ -323,8 +323,9 @@ Function Trigger Decorators
 There are four decorators for defining state, time, event and MQTT triggers, and two decorators for
 defining whether any trigger actually causes the function to run (i.e., is active), based on
 state-based expressions or one or more time-windows. The decorators should appear immediately before
-the function they refer to. A single function can have any or all of the decorator types specified,
-but at most one of each type.
+the function they refer to. A single function can have any or all of the decorator types specified.
+Multiple trigger decorators of the same type can be added to a single function, but only one
+``@state_active``, ``@time_active`` or ``@task_unique`` can be used per function.
 
 A Python function with decorators is still a normal Python function that can be called by any other
 Python function. The decorators have no effect in the case where you call it directly from another
@@ -346,9 +347,10 @@ in case you want to condition the trigger on the prior value too. Attribute valu
 in the expression too, using the forms ``domain.name.attr`` and ``domain.name.old.attr`` for
 the new and old attribute values respectively.
 
-Multiple ``str_expr`` arguments are logically "or"ed together, so the trigger occurs if any of the
-expressions evaluate to ``True``. Any argument can alternatively be a list or set of strings, and
-they are treated the same as multiple arguments by "or"ing them together.
+Multiple ``str_expr`` arguments are logically "or"ed together into a single expression. Any argument
+can alternatively be a list or set of strings, and they are treated the same as multiple arguments
+by "or"ing them together. Alternatively, independent state triggers can be specified by using
+multiple ``@state_trigger`` decorators.
 
 Optional arguments are:
 
@@ -530,7 +532,9 @@ variables will be ``None`` for that evaluation).
 
 ``@time_trigger`` takes one or more string specifications that specify time-based triggers. When
 multiple time triggers are specified, each are evaluated, and the earliest one is the next trigger.
-Then the process repeats.
+Then the process repeats. Alternatively, multiple time trigger specifications can be specified by using
+multiple ``@time_trigger`` decorators, although that is less efficient than passing multiple arguments
+to a single one.
 
 Several of the time specifications use a ``datetime`` format, which is ISO: ``yyyy/mm/dd hh:mm:ss``,
 with the following features:
@@ -636,10 +640,13 @@ completes.
 
     @event_trigger(event_type, str_expr=None)
 
-``@event_trigger`` triggers on the given ``event_type``. An optional ``str_expr`` can be used to
-match the event data, and the trigger will only occur if that expression evaluates to ``True`` or
-non-zero. This expression has available all the event parameters sent with the event, together with
-these two variables:
+``@event_trigger`` triggers on the given ``event_type``. Multiple ``@event_trigger`` decorators
+can be applied to a single function if you want to trigger the same function with different event
+types.
+
+An optional ``str_expr`` can be used to match the event data, and the trigger will only occur if
+that expression evaluates to ``True`` or non-zero. This expression has available all the event
+parameters sent with the event, together with these two variables:
 
 - ``trigger_type`` is set to "event"
 - ``event_type`` is the string event type, which will be the same as the
@@ -696,9 +703,12 @@ more examples of built-in and user events and how to create triggers for them.
     @mqtt_trigger(topic, str_expr=None)
 
 ``@mqtt_trigger`` subscribes to the given MQTT ``topic`` and triggers whenever a message is received
-on that topic. An optional ``str_expr`` can be used to match the MQTT message data, and the trigger
-will only occur if that expression evaluates to ``True`` or non-zero. This expression has available
-these four variables:
+on that topic. Multiple ``@mqtt_trigger`` decorators can be applied to a single function if you want
+to trigger off different mqtt topics.
+
+An optional ``str_expr`` can be used to match the MQTT message data, and the trigger will only occur
+if that expression evaluates to ``True`` or non-zero. This expression has available these four
+variables:
 
 - ``trigger_type`` is set to "mqtt"
 - ``topic`` is set to the topic the message was received on
@@ -724,7 +734,10 @@ must be set up to use ``@mqtt_trigger``.
 
 When any trigger occurs (whether time, state or event), the ``@state_active`` expression is
 evaluated. If it evaluates to ``False`` (or zero), the trigger is ignored and the trigger function
-is not called. This decorator is roughly equivalent to starting the trigger function with an
+is not called. Only a single ``@state_active`` decorator can be used per function - you can combine
+multiple conditions into ``str_expr`` using ``any``, ``all``, or logical operators like ``or`` or ``and``.
+
+This decorator is roughly equivalent to starting the trigger function with an
 ``if`` statement with the ``str_expr`` (the minor difference is that this decorator uses the
 ``@state_trigger`` variable value, if present, when evaluating ``str_expr``, whereas an
 ``if`` statement at the start of the function uses its current value, which might be different
@@ -747,13 +760,14 @@ first time (so there is no prior value).
 
     @time_active(time_spec, ..., hold_off=None)
 
-``@time_active`` takes zero or more strings that specify time-based ranges. When any trigger occurs
-(whether time, state or event), each time range specification is checked. If the current time
-doesn't fall within any range specified, the trigger is ignored and the trigger function is not
-called. The optional numeric ``hold_off`` setting in seconds will ignore any triggers that are
-within that amount of time from the last successful one. Think of this as making the trigger
-inactive for that number of seconds immediately following each successful trigger. This can be used
-for rate-limiting trigger events or debouncing a noisy sensor.
+``@time_active`` takes zero or more strings that specify time-based ranges. Only a single
+``@time_active`` decorator can be used per function. When any trigger occurs (whether time, state
+or event), each time range specification is checked. If the current time doesn't fall within any
+range specified, the trigger is ignored and the trigger function is not called. The optional numeric
+``hold_off`` setting in seconds will ignore any triggers that are within that amount of time from
+the last successful one. Think of this as making the trigger inactive for that number of seconds
+immediately following each successful trigger. This can be used for rate-limiting trigger events or
+debouncing a noisy sensor.
 
 Each string specification ``time_spec`` can take two forms:
 

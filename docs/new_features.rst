@@ -30,11 +30,16 @@ Planned new features post 1.2.1 include:
 
 The new features since 1.2.1 in master include:
 
-- None yet.
+- Multiple trigger decorators (``@state_trigger``, ``@time_trigger``, ``@event_trigger`` or ``@mqtt_trigger``)
+  per function are now supported. See #157.
+- Errors in trigger-related decorators (eg, wrong arguments, unregonized decorator type) raise exceptions rather
+  than logging an error.
 
 Breaking changes since 1.2.1 include:
 
-- None yet.
+- Since decorator errors now raise exceptions, if you had a script with such an error that otherwise works, that
+  script will now give an exception and fail to load. The error should be self-explanatory, and it's good to know
+  so you can fix it.
 
 Bug fixes since 1.2.1 include:
 
