@@ -32,6 +32,9 @@ The new features since 1.2.1 in master include:
 
 - Multiple trigger decorators (``@state_trigger``, ``@time_trigger``, ``@event_trigger`` or ``@mqtt_trigger``)
   per function are now supported. See #157.
+- Trigger decorators (``@state_trigger``, ``@time_trigger``, ``@event_trigger`` or ``@mqtt_trigger``) support
+  an optional ``kwargs`` keyword argument that can be set to a ``dict`` of keywords and values, which are
+  passed to the trigger function. See #157.
 - Added ``@pyscript_executor`` decorator, which does same thing as ``@pyscript_compile`` and additionally wraps
   the resulting function with a call to ``task.executor``.  See #71.
 - Errors in trigger-related decorators (eg, wrong arguments, unregonized decorator type) raise exceptions rather

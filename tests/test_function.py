@@ -200,21 +200,21 @@ import asyncio
 
 seq_num = 0
 
-@time_trigger("startup")
-def func_startup_sync(trigger_type=None, trigger_time=None):
+@time_trigger("startup", kwargs={"var1": 123})
+def func_startup_sync(trigger_type=None, trigger_time=None, var1=None):
     global seq_num
 
     seq_num += 1
-    log.info(f"func_startup_sync setting pyscript.done = {seq_num}, trigger_type = {trigger_type}, trigger_time = {trigger_time}")
+    log.info(f"func_startup_sync setting pyscript.done = {seq_num}, trigger_type = {trigger_type}, trigger_time = {trigger_time}, var1 = {var1}")
     pyscript.done = seq_num
 
-@state_trigger("pyscript.f1var1 == '1'", state_check_now=True, state_hold_false=0)
-def func1(var_name=None, value=None):
+@state_trigger("pyscript.f1var1 == '1'", state_check_now=True, state_hold_false=0, kwargs={"var1": 321})
+def func1(var_name=None, value=None, var1=None):
     global seq_num
 
     seq_num += 1
     log.info(f"func1 var = {var_name}, value = {value}")
-    pyscript.done = [seq_num, var_name, int(value), sqrt(1024), __name__]
+    pyscript.done = [seq_num, var_name, int(value), sqrt(1024), __name__, var1]
 
 @state_trigger("pyscript.f1var1 == '1'", "pyscript.f2var2 == '2'")
 @state_trigger("pyscript.no_such_var == '10'", "pyscript.no_such_var.attr == 100")
@@ -271,7 +271,7 @@ def fire_event(**kwargs):
     event.fire(kwargs["new_event"], arg1=kwargs["arg1"], arg2=kwargs["arg2"], context=context)
 
 @event_trigger("test_event3", "arg1 == 20 and arg2 == 131")
-@event_trigger("test_event3", "arg1 == 20 and arg2 == 30")
+@event_trigger("test_event3", "arg1 == 20 and arg2 == 30", kwargs=dict(var1=987, var2='test'))
 def func3(trigger_type=None, event_type=None, **kwargs):
     global seq_num
 
@@ -413,7 +413,7 @@ def func9(var_name=None, value=None, old_value=None):
     hass.bus.async_fire(EVENT_HOMEASSISTANT_STARTED)
     assert literal_eval(await wait_until_done(notify_q)) == seq_num
     assert (
-        "func_startup_sync setting pyscript.done = 1, trigger_type = time, trigger_time = startup"
+        "func_startup_sync setting pyscript.done = 1, trigger_type = time, trigger_time = startup, var1 = 123"
         in caplog.text
     )
 
@@ -430,6 +430,7 @@ def func9(var_name=None, value=None, old_value=None):
         1,
         32,
         "hello",
+        321,
     ]
     assert "func1 var = pyscript.f1var1, value = 1" in caplog.text
     # try some other settings that should not cause it to re-trigger
@@ -448,6 +449,7 @@ def func9(var_name=None, value=None, old_value=None):
         1,
         32,
         "hello",
+        321,
     ]
 
     #
@@ -486,7 +488,7 @@ def func9(var_name=None, value=None, old_value=None):
         seq_num,
         "event",
         "test_event3",
-        {"arg1": 20, "arg2": 30, "context": context},
+        {"arg1": 20, "arg2": 30, "var1": 987, "var2": "test", "context": context},
         10,
     ]
 

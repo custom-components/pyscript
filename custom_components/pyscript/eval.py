@@ -53,7 +53,7 @@ TRIG_DECORATORS = {
     "task_unique",
 }
 
-ALL_DECORATORS = TRIG_DECORATORS.union({"service"})
+TRIG_SERV_DECORATORS = TRIG_DECORATORS.union({"service"})
 
 COMP_DECORATORS = {
     "pyscript_compile",
@@ -297,10 +297,10 @@ class EvalFunc:
         got_reqd_dec = False
         exc_mesg = f"function '{self.name}' defined in {self.global_ctx_name}"
         trig_decorators_reqd = {
-            "time_trigger",
-            "state_trigger",
             "event_trigger",
             "mqtt_trigger",
+            "state_trigger",
+            "time_trigger",
         }
         arg_check = {
             "event_trigger": {"arg_cnt": {1, 2}, "rep_ok": True},
@@ -313,14 +313,17 @@ class EvalFunc:
             "time_trigger": {"arg_cnt": {0, "*"}, "rep_ok": True},
         }
         kwarg_check = {
+            "event_trigger": {"kwargs"},
+            "mqtt_trigger": {"kwargs"},
+            "time_trigger": {"kwargs"},
             "task_unique": {"kill_me"},
             "time_active": {"hold_off"},
-            "state_trigger": {"state_hold", "state_check_now", "state_hold_false"},
+            "state_trigger": {"kwargs", "state_hold", "state_check_now", "state_hold_false"},
         }
 
         for dec in self.decorators:
             dec_name, dec_args, dec_kwargs = dec[0], dec[1], dec[2]
-            if dec_name not in ALL_DECORATORS:
+            if dec_name not in TRIG_SERV_DECORATORS:
                 raise SyntaxError(f"{exc_mesg}: unknown decorator @{dec_name}")
             if dec_name in trig_decorators_reqd:
                 got_reqd_dec = True
@@ -335,7 +338,9 @@ class EvalFunc:
             if dec_args:
                 if "*" not in arg_cnt and len(dec_args) not in arg_cnt:
                     raise TypeError(
-                        f"{exc_mesg}: decorator @{dec_name} got {len(dec_args)} argument{'s' if len(dec_args) > 1 else ''}, expected {' or '.join([str(cnt) for cnt in sorted(arg_cnt)])}"
+                        f"{exc_mesg}: decorator @{dec_name} got {len(dec_args)}"
+                        f" argument{'s' if len(dec_args) > 1 else ''}, expected"
+                        f" {' or '.join([str(cnt) for cnt in sorted(arg_cnt)])}"
                     )
                 for arg_num, arg in enumerate(dec_args):
                     if isinstance(arg, str):
@@ -364,7 +369,8 @@ class EvalFunc:
                     used_kw = set(dec_kwargs.keys())
                     if not used_kw.issubset(kwarg_check[dec_name]):
                         raise TypeError(
-                            f"{exc_mesg}: decorator @{dec_name} valid keyword arguments are: {', '.join(sorted(kwarg_check[dec_name]))}"
+                            f"{exc_mesg}: decorator @{dec_name} valid keyword arguments are: "
+                            + ", ".join(sorted(kwarg_check[dec_name]))
                         )
                 if dec_kwargs is None:
                     dec_kwargs = {}
@@ -497,12 +503,12 @@ class EvalFunc:
             if (
                 isinstance(dec, ast.Call)
                 and isinstance(dec.func, ast.Name)
-                and dec.func.id in ALL_DECORATORS
+                and dec.func.id in TRIG_SERV_DECORATORS
             ):
                 args = [await ast_ctx.aeval(arg) for arg in dec.args]
                 kwargs = {keyw.arg: await ast_ctx.aeval(keyw.value) for keyw in dec.keywords}
                 dec_trig.append([dec.func.id, args, kwargs if len(kwargs) > 0 else None])
-            elif isinstance(dec, ast.Name) and dec.id in ALL_DECORATORS:
+            elif isinstance(dec, ast.Name) and dec.id in TRIG_SERV_DECORATORS:
                 dec_trig.append([dec.id, None, None])
             else:
                 dec_other.append(await ast_ctx.aeval(dec))

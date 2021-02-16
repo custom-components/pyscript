@@ -758,8 +758,11 @@ class TrigInfo:
         self.state_hold_false = self.state_trigger_kwargs.get("state_hold_false", None)
         self.state_check_now = self.state_trigger_kwargs.get("state_check_now", False)
         self.time_trigger = trig_cfg.get("time_trigger", {}).get("args", None)
+        self.time_trigger_kwargs = trig_cfg.get("time_trigger", {}).get("kwargs", {})
         self.event_trigger = trig_cfg.get("event_trigger", {}).get("args", None)
+        self.event_trigger_kwargs = trig_cfg.get("event_trigger", {}).get("kwargs", {})
         self.mqtt_trigger = trig_cfg.get("mqtt_trigger", {}).get("args", None)
+        self.mqtt_trigger_kwargs = trig_cfg.get("mqtt_trigger", {}).get("kwargs", {})
         self.state_active = trig_cfg.get("state_active", {}).get("args", None)
         self.time_active = trig_cfg.get("time_active", {}).get("args", None)
         self.time_active_hold_off = trig_cfg.get("time_active", {}).get("kwargs", {}).get("hold_off", None)
@@ -991,11 +994,13 @@ class TrigInfo:
                 #
                 trig_ok = True
                 new_vars = {}
+                user_kwargs = {}
                 if state_trig_timeout:
                     new_vars, func_args = state_trig_notify_info
                     state_trig_waiting = False
                 elif notify_type == "state":
                     new_vars, func_args = notify_info
+                    user_kwargs = self.state_trigger_kwargs.get("kwargs", {})
 
                     if not ident_any_values_changed(func_args, self.state_trig_ident_any):
                         #
@@ -1077,14 +1082,17 @@ class TrigInfo:
 
                 elif notify_type == "event":
                     func_args = notify_info
+                    user_kwargs = self.event_trigger_kwargs.get("kwargs", {})
                     if self.event_trig_expr:
                         trig_ok = await self.event_trig_expr.eval(notify_info)
                 elif notify_type == "mqtt":
                     func_args = notify_info
+                    user_kwargs = self.mqtt_trigger_kwargs.get("kwargs", {})
                     if self.mqtt_trig_expr:
                         trig_ok = await self.mqtt_trig_expr.eval(notify_info)
 
                 else:
+                    user_kwargs = self.time_trigger_kwargs.get("kwargs", {})
                     func_args = notify_info
 
                 #
@@ -1119,6 +1127,7 @@ class TrigInfo:
                     )
                     continue
 
+                func_args.update(user_kwargs)
                 if self.call_action(notify_type, func_args):
                     last_trig_time = time.monotonic()
 

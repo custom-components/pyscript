@@ -197,7 +197,7 @@ def func7():
 """,
     )
     assert (
-        "TypeError: function 'func7' defined in file.hello: decorator @time_trigger doesn't take keyword arguments"
+        "TypeError: function 'func7' defined in file.hello: decorator @time_trigger valid keyword arguments are: kwargs"
         in caplog.text
     )
 

@@ -336,7 +336,7 @@ function.
 
 .. code:: python
 
-    @state_trigger(str_expr, ..., state_hold=None, state_hold_false=None, state_check_now=False)
+    @state_trigger(str_expr, ..., state_hold=None, state_hold_false=None, state_check_now=False, kwargs=None)
 
 ``@state_trigger`` takes one or more string arguments that contain any expression based on one or
 more state variables, and evaluates to ``True`` or ``False`` (or non-zero or zero). Whenever any
@@ -390,6 +390,15 @@ Optional arguments are:
   If ``state_check_now`` is also set, the trigger will also occur at startup if the expression is
   ``True`` at startup, while the ``state_hold_false`` logic will continue to wait until the expression
   is ``False`` for that period before the next future trigger.
+
+``kwargs=None``
+  Additional keyword arguments can be passed to the trigger function by setting ``kwargs`` to a dict
+  of additional keywords and values. These will override the standard keyword arguments such as
+  ``value`` or ``var_name`` if you include those keywords in ``kwargs``. A typical use for
+  ``kwargs`` is if you have multiple ``@state_trigger`` decorators on a single trigger function
+  and you want to pass additional parameters (based on the trigger, such as a setting or action)
+  to the function.  That could save several lines of code in the function determining which trigger
+  occurred.
 
 Here's a summary of the trigger behavior with these parameter settings:
 
@@ -474,6 +483,9 @@ The ``value`` and ``old_value`` represent the current and old values of the stat
 If the trigger occurs when the state variable is newly created, ``old_value`` will be ``None``,
 and if the trigger occurs when a state variable is deleted, ``value`` will be ``None``.
 
+Additional keyword parameters can be passed to the trigger function by setting the optional
+``kwargs`` parameter to a ``dict`` with the keyword/value pairs.
+
 If your function needs to know any of these values, you can list the keyword arguments you need,
 with defaults:
 
@@ -482,6 +494,11 @@ with defaults:
    @state_trigger("domain.light_level == '255' or domain.light2_level == '0'")
    def light_turned_on(trigger_type=None, var_name=None, value=None):
        pass
+
+You don't have to list all the default keyword parameters - just the ones your function needs.
+In contrast, if you specify additional keyword parameters via ``kwargs``, you will get an excepton
+if the function doesn't have matching keyword arguments (unless you use the ``**kwargs`` catch-all
+in the function definition).
 
 Using ``trigger_type`` is helpful if you have multiple trigger decorators. The function can now tell
 which type of trigger, and which of the two variables changed to cause the trigger. You can also use
@@ -493,9 +510,10 @@ the keyword catch-all declaration instead:
    def light_turned_on(**kwargs)
        log.info(f"got arguments {kwargs}")
 
-and all those values will simply get passed in into kwargs as a ``dict``. That's the most useful
-form to use if you have multiple decorators, since each one passes different variables into the
-function (although all of them set ``trigger_type``).
+and all those values (including optional ones you specify with the ``kwargs`` argument to
+``@state_trigger``) will simply get passed via ``kwargs`` as a ``dict``. That's the most useful form
+to use if you have multiple decorators, since each one passes different variables into the function
+(although all of them set ``trigger_type``).
 
 If ``state_check_now`` is set to ``True`` and the trigger occurs during its immediate check, since
 there is no underlying state variable change, the trigger function is called with only this argument:
@@ -528,13 +546,16 @@ variables will be ``None`` for that evaluation).
 
 .. code:: python
 
-    @time_trigger(time_spec, ...)
+    @time_trigger(time_spec, ..., kwargs=None)
 
 ``@time_trigger`` takes one or more string specifications that specify time-based triggers. When
 multiple time triggers are specified, each are evaluated, and the earliest one is the next trigger.
 Then the process repeats. Alternatively, multiple time trigger specifications can be specified by using
 multiple ``@time_trigger`` decorators, although that is less efficient than passing multiple arguments
 to a single one.
+
+Additional keyword parameters can be passed to the trigger function by setting the optional
+``kwargs`` parameter to a ``dict`` with the keywords and values.
 
 Several of the time specifications use a ``datetime`` format, which is ISO: ``yyyy/mm/dd hh:mm:ss``,
 with the following features:
@@ -609,6 +630,8 @@ is set to ``"time"``, and ``trigger_time`` is the exact ``datetime`` of the time
 caused the trigger (it will be slightly before the current time), or ``startup`` or ``shutdown``
 in the case of a ``startup`` or ``shutdown`` trigger.
 
+Additional optional keyword parameters can be specified in the ``kwargs`` parameter to ``@time_trigger``.
+
 A final special form of ``@time_trigger`` has no arguments, which causes the function to run once
 automatically on startup or reload, which is the same as providing a single ``"startup"`` time
 specification:
@@ -638,7 +661,7 @@ completes.
 
 .. code:: python
 
-    @event_trigger(event_type, str_expr=None)
+    @event_trigger(event_type, str_expr=None, kwargs=None)
 
 ``@event_trigger`` triggers on the given ``event_type``. Multiple ``@event_trigger`` decorators
 can be applied to a single function if you want to trigger the same function with different event
@@ -656,7 +679,8 @@ Note unlike state variables, the event data values are not forced to be strings,
 data has its native type.
 
 When the ``@event_trigger`` occurs, those same variables are passed as keyword arguments to the
-function in case it needs them.
+function in case it needs them.  Additional keyword parameters can be specified by setting the
+optional ``kwargs`` argument to a ``dict`` with the keywords and values.
 
 The ``event_type`` could be a user-defined string, or it could be one of the built-in events. You
 can access the names of those events by importing from ``homeassistant.const``, eg:
@@ -700,7 +724,7 @@ more examples of built-in and user events and how to create triggers for them.
 
 .. code:: python
 
-    @mqtt_trigger(topic, str_expr=None)
+    @mqtt_trigger(topic, str_expr=None, kwargs=None)
 
 ``@mqtt_trigger`` subscribes to the given MQTT ``topic`` and triggers whenever a message is received
 on that topic. Multiple ``@mqtt_trigger`` decorators can be applied to a single function if you want
@@ -717,7 +741,8 @@ variables:
   representing that payload.
 
 When the ``@mqtt_trigger`` occurs, those same variables are passed as keyword arguments to the
-function in case it needs them.
+function in case it needs them. Additional keyword parameters can be specified by setting the
+optional ``kwargs`` argument to a ``dict`` with the keywords and values.
 
 Wildcards in topics are supported. The ``topic`` variables will be set to the full expanded topic
 the message arrived on.
