@@ -631,6 +631,60 @@ val_list
     ],
     [
         """
+@pyscript_compile
+def twice(func):
+    def twice_func(*args, **kwargs):
+        func(*args, **kwargs)
+        return func(*args, **kwargs)
+    return twice_func
+
+val = 0
+val_list = []
+
+@pyscript_compile
+@twice
+def foo1():
+    global val, val_list
+    val_list.append(val)
+    val += 1
+
+@pyscript_compile
+@twice
+@twice
+@twice
+def foo2():
+    global val, val_list
+    val_list.append(val)
+    val += 1
+
+foo1()
+foo2()
+val_list
+""",
+        list(range(0, 10)),
+    ],
+    [
+        """
+import threading
+
+# will run in the same thread, and return a different thread ident
+@pyscript_compile()
+def func1():
+    return threading.get_ident()
+
+# will run in a different thread, and return a different thread ident
+@pyscript_compile()
+def func2():
+    return threading.get_ident()
+
+[threading.get_ident() == func1(), threading.get_ident() != func2()]
+
+[True, True]
+""",
+        [True, True],
+    ],
+    [
+        """
 def twice(func):
     def twice_func(*args, **kwargs):
         func(*args, **kwargs)
@@ -1174,7 +1228,7 @@ async def run_one_test(test_data):
 
 async def test_eval(hass):
     """Test interpreter."""
-    hass.data[DOMAIN] = {CONFIG_ENTRY: MockConfigEntry(domain=DOMAIN, data={CONF_ALLOW_ALL_IMPORTS: False})}
+    hass.data[DOMAIN] = {CONFIG_ENTRY: MockConfigEntry(domain=DOMAIN, data={CONF_ALLOW_ALL_IMPORTS: True})}
     Function.init(hass)
     State.init(hass)
     State.register_functions()
@@ -1363,6 +1417,31 @@ def func():
 func()
 """,
         "Exception in func2(), test line 4 column 12: name 'x' is not defined",
+    ],
+    [
+        """
+@pyscript_compile(1)
+def func():
+    pass
+""",
+        "Exception in test line 3 column 0: @pyscript_compile() takes 0 positional arguments",
+    ],
+    [
+        """
+@pyscript_compile(invald_kw=True)
+def func():
+    pass
+""",
+        "Exception in test line 3 column 0: @pyscript_compile() takes no keyword arguments",
+    ],
+    [
+        """
+@pyscript_executor()
+@pyscript_compile()
+def func():
+    pass
+""",
+        "Exception in test line 4 column 0: can only specify single decorator of pyscript_compile, pyscript_executor",
     ],
 ]
 

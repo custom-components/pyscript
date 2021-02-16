@@ -852,6 +852,37 @@ This is an experimental feature and might change in the future. Restrictions inc
   function), then binding of variables defined outside the scope of the inner function
   does not work.
 
+@pyscript_executor
+^^^^^^^^^^^^^^^^^^
+
+The ``@pyscript_executor`` decorator does the same thing as ``@pyscript_compile`` and
+additionally wraps the compiled function with a call to ``task.executor``. The resulting
+function is now a pyscript (async) function that can be called like any other pyscript
+function.  This provides the cleanest way of defining a native python function that is
+executed in a new thread each time it is called, which is required for functions that
+does I/O or otherwise might block.
+
+The file reading example above is simplified with the use of ``@pyscript_executor``:
+
+.. code:: python
+
+   @pyscript_executor
+   def read_file(file_name):
+       try:
+           with open(file_name, encoding="utf-8") as file_desc:
+              return file_desc.read(), None
+       except Exception as exc:
+           return None, exc
+
+   contents, exception = read_file("config/configuration.yaml")
+   if exception:
+       raise exception
+   log.info(f"contents = {contents}")
+
+Notice that `read_file` is called like a regular function, and it automatically calls
+``task.executor``, which runs the compiled native python function in a new thread, and
+then returns the result.
+
 @service
 ^^^^^^^^
 

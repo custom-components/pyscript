@@ -4,6 +4,7 @@ import ast
 import asyncio
 import builtins
 from collections import OrderedDict
+import functools
 import importlib
 import inspect
 import io
@@ -53,6 +54,11 @@ TRIG_DECORATORS = {
 }
 
 ALL_DECORATORS = TRIG_DECORATORS.union({"service"})
+
+COMP_DECORATORS = {
+    "pyscript_compile",
+    "pyscript_executor",
+}
 
 
 def ast_eval_exec_factory(ast_ctx, mode):
@@ -954,31 +960,59 @@ class AstEval:
 
     async def ast_functiondef(self, arg):
         """Evaluate function definition."""
+        other_dec = []
+        dec_name = None
+        pyscript_compile = None
         for dec in arg.decorator_list:
-            if isinstance(dec, ast.Name):
-                if dec.id != "pyscript_compile":
-                    continue
-                arg.decorator_list = []
-                local_var = None
-                if arg.name in self.sym_table and isinstance(self.sym_table[arg.name], EvalLocalVar):
-                    local_var = self.sym_table[arg.name]
-                code = compile(ast.Module(body=[arg], type_ignores=[]), filename=self.filename, mode="exec")
-                exec(code, self.global_sym_table, self.sym_table)  # pylint: disable=exec-used
+            if isinstance(dec, ast.Name) and dec.id in COMP_DECORATORS:
+                dec_name = dec.id
+            elif (
+                isinstance(dec, ast.Call)
+                and isinstance(dec.func, ast.Name)
+                and dec.func.id in COMP_DECORATORS
+            ):
+                dec_name = dec.func.id
+            else:
+                other_dec.append(dec)
+                continue
+            if pyscript_compile:
+                raise SyntaxError(
+                    f"can only specify single decorator of {', '.join(sorted(COMP_DECORATORS))}"
+                )
+            pyscript_compile = dec
 
-                func = self.sym_table[arg.name]
+        if pyscript_compile:
+            if isinstance(pyscript_compile, ast.Call):
+                if len(pyscript_compile.args) > 0:
+                    raise TypeError(f"@{dec_name}() takes 0 positional arguments")
+                if len(pyscript_compile.keywords) > 0:
+                    raise TypeError(f"@{dec_name}() takes no keyword arguments")
+            arg.decorator_list = other_dec
+            local_var = None
+            if arg.name in self.sym_table and isinstance(self.sym_table[arg.name], EvalLocalVar):
+                local_var = self.sym_table[arg.name]
+            code = compile(ast.Module(body=[arg], type_ignores=[]), filename=self.filename, mode="exec")
+            exec(code, self.global_sym_table, self.sym_table)  # pylint: disable=exec-used
+
+            func = self.sym_table[arg.name]
+            if dec_name == "pyscript_executor":
                 if not asyncio.iscoroutinefunction(func):
 
                     def executor_wrap_factory(func):
-                        def executor_wrap(*args, **kwargs):
-                            return func(*args, **kwargs)
+                        async def executor_wrap(*args, **kwargs):
+                            return await Function.hass.async_add_executor_job(
+                                functools.partial(func, **kwargs), *args
+                            )
 
                         return executor_wrap
 
                     self.sym_table[arg.name] = executor_wrap_factory(func)
-                if local_var:
-                    self.sym_table[arg.name] = local_var
-                    self.sym_table[arg.name].set(func)
-                return
+                else:
+                    raise TypeError("@pyscript_executor() needs a regular, not async, function")
+            if local_var:
+                self.sym_table[arg.name] = local_var
+                self.sym_table[arg.name].set(func)
+            return
 
         func = EvalFunc(arg, self.code_list, self.code_str, self.global_ctx)
         await func.eval_defaults(self)
