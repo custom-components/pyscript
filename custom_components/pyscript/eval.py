@@ -60,6 +60,19 @@ COMP_DECORATORS = {
     "pyscript_executor",
 }
 
+TRIGGER_KWARGS = {
+    "context",
+    "event_type",
+    "old_value",
+    "payload",
+    "qos",
+    "topic",
+    "trigger_type",
+    "trigger_time",
+    "var_name",
+    "value",
+}
+
 
 def ast_eval_exec_factory(ast_ctx, mode):
     """Generate a function that executes eval() or exec() with given ast_ctx."""
@@ -633,6 +646,13 @@ class EvalFunc:
             sym_table[var_name] = val
         if self.func_def.args.kwarg:
             sym_table[self.func_def.args.kwarg.arg] = kwargs
+        elif not set(kwargs.keys()).issubset(TRIGGER_KWARGS):
+            # don't raise an exception for extra trigger keyword parameters;
+            # it's difficult to apply this exception to just trigger functions
+            # since they could have non-trigger decorators too
+            raise TypeError(
+                f"{self.name}() called with unexpected keyword arguments: {', '.join(sorted(kwargs.keys()))}"
+            )
         if self.func_def.args.vararg:
             if len(args) > len(self.func_def.args.args):
                 sym_table[self.func_def.args.vararg.arg] = tuple(args[len(self.func_def.args.args) :])

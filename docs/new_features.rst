@@ -26,7 +26,6 @@ Planned new features post 1.2.1 include:
   share pyscripts. The ``print`` function only logs a message, rather than implements the real ``print`` features,
   such as specifying an output file handle. Support might be added in the future using an executor job, perhaps
   enabled when ``allow_all_imports`` is set.
-- Consider adding an option argument to ``@pyscript_compile`` that wraps the function with ``task.executor``.
 
 The new features since 1.2.1 in master include:
 
@@ -51,3 +50,6 @@ Bug fixes since 1.2.1 include:
 
 - Fixed subscripts when running python 3.9.x.
 - When exception text is created, ensure lineno is inside code_list[]; with lambda function or eval it might not be.
+- An exception is raised when a function is called with unexpected keyword parameters that don't have corresponding
+  keyword arguments (however, the trigger parameter names are excluded from this check, since trigger functions
+  are allowed to have any subset of keyword arguments).

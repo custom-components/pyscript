@@ -884,6 +884,7 @@ class TrigInfo:
         if self.run_on_shutdown:
             notify_type = "shutdown"
             notify_info = {"trigger_type": "time", "trigger_time": "shutdown"}
+            notify_info.update(self.time_trigger_kwargs.get("kwargs", {}))
             action_future = self.call_action(notify_type, notify_info, run_task=False)
             Function.waiter_await(action_future)
 
