@@ -48,8 +48,8 @@ Breaking changes since 1.2.1 include:
 
 Bug fixes since 1.2.1 include:
 
-- Timeouts that implement time triggers might occur a tiny time before the target time. A fix was added to do
-  an additional short timeout when there is an early timeout, to make sure any time trigger occurs at or shortly
+- Timeouts that implement time triggers might infrequenctly occur a tiny time before the target time. A fix was added
+  to do an additional short timeout when there is an early timeout, to make sure any time trigger occurs at or shortly
   after the target time (and never before).
 - Fixed subscripts when running python 3.9.x.
 - When exception text is created, ensure lineno is inside code_list[]; with lambda function or eval it might not be.
