@@ -359,10 +359,10 @@ class TrigTime:
             state_trig_timeout = False
             time_next = None
             startup_time = None
+            now = dt_now()
+            if startup_time is None:
+                startup_time = now
             if time_trigger is not None:
-                now = dt_now()
-                if startup_time is None:
-                    startup_time = now
                 time_next = cls.timer_trigger_next(time_trigger, now, startup_time)
                 _LOGGER.debug(
                     "trigger %s wait_until time_next = %s, now = %s", ast_ctx.name, time_next, now,
@@ -377,11 +377,13 @@ class TrigTime:
                 if this_timeout is None or this_timeout > time_left:
                     ret = {"trigger_type": "timeout"}
                     this_timeout = time_left
+                    time_next = now + dt.timedelta(seconds=this_timeout)
             if state_trig_waiting:
                 time_left = last_state_trig_time + state_hold - time.monotonic()
                 if this_timeout is None or time_left < this_timeout:
                     this_timeout = time_left
                     state_trig_timeout = True
+                    time_next = now + dt.timedelta(seconds=this_timeout)
             if this_timeout is None:
                 if state_trigger is None and event_trigger is None and mqtt_trigger is None:
                     _LOGGER.debug(
@@ -392,18 +394,33 @@ class TrigTime:
                 _LOGGER.debug("trigger %s wait_until no timeout", ast_ctx.name)
                 notify_type, notify_info = await notify_q.get()
             else:
-                try:
-                    this_timeout = max(0, this_timeout)
-                    _LOGGER.debug("trigger %s wait_until %.6g secs", ast_ctx.name, this_timeout)
-                    notify_type, notify_info = await asyncio.wait_for(notify_q.get(), timeout=this_timeout)
-                    state_trig_timeout = False
-                except asyncio.TimeoutError:
-                    if not state_trig_timeout:
-                        if not ret:
-                            ret = {"trigger_type": "time"}
-                            if time_next is not None:
-                                ret["trigger_time"] = time_next
-                        break
+                timeout_occured = False
+                while True:
+                    try:
+                        this_timeout = max(0, this_timeout)
+                        _LOGGER.debug("trigger %s wait_until %.6g secs", ast_ctx.name, this_timeout)
+                        notify_type, notify_info = await asyncio.wait_for(
+                            notify_q.get(), timeout=this_timeout
+                        )
+                        state_trig_timeout = False
+                    except asyncio.TimeoutError:
+                        actual_now = dt_now()
+                        if actual_now < time_next:
+                            this_timeout = (time_next - actual_now).total_seconds()
+                            # tests/tests_function's simple now() requires us to ignore
+                            # timeouts that are up to 1us too early; otherwise wait for
+                            # longer until we are sure we are at or past time_next
+                            if this_timeout > 1e-6:
+                                continue
+                        if not state_trig_timeout:
+                            if not ret:
+                                ret = {"trigger_type": "time"}
+                                if time_next is not None:
+                                    ret["trigger_time"] = time_next
+                            timeout_occured = True
+                    break
+                if timeout_occured:
+                    break
             if state_trig_timeout:
                 ret = state_trig_notify_info[1]
                 state_trig_waiting = False
@@ -964,24 +981,31 @@ class TrigInfo:
                         time_left = last_state_trig_time + self.state_hold - time.monotonic()
                         if timeout is None or time_left < timeout:
                             timeout = time_left
+                            time_next = now + dt.timedelta(seconds=timeout)
                             state_trig_timeout = True
                     if timeout is not None:
-                        try:
-                            timeout = max(0, timeout)
-                            _LOGGER.debug("trigger %s waiting for %.6g secs", self.name, timeout)
-                            notify_type, notify_info = await asyncio.wait_for(
-                                self.notify_q.get(), timeout=timeout
-                            )
-                            state_trig_timeout = False
-                            now = dt_now()
-                        except asyncio.TimeoutError:
-                            now += dt.timedelta(seconds=timeout)
-                            if not state_trig_timeout:
-                                notify_type = "time"
-                                notify_info = {
-                                    "trigger_type": "time",
-                                    "trigger_time": time_next,
-                                }
+                        while True:
+                            try:
+                                timeout = max(0, timeout)
+                                _LOGGER.debug("trigger %s waiting for %.6g secs", self.name, timeout)
+                                notify_type, notify_info = await asyncio.wait_for(
+                                    self.notify_q.get(), timeout=timeout
+                                )
+                                state_trig_timeout = False
+                                now = dt_now()
+                            except asyncio.TimeoutError:
+                                actual_now = dt_now()
+                                if actual_now < time_next:
+                                    timeout = (time_next - actual_now).total_seconds()
+                                    continue
+                                now = time_next
+                                if not state_trig_timeout:
+                                    notify_type = "time"
+                                    notify_info = {
+                                        "trigger_type": "time",
+                                        "trigger_time": time_next,
+                                    }
+                            break
                     elif self.have_trigger:
                         _LOGGER.debug("trigger %s waiting for state change or event", self.name)
                         notify_type, notify_info = await self.notify_q.get()

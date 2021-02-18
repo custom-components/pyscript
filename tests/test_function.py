@@ -680,11 +680,12 @@ async def test_state_trigger_time(hass, caplog):
     """Test state trigger."""
     notify_q = asyncio.Queue(0)
     notify_q2 = asyncio.Queue(0)
+    now = [dt(2020, 7, 1, 10, 59, 59, 999999), dt(2020, 7, 1, 11, 59, 59, 999999)]
     await setup_script(
         hass,
         notify_q,
         notify_q2,
-        [dt(2020, 7, 1, 10, 59, 59, 999998), dt(2020, 7, 1, 11, 59, 59, 999998)],
+        now,
         """
 
 from math import sqrt
