@@ -58,7 +58,7 @@ def func11():
 from xyz2 import *
 
 @service
-def func2():
+def func20():
     pyscript.done = [get_x(), get_name(), other_name(), f_add(1, 5), f_mult(3, 6), f_add(10, 30), f_minus(50, 30)]
 """,
         #
@@ -198,7 +198,7 @@ def func15():
     ret = await wait_until_done(notify_q)
     assert literal_eval(ret) == [1 + 2, 3 * 4, 10 + 20, 50 - 20]
 
-    await hass.services.async_call("pyscript", "func2", {})
+    await hass.services.async_call("pyscript", "func20", {})
     ret = await wait_until_done(notify_q)
     assert literal_eval(ret) == [99, "xyz2", "xyz2.other", 1 + 5, 3 * 6, 10 + 30, 50 - 30]
 

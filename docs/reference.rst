@@ -908,15 +908,22 @@ Notice that `read_file` is called like a regular function, and it automatically 
 ``task.executor``, which runs the compiled native python function in a new thread, and
 then returns the result.
 
-@service
-^^^^^^^^
+@service(service_name, ...)
+^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 The ``@service`` decorator causes the function to be registered as a service so it can be called
-externally. The ``@state_active`` and ``@time_active`` decorators don't affect the service - those
-only apply to time, state and event triggers specified by other decorators.
+externally. The string ``service_name`` argument is optional and defaults to ``"pyscript.FUNC_NAME"``,
+where ``FUNC_NAME`` is the name of the function. You can override that default by specifying
+a string with a single period of the form ``"DOMAIN.SERVICE"``. Multiple arguments and multiple
+``@service`` decorators can be used to register multiple names (eg, aliases) for the same function.
+
+Other trigger decorators like ``@state_active`` and ``@time_active`` don't affect the service.
+Those still allow state, time or other triggers to be specified in addition.
 
 The function is called with keyword parameters set to the service call parameters, plus
-``trigger_type`` is set to ``"service"``.
+``trigger_type`` is set to ``"service"``. The function definition should specify all the
+expected keyword arguments to match the service call parameters, or use the ``**kwargs``
+argument declaration to capture all the keyword arguments.
 
 The ``doc_string`` (the string immediately after the function declaration) is used as the service
 description that appears is in the Services tab of the Developer Tools page. The function argument

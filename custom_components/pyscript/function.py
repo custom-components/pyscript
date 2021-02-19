@@ -70,6 +70,12 @@ class Function:
     #
     service_cnt = {}
 
+    #
+    # save the global_ctx name where a service is registered so we can raise
+    # an exception if it gets registered by a different global_ctx.
+    #
+    service2global_ctx = {}
+
     def __init__(self):
         """Warn on Function instantiation."""
         _LOGGER.error("Function class is not meant to be instantiated")
@@ -444,16 +450,22 @@ class Function:
         return cls.hass.loop.create_task(cls.run_coro(coro, ast_ctx=ast_ctx))
 
     @classmethod
-    def service_register(cls, domain, service, callback):
+    def service_register(cls, global_ctx_name, domain, service, callback):
         """Register a new service callback."""
         key = f"{domain}.{service}"
         if key not in cls.service_cnt:
             cls.service_cnt[key] = 0
+        if key not in cls.service2global_ctx:
+            cls.service2global_ctx[key] = global_ctx_name
+        if cls.service2global_ctx[key] != global_ctx_name:
+            raise ValueError(
+                f"{global_ctx_name}: can't register service {key}; already defined in {cls.service2global_ctx[key]}"
+            )
         cls.service_cnt[key] += 1
         cls.hass.services.async_register(domain, service, callback)
 
     @classmethod
-    def service_remove(cls, domain, service):
+    def service_remove(cls, global_ctx_name, domain, service):
         """Remove a service callback."""
         key = f"{domain}.{service}"
         if cls.service_cnt.get(key, 0) > 1:
@@ -461,6 +473,7 @@ class Function:
             return
         cls.service_cnt[key] = 0
         cls.hass.services.async_remove(domain, service)
+        cls.service2global_ctx.pop(key, None)
 
     @classmethod
     def task_done_callback_ctx(cls, task, ast_ctx):

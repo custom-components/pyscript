@@ -19,12 +19,10 @@ from homeassistant.helpers.service import async_get_all_descriptions
 from homeassistant.setup import async_setup_component
 
 
-async def setup_script(hass, notify_q, now, source):
+async def setup_script(hass, notify_q, now, source, script_name="/hello.py"):
     """Initialize and load the given pyscript."""
 
-    scripts = [
-        "/hello.py",
-    ]
+    scripts = [script_name]
 
     with patch("custom_components.pyscript.os.path.isdir", return_value=True), patch(
         "custom_components.pyscript.glob.iglob", return_value=scripts
@@ -95,6 +93,7 @@ def func1():
 
 # make sure a double definition still keeps the service registered
 @service
+@service("other.func1_renamed")
 def func1():
     pass
 
@@ -103,122 +102,9 @@ def func2():
 """,
     )
     assert hass.services.has_service("pyscript", "func1")
+    assert hass.services.has_service("other", "func1_renamed")
     assert hass.services.has_service("pyscript", "reload")
     assert not hass.services.has_service("pyscript", "func2")
-
-
-async def test_service_reload_error(hass, caplog):
-    """Test using a reserved name generates an error."""
-
-    await setup_script(
-        hass,
-        None,
-        dt(2020, 7, 1, 11, 59, 59, 999999),
-        """
-@service
-def reload():
-    pass
-""",
-    )
-    assert (
-        "SyntaxError: function 'reload' defined in file.hello: @service conflicts with builtin service"
-        in caplog.text
-    )
-
-
-async def test_service_state_active_extra_args(hass, caplog):
-    """Test using extra args to state_active generates an error."""
-
-    await setup_script(
-        hass,
-        None,
-        dt(2020, 7, 1, 11, 59, 59, 999999),
-        """
-@state_active("arg1", "too many args")
-def func4():
-    pass
-""",
-    )
-    assert (
-        "TypeError: function 'func4' defined in file.hello: decorator @state_active got 2 arguments, expected 1"
-        in caplog.text
-    )
-
-
-async def test_service_too_many_args(hass, caplog):
-    """Test using too many args with service an error."""
-
-    await setup_script(
-        hass,
-        None,
-        dt(2020, 7, 1, 11, 59, 59, 999999),
-        """
-@service("too many args")
-def func5():
-    pass
-""",
-    )
-    assert (
-        "TypeError: function 'func5' defined in file.hello: decorator @service got 1 argument, expected 0"
-        in caplog.text
-    )
-
-
-async def test_time_trigger_wrong_arg_type(hass, caplog):
-    """Test using wrong argument type generates an error."""
-
-    await setup_script(
-        hass,
-        None,
-        dt(2020, 7, 1, 11, 59, 59, 999999),
-        """
-@time_trigger("wrong arg type", 50)
-def func6():
-    pass
-""",
-    )
-    assert (
-        "TypeError: function 'func6' defined in file.hello: decorator @time_trigger argument 2 should be a string"
-        in caplog.text
-    )
-
-
-async def test_decorator_kwargs(hass, caplog):
-    """Test invalid keyword arguments generates an error."""
-
-    await setup_script(
-        hass,
-        None,
-        dt(2020, 7, 1, 11, 59, 59, 999999),
-        """
-@time_trigger("invalid kwargs", arg=10)
-def func7():
-    pass
-""",
-    )
-    assert (
-        "TypeError: function 'func7' defined in file.hello: decorator @time_trigger valid keyword arguments are: kwargs"
-        in caplog.text
-    )
-
-
-async def test_decorator_kwargs2(hass, caplog):
-    """Test invalid keyword arguments generates an error."""
-
-    await setup_script(
-        hass,
-        None,
-        dt(2020, 7, 1, 11, 59, 59, 999999),
-        """
-@task_unique("invalid kwargs", arg=10)
-def func7():
-    pass
-""",
-    )
-    assert (
-        "TypeError: function 'func7' defined in file.hello: decorator @task_unique valid keyword arguments are: kill_me"
-        in caplog.text
-    )
 
 
 async def test_syntax_error(hass, caplog):
@@ -352,6 +238,9 @@ def func1(arg1=1, arg2=2, context=None):
     log.info(f"this is func1 x = {x}, arg1 = {arg1}, arg2 = {arg2}")
     pyscript.done = [x, arg1, arg2, str(context)]
 
+# registering twice will cause it to be called twice
+@service("other.func2")
+@service("other.func2")
 @service
 def func2(**kwargs):
     x = 1
@@ -405,8 +294,13 @@ def call_service(domain=None, name=None, **kwargs):
     ret = await wait_until_done(notify_q)
     assert literal_eval(ret) == [5, {"trigger_type": "service", "arg1": "string1"}, 1, 0]
 
-    await hass.services.async_call("pyscript", "func2", {"arg1": "string1", "arg2": 123})
+    await hass.services.async_call("pyscript", "func2", {"arg1": "string1", "arg2": 456})
     ret = await wait_until_done(notify_q)
+    assert literal_eval(ret) == [5, {"trigger_type": "service", "arg1": "string1", "arg2": 456}, 1, 0]
+
+    await hass.services.async_call("other", "func2", {"arg1": "string1", "arg2": 123})
+    ret = await wait_until_done(notify_q)
+    assert literal_eval(ret) == [5, {"trigger_type": "service", "arg1": "string1", "arg2": 123}, 1, 0]
     assert literal_eval(ret) == [5, {"trigger_type": "service", "arg1": "string1", "arg2": 123}, 1, 0]
 
 
@@ -427,11 +321,11 @@ def func_startup_sync():
 
 @service
 @state_trigger("pyscript.f1var1 == '1'")
-def func1(var_name=None, value=None):
+def func9(var_name=None, value=None):
     global seq_num
 
     seq_num += 1
-    log.info(f"func1 var = {var_name}, value = {value}")
+    log.info(f"func9 var = {var_name}, value = {value}")
     pyscript.done = [seq_num, var_name, int(value)]
 
 """
@@ -460,7 +354,7 @@ def func5(var_name=None, value=None):
     await setup_script(hass, notify_q, now, source0)
 
     #
-    # run and reload 6 times with different sournce files to make sure seqNum
+    # run and reload 6 times with different source files to make sure seqNum
     # gets reset, autostart of func_startup_sync happens and triggers work each time
     #
     # first time: fire event to startup triggers and run func_startup_sync
@@ -470,7 +364,7 @@ def func5(var_name=None, value=None):
         if i & 1:
             seq_num = 10
 
-            assert not hass.services.has_service("pyscript", "func1")
+            assert not hass.services.has_service("pyscript", "func9")
             assert hass.services.has_service("pyscript", "reload")
             assert hass.services.has_service("pyscript", "func5")
 
@@ -495,7 +389,7 @@ def func5(var_name=None, value=None):
         else:
             seq_num = 0
 
-            assert hass.services.has_service("pyscript", "func1")
+            assert hass.services.has_service("pyscript", "func9")
             assert hass.services.has_service("pyscript", "reload")
             assert not hass.services.has_service("pyscript", "func5")
 
@@ -514,7 +408,7 @@ def func5(var_name=None, value=None):
                 "pyscript.f1var1",
                 1,
             ]
-            assert "func1 var = pyscript.f1var1, value = 1" in caplog.text
+            assert "func9 var = pyscript.f1var1, value = 1" in caplog.text
             next_source = source1
 
         #

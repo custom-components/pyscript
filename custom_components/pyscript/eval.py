@@ -286,7 +286,7 @@ class EvalFunc:
         self.exception_obj = None
         self.exception_long = None
         self.trigger = []
-        self.trigger_service = False
+        self.trigger_service = set()
         self.has_closure = False
 
     def get_name(self):
@@ -320,9 +320,9 @@ class EvalFunc:
             "mqtt_trigger": {"arg_cnt": {1, 2}, "rep_ok": True},
             "state_active": {"arg_cnt": {1}},
             "state_trigger": {"arg_cnt": {"*"}, "type": {list, set}, "rep_ok": True},
-            "service": {"arg_cnt": {0}},
+            "service": {"arg_cnt": {0, "*"}},
             "task_unique": {"arg_cnt": {1}},
-            "time_active": {"arg_cnt": {0, "*"}},
+            "time_active": {"arg_cnt": {"*"}},
             "time_trigger": {"arg_cnt": {0, "*"}, "rep_ok": True},
         }
         kwarg_check = {
@@ -388,8 +388,6 @@ class EvalFunc:
                 if dec_kwargs is None:
                     dec_kwargs = {}
             if dec_name == "service":
-                if self.name in (SERVICE_RELOAD, SERVICE_JUPYTER_KERNEL_START):
-                    raise SyntaxError(f"{exc_mesg}: @service conflicts with builtin service")
                 desc = self.doc_string
                 if desc is None or desc == "":
                     desc = f"pyscript function {self.name}()"
@@ -436,9 +434,17 @@ class EvalFunc:
 
                     return pyscript_service_handler
 
-                Function.service_register(DOMAIN, self.name, pyscript_service_factory(self.name, self))
-                async_set_service_schema(Function.hass, DOMAIN, self.name, service_desc)
-                self.trigger_service = True
+                for srv_name in dec_args if dec_args else [f"{DOMAIN}.{self.name}"]:
+                    if type(srv_name) is not str or srv_name.count(".") != 1:
+                        raise ValueError(f"{exc_mesg}: @service argument must be a string with one period")
+                    domain, name = srv_name.split(".", 1)
+                    if name in (SERVICE_RELOAD, SERVICE_JUPYTER_KERNEL_START):
+                        raise SyntaxError(f"{exc_mesg}: @service conflicts with builtin service")
+                    Function.service_register(
+                        self.global_ctx_name, domain, name, pyscript_service_factory(self.name, self)
+                    )
+                    async_set_service_schema(Function.hass, domain, name, service_desc)
+                    self.trigger_service.add(srv_name)
                 continue
 
             if dec_name not in trig_decs:
@@ -457,7 +463,7 @@ class EvalFunc:
             return
 
         if len(trig_decs) == 0:
-            if self.trigger_service:
+            if len(self.trigger_service) > 0:
                 self.global_ctx.trigger_register(self)
             return
 
@@ -501,9 +507,10 @@ class EvalFunc:
         for trigger in self.trigger:
             trigger.stop()
         self.trigger = []
-        if self.trigger_service:
-            self.trigger_service = False
-            Function.service_remove(DOMAIN, self.name)
+        for srv_name in self.trigger_service:
+            domain, name = srv_name.split(".", 1)
+            Function.service_remove(self.global_ctx_name, domain, name)
+        self.trigger_service = set()
 
     async def eval_decorators(self, ast_ctx):
         """Evaluate the function decorators arguments."""
