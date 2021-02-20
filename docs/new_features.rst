@@ -51,10 +51,11 @@ Breaking changes since 1.2.1 include:
 
 Bug fixes since 1.2.1 include:
 
+- Fixed ``@state_trigger`` with only a ``.old`` variable, which previously never triggered; reported by stigvi.
+- Fixed subscripts when running python 3.9.x.
 - Timeouts that implement time triggers might infrequenctly occur a tiny time before the target time. A fix was added
   to do an additional short timeout when there is an early timeout, to make sure any time trigger occurs at or shortly
   after the target time (and never before).
-- Fixed subscripts when running python 3.9.x.
 - When exception text is created, ensure lineno is inside code_list[]; with lambda function or eval it might not be.
 - An exception is raised when a function is called with unexpected keyword parameters that don't have corresponding
   keyword arguments (however, the trigger parameter names are excluded from this check, since trigger functions

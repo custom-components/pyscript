@@ -97,10 +97,13 @@ def ident_values_changed(func_args, ident):
 
     for check_var in ident:
         var_pieces = check_var.split(".")
-        if len(var_pieces) == 2 and check_var == var_name:
+        if len(var_pieces) < 2 or len(var_pieces) > 3:
+            continue
+        var_root = f"{var_pieces[0]}.{var_pieces[1]}"
+        if var_root == var_name and (len(var_pieces) == 2 or var_pieces[2] == "old"):
             if value != old_value:
                 return True
-        elif len(var_pieces) == 3 and f"{var_pieces[0]}.{var_pieces[1]}" == var_name:
+        elif len(var_pieces) == 3 and var_root == var_name:
             if getattr(value, var_pieces[2], None) != getattr(old_value, var_pieces[2], None):
                 return True
 

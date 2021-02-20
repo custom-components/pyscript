@@ -264,6 +264,14 @@ def func2c(var_name=None, value=None):
     log.info(f"func2c var = {var_name}, value = {value}")
     pyscript.done = [seq_num, var_name, int(value)]
 
+@state_trigger("pyscript.f1var2.old == '15'")
+def func2d(var_name=None, value=None, old_value=None):
+    global seq_num
+
+    seq_num += 1
+    log.info(f"func2d var = {var_name}, value = {value}")
+    pyscript.done = [seq_num, var_name, int(value), int(old_value)]
+
 
 @event_trigger("fire_event")
 def fire_event(**kwargs):
@@ -402,6 +410,7 @@ def func9(var_name=None, value=None, old_value=None):
     # initialize the trigger and active variables
     seq_num = 0
     hass.states.async_set("pyscript.f1var1", 0)
+    hass.states.async_set("pyscript.f1var2", 0)
     hass.states.async_set("pyscript.f2var2", 0)
     hass.states.async_set("pyscript.f2var3", 0)
     hass.states.async_set("pyscript.f2var4", 0)
@@ -465,6 +474,20 @@ def func9(var_name=None, value=None, old_value=None):
             #
             seq_num += 1
             assert literal_eval(await wait_until_done(notify_q)) == [seq_num, "pyscript.f1var1", num]
+
+    #
+    # check that just a .old variable triggers
+    #
+    seq_num += 1
+    hass.states.async_set("pyscript.f1var2", 10)
+    hass.states.async_set("pyscript.f1var2", 15)
+    hass.states.async_set("pyscript.f1var2", 10)
+    assert literal_eval(await wait_until_done(notify_q)) == [
+        seq_num,
+        "pyscript.f1var2",
+        10,
+        15,
+    ]
 
     seq_num += 1
     hass.states.async_set("pyscript.f2var4", 4)
