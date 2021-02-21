@@ -52,6 +52,7 @@ Breaking changes since 1.2.1 include:
 Bug fixes since 1.2.1 include:
 
 - Fixed ``@state_trigger`` with only a ``.old`` variable, which previously never triggered; reported by stigvi.
+- Reload with global_ctx="*" now starts triggers, reported by Fabio C.
 - Fixed subscripts when running python 3.9.x.
 - Timeouts that implement time triggers might infrequenctly occur a tiny time before the target time. A fix was added
   to do an additional short timeout when there is an early timeout, to make sure any time trigger occurs at or shortly

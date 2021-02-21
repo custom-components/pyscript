@@ -47,6 +47,10 @@ log.info(f"{__name__} global_ctx={pyscript.get_global_ctx()} xyz={xyz}")
 @service
 def func2():
     pass
+
+@time_trigger
+def startup():
+    log.info(f"{__name__} is starting up")
 """,
         #
         # This will load, since there is an apps/world2 config entry
@@ -266,6 +270,7 @@ def shutdown(trigger_time=None):
         #
         for i in range(3):
             assert caplog.text.count("world global_ctx=apps.world xyz=") == 2 + i
+            assert caplog.text.count("world is starting up") == 2 + i
             assert caplog.text.count("world2 global_ctx=apps.world2 var1=") == 3 + i
             assert caplog.text.count("hello global_ctx=file.hello xyz=") == 4 + i
             assert caplog.text.count("modules/xyz2/other global_ctx=modules.xyz2.other") == 2 + i
