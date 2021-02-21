@@ -48,6 +48,13 @@ Breaking changes since 1.2.1 include:
 - Since decorator errors now raise exceptions, if you had a script with such an error that otherwise works, that
   script will now give an exception and fail to load. The error should be self-explanatory, and it's good to know
   so you can fix it.
+- Since an exception is now raised if you call a function with an invalid keyword argument (ie, one not included
+  in the function's argument definition), if you previsouly had a misspelled keyword argument that was silently
+  ignored, you will now get an exception. It's good to know that is the case, and it should be easy to fix.
+- The use of ``pyscript.config["apps"][YOUR_APP]`` to get application configuration is still available but now
+  deprecated. The ``apps`` entry in ``pyscript.config`` will be removed in a future release. This is to prevent
+  wayward applications from seeing configuration settings for other apps.  The new ``pyscript.app_config`` variable
+  should be used instead - it is set to ``pyscript.config["apps"][YOUR_APP]`` for each app.
 
 Bug fixes since 1.2.1 include:
 
