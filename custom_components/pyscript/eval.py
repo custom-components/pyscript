@@ -93,8 +93,22 @@ def ast_eval_exec_factory(ast_ctx, mode):
                 eval_ast.sym_table = eval_globals
         else:
             eval_ast.sym_table_stack = ast_ctx.sym_table_stack.copy()
-            eval_ast.sym_table = ast_ctx.sym_table
-        eval_ast.curr_func = ast_ctx.curr_func
+            if ast_ctx.sym_table == ast_ctx.global_sym_table:
+                eval_ast.sym_table = ast_ctx.sym_table
+            else:
+                eval_ast.sym_table = ast_ctx.sym_table.copy()
+                eval_ast.sym_table.update(ast_ctx.user_locals)
+                to_delete = set()
+                for var, value in eval_ast.sym_table.items():
+                    if isinstance(value, EvalLocalVar):
+                        if value.is_defined():
+                            eval_ast.sym_table[var] = value.get()
+                        else:
+                            to_delete.add(var)
+                for var in to_delete:
+                    del eval_ast.sym_table[var]
+
+        eval_ast.curr_func = None
         try:
             eval_result = await eval_ast.aeval(eval_ast.ast)
         except Exception as err:
@@ -106,7 +120,17 @@ def ast_eval_exec_factory(ast_ctx, mode):
                 + eval_ast.exception_long
             )
             raise
-        ast_ctx.curr_func = eval_ast.curr_func
+        #
+        # save variables only in the locals scope
+        #
+        if eval_globals is None and eval_ast.sym_table != ast_ctx.sym_table:
+            for var, value in eval_ast.sym_table.items():
+                if var in ast_ctx.global_sym_table and value == ast_ctx.global_sym_table[var]:
+                    continue
+                if var not in ast_ctx.sym_table and (
+                    ast_ctx.curr_func is None or var not in ast_ctx.curr_func.local_names
+                ):
+                    ast_ctx.user_locals[var] = value
         return eval_result
 
     return eval_func
@@ -135,7 +159,20 @@ def ast_locals_factory(ast_ctx):
     """Generate a locals() function with given ast_ctx."""
 
     async def locals_func():
-        return ast_ctx.sym_table
+        if ast_ctx.sym_table == ast_ctx.global_sym_table:
+            return ast_ctx.sym_table
+        local_sym_table = ast_ctx.sym_table.copy()
+        local_sym_table.update(ast_ctx.user_locals)
+        to_delete = set()
+        for var, value in local_sym_table.items():
+            if isinstance(value, EvalLocalVar):
+                if value.is_defined():
+                    local_sym_table[var] = value.get()
+                else:
+                    to_delete.add(var)
+        for var in to_delete:
+            del local_sym_table[var]
+        return local_sym_table
 
     return locals_func
 
@@ -698,6 +735,8 @@ class EvalFunc:
         self.exception_obj = None
         self.exception_long = None
         prev_func = ast_ctx.curr_func
+        save_user_locals = ast_ctx.user_locals
+        ast_ctx.user_locals = {}
         ast_ctx.curr_func = self
         del args, kwargs
         for arg1 in self.func_def.body:
@@ -710,6 +749,7 @@ class EvalFunc:
             if ast_ctx.get_exception_obj():
                 break
         ast_ctx.curr_func = prev_func
+        ast_ctx.user_locals = save_user_locals
         ast_ctx.code_str, ast_ctx.code_list = code_str, code_list
         if prev_sym_table is not None:
             (
@@ -798,6 +838,7 @@ class AstEval:
         self.sym_table_stack = []
         self.sym_table = self.global_sym_table
         self.local_sym_table = {}
+        self.user_locals = {}
         self.curr_func = None
         self.filename = name
         self.code_str = None

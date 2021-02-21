@@ -198,6 +198,98 @@ chk
     ["eval('1+2')", 3],
     ["x = 5; eval('2 * x')", 10],
     ["x = 5; exec('x = 2 * x'); x", 10],
+    [
+        """
+def func():
+    x = 5
+    exec('x = 2 * x')
+    return x
+func()
+""",
+        5,
+    ],
+    ["x = 5; locals()['x'] = 10; x", 10],
+    ["x = 5; globals()['x'] = 10; x", 10],
+    [
+        """
+def func():
+    x = 5
+    locals()['x'] = 10
+    return x
+func()
+""",
+        5,
+    ],
+    [
+        """
+bar = 100
+bar2 = 50
+bar3 = [0]
+def func(bar=6):
+    def foo(bar=6):
+        bar += 2
+        bar5 = 100
+        exec("bar2 += 1; bar += 10; bar3[0] = 1234 + bar + bar2; bar4 = 123; bar5 += 10")
+        bar += 2
+        del bar5
+        return [bar, bar2, bar3, eval('bar2'), eval('bar4'), locals()]
+    return foo(bar)
+[func(), func(5), bar, bar2]
+    """,
+        [
+            [10, 50, [1302], 51, 123, {"bar": 10, "bar2": 51, "bar4": 123}],
+            [9, 50, [1302], 51, 123, {"bar": 9, "bar2": 51, "bar4": 123}],
+            100,
+            50,
+        ],
+    ],
+    [
+        """
+bar = 100
+bar2 = 50
+bar3 = [0]
+def func(bar=6):
+    bar2 = 10
+    def foo(bar=6):
+        nonlocal bar2
+        bar += 2
+        exec("bar2 += 1; bar += 10; bar3[0] = 1234 + bar2")
+        return [bar, bar2, bar3, eval('bar2'), locals()]
+    return foo(bar)
+[func(), func(5), bar, bar2]
+""",
+        [[8, 10, [1245], 10, {"bar": 8, "bar2": 10}], [7, 10, [1245], 10, {"bar": 7, "bar2": 10}], 100, 50],
+    ],
+    [
+        """
+x = 10
+def foo():
+    x = 5
+    del x
+    return eval("x")
+foo()
+""",
+        10,
+    ],
+    [
+        """
+bar = 100
+bar2 = 50
+bar3 = [0]
+def func(bar=6):
+    bar2 = 10
+    def foo(bar=6):
+        nonlocal bar2
+        bar += 2
+        del bar
+        exec("bar2 += 1; bar += 10; bar3[0] = 1234 + bar2 + bar")
+        return [bar3, eval('bar'), eval('bar2'), locals()]
+    del bar2
+    return foo(bar)
+[func(), func(5), bar, bar2]
+""",
+        [[[1395], 100, 50, {}], [[1395], 100, 50, {}], 100, 50],
+    ],
     ["eval('xyz', {'xyz': 10})", 10],
     ["g = {'xyz': 10}; eval('xyz', g, {})", 10],
     ["g = {'xyz': 10}; eval('xyz', {}, g)", 10],
@@ -352,20 +444,19 @@ def foo(bar=6):
 """,
         [8, 7, 100],
     ],
-    # eval()/exec() scoping is broken; remove test until fixed
-    #    [
-    #        """
-    # bar = 100
-    # def foo(bar=6):
-    #    bar += 2
-    #    del bar
-    #    return eval('bar')
-    #    bar += 5
-    #    return 1000
-    # [foo(), foo(5), bar]
-    # """,
-    #        [100, 100, 100],
-    #    ],
+    [
+        """
+bar = 100
+def foo(bar=6):
+   bar += 2
+   del bar
+   return eval('bar')
+   bar += 5
+   return 1000
+[foo(), foo(5), bar]
+""",
+        [100, 100, 100],
+    ],
     [
         """
 bar = 100
@@ -1371,7 +1462,7 @@ def func():
     eval('1 + y')
 func()
 """,
-        "Exception in test line 4 column 9: Exception in func(), eval() line 1 column 4: name 'y' is not defined",
+        "Exception in test line 4 column 9: Exception in eval() line 1 column 4: name 'y' is not defined",
     ],
     [
         """
