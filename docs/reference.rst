@@ -336,16 +336,16 @@ function.
 
 .. code:: python
 
-    @state_trigger(str_expr, ..., state_hold=None, state_hold_false=None, state_check_now=False, kwargs=None)
+    @state_trigger(str_expr, ..., state_hold=None, state_hold_false=None, state_check_now=False, kwargs=None, watch=None)
 
 ``@state_trigger`` takes one or more string arguments that contain any expression based on one or
-more state variables, and evaluates to ``True`` or ``False`` (or non-zero or zero). Whenever any
-of the state variables or attribute values mentioned in the expression change, the expression is
-evaluated and the trigger occurs if it evaluates to ``True`` (or non-zero). For each state variable,
-eg: ``domain.name``, the prior value is also available to the expression as ``domain.name.old``
-in case you want to condition the trigger on the prior value too. Attribute values can be used
-in the expression too, using the forms ``domain.name.attr`` and ``domain.name.old.attr`` for
-the new and old attribute values respectively.
+more state variables, and evaluates to ``True`` or ``False`` (or non-zero or zero). Whenever any of
+the state variables or attribute values mentioned in the expression change (or specified via the
+``watch`` argument), the expression is evaluated and the trigger occurs if it evaluates to ``True``
+(or non-zero). For each state variable, eg: ``domain.name``, the prior value is also available to
+the expression as ``domain.name.old`` in case you want to condition the trigger on the prior value
+too. Attribute values can be used in the expression too, using the forms ``domain.name.attr`` and
+``domain.name.old.attr`` for the new and old attribute values respectively.
 
 Multiple ``str_expr`` arguments are logically "or"ed together into a single expression. Any argument
 can alternatively be a list or set of strings, and they are treated the same as multiple arguments
@@ -401,14 +401,14 @@ Optional arguments are:
   occurred.
 
 ``watch=None``
-  Specifies a list or set of string state variable names (entity names) that are monitored for
-  this trigger.  When (and only when) any variable in this set changes, the trigger expression
-  is evaluated. Normally this set of names is automatically extracted from the ``@state_trigger``
-  expression, but there could be cases where it doesn't capture all the names (eg, if you have to
-  use ``state.get()`` inside the trigger expression). You could also use ``watch`` to specify a
-  subset of the names in the trigger expression, which has the effect of rendering those other
-  variables as only conditions in the trigger expression that won't cause a trigger themselves,
-  since the expression won't be evaluated when they change.
+  Specifies a list or set of string state variable names (entity names) or state attributes that are
+  monitored for this trigger.  When (and only when) a variable in this set changes, the trigger
+  expression is evaluated. Normally this set of names is automatically extracted from the
+  ``@state_trigger`` expression, but there could be cases where it doesn't capture all the names
+  (eg, if you have to use ``state.get()`` inside the trigger expression). You could also use
+  ``watch`` to specify a subset of the names in the trigger expression, which has the effect of
+  rendering those other variables as only conditions in the trigger expression that won't cause
+  a trigger themselves, since the expression won't be evaluated when they change.
 
 Here's a summary of the trigger behavior with these parameter settings:
 
