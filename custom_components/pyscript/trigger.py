@@ -24,7 +24,7 @@ from .state import STATE_VIRTUAL_ATTRS, State
 _LOGGER = logging.getLogger(LOGGER_PATH + ".trigger")
 
 
-STATE_RE = re.compile(r"[a-zA-Z]\w*\.[a-zA-Z]\w*(\.(([a-zA-Z]\w*)|\*))?$")
+STATE_RE = re.compile(r"\w+\.\w+(\.((\w+)|\*))?$")
 
 
 def dt_now():

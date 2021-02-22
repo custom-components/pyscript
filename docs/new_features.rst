@@ -72,3 +72,4 @@ Bug fixes since 1.2.1 include:
 - An exception is raised when a function is called with unexpected keyword parameters that don't have corresponding
   keyword arguments (however, the trigger parameter names are excluded from this check, since trigger functions
   are allowed to have any subset of keyword arguments).
+- Trigger on any state change now matches state names with leading digits; see #165
