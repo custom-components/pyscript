@@ -363,12 +363,17 @@ class EvalFunc:
             "time_trigger": {"arg_cnt": {0, "*"}, "rep_ok": True},
         }
         kwarg_check = {
-            "event_trigger": {"kwargs"},
-            "mqtt_trigger": {"kwargs"},
-            "time_trigger": {"kwargs"},
-            "task_unique": {"kill_me"},
-            "time_active": {"hold_off"},
-            "state_trigger": {"kwargs", "state_hold", "state_check_now", "state_hold_false"},
+            "event_trigger": {"kwargs": {dict}},
+            "mqtt_trigger": {"kwargs": {dict}},
+            "time_trigger": {"kwargs": {dict}},
+            "task_unique": {"kill_me": {bool, int}},
+            "time_active": {"hold_off": {int, float}},
+            "state_trigger": {
+                "kwargs": {dict},
+                "state_hold": {int, float},
+                "state_check_now": {bool, int},
+                "state_hold_false": {int, float},
+            },
         }
 
         for dec in self.decorators:
@@ -414,16 +419,21 @@ class EvalFunc:
 
             if dec_name not in kwarg_check and dec_kwargs is not None:
                 raise TypeError(f"{exc_mesg}: decorator @{dec_name} doesn't take keyword arguments")
+            if dec_kwargs is None:
+                dec_kwargs = {}
             if dec_name in kwarg_check:
-                if dec_kwargs is not None:
-                    used_kw = set(dec_kwargs.keys())
-                    if not used_kw.issubset(kwarg_check[dec_name]):
+                allowed = kwarg_check[dec_name]
+                for arg, value in dec_kwargs.items():
+                    if arg not in allowed:
                         raise TypeError(
-                            f"{exc_mesg}: decorator @{dec_name} valid keyword arguments are: "
-                            + ", ".join(sorted(kwarg_check[dec_name]))
+                            f"{exc_mesg}: decorator @{dec_name} invalid keyword argument '{arg}'"
                         )
-                if dec_kwargs is None:
-                    dec_kwargs = {}
+                    if value is None or type(value) in allowed[arg]:
+                        continue
+                    ok_types = " or ".join(sorted([t.__name__ for t in allowed[arg]]))
+                    raise TypeError(
+                        f"{exc_mesg}: decorator @{dec_name} keyword '{arg}' should be type {ok_types}"
+                    )
             if dec_name == "service":
                 desc = self.doc_string
                 if desc is None or desc == "":

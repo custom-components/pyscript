@@ -370,7 +370,7 @@ def func7():
 """,
     )
     assert (
-        "TypeError: function 'func7' defined in file.hello: decorator @time_trigger valid keyword arguments are: kwargs"
+        "TypeError: function 'func7' defined in file.hello: decorator @time_trigger invalid keyword argument 'arg'"
         in caplog.text
     )
 
@@ -389,6 +389,6 @@ def func7():
 """,
     )
     assert (
-        "TypeError: function 'func7' defined in file.hello: decorator @task_unique valid keyword arguments are: kill_me"
+        "TypeError: function 'func7' defined in file.hello: decorator @task_unique invalid keyword argument 'arg'"
         in caplog.text
     )
