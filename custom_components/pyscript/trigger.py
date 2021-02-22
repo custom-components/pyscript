@@ -777,6 +777,7 @@ class TrigInfo:
         self.state_hold = self.state_trigger_kwargs.get("state_hold", None)
         self.state_hold_false = self.state_trigger_kwargs.get("state_hold_false", None)
         self.state_check_now = self.state_trigger_kwargs.get("state_check_now", False)
+        self.state_user_watch = self.state_trigger_kwargs.get("watch", None)
         self.time_trigger = trig_cfg.get("time_trigger", {}).get("args", None)
         self.time_trigger_kwargs = trig_cfg.get("time_trigger", {}).get("kwargs", {})
         self.event_trigger = trig_cfg.get("event_trigger", {}).get("args", None)
@@ -921,12 +922,23 @@ class TrigInfo:
 
             if self.state_trigger is not None:
                 self.state_trig_ident = set()
-                if self.state_trig_eval:
-                    self.state_trig_ident = await self.state_trig_eval.get_names()
-                self.state_trig_ident.update(self.state_trig_ident_any)
+                if self.state_user_watch:
+                    if isinstance(self.state_user_watch, list):
+                        self.state_trig_ident = set(self.state_user_watch)
+                    else:
+                        self.state_trig_ident = self.state_user_watch
+                else:
+                    if self.state_trig_eval:
+                        self.state_trig_ident = await self.state_trig_eval.get_names()
+                    self.state_trig_ident.update(self.state_trig_ident_any)
                 _LOGGER.debug("trigger %s: watching vars %s", self.name, self.state_trig_ident)
-                if len(self.state_trig_ident) > 0:
-                    await State.notify_add(self.state_trig_ident, self.notify_q)
+                if len(self.state_trig_ident) == 0 or not await State.notify_add(
+                    self.state_trig_ident, self.notify_q
+                ):
+                    _LOGGER.error(
+                        "trigger %s: @state_trigger is not watching any variables; will never trigger",
+                        self.name,
+                    )
 
             if self.active_expr:
                 self.state_active_ident = await self.active_expr.get_names()

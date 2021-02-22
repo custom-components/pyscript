@@ -400,6 +400,16 @@ Optional arguments are:
   to the function.  That could save several lines of code in the function determining which trigger
   occurred.
 
+``watch=None``
+  Specifies a list or set of string state variable names (entity names) that are monitored for
+  this trigger.  When (and only when) any variable in this set changes, the trigger expression
+  is evaluated. Normally this set of names is automatically extracted from the ``@state_trigger``
+  expression, but there could be cases where it doesn't capture all the names (eg, if you have to
+  use ``state.get()`` inside the trigger expression). You could also use ``watch`` to specify a
+  subset of the names in the trigger expression, which has the effect of rendering those other
+  variables as only conditions in the trigger expression that won't cause a trigger themselves,
+  since the expression won't be evaluated when they change.
+
 Here's a summary of the trigger behavior with these parameter settings:
 
 =================== ==================== ================= ========================

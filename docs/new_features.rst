@@ -39,8 +39,11 @@ The new features since 1.2.1 in master include:
   arguments. The default continues to be ``pyscript.FUNC_NAME``.
 - Added ``@pyscript_executor`` decorator, which does same thing as ``@pyscript_compile`` and additionally wraps
   the resulting function with a call to ``task.executor``.  See #71.
+- Added ``watch`` keyword argument to ``@state_trigger``, which allows the list or set of state variables that
+  are monitored to be specified. Normally that list is extracted from the ``@state_trigger`` expression.
 - Errors in trigger-related decorators (eg, wrong arguments, unregonized decorator type) raise exceptions rather
   than logging an error.
+- Types of keyword arguments to trigger decorators are now checked and exceptions raised if incorrect.
 - Added error checking for ``@pyscript_compile`` and ``@pyscript_executor`` to enforce there are no args or kwargs.
 
 Breaking changes since 1.2.1 include:

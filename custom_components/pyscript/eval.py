@@ -373,6 +373,7 @@ class EvalFunc:
                 "state_hold": {int, float},
                 "state_check_now": {bool, int},
                 "state_hold_false": {int, float},
+                "watch": {set, list},
             },
         }
 

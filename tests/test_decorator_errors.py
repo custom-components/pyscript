@@ -136,6 +136,10 @@ def func_wrapup():
     seq_num += 1
     pyscript.done = seq_num
 
+@state_trigger("z")
+def func8():
+    pass
+
 """,
     )
     seq_num = 0
@@ -165,6 +169,10 @@ def func_wrapup():
         in caplog.text
     )
     assert "SyntaxError: invalid syntax (file.hello.func3 @state_active(), line 1)" in caplog.text
+    assert (
+        "trigger file.hello.func8: @state_trigger is not watching any variables; will never trigger"
+        in caplog.text
+    )
     assert (
         """Exception in <file.hello.func5 @state_trigger()> line 1:
     1 / int(pyscript.var1)
@@ -390,5 +398,43 @@ def func7():
     )
     assert (
         "TypeError: function 'func7' defined in file.hello: decorator @task_unique invalid keyword argument 'arg'"
+        in caplog.text
+    )
+
+
+async def test_decorator_kwargs3(hass, caplog):
+    """Test invalid keyword arguments type generates an error."""
+
+    await setup_script(
+        hass,
+        None,
+        dt(2020, 7, 1, 11, 59, 59, 999999),
+        """
+@state_trigger("abc.xyz", kwargs=10)
+def func7():
+    pass
+""",
+    )
+    assert (
+        "TypeError: function 'func7' defined in file.hello: decorator @state_trigger keyword 'kwargs' should be type dict"
+        in caplog.text
+    )
+
+
+async def test_decorator_kwargs4(hass, caplog):
+    """Test invalid keyword arguments type generates an error."""
+
+    await setup_script(
+        hass,
+        None,
+        dt(2020, 7, 1, 11, 59, 59, 999999),
+        """
+@state_trigger("abc.xyz", watch=10)
+def func7():
+    pass
+""",
+    )
+    assert (
+        "TypeError: function 'func7' defined in file.hello: decorator @state_trigger keyword 'watch' should be type list or set"
         in caplog.text
     )

@@ -346,7 +346,7 @@ def func6a(var_name=None, value=None):
     log.info(f"func6a var = {var_name}, value = {value}")
     pyscript.done = [seq_num, var_name, value.attr1]
 
-@state_trigger("pyscript.f6bvar1.attr3")
+@state_trigger("pyscript.f6bvar1.attr3", watch=["pyscript.f6bvar1.attr3"])
 def func6b(var_name=None, value=None):
     global seq_num
 
@@ -354,7 +354,7 @@ def func6b(var_name=None, value=None):
     log.info(f"func6b var = {var_name}, value = {value}")
     pyscript.done = [seq_num, var_name, value, pyscript.f6bvar1.attr3]
 
-@state_trigger("pyscript.f6cvar1.*")
+@state_trigger("pyscript.f6cvar1.*", watch=["pyscript.f6cvar1.*"])
 def func6c(var_name=None, value=None):
     global seq_num
 
@@ -380,7 +380,7 @@ def func7(var_name=None, value=None, old_value=None):
     secs = (pyscript.f7var1.last_updated - pyscript.f7var1.last_changed).total_seconds()
     pyscript.done = [seq_num, var_name, value, old_value, secs]
 
-@state_trigger("pyscript.f8var1 == '2'", state_check_now=True)
+@state_trigger("state.get('pyscript.f8var1') == '2'", state_check_now=True, watch={"pyscript.f8var1"})
 @time_active(hold_off=10000)
 def func8(var_name=None, value=None):
     global seq_num
@@ -397,7 +397,7 @@ def func8b(var_name=None, value=None):
     log.info(f"func8b var = {var_name}, value = {value}")
     pyscript.done = [seq_num, var_name, value]
 
-@state_trigger("pyscript.f9var1 == '2' and pyscript.f9var1.old == None")
+@state_trigger("pyscript.f9var1 == '2' and pyscript.f9var1.old == None", watch=["pyscript.f9var1"])
 @state_active("pyscript.no_such_variable is None")
 def func9(var_name=None, value=None, old_value=None):
     global seq_num
