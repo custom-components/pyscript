@@ -24,6 +24,8 @@ async def setup_script(hass, notify_q, now, source, script_name="/hello.py"):
 
     scripts = [script_name]
 
+    Function.hass = None
+
     with patch("custom_components.pyscript.os.path.isdir", return_value=True), patch(
         "custom_components.pyscript.glob.iglob", return_value=scripts
     ), patch("custom_components.pyscript.global_ctx.open", mock_open(read_data=source)), patch(

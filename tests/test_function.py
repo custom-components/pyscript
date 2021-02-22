@@ -107,6 +107,8 @@ async def setup_script(hass, notify_q, notify_q2, now, source, config=None):
 
     file_contents = {f"{conf_dir}/hello.py": source}
 
+    Function.hass = None
+
     mock_open = MockOpen()
     for key, value in file_contents.items():
         mock_open[key].read_data = value

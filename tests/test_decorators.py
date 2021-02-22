@@ -4,6 +4,7 @@ import asyncio
 from datetime import datetime as dt
 
 from custom_components.pyscript.const import DOMAIN
+from custom_components.pyscript.function import Function
 import custom_components.pyscript.trigger as trigger
 from pytest_homeassistant_custom_component.async_mock import mock_open, patch
 
@@ -16,6 +17,8 @@ async def setup_script(hass, notify_q, now, source):
     scripts = [
         "/hello.py",
     ]
+
+    Function.hass = None
 
     with patch("custom_components.pyscript.os.path.isdir", return_value=True), patch(
         "custom_components.pyscript.glob.iglob", return_value=scripts

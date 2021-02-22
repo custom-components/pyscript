@@ -226,10 +226,12 @@ async def watchdog_start(
 async def async_setup_entry(hass: HomeAssistant, config_entry: ConfigEntry) -> bool:
     """Initialize the pyscript config entry."""
     global_ctx_only = None
+    doing_reload = False
     if Function.hass:
         #
         # reload yaml if this isn't the first time (ie, on reload)
         #
+        doing_reload = True
         if await update_yaml_config(hass, config_entry):
             global_ctx_only = "*"
 
@@ -354,6 +356,9 @@ async def async_setup_entry(hass: HomeAssistant, config_entry: ConfigEntry) -> b
     hass.data[DOMAIN][UNSUB_LISTENERS].append(hass.bus.async_listen(EVENT_HOMEASSISTANT_STOP, hass_stop))
 
     await watchdog_start(hass, pyscript_folder, reload_scripts_handler)
+
+    if doing_reload:
+        start_global_contexts(global_ctx_only="*")
 
     return True
 
