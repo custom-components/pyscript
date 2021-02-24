@@ -2014,6 +2014,8 @@ class AstEval:
                 await self.get_names_set(arg.func, names, nonlocal_names, global_names, local_names)
                 for this_arg in arg.args:
                     await self.get_names_set(this_arg, names, nonlocal_names, global_names, local_names)
+                for this_arg in arg.keywords or []:
+                    await self.get_names_set(this_arg, names, nonlocal_names, global_names, local_names)
                 return
             elif cls_name in {"FunctionDef", "ClassDef", "AsyncFunctionDef"}:
                 local_names.add(arg.name)

@@ -756,6 +756,20 @@ val_list
     ],
     [
         """
+def test_func(arg, kw=0):
+    return [arg, kw]
+
+def func_factory(func_handle,*args,**kwargs):
+    def func_trig():
+        return func_handle(*args,**kwargs)
+    return func_trig
+
+func_factory(test_func, "my_arg", kw=10)()
+""",
+        ["my_arg", 10],
+    ],
+    [
+        """
 import threading
 
 # will run in the same thread, and return a different thread ident
