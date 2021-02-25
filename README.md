@@ -77,10 +77,15 @@ the Wiki with examples and tutorials. It would be fun to hear about unique and c
 you develop. Please see this [README](https://github.com/custom-components/pyscript/tree/master/tests)
 for setting up a development environment and running tests.
 
+Even if you aren't a developer, please participate in our
+[discussions community](https://github.com/custom-components/pyscript/discussions).
+Helping other users is another great way to contribute to pyscript!
+
 ## Useful Links
 
 * [Documentation stable](https://hacs-pyscript.readthedocs.io/en/stable): latest release
 * [Documentation latest](https://hacs-pyscript.readthedocs.io/en/latest): current master in Github
+* [Discussion and help](https://github.com/custom-components/pyscript/discussions)
 * [Issues](https://github.com/custom-components/pyscript/issues)
 * [Wiki](https://github.com/custom-components/pyscript/wiki)
 * [GitHub repository](https://github.com/custom-components/pyscript) (please add a star if you like pyscript!)

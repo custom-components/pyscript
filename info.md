@@ -32,9 +32,10 @@ See the documentation if you want to install pyscript manually.
 ## Useful Links
 
 * [Documentation](https://hacs-pyscript.readthedocs.io/en/stable)
-* [Using Jupyter](https://github.com/craigbarratt/hass-pyscript-jupyter)
-* [Jupyter notebook tutorial](https://nbviewer.jupyter.org/github/craigbarratt/hass-pyscript-jupyter/blob/master/pyscript_tutorial.ipynb)
+* [Discussion and help](https://github.com/custom-components/pyscript/discussions)
 * [GitHub repository](https://github.com/custom-components/pyscript) (please add a star if you like pyscript!)
 * [Release notes](https://github.com/custom-components/pyscript/releases)
 * [Issues](https://github.com/custom-components/pyscript/issues)
 * [Wiki](https://github.com/custom-components/pyscript/wiki)
+* [Using Jupyter](https://github.com/craigbarratt/hass-pyscript-jupyter)
+* [Jupyter notebook tutorial](https://nbviewer.jupyter.org/github/craigbarratt/hass-pyscript-jupyter/blob/master/pyscript_tutorial.ipynb)
