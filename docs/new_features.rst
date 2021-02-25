@@ -1,4 +1,4 @@
-Released and New Features
+Releases and New Features
 =========================
 
 The releases and release notes are available on `GitHub <https://github.com/custom-components/pyscript/releases>`__.
