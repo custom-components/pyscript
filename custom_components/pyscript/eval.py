@@ -65,6 +65,7 @@ TRIGGER_KWARGS = {
     "event_type",
     "old_value",
     "payload",
+    "payload_obj",
     "qos",
     "topic",
     "trigger_type",
@@ -705,9 +706,8 @@ class EvalFunc:
             # don't raise an exception for extra trigger keyword parameters;
             # it's difficult to apply this exception to just trigger functions
             # since they could have non-trigger decorators too
-            raise TypeError(
-                f"{self.name}() called with unexpected keyword arguments: {', '.join(sorted(kwargs.keys()))}"
-            )
+            unexpected = ", ".join(sorted(set(kwargs.keys()) - TRIGGER_KWARGS))
+            raise TypeError(f"{self.name}() called with unexpected keyword arguments: {unexpected}")
         if self.func_def.args.vararg:
             if len(args) > len(self.func_def.args.args):
                 sym_table[self.func_def.args.vararg.arg] = tuple(args[len(self.func_def.args.args) :])

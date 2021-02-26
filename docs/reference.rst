@@ -749,6 +749,7 @@ variables:
 - ``payload`` is set to the string payload of the message
 - ``payload_obj`` if the payload was valid JSON, this will be set to the native python object
   representing that payload.
+- ``qos`` is set to the message QoS.
 
 When the ``@mqtt_trigger`` occurs, those same variables are passed as keyword arguments to the
 function in case it needs them. Additional keyword parameters can be specified by setting the

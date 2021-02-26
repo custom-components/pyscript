@@ -1428,6 +1428,15 @@ evalTestsExceptions = [
         "Exception in test line 3 column 8: func() missing required keyword-only arguments",
     ],
     [
+        """
+def func(b=1):
+    pass
+
+func(a=2, trigger_type=1)
+""",
+        "Exception in test line 5 column 23: func() called with unexpected keyword arguments: a",
+    ],
+    [
         "from .xyz import abc",
         "Exception in test line 1 column 0: attempted relative import with no known parent package",
     ],
