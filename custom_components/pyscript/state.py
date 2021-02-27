@@ -80,7 +80,7 @@ class State:
         for domain in all_services:
             cls.service2args[domain] = {}
             for service, desc in all_services[domain].items():
-                if "entity_id" not in desc["fields"]:
+                if "entity_id" not in desc["fields"] and "target" not in desc:
                     continue
                 cls.service2args[domain][service] = set(desc["fields"].keys())
                 cls.service2args[domain][service].discard("entity_id")
