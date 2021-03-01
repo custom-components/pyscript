@@ -1,9 +1,11 @@
 # Describes the format for available pyscript services
 
 reload:
-  description: Reload all available pyscripts and restart triggers
+  name: Reload pyscript
+  description: Reloads all available pyscripts and restart triggers
   fields:
     global_ctx:
+      name: Global Context
       description: only reload this specific global context (file or app)
       example: file.example
       required: false
@@ -11,10 +13,11 @@ reload:
         text:
 
 jupyter_kernel_start:
-  description: Start a jupyter kernel for interactive use; called by Jupyter front end
+  name: Start Jupyter kernel
+  description: Starts a jupyter kernel for interactive use; called by Jupyter front end
   fields:
     shell_port:
-      description: shell port number
+      name: Shell Port Number
       example: 63599
       required: false
       selector:
@@ -22,7 +25,7 @@ jupyter_kernel_start:
           min: 49152
           max: 65535
     iopub_port:
-      description: iopub port number
+      name: IOPub Port Number
       example: 63598
       required: false
       selector:
@@ -30,7 +33,7 @@ jupyter_kernel_start:
           min: 49152
           max: 65535
     stdin_port:
-      description: stdin port number
+      name: Stdin Port Number
       example: 63597
       required: false
       selector:
@@ -38,7 +41,7 @@ jupyter_kernel_start:
           min: 49152
           max: 65535
     control_port:
-      description: control port number
+      name: Control Port Number
       example: 63596
       required: false
       selector:
@@ -46,7 +49,7 @@ jupyter_kernel_start:
           min: 49152
           max: 65535
     hb_port:
-      description: heartbeat port number
+      name: Heartbeat Port Number
       example: 63595
       required: false
       selector:
@@ -54,20 +57,22 @@ jupyter_kernel_start:
           min: 49152
           max: 65535
     ip:
-      description: ip address to connect to jupyter front end
+      name: IP Address
+      description: IP address to connect to Jupyter front end
       example: 127.0.0.1
       default: 127.0.0.1
       required: false
       selector:
         text:
     key:
-      description: security key for signing
+      name: Security Key
+      description: Used for signing
       example: 012345678-9abcdef023456789abcdef
       required: true
       selector:
         text:
     transport:
-      description: type of transport
+      name: Transport Type
       example: tcp
       default: tcp
       required: false
@@ -77,7 +82,7 @@ jupyter_kernel_start:
             - tcp
             - udp
     signature_scheme:
-      description: signing algorithm
+      name: Signing Algorithm
       example: hmac-sha256
       required: false
       default: hmac-sha256
@@ -86,7 +91,7 @@ jupyter_kernel_start:
           options:
             - hmac-sha256
     kernel_name:
-      description: name of kernel
+      name: Name of Kernel
       example: pyscript
       required: true
       default: pyscript
