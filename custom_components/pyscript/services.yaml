@@ -14,7 +14,7 @@ reload:
 
 jupyter_kernel_start:
   name: Start Jupyter kernel
-  description: Starts a jupyter kernel for interactive use; called by Jupyter front end
+  description: Starts a jupyter kernel for interactive use; Called by Jupyter front end and should generally not be used by users
   fields:
     shell_port:
       name: Shell Port Number
@@ -23,7 +23,7 @@ jupyter_kernel_start:
       required: false
       selector:
         number:
-          min: 49152
+          min: 10240
           max: 65535
     iopub_port:
       name: IOPub Port Number
@@ -32,7 +32,7 @@ jupyter_kernel_start:
       required: false
       selector:
         number:
-          min: 49152
+          min: 10240
           max: 65535
     stdin_port:
       name: Stdin Port Number
@@ -41,7 +41,7 @@ jupyter_kernel_start:
       required: false
       selector:
         number:
-          min: 49152
+          min: 10240
           max: 65535
     control_port:
       name: Control Port Number
@@ -50,7 +50,7 @@ jupyter_kernel_start:
       required: false
       selector:
         number:
-          min: 49152
+          min: 10240
           max: 65535
     hb_port:
       name: Heartbeat Port Number
@@ -59,7 +59,7 @@ jupyter_kernel_start:
       required: false
       selector:
         number:
-          min: 49152
+          min: 10240
           max: 65535
     ip:
       name: IP Address
