@@ -6,7 +6,7 @@ reload:
   fields:
     global_ctx:
       name: Global Context
-      description: only reload this specific global context (file or app)
+      description: Only reload this specific global context (file or app)
       example: file.example
       required: false
       selector:
@@ -18,6 +18,7 @@ jupyter_kernel_start:
   fields:
     shell_port:
       name: Shell Port Number
+      description: Shell port number
       example: 63599
       required: false
       selector:
@@ -26,6 +27,7 @@ jupyter_kernel_start:
           max: 65535
     iopub_port:
       name: IOPub Port Number
+      description: IOPub port number
       example: 63598
       required: false
       selector:
@@ -34,6 +36,7 @@ jupyter_kernel_start:
           max: 65535
     stdin_port:
       name: Stdin Port Number
+      description: Stdin port number
       example: 63597
       required: false
       selector:
@@ -42,6 +45,7 @@ jupyter_kernel_start:
           max: 65535
     control_port:
       name: Control Port Number
+      description: Control port number
       example: 63596
       required: false
       selector:
@@ -50,6 +54,7 @@ jupyter_kernel_start:
           max: 65535
     hb_port:
       name: Heartbeat Port Number
+      description: Heartbeat port number
       example: 63595
       required: false
       selector:
@@ -73,6 +78,7 @@ jupyter_kernel_start:
         text:
     transport:
       name: Transport Type
+      description: Transport type
       example: tcp
       default: tcp
       required: false
@@ -83,6 +89,7 @@ jupyter_kernel_start:
             - udp
     signature_scheme:
       name: Signing Algorithm
+      description: Signing algorithm
       example: hmac-sha256
       required: false
       default: hmac-sha256
@@ -92,6 +99,7 @@ jupyter_kernel_start:
             - hmac-sha256
     kernel_name:
       name: Name of Kernel
+      description: Kernel name
       example: pyscript
       required: true
       default: pyscript
