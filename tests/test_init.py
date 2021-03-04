@@ -200,28 +200,21 @@ fields:
     with patch(
         "homeassistant.loader.async_get_custom_components", return_value={"pyscript": integration},
     ):
-        descriptions = await async_get_all_descriptions(hass)
+        descriptions = (await async_get_all_descriptions(hass))[DOMAIN]
 
-    descriptions[DOMAIN].pop("name", None)
-    assert descriptions[DOMAIN]["func_no_doc_string"] == {
-        "description": "pyscript function func_no_doc_string()",
-        "fields": {"param1": {"description": "argument param1"}},
+    assert descriptions["func_no_doc_string"]["description"] == "pyscript function func_no_doc_string()"
+    assert descriptions["func_no_doc_string"]["fields"] == {"param1": {"description": "argument param1"}}
+
+    assert descriptions["func_simple_doc_string"]["description"] == "This is func2_simple_doc_string."
+    assert descriptions["func_simple_doc_string"]["fields"] == {
+        "param2": {"description": "argument param2"},
+        "param3": {"description": "argument param3"},
     }
 
-    assert descriptions[DOMAIN]["func_simple_doc_string"] == {
-        "description": "This is func2_simple_doc_string.",
-        "fields": {
-            "param2": {"description": "argument param2"},
-            "param3": {"description": "argument param3"},
-        },
-    }
-
-    assert descriptions[DOMAIN]["func_yaml_doc_string"] == {
-        "description": "This is func_yaml_doc_string.",
-        "fields": {
-            "param1": {"description": "first argument", "example": "12"},
-            "param2": {"description": "second argument", "example": "34"},
-        },
+    assert descriptions["func_yaml_doc_string"]["description"] == "This is func_yaml_doc_string."
+    assert descriptions["func_yaml_doc_string"]["fields"] == {
+        "param1": {"description": "first argument", "example": "12"},
+        "param2": {"description": "second argument", "example": "34"},
     }
 
 
