@@ -941,21 +941,33 @@ description that appears is in the Services tab of the Developer Tools page. The
 names are used as the service parameter names, but there is no description.
 
 Alternatively, if the ``doc_string`` starts with ``yaml``, the rest of the string is used as a
-``yaml`` service description. Here's the first example above, with a more detailed ``doc_string``:
+``yaml`` service description. Here's the first example above, with a more detailed ``doc_string``
+(for a more complete example and explanation of the service description, check the Home Assistant
+`developer documentation <#https://developers.home-assistant.io/docs/dev_101_services#service-descriptions>`__):
 
 .. code:: python
 
    @service
    def hello_world(action=None, id=None):
        """yaml
+   name: Service example
    description: hello_world service example using pyscript.
    fields:
      action:
         description: turn_on turns on the light, fire fires an event
         example: turn_on
+        required: true
+        selector:
+          select:
+            options:
+              - turn_on
+              - fire
      id:
         description: id of light, or name of event to fire
         example: kitchen.light
+        required: true
+        selector:
+          text:
    """
        log.info(f"hello world: got action {action}")
        if action == "turn_on" and id is not None:
