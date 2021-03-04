@@ -202,6 +202,7 @@ fields:
     ):
         descriptions = await async_get_all_descriptions(hass)
 
+    descriptions[DOMAIN].pop("name", None)
     assert descriptions[DOMAIN]["func_no_doc_string"] == {
         "description": "pyscript function func_no_doc_string()",
         "fields": {"param1": {"description": "argument param1"}},
