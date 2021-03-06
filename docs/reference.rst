@@ -1905,6 +1905,37 @@ is optional in pyscript):
             print(resp.status)
             print(resp.text())
 
+Here's another example that creates a client connection to a TCP server and exchanges messages
+in a manner that avoids event loop I/O by using ``asyncio.open_connection``.
+
+.. code:: python
+
+    import asyncio
+
+    Reader, Writer = None, None
+
+    @time_trigger('startup')
+    def do_client_connection():
+        global Reader, Writer
+        Reader, Writer = asyncio.open_connection('127.0.0.1', 8956)
+
+    def client_send(message):
+        if not Writer:
+           raise("Client is not connected")
+        Writer.write(message.encode())
+        Writer.drain()
+        return Reader.readline().decode()
+
+This connects to the server (in this example at ``127.0.0.1:8956``) at startup, and then you can call
+``client_send()`` and it will send the message and return the reply.
+
+This assumes the protocol is line-oriented; you could call ``Reader.read()`` instead if you want to
+read bytes instead of expecting a newline with ``Reader.readline()``.
+
+To test the code above, you can create a server by running ``nc -l 8956`` before you run the code.
+When you call ``client_send("hello\n")`` you should see the ``hello`` printed by ``nc``.  Then
+whatever you type back at ``nc`` will be returned by ``client_send()``.
+
 Persistent State
 ^^^^^^^^^^^^^^^^
 
