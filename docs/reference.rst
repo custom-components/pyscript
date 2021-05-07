@@ -1800,32 +1800,27 @@ You can use ``hass`` to compute sunrise and sunset times using the same method H
    import datetime
 
    location = sun.get_astral_location(hass)
-   sunrise = location.sunrise(datetime.datetime.today()).replace(tzinfo=None)
-   sunset = location.sunset(datetime.datetime.today()).replace(tzinfo=None)
+   sunrise = location[0].sunrise(datetime.datetime.today()).replace(tzinfo=None)
+   sunset = location[0].sunset(datetime.datetime.today()).replace(tzinfo=None)
    print(f"today sunrise = {sunrise}, sunset = {sunset}")
 
 (Note that the ``sun.sun`` attributes already provide times for the next sunrise and sunset, so
-this example is a bit contrived.)
+this example is a bit contrived.  Also note this only applies to HA 2021.5 and later; prior
+to that, ``sun.get_astral_location()`` doesn't return the elevation, so replace ``location[0]``
+with ``location`` in the two expressions if you have an older version of HA.)
 
 Here's another method that uses the installed version of ``astral`` directly, rather than the HASS
-helper function. It's a bit more cryptic since it's a very old version of ``astral``, but you can
-see how the HASS configuration values are used:
+helper function. HA 2021.5 upgraded to ``astral 2.2``, and here's one way of getting sunrise
+using this version (prior to this HA used a very old version of ``astral``).
 
 .. code:: python
 
    import astral
+   import astral.location
    import datetime
 
-   here = astral.Location(
-       (
-           "",
-           "",
-           hass.config.latitude,
-           hass.config.longitude,
-           str(hass.config.time_zone),
-           hass.config.elevation,
-       )
-   )
+   here = astral.location.Location(astral.LocationInfo("City", "Country", str(hass.config.time_zone),
+                                                       hass.config.latitude, hass.config.longitude))
    sunrise = here.sunrise(datetime.datetime.today()).replace(tzinfo=None)
    sunset = here.sunset(datetime.datetime.today()).replace(tzinfo=None)
    print(f"today sunrise = {sunrise}, sunset = {sunset}")
