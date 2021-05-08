@@ -1,11 +1,11 @@
 """Unit tests for time trigger functions."""
 
 from datetime import datetime as dt, timedelta
+from unittest.mock import patch
 
 from custom_components.pyscript.function import Function
 from custom_components.pyscript.trigger import TrigTime
 import pytest
-from pytest_homeassistant_custom_component.async_mock import patch
 
 parseDateTimeTests = [
     ["2019/9/12 13:45", 0, dt(2019, 9, 12, 13, 45, 0, 0)],
@@ -47,17 +47,17 @@ parseDateTimeTests = [
     ["16:01", 0, dt(2019, 9, 1, 16, 1, 0, 0)],
     ["14:56", 1, dt(2019, 9, 2, 14, 56, 0, 0)],
     ["8:00:23.6", 1, dt(2019, 9, 2, 8, 0, 23, 600000)],
-    ["sunrise", 0, dt(2019, 9, 1, 6, 37, 15, 0)],
-    ["sunrise", 1, dt(2019, 9, 2, 6, 38, 6, 0)],
-    ["sunrise", 2, dt(2019, 9, 3, 6, 38, 58, 0)],
-    ["tuesday sunrise", 0, dt(2019, 9, 3, 6, 38, 58, 0)],
-    ["sunrise + 1hr", 0, dt(2019, 9, 1, 7, 37, 15, 0)],
-    ["sunset", 0, dt(2019, 9, 1, 19, 39, 15, 0)],
+    ["sunrise", 0, dt(2019, 9, 1, 6, 37, 58, 0)],
+    ["sunrise", 1, dt(2019, 9, 2, 6, 38, 49, 0)],
+    ["sunrise", 2, dt(2019, 9, 3, 6, 39, 41, 0)],
+    ["tuesday sunrise", 0, dt(2019, 9, 3, 6, 39, 41, 0)],
+    ["sunrise + 1hr", 0, dt(2019, 9, 1, 7, 37, 58, 0)],
+    ["sunset", 0, dt(2019, 9, 1, 19, 37, 23, 0)],
     ["now", 0, dt(2019, 9, 1, 13, 0, 0, 0)],
     ["now +1 min", 0, dt(2019, 9, 1, 13, 1, 0, 0)],
     ["now +1 hours", 0, dt(2019, 9, 1, 14, 0, 0, 0)],
-    ["2019/11/4 sunset + 1min", 0, dt(2019, 11, 4, 17, 7, 56, 0)],
-    ["11/4 sunset + 2min", 0, dt(2019, 11, 4, 17, 8, 56, 0)],
+    ["2019/11/4 sunset + 1min", 0, dt(2019, 11, 4, 17, 6, 37, 0)],
+    ["11/4 sunset + 2min", 0, dt(2019, 11, 4, 17, 7, 37, 0)],
     ["+5 min", 0, dt(2019, 9, 1, 0, 5, 0, 0)],
 ]
 
@@ -166,14 +166,14 @@ async def test_parse_date_time_day_names(hass, caplog):
         ("not range(20:00, 10:00)", dt(2019, 9, 3, 19, 59, 59, 999999), True),
         ("not range(20:00, 10:00)", dt(2019, 9, 3, 12, 0, 0, 0), True),
         ("not range(20:00, 10:00)", dt(2019, 9, 3, 0, 0, 0, 0), False),
-        ("range(sunrise, sunset)", dt(2019, 9, 1, 6, 37, 14, 0), False),
-        ("range(sunrise, sunset)", dt(2019, 9, 1, 6, 37, 16, 0), True),
-        ("range(sunrise, sunset - 20m)", dt(2019, 9, 1, 19, 19, 14, 0), True),
-        ("range(sunrise, sunset - 20m)", dt(2019, 9, 1, 19, 19, 16, 0), False),
-        ("range(sunrise + 20m, sunset)", dt(2019, 9, 2, 6, 58, 5, 0), False),
-        ("range(sunrise + 20m, sunset)", dt(2019, 9, 2, 6, 58, 7, 0), True),
-        ("range(sunrise, sunset + 1m)", dt(2019, 11, 4, 17, 7, 55, 0), True),
-        ("range(sunrise, sunset + 1m)", dt(2019, 11, 4, 17, 7, 57, 0), False),
+        ("range(sunrise, sunset)", dt(2019, 9, 1, 6, 37, 57, 0), False),
+        ("range(sunrise, sunset)", dt(2019, 9, 1, 6, 37, 59, 0), True),
+        ("range(sunrise, sunset - 20m)", dt(2019, 9, 1, 19, 17, 22, 0), True),
+        ("range(sunrise, sunset - 20m)", dt(2019, 9, 1, 19, 17, 24, 0), False),
+        ("range(sunrise + 20m, sunset)", dt(2019, 9, 2, 6, 58, 48, 0), False),
+        ("range(sunrise + 20m, sunset)", dt(2019, 9, 2, 6, 58, 50, 0), True),
+        ("range(sunrise, sunset + 1m)", dt(2019, 11, 4, 17, 6, 36, 0), True),
+        ("range(sunrise, sunset + 1m)", dt(2019, 11, 4, 17, 6, 38, 0), False),
         ("cron(* * * * *)", dt(2019, 9, 3, 6, 0, 0, 0), True),
         ("cron(* * * 9 *)", dt(2019, 9, 3, 6, 0, 0, 0), True),
         ("cron(* * 3 9 *)", dt(2019, 9, 3, 6, 0, 0, 0), True),
@@ -293,14 +293,14 @@ timerTriggerNextTests = [
     [
         ["period(sunset, 4 hours, sunrise)"],
         [
-            dt(2019, 9, 1, 19, 39, 15),
-            dt(2019, 9, 1, 23, 39, 15),
-            dt(2019, 9, 2, 3, 39, 15),
-            dt(2019, 9, 2, 19, 37, 46),
-            dt(2019, 9, 2, 23, 37, 46),
-            dt(2019, 9, 3, 3, 37, 46),
-            dt(2019, 9, 3, 19, 36, 17),
-            dt(2019, 9, 3, 23, 36, 17),
+            dt(2019, 9, 1, 19, 37, 23),
+            dt(2019, 9, 1, 23, 37, 23),
+            dt(2019, 9, 2, 3, 37, 23),
+            dt(2019, 9, 2, 19, 35, 53),
+            dt(2019, 9, 2, 23, 35, 53),
+            dt(2019, 9, 3, 3, 35, 53),
+            dt(2019, 9, 3, 19, 34, 23),
+            dt(2019, 9, 3, 23, 34, 23),
         ],
     ],
     [

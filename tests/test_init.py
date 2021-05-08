@@ -3,6 +3,7 @@ from ast import literal_eval
 import asyncio
 from datetime import datetime as dt
 import pathlib
+from unittest.mock import mock_open, patch
 
 from custom_components.pyscript.const import DOMAIN
 from custom_components.pyscript.event import Event
@@ -10,7 +11,6 @@ from custom_components.pyscript.function import Function
 from custom_components.pyscript.global_ctx import GlobalContextMgr
 from custom_components.pyscript.state import State
 import custom_components.pyscript.trigger as trigger
-from pytest_homeassistant_custom_component.async_mock import mock_open, patch
 
 from homeassistant import loader
 from homeassistant.const import EVENT_HOMEASSISTANT_STARTED, EVENT_STATE_CHANGED

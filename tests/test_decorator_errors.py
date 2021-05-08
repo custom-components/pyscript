@@ -2,11 +2,11 @@
 from ast import literal_eval
 import asyncio
 from datetime import datetime as dt
+from unittest.mock import mock_open, patch
 
 from custom_components.pyscript.const import DOMAIN
 from custom_components.pyscript.function import Function
 import custom_components.pyscript.trigger as trigger
-from pytest_homeassistant_custom_component.async_mock import mock_open, patch
 
 from homeassistant.const import EVENT_HOMEASSISTANT_STARTED, EVENT_STATE_CHANGED
 from homeassistant.setup import async_setup_component

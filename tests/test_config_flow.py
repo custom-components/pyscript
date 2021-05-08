@@ -1,10 +1,10 @@
 """Tests for pyscript config flow."""
 import logging
+from unittest.mock import patch
 
 from custom_components.pyscript import PYSCRIPT_SCHEMA
 from custom_components.pyscript.const import CONF_ALLOW_ALL_IMPORTS, CONF_HASS_IS_GLOBAL, DOMAIN
 import pytest
-from pytest_homeassistant_custom_component.async_mock import patch
 
 from homeassistant import data_entry_flow
 from homeassistant.config_entries import SOURCE_IMPORT, SOURCE_USER

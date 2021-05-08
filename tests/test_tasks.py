@@ -2,10 +2,10 @@
 
 import asyncio
 import re
+from unittest.mock import patch
 
 from custom_components.pyscript.const import DOMAIN, FOLDER
 from mock_open import MockOpen
-from pytest_homeassistant_custom_component.async_mock import patch
 
 from homeassistant.const import EVENT_STATE_CHANGED
 from homeassistant.setup import async_setup_component

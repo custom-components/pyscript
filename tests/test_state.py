@@ -1,6 +1,7 @@
 """Test pyscripts test module."""
+from unittest.mock import patch
+
 from custom_components.pyscript.state import State
-from pytest_homeassistant_custom_component.async_mock import patch
 
 from homeassistant.core import Context
 from homeassistant.helpers.state import State as HassState

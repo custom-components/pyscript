@@ -7,13 +7,13 @@ import hashlib
 import hmac
 import json
 import re
+from unittest.mock import patch
 import uuid
 
 from custom_components.pyscript.const import DOMAIN, FOLDER
 from custom_components.pyscript.jupyter_kernel import ZmqSocket
 import custom_components.pyscript.trigger as trigger
 from mock_open import MockOpen
-from pytest_homeassistant_custom_component.async_mock import patch
 
 from homeassistant.const import EVENT_HOMEASSISTANT_STARTED, EVENT_HOMEASSISTANT_STOP
 from homeassistant.setup import async_setup_component

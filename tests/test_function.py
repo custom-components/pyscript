@@ -4,13 +4,13 @@ from ast import literal_eval
 import asyncio
 from datetime import datetime as dt
 import re
+from unittest.mock import MagicMock, Mock, patch
 
 from custom_components.pyscript.const import CONF_ALLOW_ALL_IMPORTS, CONF_HASS_IS_GLOBAL, DOMAIN, FOLDER
 from custom_components.pyscript.function import Function
 import custom_components.pyscript.trigger as trigger
 from mock_open import MockOpen
 import pytest
-from pytest_homeassistant_custom_component.async_mock import MagicMock, Mock, patch
 
 from homeassistant.const import EVENT_HOMEASSISTANT_STARTED, EVENT_STATE_CHANGED
 from homeassistant.core import Context

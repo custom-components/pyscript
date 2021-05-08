@@ -1,5 +1,6 @@
 """Test requirements helpers."""
 import logging
+from unittest.mock import patch
 
 from custom_components.pyscript.const import (
     ATTR_INSTALLED_VERSION,
@@ -14,7 +15,6 @@ from custom_components.pyscript.const import (
 )
 from custom_components.pyscript.requirements import install_requirements, process_all_requirements
 from pytest import fixture
-from pytest_homeassistant_custom_component.async_mock import patch
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
 PYSCRIPT_FOLDER = "tests/test_data/test_requirements"
