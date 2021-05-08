@@ -51,6 +51,7 @@ from .mqtt import Mqtt
 from .requirements import install_requirements
 from .state import State, StateVal
 from .trigger import TrigTime
+from .entity_manager import EntityManager
 
 _LOGGER = logging.getLogger(LOGGER_PATH)
 
@@ -64,6 +65,7 @@ PYSCRIPT_SCHEMA = vol.Schema(
 
 CONFIG_SCHEMA = vol.Schema({DOMAIN: PYSCRIPT_SCHEMA}, extra=vol.ALLOW_EXTRA)
 
+PLATFORMS = ["sensor", "binary_sensor", "switch"]
 
 async def async_setup(hass: HomeAssistant, config: Config) -> bool:
     """Component setup, run import config flow for each entry in config."""
@@ -242,6 +244,12 @@ async def async_setup_entry(hass: HomeAssistant, config_entry: ConfigEntry) -> b
     State.init(hass)
     State.register_functions()
     GlobalContextMgr.init()
+    EntityManager.init(hass)
+
+    for component in PLATFORMS:
+        hass.async_create_task(
+            hass.config_entries.async_forward_entry_setup(config_entry, component)
+        )
 
     pyscript_folder = hass.config.path(FOLDER)
     if not await hass.async_add_executor_job(os.path.isdir, pyscript_folder):

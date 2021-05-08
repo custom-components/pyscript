@@ -7,6 +7,7 @@ import traceback
 from homeassistant.core import Context
 
 from .const import LOGGER_PATH
+from .entity_manager import EntityManager
 
 _LOGGER = logging.getLogger(LOGGER_PATH + ".function")
 
@@ -105,6 +106,7 @@ class Function:
                 "print": lambda ast_ctx: ast_ctx.get_logger().debug,
                 "task.name2id": cls.task_name2id_factory,
                 "task.unique": cls.task_unique_factory,
+                "em": cls.entity_manager_get_factory,
             }
         )
 
@@ -204,6 +206,16 @@ class Function:
     async def async_sleep(cls, duration):
         """Implement task.sleep()."""
         await asyncio.sleep(float(duration))
+
+    @classmethod
+    def entity_manager_get_factory(cls, ctx):
+        """Define and return em for this context."""
+        
+        async def entity_manager_get(platform, name):
+            """Implement em"""
+            return await EntityManager.get(ctx, platform, name)
+
+        return entity_manager_get
 
     @classmethod
     async def event_fire(cls, event_type, **kwargs):
