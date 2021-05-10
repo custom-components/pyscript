@@ -4,7 +4,7 @@
   "config_flow": true,
   "documentation": "https://github.com/custom-components/pyscript",
   "issue_tracker": "https://github.com/custom-components/pyscript/issues",
-  "requirements": ["croniter==1.0.2", "watchdog==1.0.2"],
+  "requirements": ["croniter==1.0.2", "watchdog==2.0.3"],
   "ssdp": [],
   "zeroconf": [],
   "homekit": {},
