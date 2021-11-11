@@ -290,6 +290,51 @@ def func(bar=6):
 """,
         [[[1395], 100, 50, {}], [[1395], 100, 50, {}], 100, 50],
     ],
+    [
+        """
+value = 10
+def inner():
+    return value
+x = inner()
+x
+""",
+        10,
+    ],
+    [
+        """
+value = 10
+if True:
+    def inner():
+        return value
+    x = inner()
+x
+""",
+        10,
+    ],
+    [
+        """
+value = 4
+def make_func(value):
+    def inner():
+        return value
+    return inner
+make_func(10)()
+""",
+        10,
+    ],
+    [
+        """
+value = 4
+def make_func(value):
+    value2 = value
+    if True:
+        def inner():
+            return value2
+        return inner
+make_func(10)()
+""",
+        10,
+    ],
     ["eval('xyz', {'xyz': 10})", 10],
     ["g = {'xyz': 10}; eval('xyz', g, {})", 10],
     ["g = {'xyz': 10}; eval('xyz', {}, g)", 10],

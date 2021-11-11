@@ -604,9 +604,7 @@ class EvalFunc:
         var_names = set(args)
         self.local_names = set(args)
         for stmt in self.func_def.body:
-            self.has_closure = self.has_closure or isinstance(
-                stmt, (ast.FunctionDef, ast.ClassDef, ast.AsyncFunctionDef)
-            )
+            self.has_closure = self.has_closure or await self.check_for_closure(stmt)
             var_names = var_names.union(
                 await ast_ctx.get_names(
                     stmt,
@@ -772,6 +770,15 @@ class EvalFunc:
         else:
             ast_ctx.sym_table = ast_ctx.sym_table_stack.pop()
         return val
+
+    async def check_for_closure(self, arg):
+        """Recursively check ast tree arg and return True if there is an inner function or class."""
+        if isinstance(arg, (ast.FunctionDef, ast.ClassDef, ast.AsyncFunctionDef)):
+            return True
+        for child in ast.iter_child_nodes(arg):
+            if await self.check_for_closure(child):
+                return True
+        return False
 
 
 class EvalFuncVar:
