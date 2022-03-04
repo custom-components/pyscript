@@ -6,7 +6,6 @@ import logging
 from homeassistant.core import Context
 from homeassistant.helpers.restore_state import RestoreStateData, RestoreEntity
 from homeassistant.helpers.service import async_get_all_descriptions
-from homeassistant.helpers.entity import Entity
 
 from .const import LOGGER_PATH
 from .function import Function
