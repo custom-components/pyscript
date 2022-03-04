@@ -4,10 +4,11 @@ import asyncio
 import logging
 
 from homeassistant.core import Context
-from homeassistant.helpers.restore_state import RestoreStateData, RestoreEntity
+from homeassistant.helpers.restore_state import RestoreStateData
 from homeassistant.helpers.service import async_get_all_descriptions
 
 from .const import LOGGER_PATH
+from .entity import PyscriptEntity
 from .function import Function
 
 _LOGGER = logging.getLogger(LOGGER_PATH + ".state")
@@ -199,8 +200,8 @@ class State:
             cls.notify_var_last[var_name] = StateVal(cls.hass.states.get(var_name))
 
         if var_name in cls.persisted_vars:
-            cls.persisted_vars[var_name]._attr_state = value
-            cls.persisted_vars[var_name]._attr_extra_state_attributes = new_attributes
+            cls.persisted_vars[var_name].set_state(value)
+            cls.persisted_vars[var_name].set_attributes(new_attributes)
 
     @classmethod
     def setattr(cls, var_attr_name, value):
@@ -217,7 +218,7 @@ class State:
         """Register pyscript state variable to be persisted with RestoreState."""
         if var_name.startswith("pyscript.") and var_name not in cls.persisted_vars:
             restore_data = await RestoreStateData.async_get_instance(cls.hass)
-            this_entity = RestoreEntity()
+            this_entity = PyscriptEntity()
             this_entity.entity_id = var_name
             restore_data.async_restore_entity_added(this_entity)
             cls.persisted_vars[var_name] = this_entity
