@@ -15,10 +15,6 @@ _LOGGER = logging.getLogger(LOGGER_PATH + ".state")
 STATE_VIRTUAL_ATTRS = {"last_changed", "last_updated"}
 
 
-class PyscriptEntity(RestoreEntity):
-    pass
-
-
 class StateVal(str):
     """Class for representing the value and attributes of a state variable."""
 
@@ -221,10 +217,10 @@ class State:
         """Register pyscript state variable to be persisted with RestoreState."""
         if var_name.startswith("pyscript.") and var_name not in cls.persisted_vars:
             restore_data = await RestoreStateData.async_get_instance(cls.hass)
-            x = PyscriptEntity()
-            x.entity_id = var_name
-            restore_data.async_restore_entity_added(x)
-            cls.persisted_vars[var_name] = x
+            this_entity = RestoreEntity()
+            this_entity.entity_id = var_name
+            restore_data.async_restore_entity_added(this_entity)
+            cls.persisted_vars[var_name] = this_entity
 
     @classmethod
     async def persist(cls, var_name, default_value=None, default_attributes=None):
