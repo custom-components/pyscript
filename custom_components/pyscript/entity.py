@@ -1,6 +1,5 @@
 """Entity Classes"""
 from homeassistant.helpers.restore_state import RestoreEntity
-from typing import Any
 from homeassistant.helpers.typing import StateType
 from homeassistant.const import STATE_UNKNOWN
 
