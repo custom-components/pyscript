@@ -220,8 +220,11 @@ class State:
             restore_data = await RestoreStateData.async_get_instance(cls.hass)
             this_entity = PyscriptEntity()
             this_entity.entity_id = var_name
-            restore_data.async_restore_entity_added(this_entity)
             cls.persisted_vars[var_name] = this_entity
+            try:
+                restore_data.async_restore_entity_added(this_entity)
+            except TypeError as e:
+                restore_data.async_restore_entity_added(var_name)
 
     @classmethod
     async def persist(cls, var_name, default_value=None, default_attributes=None):
