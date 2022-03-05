@@ -223,7 +223,7 @@ class State:
             cls.persisted_vars[var_name] = this_entity
             try:
                 restore_data.async_restore_entity_added(this_entity)
-            except TypeError as e:
+            except TypeError:
                 restore_data.async_restore_entity_added(var_name)
 
     @classmethod
