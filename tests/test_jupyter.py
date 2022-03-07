@@ -262,7 +262,7 @@ async def shell_msg(sock, msg_type, msg_content, execute=False):
     return reply_msg
 
 
-async def test_jupyter_kernel_msgs(hass, caplog):
+async def test_jupyter_kernel_msgs(hass, caplog, socket_enabled):
     """Test Jupyter kernel messages."""
     sock, _ = await setup_script(hass, [dt(2020, 7, 1, 11, 0, 0, 0)], "")
 
@@ -404,7 +404,7 @@ async def test_jupyter_kernel_msgs(hass, caplog):
     await shutdown(sock)
 
 
-async def test_jupyter_kernel_port_close(hass, caplog):
+async def test_jupyter_kernel_port_close(hass, caplog, socket_enabled):
     """Test Jupyter kernel closing ports."""
     sock, port_nums = await setup_script(hass, [dt(2020, 7, 1, 11, 0, 0, 0)], "")
 
@@ -465,7 +465,7 @@ async def test_jupyter_kernel_port_close(hass, caplog):
     assert "signature mismatch: check_sig=" in caplog.text
 
 
-async def test_jupyter_kernel_redefine_func(hass, caplog):
+async def test_jupyter_kernel_redefine_func(hass, caplog, socket_enabled):
     """Test Jupyter kernel redefining trigger function."""
     sock, _ = await setup_script(hass, [dt(2020, 7, 1, 11, 0, 0, 0)], "")
 
@@ -506,7 +506,7 @@ def func():
     await shutdown(sock)
 
 
-async def test_jupyter_kernel_global_ctx_func(hass, caplog):
+async def test_jupyter_kernel_global_ctx_func(hass, caplog, socket_enabled):
     """Test Jupyter kernel global_ctx functions."""
     sock, _ = await setup_script(hass, [dt(2020, 7, 1, 11, 0, 0, 0)], "")
 
@@ -527,7 +527,7 @@ async def test_jupyter_kernel_global_ctx_func(hass, caplog):
     await shutdown(sock)
 
 
-async def test_jupyter_kernel_stdout(hass, caplog):
+async def test_jupyter_kernel_stdout(hass, caplog, socket_enabled):
     """Test Jupyter kernel stdout."""
     sock, _ = await setup_script(hass, [dt(2020, 7, 1, 11, 0, 0, 0)], "")
 
@@ -540,7 +540,7 @@ async def test_jupyter_kernel_stdout(hass, caplog):
     await shutdown(sock)
 
 
-async def test_jupyter_kernel_no_connection_timeout(hass, caplog):
+async def test_jupyter_kernel_no_connection_timeout(hass, caplog, socket_enabled):
     """Test Jupyter kernel timeout on no connection."""
     await setup_script(hass, [dt(2020, 7, 1, 11, 0, 0, 0)], "", no_connect=True)
 
