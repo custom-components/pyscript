@@ -31,7 +31,7 @@ jobs:
         with:
           python-version: "3.9"
       - run: python3 -m pip install -r tests/requirements_test.txt
-      - run: pytest --cov=custom_components
+      - run: pytest --cov=custom_components --allow-unix-socket
 
   pylint:
     runs-on: "ubuntu-latest"
