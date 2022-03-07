@@ -717,11 +717,12 @@ class TrigTime:
 
             elif len(match1) == 3:
                 this_t = cls.parse_date_time(match1[1].strip(), 0, now, startup_time)
-                if this_t <= now and this_t != startup_time:
+                day_offset = (now - this_t).days + 1
+                if day_offset != 0 and this_t != startup_time:
                     #
-                    # Try tomorrow (won't make a difference if spec has full date)
+                    # Try a day offset (won't make a difference if spec has full date)
                     #
-                    this_t = cls.parse_date_time(match1[1].strip(), 1, now, startup_time)
+                    this_t = cls.parse_date_time(match1[1].strip(), day_offset, now, startup_time)
                 startup = now == this_t and now == startup_time
                 if (now < this_t or startup) and (next_time is None or this_t < next_time):
                     next_time = this_t
