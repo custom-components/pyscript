@@ -8,6 +8,7 @@ from homeassistant.helpers.restore_state import RestoreStateData
 from homeassistant.helpers.service import async_get_all_descriptions
 
 from .const import LOGGER_PATH
+from .entity import PyscriptEntity
 from .function import Function
 
 _LOGGER = logging.getLogger(LOGGER_PATH + ".state")
@@ -56,7 +57,7 @@ class State:
     #
     # pyscript vars which have already been registered as persisted
     #
-    persisted_vars = set()
+    persisted_vars = {}
 
     #
     # other parameters of all services that have "entity_id" as a parameter
@@ -198,6 +199,10 @@ class State:
             #
             cls.notify_var_last[var_name] = StateVal(cls.hass.states.get(var_name))
 
+        if var_name in cls.persisted_vars:
+            cls.persisted_vars[var_name].set_state(value)
+            cls.persisted_vars[var_name].set_attributes(new_attributes)
+
     @classmethod
     def setattr(cls, var_attr_name, value):
         """Set a state variable's attribute in hass."""
@@ -213,8 +218,13 @@ class State:
         """Register pyscript state variable to be persisted with RestoreState."""
         if var_name.startswith("pyscript.") and var_name not in cls.persisted_vars:
             restore_data = await RestoreStateData.async_get_instance(cls.hass)
-            restore_data.async_restore_entity_added(var_name)
-            cls.persisted_vars.add(var_name)
+            this_entity = PyscriptEntity()
+            this_entity.entity_id = var_name
+            cls.persisted_vars[var_name] = this_entity
+            try:
+                restore_data.async_restore_entity_added(this_entity)
+            except TypeError:
+                restore_data.async_restore_entity_added(var_name)
 
     @classmethod
     async def persist(cls, var_name, default_value=None, default_attributes=None):
