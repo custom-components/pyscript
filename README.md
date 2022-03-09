@@ -94,5 +94,5 @@ Helping other users is another great way to contribute to pyscript!
 
 ## Copyright
 
-Copyright (c) 2020-2021 Craig Barratt.  May be freely used and copied according to the terms of the
+Copyright (c) 2020-2022 Craig Barratt.  May be freely used and copied according to the terms of the
 [Apache 2.0 License](LICENSE).
