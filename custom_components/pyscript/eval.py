@@ -1678,11 +1678,11 @@ class AstEval:
     async def ast_boolop(self, arg):
         """Evaluate boolean operators and and or."""
         if isinstance(arg.op, ast.And):
-            val = 1
+            val = True
             for arg1 in arg.values:
                 this_val = await self.aeval(arg1)
-                if this_val == 0:
-                    return 0
+                if not this_val:
+                    return this_val
                 val = this_val
             return val
         for arg1 in arg.values:
