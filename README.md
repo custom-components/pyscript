@@ -2,7 +2,7 @@
 
 [![GitHub Release](https://img.shields.io/github/release/custom-components/pyscript.svg?style=for-the-badge)](https://github.com/custom-components/pyscript/releases)
 [![License](https://img.shields.io/github/license/custom-components/pyscript.svg?style=for-the-badge)](LICENSE)
-[![hacs](https://img.shields.io/badge/HACS-Default-orange.svg?style=for-the-badge)](https://github.com/custom-components/hacs)
+[![hacs](https://img.shields.io/badge/HACS-Default-orange.svg?style=for-the-badge)](https://github.com/hacs/integration)
 [![Project Maintenance](https://img.shields.io/badge/maintainer-%40craigbarratt-blue.svg?style=for-the-badge)](https://github.com/craigbarratt)
 
 This HACS custom integration allows you to write Python functions and scripts that can implement a
