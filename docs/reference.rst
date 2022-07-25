@@ -943,7 +943,7 @@ names are used as the service parameter names, but there is no description.
 Alternatively, if the ``doc_string`` starts with ``yaml``, the rest of the string is used as a
 ``yaml`` service description. Here's the first example above, with a more detailed ``doc_string``
 (for a more complete example and explanation of the service description, check the Home Assistant
-`developer documentation <#https://developers.home-assistant.io/docs/dev_101_services#service-descriptions>`__):
+`developer documentation <https://developers.home-assistant.io/docs/dev_101_services#service-descriptions>`__):
 
 .. code:: python
 
