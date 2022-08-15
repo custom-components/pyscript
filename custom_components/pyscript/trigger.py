@@ -1116,6 +1116,7 @@ class TrigInfo:
                                     self.name,
                                     self.state_hold,
                                 )
+                            func_args.update(user_kwargs)
                             continue
                         if state_trig_waiting:
                             state_trig_waiting = False
