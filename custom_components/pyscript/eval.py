@@ -449,7 +449,9 @@ class EvalFunc:
                         file_desc.close()
                     except Exception as exc:
                         self.logger.error(
-                            "Unable to decode yaml doc_string for %s(): %s", self.name, str(exc),
+                            "Unable to decode yaml doc_string for %s(): %s",
+                            self.name,
+                            str(exc),
                         )
                         raise exc
                 else:
@@ -574,7 +576,7 @@ class EvalFunc:
                 and isinstance(dec.func, ast.Name)
                 and dec.func.id in TRIG_SERV_DECORATORS
             ):
-                args = [await ast_ctx.aeval(arg) for arg in dec.args]
+                args = await ast_ctx.eval_elt_list(dec.args)
                 kwargs = {keyw.arg: await ast_ctx.aeval(keyw.value) for keyw in dec.keywords}
                 dec_trig.append([dec.func.id, args, kwargs if len(kwargs) > 0 else None])
             elif isinstance(dec, ast.Name) and dec.id in TRIG_SERV_DECORATORS:
@@ -1361,7 +1363,8 @@ class AstEval:
                     star_len = len(vals) - len(lhs.elts) + 1
                     star_name = lhs_elt.value.id
                     await self.recurse_assign(
-                        ast.Name(id=star_name, ctx=ast.Store()), vals[val_idx : val_idx + star_len],
+                        ast.Name(id=star_name, ctx=ast.Store()),
+                        vals[val_idx : val_idx + star_len],
                     )
                     val_idx += star_len
                 else:

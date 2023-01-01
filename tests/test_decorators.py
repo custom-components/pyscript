@@ -7,7 +7,6 @@ from unittest.mock import mock_open, patch
 from custom_components.pyscript.const import DOMAIN
 from custom_components.pyscript.function import Function
 import custom_components.pyscript.trigger as trigger
-
 from homeassistant.const import EVENT_HOMEASSISTANT_STARTED, EVENT_STATE_CHANGED
 from homeassistant.setup import async_setup_component
 
@@ -35,7 +34,8 @@ async def setup_script(hass, notify_q, now, source):
     ), patch(
         "custom_components.pyscript.global_ctx.os.path.getmtime", return_value=1000
     ), patch(
-        "custom_components.pyscript.install_requirements", return_value=None,
+        "custom_components.pyscript.install_requirements",
+        return_value=None,
     ):
         assert await async_setup_component(hass, "pyscript", {DOMAIN: {}})
 
@@ -107,7 +107,8 @@ def func_startup_sync(trigger_type=None, trigger_time=None):
     log.info(f"func_startup_sync setting pyscript.done = {seq_num}, trigger_type = {trigger_type}, trigger_time = {trigger_time}")
     pyscript.done = seq_num
 
-@state_trigger("pyscript.var1 == '1'")
+trig_list = ["pyscript.var1 == '100'", "pyscript.var1 == '1'"]
+@state_trigger(*trig_list)
 @once
 def func1():
     global seq_num
