@@ -4,10 +4,9 @@ import asyncio
 from datetime import datetime as dt
 from unittest.mock import mock_open, patch
 
+from custom_components.pyscript import trigger
 from custom_components.pyscript.const import DOMAIN
 from custom_components.pyscript.function import Function
-import custom_components.pyscript.trigger as trigger
-
 from homeassistant.const import EVENT_HOMEASSISTANT_STARTED, EVENT_STATE_CHANGED
 from homeassistant.setup import async_setup_component
 
@@ -35,7 +34,8 @@ async def setup_script(hass, notify_q, now, source):
     ), patch(
         "custom_components.pyscript.global_ctx.os.path.getmtime", return_value=1000
     ), patch(
-        "custom_components.pyscript.install_requirements", return_value=None,
+        "custom_components.pyscript.install_requirements",
+        return_value=None,
     ):
         assert await async_setup_component(hass, "pyscript", {DOMAIN: {}})
 

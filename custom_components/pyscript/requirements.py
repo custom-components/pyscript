@@ -297,16 +297,17 @@ async def install_requirements(hass, config_entry, pyscript_folder):
 
     if requirements_to_install:
         _LOGGER.info(
-            "Installing the following packages: %s", str(requirements_to_install),
+            "Installing the following packages: %s",
+            str(requirements_to_install),
         )
         await async_process_requirements(
             hass,
             DOMAIN,
             [
-                f"{package}=={requirements_to_install[package][ATTR_VERSION]}"
-                if requirements_to_install[package][ATTR_VERSION] != UNPINNED_VERSION
+                f"{package}=={pkg_info[ATTR_VERSION]}"
+                if pkg_info[ATTR_VERSION] != UNPINNED_VERSION
                 else package
-                for package in requirements_to_install
+                for package, pkg_info in requirements_to_install.items()
             ],
         )
     else:
@@ -314,7 +315,7 @@ async def install_requirements(hass, config_entry, pyscript_folder):
 
     # Update package tracker in config entry for next time
     pyscript_installed_packages.update(
-        {package: requirements_to_install[package][ATTR_VERSION] for package in requirements_to_install}
+        {package: pkg_info[ATTR_VERSION] for package, pkg_info in requirements_to_install.items()}
     )
 
     # If any requirements were unpinned, get their version now so they can be pinned later

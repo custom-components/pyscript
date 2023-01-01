@@ -10,11 +10,11 @@ import re
 from unittest.mock import patch
 import uuid
 
-from custom_components.pyscript.const import DOMAIN, FOLDER
-from custom_components.pyscript.jupyter_kernel import ZmqSocket
-import custom_components.pyscript.trigger as trigger
 from mock_open import MockOpen
 
+from custom_components.pyscript import trigger
+from custom_components.pyscript.const import DOMAIN, FOLDER
+from custom_components.pyscript.jupyter_kernel import ZmqSocket
 from homeassistant.const import EVENT_HOMEASSISTANT_STARTED, EVENT_HOMEASSISTANT_STOP
 from homeassistant.setup import async_setup_component
 
@@ -138,7 +138,8 @@ async def setup_script(hass, now, source, no_connect=False):
     ), patch(
         "homeassistant.config.load_yaml_config_file", return_value={}
     ), patch(
-        "custom_components.pyscript.install_requirements", return_value=None,
+        "custom_components.pyscript.install_requirements",
+        return_value=None,
     ), patch(
         "custom_components.pyscript.watchdog_start", return_value=None
     ), patch(
@@ -230,7 +231,11 @@ async def shell_msg(sock, msg_type, msg_content, execute=False):
     # or error.
     #
     await send(
-        sock["shell_port"], msg_type, msg_content, parent_header={}, identities={},
+        sock["shell_port"],
+        msg_type,
+        msg_content,
+        parent_header={},
+        identities={},
     )
     #
     # we expect a busy status on iopub

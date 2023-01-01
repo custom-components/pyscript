@@ -5,13 +5,12 @@ from datetime import datetime as dt
 import pathlib
 from unittest.mock import mock_open, patch
 
+from custom_components.pyscript import trigger
 from custom_components.pyscript.const import DOMAIN
 from custom_components.pyscript.event import Event
 from custom_components.pyscript.function import Function
 from custom_components.pyscript.global_ctx import GlobalContextMgr
 from custom_components.pyscript.state import State
-import custom_components.pyscript.trigger as trigger
-
 from homeassistant import loader
 from homeassistant.const import EVENT_HOMEASSISTANT_STARTED, EVENT_STATE_CHANGED
 from homeassistant.core import Context
@@ -41,7 +40,8 @@ async def setup_script(hass, notify_q, now, source, script_name="/hello.py"):
     ), patch(
         "custom_components.pyscript.global_ctx.os.path.getmtime", return_value=1000
     ), patch(
-        "custom_components.pyscript.install_requirements", return_value=None,
+        "custom_components.pyscript.install_requirements",
+        return_value=None,
     ):
         assert await async_setup_component(hass, "pyscript", {DOMAIN: {}})
 
@@ -198,7 +198,8 @@ fields:
     )
 
     with patch(
-        "homeassistant.loader.async_get_custom_components", return_value={"pyscript": integration},
+        "homeassistant.loader.async_get_custom_components",
+        return_value={"pyscript": integration},
     ):
         descriptions = (await async_get_all_descriptions(hass))[DOMAIN]
 
@@ -285,7 +286,9 @@ def call_service(domain=None, name=None, **kwargs):
     assert literal_eval(ret) == [5, {"trigger_type": "service"}, 1, 0]
 
     await hass.services.async_call(
-        "pyscript", "call_service", {"domain": "pyscript", "name": "func2", "arg1": "string1"},
+        "pyscript",
+        "call_service",
+        {"domain": "pyscript", "name": "func2", "arg1": "string1"},
     )
     ret = await wait_until_done(notify_q)
     assert literal_eval(ret) == [5, {"trigger_type": "service", "arg1": "string1"}, 1, 0]
@@ -427,7 +430,8 @@ def func5(var_name=None, value=None):
         ), patch(
             "custom_components.pyscript.global_ctx.os.path.getmtime", return_value=1000
         ), patch(
-            "custom_components.pyscript.install_requirements", return_value=None,
+            "custom_components.pyscript.install_requirements",
+            return_value=None,
         ):
             reload_param = {}
             if i % 2 == 1:

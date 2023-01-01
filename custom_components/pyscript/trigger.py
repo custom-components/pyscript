@@ -12,7 +12,7 @@ import time
 from croniter import croniter
 
 from homeassistant.core import Context
-import homeassistant.helpers.sun as sun
+from homeassistant.helpers import sun
 
 from .const import LOGGER_PATH
 from .eval import AstEval, EvalFunc, EvalFuncVar
@@ -308,7 +308,9 @@ class TrigTime:
                     return {"trigger_type": "state"}
 
             _LOGGER.debug(
-                "trigger %s wait_until: watching vars %s", ast_ctx.name, state_trig_ident,
+                "trigger %s wait_until: watching vars %s",
+                ast_ctx.name,
+                state_trig_ident,
             )
             if len(state_trig_ident) > 0:
                 await State.notify_add(state_trig_ident, notify_q)
@@ -368,7 +370,10 @@ class TrigTime:
             if time_trigger is not None:
                 time_next = cls.timer_trigger_next(time_trigger, now, startup_time)
                 _LOGGER.debug(
-                    "trigger %s wait_until time_next = %s, now = %s", ast_ctx.name, time_next, now,
+                    "trigger %s wait_until time_next = %s, now = %s",
+                    ast_ctx.name,
+                    time_next,
+                    now,
                 )
                 if time_next is not None:
                     this_timeout = (time_next - now).total_seconds()
@@ -390,7 +395,8 @@ class TrigTime:
             if this_timeout is None:
                 if state_trigger is None and event_trigger is None and mqtt_trigger is None:
                     _LOGGER.debug(
-                        "trigger %s wait_until no next time - returning with none", ast_ctx.name,
+                        "trigger %s wait_until no next time - returning with none",
+                        ast_ctx.name,
                     )
                     ret = {"trigger_type": "none"}
                     break
@@ -522,7 +528,9 @@ class TrigTime:
                     break
             else:
                 _LOGGER.error(
-                    "trigger %s wait_until got unexpected queue message %s", ast_ctx.name, notify_type,
+                    "trigger %s wait_until got unexpected queue message %s",
+                    ast_ctx.name,
+                    notify_type,
                 )
 
         if len(state_trig_ident) > 0:
@@ -771,7 +779,10 @@ class TrigInfo:
     """Class for all trigger-decorated functions."""
 
     def __init__(
-        self, name, trig_cfg, global_ctx=None,
+        self,
+        name,
+        trig_cfg,
+        global_ctx=None,
     ):
         """Create a new TrigInfo."""
         self.name = name
@@ -870,7 +881,9 @@ class TrigInfo:
         if self.event_trigger is not None:
             if len(self.event_trigger) == 2:
                 self.event_trig_expr = AstEval(
-                    f"{self.name} @event_trigger()", self.global_ctx, logger_name=self.name,
+                    f"{self.name} @event_trigger()",
+                    self.global_ctx,
+                    logger_name=self.name,
                 )
                 Function.install_ast_funcs(self.event_trig_expr)
                 self.event_trig_expr.parse(self.event_trigger[1], mode="eval")
@@ -883,7 +896,9 @@ class TrigInfo:
         if self.mqtt_trigger is not None:
             if len(self.mqtt_trigger) == 2:
                 self.mqtt_trig_expr = AstEval(
-                    f"{self.name} @mqtt_trigger()", self.global_ctx, logger_name=self.name,
+                    f"{self.name} @mqtt_trigger()",
+                    self.global_ctx,
+                    logger_name=self.name,
                 )
                 Function.install_ast_funcs(self.mqtt_trig_expr)
                 self.mqtt_trig_expr.parse(self.mqtt_trigger[1], mode="eval")
@@ -994,7 +1009,10 @@ class TrigInfo:
                     if self.time_trigger:
                         time_next = TrigTime.timer_trigger_next(self.time_trigger, now, startup_time)
                         _LOGGER.debug(
-                            "trigger %s time_next = %s, now = %s", self.name, time_next, now,
+                            "trigger %s time_next = %s, now = %s",
+                            self.name,
+                            time_next,
+                            now,
                         )
                         if time_next is not None:
                             timeout = (time_next - now).total_seconds()
@@ -1157,7 +1175,9 @@ class TrigInfo:
 
                 if not trig_ok:
                     _LOGGER.debug(
-                        "trigger %s got %s trigger, but not active", self.name, notify_type,
+                        "trigger %s got %s trigger, but not active",
+                        self.name,
+                        notify_type,
                     )
                     continue
 
@@ -1231,7 +1251,10 @@ class TrigInfo:
         Function.hass.bus.async_fire("pyscript_running", event_data, context=hass_context)
 
         _LOGGER.debug(
-            "trigger %s got %s trigger, running action (kwargs = %s)", self.name, notify_type, func_args,
+            "trigger %s got %s trigger, running action (kwargs = %s)",
+            self.name,
+            notify_type,
+            func_args,
         )
 
         async def do_func_call(func, ast_ctx, task_unique, task_unique_func, hass_context, **kwargs):
@@ -1245,7 +1268,12 @@ class TrigInfo:
                 ast_ctx.get_logger().error(ast_ctx.get_exception_long())
 
         func = do_func_call(
-            self.action, action_ast_ctx, self.task_unique, task_unique_func, hass_context, **func_args,
+            self.action,
+            action_ast_ctx,
+            self.task_unique,
+            task_unique_func,
+            hass_context,
+            **func_args,
         )
         if run_task:
             task = Function.create_task(func, ast_ctx=action_ast_ctx)

@@ -537,7 +537,7 @@ class EvalFunc:
                 got_trig = True
             if not got_trig:
                 break
-            for dec_name in {"state_active", "time_active", "task_unique"}:
+            for dec_name in ["state_active", "time_active", "task_unique"]:
                 if dec_name in trig_decs:
                     trig_args[dec_name] = trig_decs[dec_name][0]
 
@@ -599,8 +599,8 @@ class EvalFunc:
             args.append(self.func_def.args.vararg.arg)
         if self.func_def.args.kwarg:
             args.append(self.func_def.args.kwarg.arg)
-        for i in range(len(self.func_def.args.kwonlyargs)):
-            args.append(self.func_def.args.kwonlyargs[i].arg)
+        for kwonlyarg in self.func_def.args.kwonlyargs:
+            args.append(kwonlyarg.arg)
         nonlocal_names = set()
         global_names = set()
         var_names = set(args)
@@ -673,8 +673,8 @@ class EvalFunc:
         if args is None:
             args = []
         kwargs = kwargs.copy() if kwargs else {}
-        for i in range(len(self.func_def.args.args)):
-            var_name = self.func_def.args.args[i].arg
+        for i, func_def_arg in enumerate(self.func_def.args.args):
+            var_name = func_def_arg.arg
             val = None
             if i < len(args):
                 val = args[i]
@@ -690,8 +690,8 @@ class EvalFunc:
                     f"{self.name}() missing {self.num_posn_arg - i} required positional arguments"
                 )
             sym_table[var_name] = val
-        for i in range(len(self.func_def.args.kwonlyargs)):
-            var_name = self.func_def.args.kwonlyargs[i].arg
+        for i, kwonlyarg in enumerate(self.func_def.args.kwonlyargs):
+            var_name = kwonlyarg.arg
             if var_name in kwargs:
                 val = kwargs[var_name]
                 del kwargs[var_name]
@@ -1341,7 +1341,7 @@ class AstEval:
         """Recursive assignment."""
         if isinstance(lhs, ast.Tuple):
             try:
-                vals = [*(val.__iter__())]
+                vals = [*(iter(val))]
             except Exception:
                 raise TypeError("cannot unpack non-iterable object")  # pylint: disable=raise-missing-from
             got_star = 0
@@ -1892,7 +1892,7 @@ class AstEval:
             # it is later garbage collected
             #
             inst_weak = weakref.ref(inst)
-            for name in inst.__dir__():
+            for name in dir(inst):
                 value = getattr(inst, name)
                 if type(value) is not EvalFuncVar:
                     continue

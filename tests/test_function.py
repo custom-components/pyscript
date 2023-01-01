@@ -6,12 +6,12 @@ from datetime import datetime as dt
 import re
 from unittest.mock import MagicMock, Mock, patch
 
-from custom_components.pyscript.const import CONF_ALLOW_ALL_IMPORTS, CONF_HASS_IS_GLOBAL, DOMAIN, FOLDER
-from custom_components.pyscript.function import Function
-import custom_components.pyscript.trigger as trigger
 from mock_open import MockOpen
 import pytest
 
+from custom_components.pyscript import trigger
+from custom_components.pyscript.const import CONF_ALLOW_ALL_IMPORTS, CONF_HASS_IS_GLOBAL, DOMAIN, FOLDER
+from custom_components.pyscript.function import Function
 from homeassistant.const import EVENT_HOMEASSISTANT_STARTED, EVENT_STATE_CHANGED
 from homeassistant.core import Context
 from homeassistant.setup import async_setup_component
@@ -136,7 +136,8 @@ async def setup_script(hass, notify_q, notify_q2, now, source, config=None):
     ), patch(
         "homeassistant.config.load_yaml_config_file", return_value=config
     ), patch(
-        "custom_components.pyscript.install_requirements", return_value=None,
+        "custom_components.pyscript.install_requirements",
+        return_value=None,
     ), patch(
         "custom_components.pyscript.watchdog_start", return_value=None
     ), patch(
@@ -526,7 +527,7 @@ def func9(var_name=None, value=None, old_value=None):
     hass.states.async_set("pyscript.f5var1", 0)
     assert literal_eval(await wait_until_done(notify_q)) == [seq_num, "pyscript.f5var1", "0"]
     #
-    # make sure it doesn't trigger on attribte changes
+    # make sure it doesn't trigger on attribute changes
     #
     hass.states.async_set("pyscript.f5var1", 0, {"attr1": 123, "attr2": 10})
     hass.states.async_set("pyscript.f5var1", 0, {"attr1": 123, "attr2": 20})
