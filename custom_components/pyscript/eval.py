@@ -1690,7 +1690,7 @@ class AstEval:
             return val
         for arg1 in arg.values:
             val = await self.aeval(arg1)
-            if val != 0:
+            if val:
                 return val
         return 0
 
