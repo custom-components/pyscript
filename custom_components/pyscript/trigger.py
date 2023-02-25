@@ -1247,7 +1247,7 @@ class TrigInfo:
         ev_name = self.name.replace(".", "_")
         ev_entity_id = f"pyscript.{ev_name}"
 
-        event_data = dict(name=ev_name, entity_id=ev_entity_id, func_args=func_args)
+        event_data = {"name": ev_name, "entity_id": ev_entity_id, "func_args": func_args}
         Function.hass.bus.async_fire("pyscript_running", event_data, context=hass_context)
 
         _LOGGER.debug(
