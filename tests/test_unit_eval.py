@@ -1,12 +1,13 @@
 """Unit tests for Python interpreter."""
 
+from pytest_homeassistant_custom_component.common import MockConfigEntry
+
 from custom_components.pyscript.const import CONF_ALLOW_ALL_IMPORTS, CONFIG_ENTRY, DOMAIN
 from custom_components.pyscript.eval import AstEval
 from custom_components.pyscript.function import Function
 from custom_components.pyscript.global_ctx import GlobalContext, GlobalContextMgr
 from custom_components.pyscript.state import State
 from custom_components.pyscript.trigger import TrigTime
-from pytest_homeassistant_custom_component.common import MockConfigEntry
 
 evalTests = [
     ["1", 1],
@@ -43,6 +44,10 @@ evalTests = [
     ["1 and True", True],
     ["1 and False", False],
     ["0 and False", 0],
+    ["None or 2", 2],
+    ["False or 3", 3],
+    ["None or 'xyz'", "xyz"],
+    ["False or 'xyz'", "xyz"],
     ["0 or 1", 1],
     ["0 or 0", 0],
     ["0 or True", True],
