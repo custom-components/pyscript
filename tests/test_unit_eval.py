@@ -1384,7 +1384,7 @@ async def run_one_test(test_data):
     if ast.get_exception() is not None:
         print(f"Parsing {source} failed: {ast.get_exception()}")
     # print(ast.dump())
-    result = await ast.eval({"sym_local": 10})
+    result = await ast.eval({"sym_local": 10}, merge_local=True)
     assert result == expect
 
 

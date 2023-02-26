@@ -70,7 +70,7 @@ class Event:
     async def update(cls, event_type, func_args):
         """Deliver all notifications for an event of the given type."""
 
-        _LOGGER.debug("event.update(%s, %s, %s)", event_type, vars, func_args)
+        _LOGGER.debug("event.update(%s, %s)", event_type, func_args)
         if event_type in cls.notify:
             for queue in cls.notify[event_type]:
                 await queue.put(["event", func_args])

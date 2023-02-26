@@ -2213,12 +2213,14 @@ class AstEval:
                 words.add(name)
         return words
 
-    async def eval(self, new_state_vars=None):
+    async def eval(self, new_state_vars=None, merge_local=False):
         """Execute parsed code, with the optional state variables added to the scope."""
         self.exception = None
         self.exception_obj = None
         self.exception_long = None
         if new_state_vars:
+            if not merge_local:
+                self.local_sym_table = {}
             self.local_sym_table.update(new_state_vars)
         if self.ast:
             try:
