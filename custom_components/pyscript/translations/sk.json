@@ -1,0 +1,38 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "pyscript",
+        "description": "Akonáhle ste vytvorili položku, pozrite si [docs](https://hacs-pyscript.readthedocs.io/en/latest/) naučiť sa, ako vytvárať skripty a funkcie.",
+        "data": {
+          "allow_all_imports": "Povoliť všetky importy?",
+          "hass_is_global": "Prístup k globálnej premennej?"
+        }
+      }
+    },
+    "abort": {
+      "already_configured": "Už konfigurované.",
+      "single_instance_allowed": "Už nakonfigurované. Iba jedna možná konfigurácia.",
+      "updated_entry": "Táto položka už bola nastavená, ale konfigurácia bola aktualizovaná."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Aktualizovať pyscript konfiguráciu",
+        "data": {
+          "allow_all_imports": "povoliť všetky importy?",
+          "hass_is_global": "Prístup k globálnej premennej?"
+        }
+      },
+      "no_ui_configuration_allowed": {
+        "title": "Nie je povolená konfigurácia používateľského rozhrania",
+        "description": "Tento záznam bol vytvorený cez `configuration.yaml`, Takže všetky konfiguračné parametre sa musia aktualizovať. [`pyscript.reload`](developer-tools/service) Služba vám umožní uplatniť zmeny, ktoré vykonáte `configuration.yaml` bez reštartovania inštancie Home Assistant."
+      },
+      "no_update": {
+        "title": "Nie je potrebná aktualizácia",
+        "description": "Nie je nič na aktualizáciu."
+      }
+    }
+  }
+}
