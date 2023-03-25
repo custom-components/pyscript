@@ -87,6 +87,10 @@ class GlobalContext:
         """Return the global context name."""
         return self.name
 
+    def set_logger_name(self, name) -> None:
+        """Set the global context logging name."""
+        self.logger = logging.getLogger(LOGGER_PATH + "." + name)
+
     def get_global_sym_table(self) -> Dict[str, Any]:
         """Return the global symbol table."""
         return self.global_sym_table
