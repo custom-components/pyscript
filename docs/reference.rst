@@ -1092,13 +1092,13 @@ level will not appear in the log. Each log message function uses a log name of t
 
 .. code:: yaml
 
-   custom_components.pyscript.file.FILENAME.FUNCNAME
+   custom_components.pyscript.file.SCRIPTNAME.FUNCNAME
 
 where ``FUNCNAME`` is the name of the top-level Python function (e.g., the one called by a trigger
-or service), defined in the script file ``FILENAME.py``. See the `Global Context <#global-context>`__
+or service), defined in the script file ``SCRIPTNAME.py``. See the `Global Context <#global-context>`__
 section for the logging paths for other cases.
 
-That allows you to set the log level for each Python top-level function separately if necessary.
+That allows you to set the log level for each Python top-level script or function separately if necessary.
 That setting also applies to any other Python functions that the top-level Python function calls.
 For example, these settings:
 
@@ -1108,14 +1108,34 @@ For example, these settings:
      default: info
      logs:
        custom_components.pyscript.file: info
-       custom_components.pyscript.file.my_scripts.my_function: debug
+       custom_components.pyscript.file.my_script.my_function: debug
 
 will log all messages at ``info`` or higher (ie: ``log.info()``, ``log.warning()`` and
-``log.error()``), and inside ``my_function`` defined in the script file ``my_scripts.py`` (and any
+``log.error()``), and inside ``my_function`` defined in the script file ``my_script.py`` (and any
 other functions it calls) will log all messages at ``debug`` or higher.
 
 Note that in Jupyter, all the ``log`` functions will display output in your session, independent of
 the ``logger`` configuration settings.
+
+Changing the log level via the main configuration yaml file will typically require a restart of HASS.
+To avoid that, you can set the log level for any specific logging path by calling the ``logger.set_level``
+service from Jupyter, VSC, or in a ``pyscript`` script; for example:
+
+  .. code:: python
+
+    logger.set_level(**{"custom_components.pyscript.file.my_script": "debug"})
+
+will change the log level for the ``my_script.py`` script to ``debug``, while:
+
+  .. code:: python
+
+    logger.set_level(**{"custom_components.pyscript.file.my_script.func1": "debug"})
+
+will change the log level for the ``func1()`` function in ``my_script.py`` script to ``debug``.
+You can change multiple components in a single call just by adding them to the ``**kwargs`` dict.
+
+Alternatively, you can use the `Developer Tools <https://www.home-assistant.io/docs/tools/dev-tools/>`__
+to call the ``logger.set_level`` service with the logging path and desired level as parameters.
 
 Tasks
 ^^^^^
@@ -1409,11 +1429,20 @@ global context, to the granularity of specific functions eg:
      default: info
      logs:
        custom_components.pyscript.file: info
-       custom_components.pyscript.file.my_scripts.my_function: debug
+       custom_components.pyscript.file.my_script.my_function: debug
        custom_components.pyscript.apps.my_app: debug
        custom_components.pyscript.apps.my_app.my_function: debug
 
 Each Jupyter global context name is ``jupyter_NNN`` where ``NNN`` is a unique integer starting at 0.
+
+You can set the log level for one or more logging paths by calling the ``logger.set_level`` service
+from Jupyter, VSC, or in a ``pyscript`` script; for example:
+
+  .. code:: python
+
+    logger.set_level(**{"custom_components.pyscript.file.my_script": "debug"})
+
+will change the log level for the ``my_script.py`` script to ``debug``.
 
 When a script file has changed (or an app's configuration has changed, provided the ``yaml`` file is
 below the ``pyscript`` directory), a reload is triggered, and the corresponding global context whose
@@ -1980,6 +2009,14 @@ Here are some areas where pyscript differs from real Python:
   be declared ``async``. Unless the Python module is designed to support async callbacks, it is not
   currently possible to have Python modules and packages call pyscript functions. The workaround is
   to move your callbacks from pyscript and make them native Python functions; see `Importing <#importing>`__.
+- Continuing that point, special methods (eg, `__eq__`) in a class created in `pyscript` will not work since
+  they are async functions and Python will not be able to call them. The two workarounds are to
+  use the ``@pyscript_compile`` decorator so the method is compiled to a native (non-ascync) Python
+  function, or write your class in native Python and import it into ``pyscript``; see `Importing <#importing>`__.
+- The ``import`` function in ``pyscript`` fails to import certain complex packages. This is an open bug and
+  it would be great if someone with some Python expertise could help fix it. In the meantime, the workaround
+  is to import the module in a native Python file, and then import that shim module into pyscript.
+  See `Importing <#importing>`__.
 - pyscript and the HASS primitives that it uses are not thread safe - the code should only be executed
   in the main event loop. The ``task.executor()`` function is one way that regular Python code
   (not pyscript code) can safely be executed in a separate thread. The ``threading`` package can

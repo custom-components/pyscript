@@ -19,7 +19,7 @@ import sphinx_rtd_theme
 # -- Project information -----------------------------------------------------
 
 project = 'hacs-pyscript'
-copyright = '2020-2022, Craig Barratt'
+copyright = '2020-2023, Craig Barratt'
 author = 'Craig Barratt'
 
 # The full version, including alpha/beta/rc tags
