@@ -4,13 +4,15 @@ import asyncio
 import re
 from unittest.mock import patch
 
-from custom_components.pyscript.const import DOMAIN, FOLDER
 from mock_open import MockOpen
+import pytest
 
+from custom_components.pyscript.const import DOMAIN, FOLDER
 from homeassistant.const import EVENT_STATE_CHANGED
 from homeassistant.setup import async_setup_component
 
 
+@pytest.mark.asyncio
 async def test_reload(hass, caplog):
     """Test reload a pyscript module."""
 
@@ -121,7 +123,7 @@ log.info(f"BOTCH shouldn't load {__name__}")
     def isfile_side_effect(arg):
         return arg in file_contents
 
-    def glob_side_effect(path, recursive=None):
+    def glob_side_effect(path, recursive=None, root_dir=None, dir_fd=None, include_hidden=False):
         result = []
         path_re = path.replace("*", "[^/]*").replace(".", "\\.")
         path_re = path_re.replace("[^/]*[^/]*/", ".*")

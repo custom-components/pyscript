@@ -11,6 +11,7 @@ from unittest.mock import patch
 import uuid
 
 from mock_open import MockOpen
+import pytest
 
 from custom_components.pyscript import trigger
 from custom_components.pyscript.const import DOMAIN, FOLDER
@@ -120,7 +121,7 @@ async def setup_script(hass, now, source, no_connect=False):
     def isfile_side_effect(arg):
         return arg in file_contents
 
-    def glob_side_effect(path, recursive=None):
+    def glob_side_effect(path, recursive=None, root_dir=None, dir_fd=None, include_hidden=False):
         result = []
         path_re = path.replace("*", "[^/]*").replace(".", "\\.")
         path_re = path_re.replace("[^/]*[^/]*/", ".*")
@@ -267,6 +268,7 @@ async def shell_msg(sock, msg_type, msg_content, execute=False):
     return reply_msg
 
 
+@pytest.mark.asyncio
 async def test_jupyter_kernel_msgs(hass, caplog, socket_enabled):
     """Test Jupyter kernel messages."""
     sock, _ = await setup_script(hass, [dt(2020, 7, 1, 11, 0, 0, 0)], "")
@@ -409,6 +411,7 @@ async def test_jupyter_kernel_msgs(hass, caplog, socket_enabled):
     await shutdown(sock)
 
 
+@pytest.mark.asyncio
 async def test_jupyter_kernel_port_close(hass, caplog, socket_enabled):
     """Test Jupyter kernel closing ports."""
     sock, port_nums = await setup_script(hass, [dt(2020, 7, 1, 11, 0, 0, 0)], "")
@@ -470,6 +473,7 @@ async def test_jupyter_kernel_port_close(hass, caplog, socket_enabled):
     assert "signature mismatch: check_sig=" in caplog.text
 
 
+@pytest.mark.asyncio
 async def test_jupyter_kernel_redefine_func(hass, caplog, socket_enabled):
     """Test Jupyter kernel redefining trigger function."""
     sock, _ = await setup_script(hass, [dt(2020, 7, 1, 11, 0, 0, 0)], "")
@@ -511,6 +515,7 @@ def func():
     await shutdown(sock)
 
 
+@pytest.mark.asyncio
 async def test_jupyter_kernel_global_ctx_func(hass, caplog, socket_enabled):
     """Test Jupyter kernel global_ctx functions."""
     sock, _ = await setup_script(hass, [dt(2020, 7, 1, 11, 0, 0, 0)], "")
@@ -532,6 +537,7 @@ async def test_jupyter_kernel_global_ctx_func(hass, caplog, socket_enabled):
     await shutdown(sock)
 
 
+@pytest.mark.asyncio
 async def test_jupyter_kernel_stdout(hass, caplog, socket_enabled):
     """Test Jupyter kernel stdout."""
     sock, _ = await setup_script(hass, [dt(2020, 7, 1, 11, 0, 0, 0)], "")
@@ -545,6 +551,7 @@ async def test_jupyter_kernel_stdout(hass, caplog, socket_enabled):
     await shutdown(sock)
 
 
+@pytest.mark.asyncio
 async def test_jupyter_kernel_no_connection_timeout(hass, caplog, socket_enabled):
     """Test Jupyter kernel timeout on no connection."""
     await setup_script(hass, [dt(2020, 7, 1, 11, 0, 0, 0)], "", no_connect=True)

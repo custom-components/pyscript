@@ -5,9 +5,10 @@ import asyncio
 import re
 from unittest.mock import patch
 
-from custom_components.pyscript.const import DOMAIN, FOLDER
 from mock_open import MockOpen
+import pytest
 
+from custom_components.pyscript.const import DOMAIN, FOLDER
 from homeassistant.const import EVENT_STATE_CHANGED
 from homeassistant.setup import async_setup_component
 
@@ -17,6 +18,7 @@ async def wait_until_done(notify_q):
     return await asyncio.wait_for(notify_q.get(), timeout=4)
 
 
+@pytest.mark.asyncio
 async def test_service_exists(hass, caplog):
     """Test importing a pyscript module."""
 
@@ -148,7 +150,7 @@ def func15():
     def isfile_side_effect(arg):
         return arg in file_contents
 
-    def glob_side_effect(path, recursive=None):
+    def glob_side_effect(path, recursive=None, root_dir=None, dir_fd=None, include_hidden=False):
         result = []
         path_re = path.replace("*", "[^/]*").replace(".", "\\.")
         path_re = path_re.replace("[^/]*[^/]*/", ".*")
@@ -190,6 +192,7 @@ def func15():
 
     assert not hass.services.has_service("pyscript", "func10")
     assert not hass.services.has_service("pyscript", "func11")
+    assert hass.services.has_service("pyscript", "func1")
     assert hass.services.has_service("pyscript", "func13")
     assert hass.services.has_service("pyscript", "func14")
     assert not hass.services.has_service("pyscript", "func15")
@@ -205,4 +208,5 @@ def func15():
     assert "modules/xyz2 global_ctx=modules.xyz2;" in caplog.text
     assert "func14 global_ctx=scripts.a.b.c.d.func14;" in caplog.text
     assert "ModuleNotFoundError: import of no_such_package not allowed" in caplog.text
-    assert "SyntaxError: invalid syntax (bad_module.py, line 2)" in caplog.text
+    # assert "SyntaxError: invalid syntax (bad_module.py, line 2)" in caplog.text    # <= 3.9
+    assert "SyntaxError: expected ':' (bad_module.py, line 2)" in caplog.text

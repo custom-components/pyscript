@@ -1,6 +1,11 @@
 """Test requirements helpers."""
+
 import logging
 from unittest.mock import patch
+
+import pytest
+from pytest import fixture
+from pytest_homeassistant_custom_component.common import MockConfigEntry
 
 from custom_components.pyscript.const import (
     ATTR_INSTALLED_VERSION,
@@ -14,8 +19,6 @@ from custom_components.pyscript.const import (
     UNPINNED_VERSION,
 )
 from custom_components.pyscript.requirements import install_requirements, process_all_requirements
-from pytest import fixture
-from pytest_homeassistant_custom_component.common import MockConfigEntry
 
 PYSCRIPT_FOLDER = "tests/test_data/test_requirements"
 
@@ -27,6 +30,7 @@ def bypass_package_install_fixture():
         yield
 
 
+@pytest.mark.asyncio
 async def test_install_requirements(hass, caplog):
     """Test install_requirements function."""
     with patch(
@@ -154,6 +158,7 @@ async def test_install_requirements(hass, caplog):
         assert entry.data[CONF_INSTALLED_PACKAGES] == {"my-package-name": "2.0.1"}
 
 
+@pytest.mark.asyncio
 async def test_install_unpinned_requirements(hass, caplog):
     """Test install_requirements function with unpinned versions."""
     with patch(
@@ -264,6 +269,7 @@ async def test_install_unpinned_requirements(hass, caplog):
         assert entry.data[CONF_INSTALLED_PACKAGES] == {"my-package-name-1": "2.0.1"}
 
 
+@pytest.mark.asyncio
 async def test_install_requirements_not_allowed(hass):
     """Test that install requirements will not work because 'allow_all_imports' is False."""
     with patch(

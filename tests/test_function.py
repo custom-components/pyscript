@@ -69,6 +69,7 @@ def test_install_ast_funcs(ast_functions):  # pylint: disable=redefined-outer-na
     ],
     ids=lambda x: x if not isinstance(x, set) else f"set({len(x)})",
 )
+@pytest.mark.asyncio
 async def test_func_completions(
     ast_functions, functions, root, expected
 ):  # pylint: disable=redefined-outer-name
@@ -91,6 +92,7 @@ async def test_func_completions(
     ],
     ids=lambda x: x if not isinstance(x, set) else f"set({len(x)})",
 )
+@pytest.mark.asyncio
 async def test_service_completions(root, expected, hass, services):  # pylint: disable=redefined-outer-name
     """Test service name completion."""
     with patch.object(hass.services, "async_services", return_value=services), patch.object(
@@ -116,7 +118,7 @@ async def setup_script(hass, notify_q, notify_q2, now, source, config=None):
     def isfile_side_effect(arg):
         return arg in file_contents
 
-    def glob_side_effect(path, recursive=None):
+    def glob_side_effect(path, recursive=None, root_dir=None, dir_fd=None, include_hidden=False):
         result = []
         path_re = path.replace("*", "[^/]*").replace(".", "\\.")
         path_re = path_re.replace("[^/]*[^/]*/", ".*")
@@ -186,6 +188,7 @@ async def wait_until_done(notify_q):
     return await asyncio.wait_for(notify_q.get(), timeout=4)
 
 
+@pytest.mark.asyncio
 async def test_state_trigger(hass, caplog):
     """Test state trigger."""
     notify_q = asyncio.Queue(0)
@@ -702,6 +705,7 @@ def func9(var_name=None, value=None, old_value=None):
     assert literal_eval(await wait_until_done(notify_q2)) == seq_num
 
 
+@pytest.mark.asyncio
 async def test_state_trigger_time(hass, caplog):
     """Test state trigger."""
     notify_q = asyncio.Queue(0)
@@ -984,6 +988,7 @@ def func_startup_sync(trigger_type=None, trigger_time=None):
     assert "TypeError: can only concatenate str" in caplog.text
 
 
+@pytest.mark.asyncio
 async def test_trigger_closures(hass, caplog):
     """Test trigger function closures."""
     notify_q = asyncio.Queue(0)
@@ -1062,6 +1067,7 @@ f = [factory(50), factory(51), factory(52), factory(53), factory(54)]
         assert literal_eval(await wait_until_done(notify_q)) == seq_num
 
 
+@pytest.mark.asyncio
 async def test_state_trigger_check_now(hass, caplog):
     """Test state trigger."""
     notify_q = asyncio.Queue(0)
@@ -1120,6 +1126,7 @@ def func_startup_sync2(trigger_type=None, var_name=None):
         assert literal_eval(await wait_until_done(notify_q)) == [0, "state", "pyscript.fstartup0"]
 
 
+@pytest.mark.asyncio
 async def test_state_methods(hass, caplog):
     """Test state methods that call services."""
     notify_q = asyncio.Queue(0)
@@ -1187,6 +1194,7 @@ def service_call_exception():
     assert "TypeError: service pyscript.set_add takes only keyword arguments" in caplog.text
 
 
+@pytest.mark.asyncio
 async def test_service_call_params(hass):
     """Test that hass params get set properly on service calls."""
     with patch.object(hass.services, "async_call") as call, patch.object(
@@ -1229,6 +1237,7 @@ async def test_service_call_params(hass):
     await Function.reaper_stop()
 
 
+@pytest.mark.asyncio
 async def test_service_call_blocking(hass, caplog):
     """Test that service calls with blocking=True actually block."""
     notify_q = asyncio.Queue(0)

@@ -1,5 +1,6 @@
 """Unit tests for Python interpreter."""
 
+import pytest
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
 from custom_components.pyscript.const import CONF_ALLOW_ALL_IMPORTS, CONFIG_ENTRY, DOMAIN
@@ -1388,6 +1389,7 @@ async def run_one_test(test_data):
     assert result == expect
 
 
+@pytest.mark.asyncio
 async def test_eval(hass):
     """Test interpreter."""
     hass.data[DOMAIN] = {CONFIG_ENTRY: MockConfigEntry(domain=DOMAIN, data={CONF_ALLOW_ALL_IMPORTS: True})}
@@ -1433,6 +1435,7 @@ evalTestsExceptions = [
         {
             "syntax error invalid syntax (<fstring>, line 1)",  # < 3.9
             "syntax error f-string: invalid syntax (test, line 1)",  # >= 3.9
+            "syntax error f-string: invalid syntax. Perhaps you forgot a comma? (test, line 1)",  # >= 3.10
         },
     ],
     ["del xx", "Exception in test line 1 column 0: name 'xx' is not defined"],
@@ -1639,6 +1642,7 @@ async def run_one_test_exception(test_data):
     assert False
 
 
+@pytest.mark.asyncio
 async def test_eval_exceptions(hass):
     """Test interpreter exceptions."""
     hass.data[DOMAIN] = {CONFIG_ENTRY: MockConfigEntry(domain=DOMAIN, data={CONF_ALLOW_ALL_IMPORTS: False})}

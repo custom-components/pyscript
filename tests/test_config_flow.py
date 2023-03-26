@@ -1,11 +1,12 @@
 """Tests for pyscript config flow."""
+
 import logging
 from unittest.mock import patch
 
-from custom_components.pyscript import PYSCRIPT_SCHEMA
-from custom_components.pyscript.const import CONF_ALLOW_ALL_IMPORTS, CONF_HASS_IS_GLOBAL, DOMAIN
 import pytest
 
+from custom_components.pyscript import PYSCRIPT_SCHEMA
+from custom_components.pyscript.const import CONF_ALLOW_ALL_IMPORTS, CONF_HASS_IS_GLOBAL, DOMAIN
 from homeassistant import data_entry_flow
 from homeassistant.config_entries import SOURCE_IMPORT, SOURCE_USER
 
@@ -20,6 +21,7 @@ def pyscript_bypass_setup_fixture():
         yield
 
 
+@pytest.mark.asyncio
 async def test_user_flow_minimum_fields(hass, pyscript_bypass_setup):
     """Test user config flow with minimum fields."""
     # test form shows
@@ -36,6 +38,7 @@ async def test_user_flow_minimum_fields(hass, pyscript_bypass_setup):
     assert not result["data"][CONF_HASS_IS_GLOBAL]
 
 
+@pytest.mark.asyncio
 async def test_user_flow_all_fields(hass, pyscript_bypass_setup):
     """Test user config flow with all fields."""
     # test form shows
@@ -54,6 +57,7 @@ async def test_user_flow_all_fields(hass, pyscript_bypass_setup):
     assert result["data"][CONF_HASS_IS_GLOBAL]
 
 
+@pytest.mark.asyncio
 async def test_user_already_configured(hass, pyscript_bypass_setup):
     """Test service is already configured during user setup."""
     result = await hass.config_entries.flow.async_init(
@@ -74,6 +78,7 @@ async def test_user_already_configured(hass, pyscript_bypass_setup):
     assert result["reason"] == "single_instance_allowed"
 
 
+@pytest.mark.asyncio
 async def test_import_flow(hass, pyscript_bypass_setup):
     """Test import config flow works."""
     result = await hass.config_entries.flow.async_init(
@@ -83,6 +88,7 @@ async def test_import_flow(hass, pyscript_bypass_setup):
     assert result["type"] == data_entry_flow.RESULT_TYPE_CREATE_ENTRY
 
 
+@pytest.mark.asyncio
 async def test_import_flow_update_allow_all_imports(hass, pyscript_bypass_setup):
     """Test import config flow updates existing entry when `allow_all_imports` has changed."""
     result = await hass.config_entries.flow.async_init(
@@ -101,6 +107,7 @@ async def test_import_flow_update_allow_all_imports(hass, pyscript_bypass_setup)
     assert result["reason"] == "updated_entry"
 
 
+@pytest.mark.asyncio
 async def test_import_flow_update_apps_from_none(hass, pyscript_bypass_setup):
     """Test import config flow updates existing entry when `apps` has changed from None to something."""
     result = await hass.config_entries.flow.async_init(
@@ -117,6 +124,7 @@ async def test_import_flow_update_apps_from_none(hass, pyscript_bypass_setup):
     assert result["reason"] == "updated_entry"
 
 
+@pytest.mark.asyncio
 async def test_import_flow_update_apps_to_none(hass, pyscript_bypass_setup):
     """Test import config flow updates existing entry when `apps` has changed from something to None."""
     result = await hass.config_entries.flow.async_init(
@@ -131,6 +139,7 @@ async def test_import_flow_update_apps_to_none(hass, pyscript_bypass_setup):
     assert result["reason"] == "updated_entry"
 
 
+@pytest.mark.asyncio
 async def test_import_flow_no_update(hass, pyscript_bypass_setup):
     """Test import config flow doesn't update existing entry when data is same."""
     result = await hass.config_entries.flow.async_init(
@@ -147,6 +156,7 @@ async def test_import_flow_no_update(hass, pyscript_bypass_setup):
     assert result["reason"] == "already_configured"
 
 
+@pytest.mark.asyncio
 async def test_import_flow_update_user(hass, pyscript_bypass_setup):
     """Test import config flow update excludes `allow_all_imports` from being updated when updated entry was a user entry."""
     result = await hass.config_entries.flow.async_init(
@@ -171,6 +181,7 @@ async def test_import_flow_update_user(hass, pyscript_bypass_setup):
     }
 
 
+@pytest.mark.asyncio
 async def test_import_flow_update_import(hass, pyscript_bypass_setup):
     """Test import config flow update includes `allow_all_imports` in update when updated entry was imported entry."""
     result = await hass.config_entries.flow.async_init(
@@ -191,6 +202,7 @@ async def test_import_flow_update_import(hass, pyscript_bypass_setup):
     assert hass.config_entries.async_entries(DOMAIN)[0].data == {"apps": {"test_app": {"param": 1}}}
 
 
+@pytest.mark.asyncio
 async def test_options_flow_import(hass, pyscript_bypass_setup):
     """Test options flow aborts because configuration needs to be managed via configuration.yaml."""
     result = await hass.config_entries.flow.async_init(
@@ -213,6 +225,7 @@ async def test_options_flow_import(hass, pyscript_bypass_setup):
     assert result["title"] == ""
 
 
+@pytest.mark.asyncio
 async def test_options_flow_user_change(hass, pyscript_bypass_setup):
     """Test options flow updates config entry when options change."""
     result = await hass.config_entries.flow.async_init(
@@ -241,6 +254,7 @@ async def test_options_flow_user_change(hass, pyscript_bypass_setup):
     assert entry.data[CONF_HASS_IS_GLOBAL] is False
 
 
+@pytest.mark.asyncio
 async def test_options_flow_user_no_change(hass, pyscript_bypass_setup):
     """Test options flow aborts when options don't change."""
     result = await hass.config_entries.flow.async_init(
@@ -270,6 +284,7 @@ async def test_options_flow_user_no_change(hass, pyscript_bypass_setup):
     assert result["title"] == ""
 
 
+@pytest.mark.asyncio
 async def test_config_entry_reload(hass):
     """Test that config entry reload does not duplicate listeners."""
     with patch("homeassistant.config.load_yaml_config_file", return_value={}), patch(

@@ -1,8 +1,11 @@
 """Test the pyscript component."""
+
 from ast import literal_eval
 import asyncio
 from datetime import datetime as dt
 from unittest.mock import mock_open, patch
+
+import pytest
 
 from custom_components.pyscript import trigger
 from custom_components.pyscript.const import DOMAIN
@@ -62,6 +65,7 @@ async def wait_until_done(notify_q):
     return await asyncio.wait_for(notify_q.get(), timeout=4)
 
 
+@pytest.mark.asyncio
 async def test_task_unique(hass, caplog):
     """Test task.unique ."""
     notify_q = asyncio.Queue(0)

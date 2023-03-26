@@ -5,6 +5,8 @@ from datetime import datetime as dt
 import pathlib
 from unittest.mock import mock_open, patch
 
+import pytest
+
 from custom_components.pyscript import trigger
 from custom_components.pyscript.const import DOMAIN
 from custom_components.pyscript.event import Event
@@ -68,6 +70,7 @@ async def wait_until_done(notify_q):
     return await asyncio.wait_for(notify_q.get(), timeout=4)
 
 
+@pytest.mark.asyncio
 async def test_setup_makedirs_on_no_dir(hass, caplog):
     """Test setup calls os.makedirs when no dir found."""
     with patch("custom_components.pyscript.os.path.isdir", return_value=False), patch(
@@ -81,6 +84,7 @@ async def test_setup_makedirs_on_no_dir(hass, caplog):
     assert makedirs_call.called
 
 
+@pytest.mark.asyncio
 async def test_service_exists(hass, caplog):
     """Test discover, compile script and install a service."""
 
@@ -109,6 +113,7 @@ def func2():
     assert not hass.services.has_service("pyscript", "func2")
 
 
+@pytest.mark.asyncio
 async def test_syntax_error(hass, caplog):
     """Test syntax error in pyscript file."""
 
@@ -122,9 +127,11 @@ def func1()
     pass
 """,
     )
-    assert "SyntaxError: invalid syntax (hello.py, line 3)" in caplog.text
+    # assert "SyntaxError: invalid syntax (hello.py, line 3)" in caplog.text   # <= 3.9
+    assert "SyntaxError: expected ':' (hello.py, line 3)" in caplog.text
 
 
+@pytest.mark.asyncio
 async def test_syntax_error2(hass, caplog):
     """Test syntax error in pyscript file."""
 
@@ -139,6 +146,7 @@ xyz def 123
     assert "SyntaxError: invalid syntax (hello.py, line 2)" in caplog.text
 
 
+@pytest.mark.asyncio
 async def test_runtime_error(hass, caplog):
     """Test run-time error in pyscript file."""
 
@@ -157,6 +165,7 @@ xyz
     assert "NameError: name 'xyz' is not defined" in caplog.text
 
 
+@pytest.mark.asyncio
 async def test_service_description(hass):
     """Test service description defined in doc_string."""
 
@@ -219,6 +228,7 @@ fields:
     }
 
 
+@pytest.mark.asyncio
 async def test_service_run(hass, caplog):
     """Test running a service with keyword arguments."""
     notify_q = asyncio.Queue(0)
@@ -303,6 +313,7 @@ def call_service(domain=None, name=None, **kwargs):
     assert literal_eval(ret) == [5, {"trigger_type": "service", "arg1": "string1", "arg2": 123}, 1, 0]
 
 
+@pytest.mark.asyncio
 async def test_reload(hass, caplog):
     """Test reload."""
     notify_q = asyncio.Queue(0)
@@ -451,6 +462,7 @@ def func5(var_name=None, value=None):
     assert "pyscript.reload: no global context 'file.nosuchfile' to reload" in caplog.text
 
 
+@pytest.mark.asyncio
 async def test_misc_errors(hass, caplog):
     """Test miscellaneous errors."""
 

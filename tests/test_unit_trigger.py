@@ -3,9 +3,10 @@
 from datetime import datetime as dt, timedelta
 from unittest.mock import patch
 
+import pytest
+
 from custom_components.pyscript.function import Function
 from custom_components.pyscript.trigger import TrigTime
-import pytest
 
 parseDateTimeTests = [
     ["2019/9/12 13:45", 0, dt(2019, 9, 12, 13, 45, 0, 0)],
@@ -62,6 +63,7 @@ parseDateTimeTests = [
 ]
 
 
+@pytest.mark.asyncio
 async def test_parse_date_time(hass, caplog):
     """Run time parse datetime tests."""
 
@@ -99,6 +101,7 @@ parseDateTimeTestsDayNames = [
 ]
 
 
+@pytest.mark.asyncio
 async def test_parse_date_time_day_names(hass, caplog):
     """Run time parse datetime on day of week names."""
     #

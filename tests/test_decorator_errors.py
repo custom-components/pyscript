@@ -4,6 +4,8 @@ import asyncio
 from datetime import datetime as dt
 from unittest.mock import mock_open, patch
 
+import pytest
+
 from custom_components.pyscript import trigger
 from custom_components.pyscript.const import DOMAIN
 from custom_components.pyscript.function import Function
@@ -70,6 +72,7 @@ async def wait_until_done(notify_q):
     return await asyncio.wait_for(notify_q.get(), timeout=4)
 
 
+@pytest.mark.asyncio
 async def test_decorator_errors(hass, caplog):
     """Test decorator syntax and run-time errors."""
     notify_q = asyncio.Queue(0)
@@ -164,11 +167,13 @@ def func8():
     assert literal_eval(await wait_until_done(notify_q)) == seq_num
 
     assert (
-        "SyntaxError: unexpected EOF while parsing (file.hello.func1 @state_trigger(), line 1)"
+        # "SyntaxError: unexpected EOF while parsing (file.hello.func1 @state_trigger(), line 1)"   # <= 3.9
+        "SyntaxError: invalid syntax (file.hello.func1 @state_trigger(), line 1)"  # >= 3.10
         in caplog.text
     )
     assert (
-        "SyntaxError: unexpected EOF while parsing (file.hello.func2 @event_trigger(), line 1)"
+        # "SyntaxError: unexpected EOF while parsing (file.hello.func2 @event_trigger(), line 1)"  # <= 3.9
+        "SyntaxError: '(' was never closed (file.hello.func2 @event_trigger(), line 1)"  # >= 3.10
         in caplog.text
     )
     assert "SyntaxError: invalid syntax (file.hello.func3 @state_active(), line 1)" in caplog.text
@@ -192,10 +197,12 @@ TypeError: unsupported operand type(s) for /: 'int' and 'StateVal'"""
         in caplog.text
     )
 
-    assert "unexpected EOF while parsing (file.hello.func7 state_trigger, line 1)" in caplog.text
+    # assert "unexpected EOF while parsing (file.hello.func7 state_trigger, line 1)" in caplog.text   # <= 3.9
+    assert "invalid syntax (file.hello.func7 state_trigger, line 1)" in caplog.text
     assert 'can only concatenate str (not "int") to str' in caplog.text
 
 
+@pytest.mark.asyncio
 async def test_decorator_errors_missing_trigger(hass, caplog):
     """Test decorator syntax and run-time errors."""
     notify_q = asyncio.Queue(0)
@@ -215,6 +222,7 @@ def func4():
     )
 
 
+@pytest.mark.asyncio
 async def test_decorator_errors_missing_arg(hass, caplog):
     """Test decorator syntax and run-time errors."""
     notify_q = asyncio.Queue(0)
@@ -234,6 +242,7 @@ def func8():
     )
 
 
+@pytest.mark.asyncio
 async def test_decorator_errors_missing_arg2(hass, caplog):
     """Test decorator syntax and run-time errors."""
     notify_q = asyncio.Queue(0)
@@ -253,6 +262,7 @@ def func9():
     )
 
 
+@pytest.mark.asyncio
 async def test_decorator_errors_bad_arg_type(hass, caplog):
     """Test decorator syntax and run-time errors."""
     notify_q = asyncio.Queue(0)
@@ -272,6 +282,7 @@ def func10():
     )
 
 
+@pytest.mark.asyncio
 async def test_decorator_errors_bad_arg_type2(hass, caplog):
     """Test decorator syntax and run-time errors."""
     notify_q = asyncio.Queue(0)
@@ -291,6 +302,7 @@ def func11():
     )
 
 
+@pytest.mark.asyncio
 async def test_service_reload_error(hass, caplog):
     """Test using a reserved name generates an error."""
 
@@ -310,6 +322,7 @@ def reload():
     )
 
 
+@pytest.mark.asyncio
 async def test_service_state_active_extra_args(hass, caplog):
     """Test using extra args to state_active generates an error."""
 
@@ -329,6 +342,7 @@ def func4():
     )
 
 
+@pytest.mark.asyncio
 async def test_service_wrong_arg_type(hass, caplog):
     """Test using too many args with service an error."""
 
@@ -348,6 +362,7 @@ def func5():
     )
 
 
+@pytest.mark.asyncio
 async def test_time_trigger_wrong_arg_type(hass, caplog):
     """Test using wrong argument type generates an error."""
 
@@ -367,6 +382,7 @@ def func6():
     )
 
 
+@pytest.mark.asyncio
 async def test_decorator_kwargs(hass, caplog):
     """Test invalid keyword arguments generates an error."""
 
@@ -386,6 +402,7 @@ def func7():
     )
 
 
+@pytest.mark.asyncio
 async def test_decorator_kwargs2(hass, caplog):
     """Test invalid keyword arguments generates an error."""
 
@@ -405,6 +422,7 @@ def func7():
     )
 
 
+@pytest.mark.asyncio
 async def test_decorator_kwargs3(hass, caplog):
     """Test invalid keyword arguments type generates an error."""
 
@@ -424,6 +442,7 @@ def func7():
     )
 
 
+@pytest.mark.asyncio
 async def test_decorator_kwargs4(hass, caplog):
     """Test invalid keyword arguments type generates an error."""
 

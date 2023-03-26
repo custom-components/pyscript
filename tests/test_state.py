@@ -1,12 +1,15 @@
 """Test pyscripts test module."""
+
 from unittest.mock import patch
 
-from custom_components.pyscript.state import State
+import pytest
 
+from custom_components.pyscript.state import State
 from homeassistant.core import Context
 from homeassistant.helpers.state import State as HassState
 
 
+@pytest.mark.asyncio
 async def test_service_call(hass):
     """Test calling a service using the entity_id as a property."""
     with patch(
