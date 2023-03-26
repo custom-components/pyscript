@@ -34,6 +34,7 @@ ALLOWED_IMPORTS = {
     "datetime",
     "decimal",
     "fractions",
+    "functools",
     "homeassistant.const",
     "isort",
     "json",
