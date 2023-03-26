@@ -463,12 +463,6 @@ class Function:
             )
         cls.service_cnt[key] += 1
         cls.hass.services.async_register(domain, service, callback)
-        _LOGGER.info(
-            "TESTXX service_register: %s.%s, %s",
-            domain,
-            service,
-            cls.hass.services.has_service(domain, service),
-        )
 
     @classmethod
     def service_remove(cls, global_ctx_name, domain, service):
