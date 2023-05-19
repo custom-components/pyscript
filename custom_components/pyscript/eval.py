@@ -1707,7 +1707,7 @@ class AstEval:
             val = await self.aeval(arg1)
             if val:
                 return val
-        return 0
+        return False
 
     async def eval_elt_list(self, elts):
         """Evaluate and star list elements."""
