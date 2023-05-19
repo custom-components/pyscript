@@ -1,0 +1,38 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "pyscript",
+        "description": "Wenn Sie einen Eintrag angelegt haben, können Sie sich die [Doku (Englisch)](https://hacs-pyscript.readthedocs.io/en/latest/) ansehen, um zu lernen wie Sie Scripts und Funktionen erstellen können.",
+        "data": {
+          "allow_all_imports": "Alle Importe erlauben?",
+          "hass_is_global": "Home Assistant als globale Variable verwenden?"
+        }
+      }
+    },
+    "abort": {
+      "already_configured": "Bereits konfiguriert.",
+      "single_instance_allowed": "Bereits konfiguriert. Es ist nur eine Konfiguration gleichzeitig möglich",
+      "updated_entry": "Der Eintrag wurde bereits erstellt, aber die Konfiguration wurde aktualisiert."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Pyscript configuration aktualisieren",
+        "data": {
+          "allow_all_imports": "Alle Importe erlauben??",
+          "hass_is_global": "Home Assistant als globale Variable verwenden?"
+        }
+      },
+      "no_ui_configuration_allowed": {
+        "title": "Die Konfiguartion der graphischen Nutzeroberfläche ist deaktiviert",
+        "description": "Der Eintrag wurde über die Datei `configuration.yaml` erstellt. Alle Konfigurationsparameter müssen desshalb dort eingestellt werden. Der [`pyscript.reload`](developer-tools/service) Service übernimmt alle Änderungen aus `configuration.yaml`, ohne dass Home Assistant neu gestartet werden muss."
+      },
+      "no_update": {
+        "title": "Keine Aktualisierung notwendig",
+        "description": "Es gibt nichts zu aktualisieren."
+      }
+    }
+  }
+}
