@@ -56,6 +56,7 @@ evalTests = [
     ["False or True", True],
     ["False or False", False],
     ["isinstance(False or False, bool)", True],
+    ["isinstance(False or 0, int)", True],
     ["f'{1} {2:02d} {3:.1f}'", "1 02 3.0"],
     [["x = None", "x is None"], True],
     ["None is not None", False],

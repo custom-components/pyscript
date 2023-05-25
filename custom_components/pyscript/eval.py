@@ -1698,16 +1698,16 @@ class AstEval:
         if isinstance(arg.op, ast.And):
             val = True
             for arg1 in arg.values:
-                this_val = await self.aeval(arg1)
-                if not this_val:
-                    return this_val
-                val = this_val
+                val = await self.aeval(arg1)
+                if not val:
+                    return val
             return val
+        val = False
         for arg1 in arg.values:
             val = await self.aeval(arg1)
             if val:
                 return val
-        return False
+        return val
 
     async def eval_elt_list(self, elts):
         """Evaluate and star list elements."""
