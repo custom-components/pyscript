@@ -366,11 +366,16 @@ async def async_setup_entry(hass: HomeAssistant, config_entry: ConfigEntry) -> b
 async def async_unload_entry(hass: HomeAssistant, config_entry: ConfigEntry) -> bool:
     """Unload a config entry."""
     _LOGGER.info("Unloading all scripts")
-    await unload_scripts()
+    await unload_scripts(unload_all=True)
 
     for unsub_listener in hass.data[DOMAIN][UNSUB_LISTENERS]:
         unsub_listener()
     hass.data[DOMAIN][UNSUB_LISTENERS] = []
+
+    # sync with waiter, and then tell waiter and reaper tasks to exit
+    await Function.waiter_sync()
+    await Function.waiter_stop()
+    await Function.reaper_stop()
 
     return True
 
