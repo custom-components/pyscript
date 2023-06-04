@@ -79,11 +79,12 @@ seq_num = 0
 
 @time_trigger("startup")
 def funcStartupSync():
-    global seq_num
+    global seq_num, funcStartupSync_id
 
     seq_num += 1
     log.info(f"funcStartupSync setting pyscript.done = {seq_num}")
     pyscript.done = seq_num
+    funcStartupSync_id = task.current_task()
     #
     # stick around so the task.unique() still applies
     #
@@ -91,6 +92,15 @@ def funcStartupSync():
     assert task.current_task() == task.name2id("func6")
     assert task.current_task() == task.name2id()["func6"]
     task.sleep(10000)
+
+@service
+def service_cleanup():
+    global seq_num
+
+    seq_num += 1
+    task.cancel(funcStartupSync_id)
+    log.info(f"service_cleanup seq_num = {seq_num}")
+    pyscript.done = [seq_num]
 
 @state_trigger("pyscript.f0var1 == '1'")
 def func0(var_name=None, value=None):
@@ -290,3 +300,7 @@ def func6():
             "context": context,
         },
     ]
+
+    seq_num += 1
+    await hass.services.async_call("pyscript", "service_cleanup", {})
+    assert literal_eval(await wait_until_done(notify_q)) == [seq_num]

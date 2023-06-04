@@ -1372,7 +1372,9 @@ def func(arg):
 
 id = task.create(func, 19)
 done, pending = task.wait({id}, timeout=0)
-[len(done), len(pending), id in pending, task.name2id("func") == id, task.name2id()["func"] == id]
+res = [len(done), len(pending), id in pending, task.name2id("func") == id, task.name2id()["func"] == id]
+task.cancel(id)
+res
 """,
         [0, 1, True, True, True],
     ],
@@ -1404,6 +1406,9 @@ async def test_eval(hass):
 
     for test_data in evalTests:
         await run_one_test(test_data)
+    await Function.waiter_sync()
+    await Function.waiter_stop()
+    await Function.reaper_stop()
 
 
 evalTestsExceptions = [
@@ -1657,3 +1662,6 @@ async def test_eval_exceptions(hass):
 
     for test_data in evalTestsExceptions:
         await run_one_test_exception(test_data)
+    await Function.waiter_sync()
+    await Function.waiter_stop()
+    await Function.reaper_stop()

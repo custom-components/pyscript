@@ -746,7 +746,7 @@ class Kernel:
                         await asyncio.sleep(10000)
                 elif msg[0] == "shutdown":
                     asyncio.create_task(self.session_shutdown())
-                    await asyncio.sleep(10000)
+                    return
             except asyncio.CancelledError:
                 raise
             except Exception:

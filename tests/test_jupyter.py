@@ -15,6 +15,7 @@ import pytest
 
 from custom_components.pyscript import trigger
 from custom_components.pyscript.const import DOMAIN, FOLDER
+from custom_components.pyscript.function import Function
 from custom_components.pyscript.jupyter_kernel import ZmqSocket
 from homeassistant.const import EVENT_HOMEASSISTANT_STARTED, EVENT_HOMEASSISTANT_STOP
 from homeassistant.setup import async_setup_component
@@ -565,3 +566,6 @@ async def test_jupyter_kernel_no_connection_timeout(hass, caplog, socket_enabled
         await asyncio.sleep(2e-3)
 
     assert "No connections to session jupyter_" in caplog.text
+    await Function.waiter_sync()
+    await Function.waiter_stop()
+    await Function.reaper_stop()

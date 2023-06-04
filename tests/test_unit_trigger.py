@@ -91,6 +91,9 @@ async def test_parse_date_time(hass, caplog):
             spec, date_offset, expect = test_data
             out = TrigTime.parse_date_time(spec, date_offset, now, now)
             assert out == expect
+    await Function.waiter_sync()
+    await Function.waiter_stop()
+    await Function.reaper_stop()
 
 
 parseDateTimeTestsDayNames = [
@@ -127,6 +130,9 @@ async def test_parse_date_time_day_names(hass, caplog):
             spec, date_offset, expect = test_data
             out = TrigTime.parse_date_time(spec, date_offset, now, now)
             assert out == expect
+    await Function.waiter_sync()
+    await Function.waiter_stop()
+    await Function.reaper_stop()
 
 
 @pytest.mark.parametrize(
@@ -188,7 +194,8 @@ async def test_parse_date_time_day_names(hass, caplog):
     ],
     ids=lambda x: x if not isinstance(x, (dt, list)) else str(x),
 )
-def test_timer_active_check(hass, spec, now, expected):
+@pytest.mark.asyncio
+async def test_timer_active_check(hass, spec, now, expected):
     """Run time active check tests."""
 
     #
@@ -206,6 +213,9 @@ def test_timer_active_check(hass, spec, now, expected):
     print(f"calling timer_active_check({spec}, {now}, {startup_time})")
     out = TrigTime.timer_active_check(spec, now, startup_time)
     assert out == expected
+    await Function.waiter_sync()
+    await Function.waiter_stop()
+    await Function.reaper_stop()
 
 
 timerTriggerNextTests = [
@@ -450,7 +460,8 @@ timerTriggerNextTests = [
 ]
 
 
-def test_timer_trigger_next(hass):
+@pytest.mark.asyncio
+async def test_timer_trigger_next(hass):
     """Run trigger next tests."""
     #
     # Hardcode a location and timezone so we can check sunrise
@@ -474,6 +485,9 @@ def test_timer_trigger_next(hass):
             if t_next is None:
                 break
             now = t_next + timedelta(microseconds=1)
+    await Function.waiter_sync()
+    await Function.waiter_stop()
+    await Function.reaper_stop()
 
 
 timerTriggerNextTestsMonthRollover = [
@@ -571,7 +585,8 @@ timerTriggerNextTestsMonthRollover = [
 ]
 
 
-def test_timer_trigger_next_month_rollover(hass):
+@pytest.mark.asyncio
+async def test_timer_trigger_next_month_rollover(hass):
     """Run month rollover tests."""
 
     Function.init(hass)
@@ -584,3 +599,6 @@ def test_timer_trigger_next_month_rollover(hass):
             t_next = TrigTime.timer_trigger_next(spec, now, startup_time)
             assert t_next == expect
             now = t_next
+    await Function.waiter_sync()
+    await Function.waiter_stop()
+    await Function.reaper_stop()

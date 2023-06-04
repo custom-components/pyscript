@@ -308,8 +308,9 @@ def func4a_hold_false():
 
 @service
 def func4b_hold_false():
-    global seq_num
+    global seq_num, func4b_hold_false_id
 
+    func4b_hold_false_id = task.current_task()
     while 1:
         seq_num += 1
         res = task.wait_until(state_trigger="int(pyscript.f4bvar2) >= 10", state_hold_false=0, __test_handshake__=["pyscript.done2", seq_num], state_check_now=False)
@@ -317,8 +318,9 @@ def func4b_hold_false():
 
 @service
 def func4c_hold_false():
-    global seq_num
+    global seq_num, func4c_hold_false_id
 
+    func4c_hold_false_id = task.current_task()
     while 1:
         # this should never trigger
         seq_num += 1
@@ -411,6 +413,17 @@ def func9(var_name=None, value=None, old_value=None):
     seq_num += 1
     log.info(f"func9 var = {var_name}, value = {value}")
     pyscript.done = [seq_num, var_name, value, old_value]
+
+@service
+def service_cleanup():
+    global seq_num
+
+    seq_num += 1
+    task.cancel(func4c_hold_false_id)
+    task.cancel(func4b_hold_false_id)
+    log.info(f"service_cleanup seq_num = {seq_num}")
+    pyscript.done = [seq_num]
+
 """,
     )
     # initialize the trigger and active variables
@@ -703,6 +716,10 @@ def func9(var_name=None, value=None, old_value=None):
     assert literal_eval(await wait_until_done(notify_q)) == [seq_num, "25"]
     seq_num += 1
     assert literal_eval(await wait_until_done(notify_q2)) == seq_num
+
+    seq_num += 1
+    await hass.services.async_call("pyscript", "service_cleanup", {})
+    assert literal_eval(await wait_until_done(notify_q)) == [seq_num]
 
 
 @pytest.mark.asyncio
@@ -1252,7 +1269,7 @@ seq_num = 0
 
 @time_trigger("startup")
 def func_startup():
-    global seq_num
+    global seq_num, long_sleep_id
 
     seq_num += 1
     pyscript.var1 = 1
@@ -1272,11 +1289,15 @@ def func_startup():
     service.call("pyscript", "long_sleep", blocking=True, limit=1e-6)
     pyscript.done = [seq_num, pyscript.var1]
 
+    task.cancel(long_sleep_id)
     seq_num += 1
     pyscript.done = [seq_num]
 
 @service
 def long_sleep():
+    global long_sleep_id
+
+    long_sleep_id = task.current_task()
     task.sleep(10000)
 
 @service
