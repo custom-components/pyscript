@@ -25,7 +25,7 @@ from homeassistant.core import Config, HomeAssistant, ServiceCall
 from homeassistant.exceptions import HomeAssistantError
 import homeassistant.helpers.config_validation as cv
 from homeassistant.helpers.event import Event as HAEvent
-from homeassistant.helpers.restore_state import RestoreStateData
+from homeassistant.helpers.restore_state import DATA_RESTORE_STATE
 from homeassistant.loader import bind_hass
 
 from .const import (
@@ -80,7 +80,8 @@ async def async_setup(hass: HomeAssistant, config: Config) -> bool:
 
 async def restore_state(hass: HomeAssistant) -> None:
     """Restores the persisted pyscript state."""
-    restore_data = await RestoreStateData.async_get_instance(hass)
+    # this is a hack accessing hass internals; should re-implement using RestoreEntity
+    restore_data = hass.data[DATA_RESTORE_STATE]
     for entity_id, value in restore_data.last_states.items():
         if entity_id.startswith("pyscript."):
             last_state = value.state

@@ -4,7 +4,7 @@ import asyncio
 import logging
 
 from homeassistant.core import Context
-from homeassistant.helpers.restore_state import RestoreStateData
+from homeassistant.helpers.restore_state import DATA_RESTORE_STATE
 from homeassistant.helpers.service import async_get_all_descriptions
 
 from .const import LOGGER_PATH
@@ -217,7 +217,8 @@ class State:
     async def register_persist(cls, var_name):
         """Register pyscript state variable to be persisted with RestoreState."""
         if var_name.startswith("pyscript.") and var_name not in cls.persisted_vars:
-            restore_data = await RestoreStateData.async_get_instance(cls.hass)
+            # this is a hack accessing hass internals; should re-implement using RestoreEntity
+            restore_data = cls.hass.data[DATA_RESTORE_STATE]
             this_entity = PyscriptEntity()
             this_entity.entity_id = var_name
             cls.persisted_vars[var_name] = this_entity
