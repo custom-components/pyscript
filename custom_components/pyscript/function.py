@@ -4,7 +4,7 @@ import asyncio
 import logging
 import traceback
 
-from homeassistant.core import Context
+from homeassistant.core import Context, SupportsResponse
 
 from .const import LOGGER_PATH
 
@@ -324,6 +324,7 @@ class Function:
         for keyword, typ, default in [
             ("context", [Context], cls.task2context.get(curr_task, None)),
             ("blocking", [bool], None),
+            ("return_response", [bool], None),
             ("limit", [float, int], None),
         ]:
             if keyword in kwargs and type(kwargs[keyword]) in typ:
@@ -331,7 +332,14 @@ class Function:
             elif default:
                 hass_args[keyword] = default
 
-        await cls.hass.services.async_call(domain, name, kwargs, **hass_args)
+        if "return_response" in hass_args and hass_args["return_response"] == True and "blocking" not in hass_args:
+            hass_args["blocking"] = True
+        elif "return_response" not in hass_args and cls.hass.services.supports_response(domain, name) == SupportsResponse.ONLY:
+            hass_args["return_response"] = True
+            if "blocking" not in hass_args:
+                hass_args["blocking"] = True
+
+        return await cls.hass.services.async_call(domain, name, kwargs, **hass_args)
 
     @classmethod
     async def service_completions(cls, root):
@@ -394,6 +402,7 @@ class Function:
                 for keyword, typ, default in [
                     ("context", [Context], cls.task2context.get(curr_task, None)),
                     ("blocking", [bool], None),
+                    ("return_response", [bool], None),
                     ("limit", [float, int], None),
                 ]:
                     if keyword in kwargs and type(kwargs[keyword]) in typ:
@@ -404,7 +413,14 @@ class Function:
                 if len(args) != 0:
                     raise TypeError(f"service {domain}.{service} takes only keyword arguments")
 
-                await cls.hass.services.async_call(domain, service, kwargs, **hass_args)
+                if "return_response" in hass_args and hass_args["return_response"] == True and "blocking" not in hass_args:
+                    hass_args["blocking"] = True
+                elif "return_response" not in hass_args and cls.hass.services.supports_response(domain, service) == SupportsResponse.ONLY:
+                    hass_args["return_response"] = True
+                    if "blocking" not in hass_args:
+                        hass_args["blocking"] = True
+
+                return await cls.hass.services.async_call(domain, service, kwargs, **hass_args)
 
             return service_call
 
@@ -450,7 +466,7 @@ class Function:
         return cls.hass.loop.create_task(cls.run_coro(coro, ast_ctx=ast_ctx))
 
     @classmethod
-    def service_register(cls, global_ctx_name, domain, service, callback):
+    def service_register(cls, global_ctx_name, domain, service, callback, supports_response = SupportsResponse.NONE):
         """Register a new service callback."""
         key = f"{domain}.{service}"
         if key not in cls.service_cnt:
@@ -462,7 +478,7 @@ class Function:
                 f"{global_ctx_name}: can't register service {key}; already defined in {cls.service2global_ctx[key]}"
             )
         cls.service_cnt[key] += 1
-        cls.hass.services.async_register(domain, service, callback)
+        cls.hass.services.async_register(domain, service, callback, supports_response = supports_response)
 
     @classmethod
     def service_remove(cls, global_ctx_name, domain, service):
