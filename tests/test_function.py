@@ -1216,14 +1216,18 @@ async def test_service_call_params(hass):
     """Test that hass params get set properly on service calls."""
     with patch.object(hass.services, "async_call") as call, patch.object(
         Function, "service_has_service", return_value=True
+    ), patch.object(
+        hass.services,
+        "supports_response",
+        return_value="none",
     ):
         Function.init(hass)
         await Function.service_call(
-            "test", "test", context=Context(id="test"), blocking=True, limit=1, other_service_data="test"
+            "test", "test", context=Context(id="test"), blocking=True, other_service_data="test"
         )
         assert call.called
         assert call.call_args[0] == ("test", "test", {"other_service_data": "test"})
-        assert call.call_args[1] == {"context": Context(id="test"), "blocking": True, "limit": 1}
+        assert call.call_args[1] == {"context": Context(id="test"), "blocking": True}
         call.reset_mock()
 
         await Function.service_call(
@@ -1234,12 +1238,10 @@ async def test_service_call_params(hass):
         assert call.call_args[1] == {"context": Context(id="test"), "blocking": False}
         call.reset_mock()
 
-        await Function.get("test.test")(
-            context=Context(id="test"), blocking=True, limit=1, other_service_data="test"
-        )
+        await Function.get("test.test")(context=Context(id="test"), blocking=True, other_service_data="test")
         assert call.called
         assert call.call_args[0] == ("test", "test", {"other_service_data": "test"})
-        assert call.call_args[1] == {"context": Context(id="test"), "blocking": True, "limit": 1}
+        assert call.call_args[1] == {"context": Context(id="test"), "blocking": True}
         call.reset_mock()
 
         await Function.get("test.test")(
@@ -1285,20 +1287,19 @@ def func_startup():
     pyscript.done = [seq_num, pyscript.var1]
 
     seq_num += 1
-    pyscript.var1 = int(pyscript.var1) + 1
-    service.call("pyscript", "long_sleep", blocking=True, limit=1e-6)
+    service.call("pyscript", "short_sleep", blocking=True)
     pyscript.done = [seq_num, pyscript.var1]
 
-    task.cancel(long_sleep_id)
     seq_num += 1
     pyscript.done = [seq_num]
 
 @service
-def long_sleep():
+def short_sleep():
     global long_sleep_id
 
     long_sleep_id = task.current_task()
-    task.sleep(10000)
+    task.sleep(0.0001)
+    pyscript.var1 = int(pyscript.var1) + 1
 
 @service
 def service1():

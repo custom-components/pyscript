@@ -289,6 +289,8 @@ def shutdown(trigger_time=None):
             )
             if i < 2:
                 await hass.services.async_call("pyscript", "reload", {"global_ctx": "*"}, blocking=True)
+                while caplog.text.count("world is starting up") < 3 + i:
+                    await asyncio.sleep(0.001)
 
         #
         # make sure files that shouldn't load were not loaded

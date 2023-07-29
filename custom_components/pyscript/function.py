@@ -325,7 +325,6 @@ class Function:
             ("context", [Context], cls.task2context.get(curr_task, None)),
             ("blocking", [bool], None),
             ("return_response", [bool], None),
-            ("limit", [float, int], None),
         ]:
             if keyword in kwargs and type(kwargs[keyword]) in typ:
                 hass_args[keyword] = kwargs.pop(keyword)
@@ -396,7 +395,6 @@ class Function:
                     ("context", [Context], cls.task2context.get(curr_task, None)),
                     ("blocking", [bool], None),
                     ("return_response", [bool], None),
-                    ("limit", [float, int], None),
                 ]:
                     if keyword in kwargs and type(kwargs[keyword]) in typ:
                         hass_args[keyword] = kwargs.pop(keyword)
