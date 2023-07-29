@@ -3,7 +3,7 @@
 import asyncio
 import logging
 
-from homeassistant.core import Context, SupportsResponse
+from homeassistant.core import Context
 from homeassistant.helpers.restore_state import DATA_RESTORE_STATE
 from homeassistant.helpers.service import async_get_all_descriptions
 
@@ -308,13 +308,7 @@ class State:
                     elif len(args) != 0:
                         raise TypeError(f"service {domain}.{service} takes no positional arguments")
 
-                    if "return_response" in hass_args and hass_args["return_response"] == True and "blocking" not in hass_args:
-                        hass_args["blocking"] = True
-                    elif "return_response" not in hass_args and cls.hass.services.supports_response(domain, service) == SupportsResponse.ONLY:
-                        hass_args["return_response"] = True
-                        if "blocking" not in hass_args:
-                            hass_args["blocking"] = True
-
+                    # return await Function.hass_services_async_call(domain, service, kwargs, **hass_args)
                     return await cls.hass.services.async_call(domain, service, kwargs, **hass_args)
 
                 return service_call

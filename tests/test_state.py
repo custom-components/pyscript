@@ -4,6 +4,7 @@ from unittest.mock import patch
 
 import pytest
 
+from custom_components.pyscript.function import Function
 from custom_components.pyscript.state import State
 from homeassistant.core import Context
 from homeassistant.helpers.state import State as HassState
@@ -23,6 +24,7 @@ async def test_service_call(hass):
         hass.services, "async_call"
     ) as call:
         State.init(hass)
+        Function.init(hass)
         await State.get_service_params()
 
         func = State.get("test.entity.test")
@@ -45,3 +47,7 @@ async def test_service_call(hass):
             {"other_service_data": "test", "entity_id": "test.entity"},
         )
         assert call.call_args[1] == {"context": Context(id="test"), "blocking": False}
+
+        # Stop all tasks to avoid conflicts with other tests
+        await Function.waiter_stop()
+        await Function.reaper_stop()

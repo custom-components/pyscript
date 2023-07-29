@@ -15,7 +15,6 @@ import weakref
 
 import yaml
 
-from homeassistant.core import SupportsResponse
 from homeassistant.const import SERVICE_RELOAD
 from homeassistant.helpers.service import async_set_service_schema
 
@@ -26,6 +25,7 @@ from .const import (
     DOMAIN,
     LOGGER_PATH,
     SERVICE_JUPYTER_KERNEL_START,
+    SERVICE_RESPONSE_NONE,
 )
 from .function import Function
 from .state import State
@@ -505,7 +505,11 @@ class EvalFunc:
                     if name in (SERVICE_RELOAD, SERVICE_JUPYTER_KERNEL_START):
                         raise SyntaxError(f"{exc_mesg}: @service conflicts with builtin service")
                     Function.service_register(
-                        trig_ctx_name, domain, name, pyscript_service_factory(func_name, self), dec_kwargs.get("supports_response", SupportsResponse.NONE)
+                        trig_ctx_name,
+                        domain,
+                        name,
+                        pyscript_service_factory(func_name, self),
+                        dec_kwargs.get("supports_response", SERVICE_RESPONSE_NONE),
                     )
                     async_set_service_schema(Function.hass, domain, name, service_desc)
                     self.trigger_service.add(srv_name)
