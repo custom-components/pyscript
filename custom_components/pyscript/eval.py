@@ -15,6 +15,7 @@ import weakref
 
 import yaml
 
+from homeassistant.core import SupportsResponse
 from homeassistant.const import SERVICE_RELOAD
 from homeassistant.helpers.service import async_set_service_schema
 
@@ -377,6 +378,7 @@ class EvalFunc:
             "time_trigger": {"kwargs": {dict}},
             "task_unique": {"kill_me": {bool, int}},
             "time_active": {"hold_off": {int, float}},
+            "service": {"supports_response": {str}},
             "state_trigger": {
                 "kwargs": {dict},
                 "state_hold": {int, float},
@@ -485,11 +487,14 @@ class EvalFunc:
                         func_args.update(call.data)
 
                         async def do_service_call(func, ast_ctx, data):
-                            await func.call(ast_ctx, **data)
+                            retval = await func.call(ast_ctx, **data)
                             if ast_ctx.get_exception_obj():
                                 ast_ctx.get_logger().error(ast_ctx.get_exception_long())
+                            return retval
 
-                        Function.create_task(do_service_call(func, ast_ctx, func_args))
+                        task = Function.create_task(do_service_call(func, ast_ctx, func_args))
+                        await task
+                        return task.result()
 
                     return pyscript_service_handler
 
@@ -500,7 +505,7 @@ class EvalFunc:
                     if name in (SERVICE_RELOAD, SERVICE_JUPYTER_KERNEL_START):
                         raise SyntaxError(f"{exc_mesg}: @service conflicts with builtin service")
                     Function.service_register(
-                        trig_ctx_name, domain, name, pyscript_service_factory(func_name, self)
+                        trig_ctx_name, domain, name, pyscript_service_factory(func_name, self), dec_kwargs.get("supports_response", SupportsResponse.NONE)
                     )
                     async_set_service_schema(Function.hass, domain, name, service_desc)
                     self.trigger_service.add(srv_name)
