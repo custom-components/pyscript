@@ -292,6 +292,13 @@ which calls the ``myservice.flash_light`` service with the indicated parameters.
 parameter values could be any Python expression, and this call could be inside a loop, an if
 statement or any other Python code.
 
+Starting in HASS 2023.7, services can return a response, which is a dictionary of values.  You need
+to set the keyword parameter ``return_response=True`` to get the response.  For example:
+
+.. code:: python
+
+       service_response = myservice.flash_light(light_name="front", light_color="red", return_response=True)
+
 The function ``service.call(domain, name, **kwargs)`` can also be used to call a service when you
 need to compute the domain or service name dynamically. For example, the above service could also be
 called by:
@@ -302,8 +309,9 @@ called by:
 
 When making a service call, either using the ``service.call`` function or the service name as the
 function, you can optionally pass the keyword argument ``blocking=True`` if you would like to wait
-for the service to finish execution before continuing execution in your function. You can also
-specify a timeout for a blocking service call using the ``limit=<number_of_seconds>`` parameters.
+for the service to finish execution before continuing execution in your function. If the service
+returns a response (new feature starting in HASS 2023.7), it will be returned by the call if you set
+the optional keyword parameter ``return_response=True``.
 
 Firing events
 -------------
@@ -919,14 +927,19 @@ Notice that `read_file` is called like a regular function, and it automatically 
 ``task.executor``, which runs the compiled native python function in a new thread, and
 then returns the result.
 
-@service(service_name, ...)
-^^^^^^^^^^^^^^^^^^^^^^^^^^^
+@service(service_name, ..., supports_response="none")
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 The ``@service`` decorator causes the function to be registered as a service so it can be called
 externally. The string ``service_name`` argument is optional and defaults to ``"pyscript.FUNC_NAME"``,
 where ``FUNC_NAME`` is the name of the function. You can override that default by specifying
 a string with a single period of the form ``"DOMAIN.SERVICE"``. Multiple arguments and multiple
 ``@service`` decorators can be used to register multiple names (eg, aliases) for the same function.
+
+The ``supports_response`` keyword argument can be set to one of three string values: ``"none"`` (the
+default), ``"only"``, or ``"optional"``, depending on whether the service provides no response, always
+provides a response, or sometimes provides a response.  Services responses were added in HASS 2023.7.
+The service response is a dictionary returned by the function.
 
 Other trigger decorators like ``@state_active`` and ``@time_active`` don't affect the service.
 Those still allow state, time or other triggers to be specified in addition.
@@ -1057,11 +1070,12 @@ or ``float()``). Attributes keep their native type.
 Service Calls
 ^^^^^^^^^^^^^
 
-``service.call(domain, name, blocking=False, limit=10, **kwargs)``
+``service.call(domain, name, blocking=False, return_response=False, **kwargs)``
   calls the service ``domain.name`` with the given keyword arguments as parameters. If ``blocking``
   is ``True``, pyscript will wait for the service to finish executing before continuing the current
-  routine, or will wait a maximum of the number of seconds specified in the ``limit`` keyword
-  argument.
+  routine.  If the service returns a response, set ``return_response`` to ``True`` (which also
+  causes blocking), and the response will be returned by the function call.  Note that starting
+  in HASS 2023.7, the blocking timeout parameter ``limit`` is no longer supported.
 ``service.has_service(domain, name)``
   returns whether the service ``domain.name`` exists.
 
