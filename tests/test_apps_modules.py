@@ -29,9 +29,10 @@ async def test_service_exists(hass, caplog):
 import xyz2
 from xyz2 import f_minus
 
-@service
+@service(supports_response = "optional")
 def func1():
     pyscript.done = [xyz2.f_add(1, 2), xyz2.f_mult(3, 4), xyz2.f_add(10, 20), f_minus(50, 20)]
+    return {"a": 1}
 """,
         #
         # this will fail to load since import doesn't exist
@@ -197,9 +198,12 @@ def func15():
     assert hass.services.has_service("pyscript", "func14")
     assert not hass.services.has_service("pyscript", "func15")
 
-    await hass.services.async_call("pyscript", "func1", {})
+    service_ret = await hass.services.async_call(
+        "pyscript", "func1", {}, return_response=True, blocking=True
+    )
     ret = await wait_until_done(notify_q)
     assert literal_eval(ret) == [1 + 2, 3 * 4, 10 + 20, 50 - 20]
+    assert service_ret == {"a": 1}
 
     await hass.services.async_call("pyscript", "func20", {})
     ret = await wait_until_done(notify_q)

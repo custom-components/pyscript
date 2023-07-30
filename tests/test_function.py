@@ -1275,16 +1275,16 @@ def func_startup():
 
     seq_num += 1
     pyscript.var1 = 1
-    pyscript.service1(blocking=True)
-    pyscript.done = [seq_num, pyscript.var1]
+    r = pyscript.service1(blocking=True, return_response = True)
+    pyscript.done = [seq_num, r["var1"]]
 
     seq_num += 1
     pyscript.service1(blocking=True)
     pyscript.done = [seq_num, pyscript.var1]
 
     seq_num += 1
-    service.call("pyscript", "service1", blocking=True)
-    pyscript.done = [seq_num, pyscript.var1]
+    r = service.call("pyscript", "service1", blocking=True, return_response = True)
+    pyscript.done = [seq_num, r["var1"]]
 
     seq_num += 1
     service.call("pyscript", "short_sleep", blocking=True)
@@ -1301,9 +1301,10 @@ def short_sleep():
     task.sleep(0.0001)
     pyscript.var1 = int(pyscript.var1) + 1
 
-@service
+@service(supports_response = "optional")
 def service1():
     pyscript.var1 = int(pyscript.var1) + 1
+    return {"var1": pyscript.var1}
 
 """,
         config={DOMAIN: {CONF_ALLOW_ALL_IMPORTS: True, CONF_HASS_IS_GLOBAL: True}},
