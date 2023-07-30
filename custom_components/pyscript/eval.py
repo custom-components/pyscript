@@ -11,6 +11,7 @@ import io
 import keyword
 import logging
 import sys
+import time
 import weakref
 
 import yaml
@@ -1930,6 +1931,13 @@ class AstEval:
         if asyncio.iscoroutinefunction(func):
             return await func(*args, **kwargs)
         if callable(func):
+            if func == time.sleep:  # pylint: disable=comparison-with-callable
+                _LOGGER.warning(
+                    "%s line %s calls blocking time.sleep(); replaced with asyncio.sleep()",
+                    self.filename,
+                    self.lineno,
+                )
+                return await asyncio.sleep(*args, **kwargs)
             return func(*args, **kwargs)
         raise TypeError(f"'{func_name}' is not callable (got {func})")
 

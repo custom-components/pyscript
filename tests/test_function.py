@@ -1267,6 +1267,8 @@ async def test_service_call_blocking(hass, caplog):
         None,
         [dt(2020, 7, 1, 12, 0, 0, 0)],
         """
+import time
+
 seq_num = 0
 
 @time_trigger("startup")
@@ -1298,7 +1300,7 @@ def short_sleep():
     global long_sleep_id
 
     long_sleep_id = task.current_task()
-    task.sleep(0.0001)
+    time.sleep(0.0001)
     pyscript.var1 = int(pyscript.var1) + 1
 
 @service(supports_response = "optional")
