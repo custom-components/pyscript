@@ -88,4 +88,4 @@ class Mqtt:
         _LOGGER.debug("mqtt.update(%s, %s, %s)", topic, vars, func_args)
         if topic in cls.notify:
             for queue in cls.notify[topic]:
-                await queue.put(["mqtt", func_args])
+                await queue.put(["mqtt", func_args.copy()])

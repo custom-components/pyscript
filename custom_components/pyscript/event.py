@@ -73,4 +73,4 @@ class Event:
         _LOGGER.debug("event.update(%s, %s)", event_type, func_args)
         if event_type in cls.notify:
             for queue in cls.notify[event_type]:
-                await queue.put(["event", func_args])
+                await queue.put(["event", func_args.copy()])

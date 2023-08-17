@@ -1061,11 +1061,9 @@ class TrigInfo:
                 user_kwargs = {}
                 if state_trig_timeout:
                     new_vars, func_args = state_trig_notify_info
-                    func_args = func_args.copy()
                     state_trig_waiting = False
                 elif notify_type == "state":
                     new_vars, func_args = notify_info
-                    func_args = func_args.copy()
                     user_kwargs = self.state_trigger_kwargs.get("kwargs", {})
 
                     if not ident_any_values_changed(func_args, self.state_trig_ident_any):
