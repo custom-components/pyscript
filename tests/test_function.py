@@ -424,6 +424,27 @@ def service_cleanup():
     log.info(f"service_cleanup seq_num = {seq_num}")
     pyscript.done = [seq_num]
 
+# tests for issues #512 and #516
+@state_trigger("pyscript.f10var1 == '1'", kwargs=dict(var1=123, var2='a'))
+def func10a(var_name=None, value=None, trigger_type=None, context=None, old_value=None, **kwargs):
+    log.info(f"func10a var = {var_name}, value = {value}, kwargs = {kwargs}")
+    pyscript.done = [seq_num, var_name, kwargs]
+
+@state_trigger("pyscript.f10var1 == '1'", kwargs=dict(var3=124, var2='b'))
+def func10b(var_name=None, value=None, trigger_type=None, context=None, old_value=None, **kwargs):
+    log.info(f"func10b var = {var_name}, value = {value}, kwargs = {kwargs}")
+    pyscript.done = [seq_num, var_name, kwargs]
+
+@state_trigger("pyscript.f10var1 == '1'", state_hold=1e-6, kwargs=dict(var4=125, var2='c'))
+def func10c(var_name=None, value=None, trigger_type=None, context=None, old_value=None, **kwargs):
+    log.info(f"func10c var = {var_name}, value = {value}, kwargs = {kwargs}")
+    pyscript.done = [seq_num, var_name, kwargs]
+
+@state_trigger("pyscript.f10var1 == '1'", state_hold=1e-6, kwargs=dict(var5=126, var2='d'))
+def func10d(var_name=None, value=None, trigger_type=None, context=None, old_value=None, **kwargs):
+    log.info(f"func10d var = {var_name}, value = {value}, kwargs = {kwargs}")
+    pyscript.done = [seq_num, var_name, kwargs]
+
 """,
     )
     # initialize the trigger and active variables
@@ -720,6 +741,18 @@ def service_cleanup():
     seq_num += 1
     await hass.services.async_call("pyscript", "service_cleanup", {})
     assert literal_eval(await wait_until_done(notify_q)) == [seq_num]
+
+    hass.states.async_set("pyscript.f10var1", 1)
+    for _ in range(0, 4):
+        res = literal_eval(await wait_until_done(notify_q))
+        assert res[0] == seq_num
+        assert res[1] == "pyscript.f10var1"
+        assert (
+            res[2] == {"var1": 123, "var2": "a"}
+            or res[2] == {"var3": 124, "var2": "b"}
+            or res[2] == {"var4": 125, "var2": "c"}
+            or res[2] == {"var5": 126, "var2": "d"}
+        )
 
 
 @pytest.mark.asyncio
