@@ -604,7 +604,7 @@ with the following features:
   to mean 1.5 hours before sunset on Sundays. The ``number`` can be floating point. (Note, there is no
   i18n support for those offset abbreviations - they are in English.)
 
-In ``@time_trigger``, each string specification ``time_spec`` can take one of four forms:
+In ``@time_trigger``, each string specification ``time_spec`` can take one of five forms:
 
 - ``"startup"`` triggers on HASS start and reload (ie, on function definition), and is
   equivalent to ``"once(now)"``
