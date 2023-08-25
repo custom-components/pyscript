@@ -79,7 +79,8 @@ configuration settings are available via the variable ``pyscript.config``, which
 all the application configuration below the ``apps`` key. However, in a future release the
 ``apps`` entry will be removed so that apps do not have access to another app's configuration
 (which might include token, passwords or keys).  See `this section <#accessing-yaml-configuration>`__
-for more information.
+for more information.  Note that ``pyscript.app_config`` is not defined in regular scripts - only
+in each application's main file.
 
 Note that if you used the UI flow to configure pyscript, the ``allow_all_imports`` and
 ``hass_is_global`` configuration settings will be ignored in the yaml file. In that case
@@ -638,7 +639,7 @@ In ``@time_trigger``, each string specification ``time_spec`` can take one of fo
   ``6,10-13`` that means hours of 6,10,11,12,13. The trigger happens on the next minute, hour, day
   that matches the specification. See any Linux documentation for examples and more details (note:
   names for days of week and months are not supported; only their integer values are). The cron
-  features use the ``croniter`` package, so check its `documentation <https://pypi.org/project/croniter/>`
+  features use the ``croniter`` package, so check its `documentation <https://pypi.org/project/croniter/>`__
   for additional specification formats that are supported (eg: ``*/5`` repeats every 5th unit,
   days of week can be specified with English abbreviations, and an optional 6th field allows seconds
   to be specified).
@@ -1707,7 +1708,8 @@ Pyscript binds all of its ``yaml`` configuration to the variable ``pyscript.conf
 you to add configuration settings that can be processed by your pyscript code. Additionally, an
 application's configuration (eg, for an application ``app_name``, all the settings in ``app_name``
 below ``apps``) are available in the variable ``pyscript.app_config`` in the global scope of the
-application's main file (eg, ``apps/app_name.py`` or ``apps/app_name/__init__.py``).
+application's main file (eg, ``apps/app_name.py`` or ``apps/app_name/__init__.py``).  Note that
+``pyscript.app_config`` is not defined in regular scripts - only in each application's main file.
 
 One motivation is to allow pyscript apps to be developed and shared that can instantiate triggers
 and logic based on ``yaml`` configuration. That allows other users to use and configure your
