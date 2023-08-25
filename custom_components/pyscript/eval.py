@@ -364,12 +364,12 @@ class EvalFunc:
             "time_trigger",
         }
         arg_check = {
-            "event_trigger": {"arg_cnt": {1, 2}, "rep_ok": True},
-            "mqtt_trigger": {"arg_cnt": {1, 2}, "rep_ok": True},
+            "event_trigger": {"arg_cnt": {1, 2, 3}, "rep_ok": True},
+            "mqtt_trigger": {"arg_cnt": {1, 2, 3}, "rep_ok": True},
             "state_active": {"arg_cnt": {1}},
             "state_trigger": {"arg_cnt": {"*"}, "type": {list, set}, "rep_ok": True},
             "service": {"arg_cnt": {0, "*"}},
-            "task_unique": {"arg_cnt": {1}},
+            "task_unique": {"arg_cnt": {1, 2}},
             "time_active": {"arg_cnt": {"*"}},
             "time_trigger": {"arg_cnt": {0, "*"}, "rep_ok": True},
         }
