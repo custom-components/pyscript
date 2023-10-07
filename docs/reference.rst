@@ -905,7 +905,7 @@ additionally wraps the compiled function with a call to ``task.executor``. The r
 function is now a pyscript (async) function that can be called like any other pyscript
 function.  This provides the cleanest way of defining a native python function that is
 executed in a new thread each time it is called, which is required for functions that
-does I/O or otherwise might block.
+do I/O or otherwise might block.
 
 The file reading example above is simplified with the use of ``@pyscript_executor``:
 
@@ -924,7 +924,7 @@ The file reading example above is simplified with the use of ``@pyscript_executo
        raise exception
    log.info(f"contents = {contents}")
 
-Notice that `read_file` is called like a regular function, and it automatically calls
+Notice that ``read_file()`` is called like a regular function, and it automatically calls
 ``task.executor``, which runs the compiled native python function in a new thread, and
 then returns the result.
 
