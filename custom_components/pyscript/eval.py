@@ -1753,7 +1753,12 @@ class AstEval:
             if var_name in save_vars:
                 self.sym_table[var_name] = save_vars[var_name]
             else:
-                del self.sym_table[var_name]
+                try:
+                    del self.sym_table[var_name]
+                except KeyError:
+                    # If the iterator was empty, the loop variables were never
+                    # assigned to, so deleting them will fail.
+                    pass
 
     async def listcomp_loop(self, generators, elt):
         """Recursive list comprehension."""
