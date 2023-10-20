@@ -140,6 +140,8 @@ evalTests = [
     ["func = lambda m=2: 2 * m; [func(), func(3), func(m=4)]", [4, 6, 8]],
     ["thres = 1; list(filter(lambda x: x < thres, range(-5, 5)))", [-5, -4, -3, -2, -1, 0]],
     ["y = 5; y = y + (x := 2 * y); [x, y]", [10, 15]],
+    ["x: int = 10; x", 10],
+    ["x: int = [10, 20]; x", [10, 20]],
     ["Foo = type('Foo', (), {'x': 100}); Foo.x = 10; Foo.x", 10],
     ["Foo = type('Foo', (), {'x': 100}); Foo.x += 10; Foo.x", 110],
     ["Foo = [type('Foo', (), {'x': 100})]; Foo[0].x = 10; Foo[0].x", 10],
@@ -1429,6 +1431,7 @@ evalTestsExceptions = [
         "Exception in test line 1 column 21: too few values to unpack (expected 3)",
     ],
     ["(x, y) = 1", "Exception in test line 1 column 9: cannot unpack non-iterable object"],
+    ["x: int; x", "Exception in test line 1 column 8: name 'x' is not defined"],
     [
         "a, *y, w, z = range(2)",
         "Exception in test line 1 column 20: too few values to unpack (expected at least 3)",

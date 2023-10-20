@@ -1446,6 +1446,12 @@ class AstEval:
         arg.target.ctx = ast.Store()
         await self.recurse_assign(arg.target, new_val)
 
+    async def ast_annassign(self, arg):
+        """Execute type hint assignment statement (just ignore the type hint)."""
+        if arg.value is not None:
+            rhs = await self.aeval(arg.value)
+            await self.recurse_assign(arg.target, rhs)
+
     async def ast_namedexpr(self, arg):
         """Execute named expression."""
         val = await self.aeval(arg.value)
