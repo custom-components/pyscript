@@ -319,7 +319,8 @@ class EvalFunc:
         self.local_names = None
         self.local_sym_table = {}
         self.doc_string = ast.get_docstring(func_def)
-        self.num_posn_arg = len(self.func_def.args.args) - len(self.defaults)
+        self.num_posonly_arg = len(self.func_def.args.posonlyargs)
+        self.num_posn_arg = self.num_posonly_arg + len(self.func_def.args.args) - len(self.defaults)
         self.code_list = code_list
         self.code_str = code_str
         self.exception = None
@@ -342,7 +343,7 @@ class EvalFunc:
         self.defaults = []
         for val in self.func_def.args.defaults:
             self.defaults.append(await ast_ctx.aeval(val))
-        self.num_posn_arg = len(self.func_def.args.args) - len(self.defaults)
+        self.num_posn_arg = self.num_posonly_arg + len(self.func_def.args.args) - len(self.defaults)
         self.kw_defaults = []
         for val in self.func_def.args.kw_defaults:
             self.kw_defaults.append({"ok": bool(val), "val": None if not val else await ast_ctx.aeval(val)})
@@ -669,7 +670,7 @@ class EvalFunc:
     def get_positional_args(self):
         """Return the function positional arguments."""
         args = []
-        for arg in self.func_def.args.args:
+        for arg in self.func_def.args.posonlyargs + self.func_def.args.args:
             args.append(arg.arg)
         return args
 
@@ -689,7 +690,8 @@ class EvalFunc:
         if args is None:
             args = []
         kwargs = kwargs.copy() if kwargs else {}
-        for i, func_def_arg in enumerate(self.func_def.args.args):
+        bad_kwargs = []
+        for i, func_def_arg in enumerate(self.func_def.args.posonlyargs + self.func_def.args.args):
             var_name = func_def_arg.arg
             val = None
             if i < len(args):
@@ -697,6 +699,8 @@ class EvalFunc:
                 if var_name in kwargs:
                     raise TypeError(f"{self.name}() got multiple values for argument '{var_name}'")
             elif var_name in kwargs:
+                if i < self.num_posonly_arg:
+                    bad_kwargs.append(var_name)
                 val = kwargs[var_name]
                 del kwargs[var_name]
             elif self.num_posn_arg <= i < len(self.defaults) + self.num_posn_arg:
@@ -706,6 +710,11 @@ class EvalFunc:
                     f"{self.name}() missing {self.num_posn_arg - i} required positional arguments"
                 )
             sym_table[var_name] = val
+        if len(bad_kwargs) > 0:
+            raise TypeError(
+                f"{self.name}() got some positional-only arguments passed as keyword arguments: '{', '.join(bad_kwargs)}'"
+            )
+
         for i, kwonlyarg in enumerate(self.func_def.args.kwonlyargs):
             var_name = kwonlyarg.arg
             if var_name in kwargs:
@@ -724,12 +733,13 @@ class EvalFunc:
             # since they could have non-trigger decorators too
             unexpected = ", ".join(sorted(set(kwargs.keys()) - TRIGGER_KWARGS))
             raise TypeError(f"{self.name}() called with unexpected keyword arguments: {unexpected}")
+        num_posn = self.num_posonly_arg + len(self.func_def.args.args)
         if self.func_def.args.vararg:
-            if len(args) > len(self.func_def.args.args):
-                sym_table[self.func_def.args.vararg.arg] = tuple(args[len(self.func_def.args.args) :])
+            if len(args) > num_posn:
+                sym_table[self.func_def.args.vararg.arg] = tuple(args[num_posn:])
             else:
                 sym_table[self.func_def.args.vararg.arg] = ()
-        elif len(args) > len(self.func_def.args.args):
+        elif len(args) > num_posn:
             raise TypeError(f"{self.name}() called with too many positional arguments")
         for name, value in self.local_sym_table.items():
             if name in sym_table:

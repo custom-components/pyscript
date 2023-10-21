@@ -221,6 +221,14 @@ chk
     ["x = 5; exec('x = 2 * x'); x", 10],
     [
         """
+def f(x, /, y = 5):
+    return x + y
+[f(2), f(2, 2), f(2, y=3)]
+""",
+        [7, 4, 5],
+    ],
+    [
+        """
 def func():
     x = 5
     exec('x = 2 * x')
@@ -1509,6 +1517,22 @@ def func(b=1):
 func(a=2, trigger_type=1)
 """,
         "Exception in test line 5 column 23: func() called with unexpected keyword arguments: a",
+    ],
+    [
+        """
+def f(x, z, /, y = 5):
+    return x + y
+f(x=4, z=2)
+""",
+        "Exception in test line 4 column 9: f() got some positional-only arguments passed as keyword arguments: 'x, z'",
+    ],
+    [
+        """
+def f(x, /, y = 5):
+    return x + y
+f(x=4)
+""",
+        "Exception in test line 4 column 4: f() got some positional-only arguments passed as keyword arguments: 'x'",
     ],
     [
         "from .xyz import abc",
