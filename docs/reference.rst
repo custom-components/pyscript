@@ -1177,7 +1177,7 @@ occurs.
 ``task.cancel(task_id=None)``
   Cancels (kills) the task specified by the ``task_id`` returned by ``task.create``. This is a
   simpler alternative to the ``task_id.cancel()`` method, which also requires waiting for the
-  task to cancel. With no argument, `task.cancel` cancels the current task, which you might prefer
+  task to cancel. With no argument, ``task.cancel`` cancels the current task, which you might prefer
   to use in a trigger function on error, instead of a `return` or raising an exception.
 
 ``task.current_task()``
@@ -2025,7 +2025,7 @@ Here are some areas where pyscript differs from real Python:
   be declared ``async``. Unless the Python module is designed to support async callbacks, it is not
   currently possible to have Python modules and packages call pyscript functions. The workaround is
   to move your callbacks from pyscript and make them native Python functions; see `Importing <#importing>`__.
-- Continuing that point, special methods (eg, `__eq__`) in a class created in `pyscript` will not work since
+- Continuing that point, special methods (eg, ``__eq__``) in a class created in `pyscript` will not work since
   they are async functions and Python will not be able to call them. The two workarounds are to
   use the ``@pyscript_compile`` decorator so the method is compiled to a native (non-ascync) Python
   function, or write your class in native Python and import it into ``pyscript``; see `Importing <#importing>`__.
@@ -2044,6 +2044,7 @@ Here are some areas where pyscript differs from real Python:
 A handful of language features are not supported:
 
 - generators and the ``yield`` statement; these are difficult to implement in an interpreter.
+- the ``match-case`` statement is not supported.
 - built-in functions that do I/O, such as ``open``, ``read`` and ``write`` are not supported to avoid
   I/O in the main event loop, and also to avoid security issues if people share pyscripts. The ``print``
   function only logs a message, rather than implements the real ``print`` features, such as specifying
@@ -2055,3 +2056,5 @@ A handful of language features are not supported:
 Pyscript can call Python modules and packages, so you can always write your own native Python code
 (eg, if you need a generator or other unsupported feature) that can be called by pyscript
 (see `Importing <#importing>`__ for how to create and import native Python modules in pyscript).
+You can also include native Python functions in your pyscript code by using the ``@pyscript_compile``
+decorator.
