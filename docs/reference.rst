@@ -888,7 +888,7 @@ of ``config/pyscript``. This example reads a file using a native compiled functi
        raise exception
    log.info(f"contents = {contents}")
 
-This is an experimental feature and might change in the future. Restrictions include:
+Restrictions include:
 
 - since it's native python, the function cannot use any pyscript-specific features;
   but since it's native python, all language features are available, including ``open``,
