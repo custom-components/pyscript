@@ -675,6 +675,25 @@ It's important that any trigger function based on ``shutdown`` runs as quickly a
 since the shutdown of HASS (or reload completion) will be stalled until your function
 completes.
 
+Note that ``period`` and ``cron`` behave differently as daylight savings changes occur.  The
+``datetime`` values are always in local time.  The ``interval`` in the ``period()`` trigger is
+always the same duration, even when it crosses a daylight savings time change.  For example, if
+the starting time is 6:00pm on some day in summer, and the interval is 1 day, the triggers will
+occur at 6:00pm in summer and 5:00pm in winter; they are always exactly 24 hours apart.  In
+contrast, if ``cron()`` specifies a daily trigger at a specific time of day, the interval between
+triggers will be 23 or 25 hours when it crosses a daylight savings time change, so that the trigger
+continues to be at the specific time of day according to the ``cron()`` specification.  For example,
+if the ``cron()`` specification is ``"0 18 * * *"`` (6:00pm every day), the triggers will occur at
+6:00pm every day, even when the time changes from summer to winter or vice versa.
+
+This can create some surprising behavior when the ``cron()`` specification is for a time that lands
+in the middle of the repeated or skipped hour when daylight savings time changes.  For example, if
+the ``cron()`` specification is ``"1 1-4 * * *"`` (1:01am, 2:01am, 3:01am, 4:01am every day), when
+the transition from summer to winter time occurs, the triggers will occur at 1:01am, 2:01am, 3:01am,
+4:01am, but the 2:01am trigger will occur 2 hours after the 1:01am trigger.  When the transition
+from winter to summer time occurs, the triggers will occur at 1:01am, 3:01am, 4:01am, and the 3:01am
+trigger will occur 1 hour after the 1:01am trigger.
+
 @event_trigger
 ^^^^^^^^^^^^^^
 

@@ -210,7 +210,7 @@ async def test_timer_active_check(hass, spec, now, expected):
     startup_time = dt(2019, 9, 1, 13, 0, 0, 0)
     Function.init(hass)
     TrigTime.init(hass)
-    print(f"calling timer_active_check({spec}, {now}, {startup_time})")
+    # print(f"calling timer_active_check({spec}, {now}, {startup_time})")
     out = TrigTime.timer_active_check(spec, now, startup_time)
     assert out == expected
     await Function.waiter_sync()
@@ -479,8 +479,7 @@ async def test_timer_trigger_next(hass):
         startup_time = now = dt(2019, 9, 1, 13, 0, 0, 100000)
         spec, expect_seq = test_data
         for expect in expect_seq:
-            print(f"calling timer_trigger_next({spec}, {now}, {startup_time})")
-            t_next = TrigTime.timer_trigger_next(spec, now, startup_time)
+            t_next, _ = TrigTime.timer_trigger_next(spec, now, startup_time)
             assert t_next == expect
             if t_next is None:
                 break
@@ -596,8 +595,86 @@ async def test_timer_trigger_next_month_rollover(hass):
         startup_time = now = dt(2020, 6, 30, 13, 0, 0, 100000)
         spec, expect_seq = test_data
         for expect in expect_seq:
-            t_next = TrigTime.timer_trigger_next(spec, now, startup_time)
+            t_next, _ = TrigTime.timer_trigger_next(spec, now, startup_time)
             assert t_next == expect
+            if t_next is None:
+                break
+            now = t_next + timedelta(microseconds=1)
+    await Function.waiter_sync()
+    await Function.waiter_stop()
+    await Function.reaper_stop()
+
+
+timerTriggerDSTNextTests = [
+    [
+        ["cron(0 0 * * *)"],
+        [
+            [dt(2019, 11, 4, 0, 0, 0, 0), 90000],
+            [dt(2019, 11, 5, 0, 0, 0, 0), 86400],
+            [dt(2019, 11, 6, 0, 0, 0, 0), 86400],
+        ],
+    ],
+    [
+        ["cron(0 * * * *)"],
+        [
+            [dt(2019, 11, 3, 1, 0, 0, 0), 3600],
+            [dt(2019, 11, 3, 2, 0, 0, 0), 7200],
+            [dt(2019, 11, 3, 3, 0, 0, 0), 3600],
+            [dt(2019, 11, 3, 4, 0, 0, 0), 3600],
+        ],
+    ],
+    [
+        ["cron(1 * * * *)"],
+        [
+            [dt(2019, 11, 3, 0, 1, 0, 0), 60],
+            [dt(2019, 11, 3, 1, 1, 0, 0), 3600],
+            [dt(2019, 11, 3, 2, 1, 0, 0), 7200],
+            [dt(2019, 11, 3, 3, 1, 0, 0), 3600],
+            [dt(2019, 11, 3, 4, 1, 0, 0), 3600],
+        ],
+    ],
+    [
+        ["cron(1 * 8,9,10 3 *)"],
+        [
+            dt(2020, 3, 8, 0, 1, 0, 0),
+            [dt(2020, 3, 8, 1, 1, 0, 0), 3600],
+            [dt(2020, 3, 8, 2, 1, 0, 0), 3600],
+            [dt(2020, 3, 8, 4, 1, 0, 0), 3600],
+            [dt(2020, 3, 8, 5, 1, 0, 0), 3600],
+        ],
+    ],
+]
+
+
+@pytest.mark.asyncio
+async def test_timer_trigger_dst_next(hass):
+    """Run trigger next tests."""
+    #
+    # Hardcode a location and timezone so we can check sunrise
+    # and sunset.
+    #
+    hass.config.latitude = 38
+    hass.config.longitude = -122
+    hass.config.elevation = 0
+    hass.config.time_zone = "America/Los_Angeles"
+
+    Function.init(hass)
+    TrigTime.init(hass)
+
+    for test_data in timerTriggerDSTNextTests:
+        startup_time = now = dt(2019, 11, 3, 0, 0, 0, 0)
+        spec, expect_seq = test_data
+        for expect in expect_seq:
+            t_next, t_next_adj = TrigTime.timer_trigger_next(spec, now, startup_time)
+            delta = (t_next_adj - now).total_seconds()
+            # print(f"calling timer_trigger_next({spec}, {dt_util.as_local(now)}, {startup_time}) -> {dt_util.as_local(t_next)} (delta = {delta})")
+            if isinstance(expect, list):
+                assert t_next == expect[0]
+                assert delta == expect[1]
+            else:
+                assert t_next == expect
+            if t_next is None:
+                break
             now = t_next
     await Function.waiter_sync()
     await Function.waiter_stop()

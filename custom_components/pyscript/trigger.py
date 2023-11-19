@@ -13,6 +13,7 @@ from croniter import croniter
 
 from homeassistant.core import Context
 from homeassistant.helpers import sun
+from homeassistant.util import dt as dt_util
 
 from .const import LOGGER_PATH
 from .eval import AstEval, EvalFunc, EvalFuncVar
@@ -368,7 +369,7 @@ class TrigTime:
             if startup_time is None:
                 startup_time = now
             if time_trigger is not None:
-                time_next = cls.timer_trigger_next(time_trigger, now, startup_time)
+                time_next, time_next_adj = cls.timer_trigger_next(time_trigger, now, startup_time)
                 _LOGGER.debug(
                     "trigger %s wait_until time_next = %s, now = %s",
                     ast_ctx.name,
@@ -376,7 +377,7 @@ class TrigTime:
                     now,
                 )
                 if time_next is not None:
-                    this_timeout = (time_next - now).total_seconds()
+                    this_timeout = (time_next_adj - now).total_seconds()
             if timeout is not None:
                 time_left = time0 + timeout - time.monotonic()
                 if time_left <= 0:
@@ -708,6 +709,7 @@ class TrigTime:
     def timer_trigger_next(cls, time_spec, now, startup_time):
         """Return the next trigger time based on the given time and time specification."""
         next_time = None
+        next_time_adj = None
         if not isinstance(time_spec, list):
             time_spec = [time_spec]
         for spec in time_spec:
@@ -719,9 +721,32 @@ class TrigTime:
                     _LOGGER.error("Invalid cron expression: %s", cron_match)
                     continue
 
-                val = croniter(cron_match.group("cron_expr"), now, dt.datetime).get_next()
+                #
+                # Handling DST changes is tricky; all times in pyscript are naive (no timezone).  This is the
+                # one part of the code where we do check timezones, in case now and next_time bracket a DST
+                # change.  We return next_time as the local time of the next trigger according to the cron
+                # spec, and next_time_adj is potentially adjusted so that (next_time_adj - now) is the correct
+                # timedelta to wait (eg: if cron is a daily trigger at 6am, next_time will always be 6am
+                # tomorrow, and next_time_adj will also by 6am, except on the day of a DST change, when it
+                # will be 5am or 7am, such that (next_time_adj - now) is 23 hours or 25 hours.
+                #
+                # We might have to fetch multiple croniter times, in case (next_time_adj - now) is non-positive
+                # after a DST change.
+                #
+                # Also, datetime doesn't correctly subtract datetimes in different timezones, so we need to compute
+                # the different in UTC.  See https://blog.ganssle.io/articles/2018/02/aware-datetime-arithmetic.html.
+                #
+                cron_iter = croniter(cron_match.group("cron_expr"), now, dt.datetime)
+                delta = None
+                while delta is None or delta.total_seconds() <= 0:
+                    val = cron_iter.get_next()
+                    delta = dt_util.as_local(val).astimezone(dt_util.UTC) - dt_util.as_local(now).astimezone(
+                        dt_util.UTC
+                    )
+
                 if next_time is None or val < next_time:
                     next_time = val
+                    next_time_adj = now + delta
 
             elif len(match1) == 3:
                 this_t = cls.parse_date_time(match1[1].strip(), 0, now, startup_time)
@@ -733,7 +758,7 @@ class TrigTime:
                     this_t = cls.parse_date_time(match1[1].strip(), day_offset, now, startup_time)
                 startup = now == this_t and now == startup_time
                 if (now < this_t or startup) and (next_time is None or this_t < next_time):
-                    next_time = this_t
+                    next_time_adj = next_time = this_t
 
             elif len(match2) == 5:
                 start_str, period_str = match2[1].strip(), match2[2].strip()
@@ -746,12 +771,12 @@ class TrigTime:
                 if match2[3] is None:
                     startup = now == start and now == startup_time
                     if (now < start or startup) and (next_time is None or start < next_time):
-                        next_time = start
+                        next_time_adj = next_time = start
                     if now >= start and not startup:
                         secs = period * (1.0 + math.floor((now - start).total_seconds() / period))
                         this_t = start + dt.timedelta(seconds=secs)
                         if now < this_t and (next_time is None or this_t < next_time):
-                            next_time = this_t
+                            next_time_adj = next_time = this_t
                     continue
                 end_str = match2[3].strip()
                 end = cls.parse_date_time(end_str, 0, now, startup_time)
@@ -761,18 +786,18 @@ class TrigTime:
                     end = cls.parse_date_time(end_str, day + end_offset, now, startup_time)
                     if now < start or (now == start and now == startup_time):
                         if next_time is None or start < next_time:
-                            next_time = start
+                            next_time_adj = next_time = start
                         break
                     secs = period * (1.0 + math.floor((now - start).total_seconds() / period))
                     this_t = start + dt.timedelta(seconds=secs)
                     if start <= this_t <= end:
                         if next_time is None or this_t < next_time:
-                            next_time = this_t
+                            next_time_adj = next_time = this_t
                         break
 
             else:
                 _LOGGER.warning("Can't parse %s in time_trigger check", spec)
-        return next_time
+        return next_time, next_time_adj
 
 
 class TrigInfo:
@@ -1007,7 +1032,9 @@ class TrigInfo:
                     check_state_expr_on_start = False
                 else:
                     if self.time_trigger:
-                        time_next = TrigTime.timer_trigger_next(self.time_trigger, now, startup_time)
+                        time_next, time_next_adj = TrigTime.timer_trigger_next(
+                            self.time_trigger, now, startup_time
+                        )
                         _LOGGER.debug(
                             "trigger %s time_next = %s, now = %s",
                             self.name,
@@ -1015,7 +1042,7 @@ class TrigInfo:
                             now,
                         )
                         if time_next is not None:
-                            timeout = (time_next - now).total_seconds()
+                            timeout = (time_next_adj - now).total_seconds()
                     if state_trig_waiting:
                         time_left = last_state_trig_time + self.state_hold - time.monotonic()
                         if timeout is None or time_left < timeout:
