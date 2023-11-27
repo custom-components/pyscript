@@ -526,7 +526,7 @@ the keyword catch-all declaration instead:
 .. code:: python
 
    @state_trigger("domain.light_level == '255' or domain.light2_level == '0'")
-   def light_turned_on(**kwargs)
+   def light_turned_on(**kwargs):
        log.info(f"got arguments {kwargs}")
 
 and all those values (including optional ones you specify with the ``kwargs`` argument to
