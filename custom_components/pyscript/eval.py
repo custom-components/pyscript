@@ -1310,8 +1310,8 @@ class AstEval:
                     }
                 )
             for ctx in ctx_list:
+                value = await self.call_func(ctx["enter"], enter_attr, ctx["manager"])
                 if ctx["target"]:
-                    value = await self.call_func(ctx["enter"], enter_attr, ctx["manager"])
                     await self.recurse_assign(ctx["target"], value)
             for arg1 in arg.body:
                 val = await self.aeval(arg1)

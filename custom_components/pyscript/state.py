@@ -13,7 +13,7 @@ from .function import Function
 
 _LOGGER = logging.getLogger(LOGGER_PATH + ".state")
 
-STATE_VIRTUAL_ATTRS = {"last_changed", "last_updated"}
+STATE_VIRTUAL_ATTRS = {"entity_id", "last_changed", "last_updated"}
 
 
 class StateVal(str):
@@ -23,6 +23,7 @@ class StateVal(str):
         """Create a new instance given a state variable."""
         new_var = super().__new__(cls, state.state)
         new_var.__dict__ = state.attributes.copy()
+        new_var.entity_id = state.entity_id
         new_var.last_updated = state.last_updated
         new_var.last_changed = state.last_changed
         return new_var
