@@ -50,6 +50,7 @@ TRIG_DECORATORS = {
     "state_trigger",
     "event_trigger",
     "mqtt_trigger",
+    "webhook_trigger",
     "state_active",
     "time_active",
     "task_unique",
@@ -363,6 +364,7 @@ class EvalFunc:
             "mqtt_trigger",
             "state_trigger",
             "time_trigger",
+            "webhook_trigger",
         }
         arg_check = {
             "event_trigger": {"arg_cnt": {1, 2, 3}, "rep_ok": True},
@@ -373,6 +375,8 @@ class EvalFunc:
             "task_unique": {"arg_cnt": {1, 2}},
             "time_active": {"arg_cnt": {"*"}},
             "time_trigger": {"arg_cnt": {0, "*"}, "rep_ok": True},
+            # TODO: Add in functionality to webhook with arguments
+            "webhook_trigger": {"arg_cnt": {1, 2, 3}, "rep_ok": True},
         }
         kwarg_check = {
             "event_trigger": {"kwargs": {dict}},
@@ -388,6 +392,8 @@ class EvalFunc:
                 "state_hold_false": {int, float},
                 "watch": {set, list},
             },
+            # "webhook_trigger": {"call": {str, list}, "local": bool},
+            "webhook_trigger": {"kwargs": {dict}},
         }
 
         for dec in self.decorators:

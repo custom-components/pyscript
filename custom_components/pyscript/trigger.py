@@ -21,6 +21,7 @@ from .event import Event
 from .function import Function
 from .mqtt import Mqtt
 from .state import STATE_VIRTUAL_ATTRS, State
+from .webhook import Webhook
 
 _LOGGER = logging.getLogger(LOGGER_PATH + ".trigger")
 
@@ -222,13 +223,14 @@ class TrigTime:
         time_trigger=None,
         event_trigger=None,
         mqtt_trigger=None,
+        webhook_trigger=None,
         timeout=None,
         state_hold=None,
         state_hold_false=None,
         __test_handshake__=None,
     ):
         """Wait for zero or more triggers, until an optional timeout."""
-        if state_trigger is None and time_trigger is None and event_trigger is None and mqtt_trigger is None:
+        if state_trigger is None and time_trigger is None and event_trigger is None and mqtt_trigger is None and webhook_trigger is None:
             if timeout is not None:
                 await asyncio.sleep(timeout)
                 return {"trigger_type": "timeout"}
@@ -238,6 +240,7 @@ class TrigTime:
         state_trig_eval = None
         event_trig_expr = None
         mqtt_trig_expr = None
+        webhook_trig_expr = None
         exc = None
         notify_q = asyncio.Queue(0)
 
@@ -349,6 +352,22 @@ class TrigTime:
                         State.notify_del(state_trig_ident, notify_q)
                     raise exc
             await Mqtt.notify_add(mqtt_trigger[0], notify_q)
+        if webhook_trigger is not None:
+            if isinstance(webhook_trigger, str):
+                webhook_trigger = [webhook_trigger]
+            if len(webhook_trigger) > 1:
+                webhook_trig_expr = AstEval(
+                    f"{ast_ctx.name} webhook_trigger",
+                    ast_ctx.get_global_ctx(),
+                    logger_name=ast_ctx.get_logger_name(),
+                )
+                Function.install_ast_funcs(webhook_trig_expr)
+                webhook_trig_expr.parse(webhook_trigger[1], mode="eval")
+                exc = webhook_trig_expr.get_exception_obj()
+                if exc is not None:
+                    if len(state_trig_ident) > 0:
+                        State.notify_del(state_trig_ident, notify_q)
+                    raise exc
         time0 = time.monotonic()
 
         if __test_handshake__:
@@ -394,7 +413,7 @@ class TrigTime:
                     state_trig_timeout = True
                     time_next = now + dt.timedelta(seconds=this_timeout)
             if this_timeout is None:
-                if state_trigger is None and event_trigger is None and mqtt_trigger is None:
+                if state_trigger is None and event_trigger is None and mqtt_trigger is None and webhook_trigger is None:
                     _LOGGER.debug(
                         "trigger %s wait_until no next time - returning with none",
                         ast_ctx.name,
@@ -527,6 +546,17 @@ class TrigTime:
                 if mqtt_trig_ok:
                     ret = notify_info
                     break
+            elif notify_type == "webhook":
+                if webhook_trig_expr is None:
+                    ret = notify_info
+                    break
+                webhook_trig_ok = await webhook_trig_expr.eval(notify_info)
+                exc = webhook_trig_expr.get_exception_obj()
+                if exc is not None:
+                    break
+                if webhook_trig_ok:
+                    ret = notify_info
+                    break
             else:
                 _LOGGER.error(
                     "trigger %s wait_until got unexpected queue message %s",
@@ -540,6 +570,8 @@ class TrigTime:
             Event.notify_del(event_trigger[0], notify_q)
         if mqtt_trigger is not None:
             Mqtt.notify_del(mqtt_trigger[0], notify_q)
+        if webhook_trigger is not None:
+            Webhook.notify_del(webhook_trigger[0], notify_q)
         if exc:
             raise exc
         return ret
@@ -826,6 +858,8 @@ class TrigInfo:
         self.event_trigger_kwargs = trig_cfg.get("event_trigger", {}).get("kwargs", {})
         self.mqtt_trigger = trig_cfg.get("mqtt_trigger", {}).get("args", None)
         self.mqtt_trigger_kwargs = trig_cfg.get("mqtt_trigger", {}).get("kwargs", {})
+        self.webhook_trigger = trig_cfg.get("webhook_trigger", {}).get("args", None)
+        self.webhook_trigger_kwargs = trig_cfg.get("webhook_trigger", {}).get("kwargs", {})
         self.state_active = trig_cfg.get("state_active", {}).get("args", None)
         self.time_active = trig_cfg.get("time_active", {}).get("args", None)
         self.time_active_hold_off = trig_cfg.get("time_active", {}).get("kwargs", {}).get("hold_off", None)
@@ -842,6 +876,7 @@ class TrigInfo:
         self.state_trig_ident_any = set()
         self.event_trig_expr = None
         self.mqtt_trig_expr = None
+        self.webhook_trig_expr = None
         self.have_trigger = False
         self.setup_ok = False
         self.run_on_startup = False
@@ -933,6 +968,21 @@ class TrigInfo:
                     return
             self.have_trigger = True
 
+        if self.webhook_trigger is not None:
+            if len(self.webhook_trigger) == 2:
+                self.webhook_trig_expr = AstEval(
+                    f"{self.name} @webhook_trigger()",
+                    self.global_ctx,
+                    logger_name=self.name,
+                )
+                Function.install_ast_funcs(self.webhook_trig_expr)
+                self.webhook_trig_expr.parse(self.webhook_trigger[1], mode="eval")
+                exc = self.webhook_trig_expr.get_exception_long()
+                if exc is not None:
+                    self.webhook_trig_expr.get_logger().error(exc)
+                    return
+            self.have_trigger = True
+
         self.setup_ok = True
 
     def stop(self):
@@ -945,6 +995,8 @@ class TrigInfo:
                 Event.notify_del(self.event_trigger[0], self.notify_q)
             if self.mqtt_trigger is not None:
                 Mqtt.notify_del(self.mqtt_trigger[0], self.notify_q)
+            if self.webhook_trigger is not None:
+                Webhook.notify_del(self.webhook_trigger[0], self.notify_q)
             if self.task:
                 Function.reaper_cancel(self.task)
                 self.task = None
@@ -995,6 +1047,9 @@ class TrigInfo:
             if self.mqtt_trigger is not None:
                 _LOGGER.debug("trigger %s adding mqtt_trigger %s", self.name, self.mqtt_trigger[0])
                 await Mqtt.notify_add(self.mqtt_trigger[0], self.notify_q)
+            if self.webhook_trigger is not None:
+                _LOGGER.debug("trigger %s adding webhook_trigger %s", self.name, self.webhook_trigger[0])
+                Webhook.notify_add(self.webhook_trigger[0], self.notify_q)
 
             last_trig_time = None
             last_state_trig_time = None
@@ -1237,6 +1292,8 @@ class TrigInfo:
                 Event.notify_del(self.event_trigger[0], self.notify_q)
             if self.mqtt_trigger is not None:
                 Mqtt.notify_del(self.mqtt_trigger[0], self.notify_q)
+            if self.webhook_trigger is not None:
+                Webhook.notify_del(self.webhook_trigger[0], self.notify_q)
             return
 
     def call_action(self, notify_type, func_args, run_task=True):
