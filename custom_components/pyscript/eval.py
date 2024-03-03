@@ -75,6 +75,8 @@ TRIGGER_KWARGS = {
     "trigger_time",
     "var_name",
     "value",
+    "webhook_id",
+    "webhook_data",
 }
 
 
