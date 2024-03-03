@@ -230,7 +230,13 @@ class TrigTime:
         __test_handshake__=None,
     ):
         """Wait for zero or more triggers, until an optional timeout."""
-        if state_trigger is None and time_trigger is None and event_trigger is None and mqtt_trigger is None and webhook_trigger is None:
+        if (
+            state_trigger is None
+            and time_trigger is None
+            and event_trigger is None
+            and mqtt_trigger is None
+            and webhook_trigger is None
+        ):
             if timeout is not None:
                 await asyncio.sleep(timeout)
                 return {"trigger_type": "timeout"}
@@ -413,7 +419,12 @@ class TrigTime:
                     state_trig_timeout = True
                     time_next = now + dt.timedelta(seconds=this_timeout)
             if this_timeout is None:
-                if state_trigger is None and event_trigger is None and mqtt_trigger is None and webhook_trigger is None:
+                if (
+                    state_trigger is None
+                    and event_trigger is None
+                    and mqtt_trigger is None
+                    and webhook_trigger is None
+                ):
                     _LOGGER.debug(
                         "trigger %s wait_until no next time - returning with none",
                         ast_ctx.name,
@@ -860,6 +871,8 @@ class TrigInfo:
         self.mqtt_trigger_kwargs = trig_cfg.get("mqtt_trigger", {}).get("kwargs", {})
         self.webhook_trigger = trig_cfg.get("webhook_trigger", {}).get("args", None)
         self.webhook_trigger_kwargs = trig_cfg.get("webhook_trigger", {}).get("kwargs", {})
+        self.webhook_local_only = self.webhook_trigger_kwargs.get("local_only", True)
+        self.webhook_methods = self.webhook_trigger_kwargs.get("methods", {"POST", "PUT"})
         self.state_active = trig_cfg.get("state_active", {}).get("args", None)
         self.time_active = trig_cfg.get("time_active", {}).get("args", None)
         self.time_active_hold_off = trig_cfg.get("time_active", {}).get("kwargs", {}).get("hold_off", None)
@@ -1049,7 +1062,9 @@ class TrigInfo:
                 await Mqtt.notify_add(self.mqtt_trigger[0], self.notify_q)
             if self.webhook_trigger is not None:
                 _LOGGER.debug("trigger %s adding webhook_trigger %s", self.name, self.webhook_trigger[0])
-                Webhook.notify_add(self.webhook_trigger[0], self.notify_q)
+                Webhook.notify_add(
+                    self.webhook_trigger[0], self.webhook_local_only, self.webhook_methods, self.notify_q
+                )
 
             last_trig_time = None
             last_state_trig_time = None
@@ -1237,6 +1252,11 @@ class TrigInfo:
                     user_kwargs = self.mqtt_trigger_kwargs.get("kwargs", {})
                     if self.mqtt_trig_expr:
                         trig_ok = await self.mqtt_trig_expr.eval(notify_info)
+                elif notify_type == "webhook":
+                    func_args = notify_info
+                    user_kwargs = self.webhook_trigger_kwargs.get("kwargs", {})
+                    if self.webhook_trig_expr:
+                        trig_ok = await self.webhook_trig_expr.eval(notify_info)
 
                 else:
                     user_kwargs = self.time_trigger_kwargs.get("kwargs", {})

@@ -377,8 +377,7 @@ class EvalFunc:
             "task_unique": {"arg_cnt": {1, 2}},
             "time_active": {"arg_cnt": {"*"}},
             "time_trigger": {"arg_cnt": {0, "*"}, "rep_ok": True},
-            # TODO: Add in functionality to webhook with arguments
-            "webhook_trigger": {"arg_cnt": {1, 2, 3}, "rep_ok": True},
+            "webhook_trigger": {"arg_cnt": {1, 2}, "rep_ok": True},
         }
         kwarg_check = {
             "event_trigger": {"kwargs": {dict}},
@@ -394,8 +393,11 @@ class EvalFunc:
                 "state_hold_false": {int, float},
                 "watch": {set, list},
             },
-            # "webhook_trigger": {"call": {str, list}, "local": bool},
-            "webhook_trigger": {"kwargs": {dict}},
+            "webhook_trigger": {
+                "kwargs": {dict},
+                "local_only": {bool},
+                "methods": {list, set},
+            },
         }
 
         for dec in self.decorators:

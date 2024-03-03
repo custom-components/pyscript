@@ -2,11 +2,11 @@
 
 import logging
 
-from .const import LOGGER_PATH
-
 from aiohttp import hdrs
 
 from homeassistant.components import webhook
+
+from .const import LOGGER_PATH
 
 _LOGGER = logging.getLogger(LOGGER_PATH + ".webhook")
 
@@ -49,24 +49,24 @@ class Webhook:
         else:
             func_args["webhook_data"] = await request.post()
 
-
         await cls.update(webhook_id, func_args)
 
     @classmethod
-    def notify_add(cls, webhook_id, queue):
+    def notify_add(cls, webhook_id, local_only, methods, queue):
         """Register to notify for webhooks of given type to be sent to queue."""
-
         if webhook_id not in cls.notify:
             cls.notify[webhook_id] = set()
             _LOGGER.debug("webhook.notify_add(%s) -> adding webhook listener", webhook_id)
             webhook.async_register(
                 cls.hass,
-                "webhook",
-                "my_name",
+                "webhook",  # DOMAIN - unclear what this is used for
+                "pyscript",  # NAME - unclear what this is used for
                 webhook_id,
                 cls.webhook_handler,
+                local_only=local_only,
+                allowed_methods=methods,
             )
-            cls.notify_remove[webhook_id] = lambda : webhook.async_unregister(cls.hass, webhook_id)
+            cls.notify_remove[webhook_id] = lambda: webhook.async_unregister(cls.hass, webhook_id)
 
         cls.notify[webhook_id].add(queue)
 
