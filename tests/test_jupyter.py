@@ -487,6 +487,7 @@ async def test_jupyter_kernel_redefine_func(hass, caplog, socket_enabled):
 @time_trigger("once(2019/9/7 12:00)")
 @state_trigger("pyscript.var1 == '1'")
 @event_trigger("test_event")
+@webhook_trigger("test_hook1")
 def func():
     pass
 123
@@ -504,6 +505,7 @@ def func():
 @time_trigger("once(2019/9/7 13:00)")
 @state_trigger("pyscript.var1 == '1'")
 @event_trigger("test_event2")
+@webhook_trigger("test_hook1")
 def func():
     pass
 321

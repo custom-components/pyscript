@@ -59,8 +59,8 @@ class Webhook:
             _LOGGER.debug("webhook.notify_add(%s) -> adding webhook listener", webhook_id)
             webhook.async_register(
                 cls.hass,
-                "webhook",  # DOMAIN - unclear what this is used for
-                "pyscript",  # NAME - unclear what this is used for
+                "pyscript",  # DOMAIN
+                "pyscript",  # NAME
                 webhook_id,
                 cls.webhook_handler,
                 local_only=local_only,

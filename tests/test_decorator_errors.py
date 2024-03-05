@@ -461,3 +461,23 @@ def func7():
         "TypeError: function 'func7' defined in file.hello: decorator @state_trigger keyword 'watch' should be type list or set"
         in caplog.text
     )
+
+
+@pytest.mark.asyncio
+async def test_webhooks_method(hass, caplog):
+    """Test invalid keyword arguments type generates an error."""
+
+    await setup_script(
+        hass,
+        None,
+        dt(2020, 7, 1, 11, 59, 59, 999999),
+        """
+@webhook_trigger("hook", methods=["bad"])
+def func8():
+    pass
+""",
+    )
+    assert (
+        "TypeError: function 'func8' defined in file.hello: {'bad'} aren't valid webhook_trigger methods"
+        in caplog.text
+    )
