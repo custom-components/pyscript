@@ -79,6 +79,13 @@ TRIGGER_KWARGS = {
     "webhook_data",
 }
 
+WEBHOOK_METHODS = {
+    "GET",
+    "HEAD",
+    "POST",
+    "PUT",
+}
+
 
 def ast_eval_exec_factory(ast_ctx, mode):
     """Generate a function that executes eval() or exec() with given ast_ctx."""
@@ -526,6 +533,10 @@ class EvalFunc:
                     async_set_service_schema(Function.hass, domain, name, service_desc)
                     self.trigger_service.add(srv_name)
                 continue
+
+            if dec_name == "webhook_trigger" and "methods" in dec_kwargs:
+                if len(bad := set(dec_kwargs["methods"]).difference(WEBHOOK_METHODS)) > 0:
+                    raise TypeError(f"{exc_mesg}: {bad} aren't valid {dec_name} methods")
 
             if dec_name not in trig_decs:
                 trig_decs[dec_name] = []
