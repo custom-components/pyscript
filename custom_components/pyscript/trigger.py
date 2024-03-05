@@ -224,6 +224,8 @@ class TrigTime:
         event_trigger=None,
         mqtt_trigger=None,
         webhook_trigger=None,
+        webhook_local_only=True,
+        webhook_methods=None,
         timeout=None,
         state_hold=None,
         state_hold_false=None,
@@ -374,6 +376,10 @@ class TrigTime:
                     if len(state_trig_ident) > 0:
                         State.notify_del(state_trig_ident, notify_q)
                     raise exc
+            if webhook_methods is None:
+                webhook_methods = {"POST", "PUT"}
+            Webhook.notify_add(webhook_trigger[0], webhook_local_only, webhook_methods, notify_q)
+
         time0 = time.monotonic()
 
         if __test_handshake__:
