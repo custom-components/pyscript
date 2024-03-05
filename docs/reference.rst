@@ -864,25 +864,19 @@ matches any of the positive arguments, and none of the negative arguments.
 
     @webhook_trigger(webhook_id, str_expr=None, local_only=True, methods={"POST", "PUT", kwargs=None)
 
-``@webhook_trigger`` listens for calls to a `Home Assistant webhook <https://www.home-assistant.io/docs/automation/trigger/#webhook-trigger>`__
-at `your_hass_url/api/webhook/webhook_id` and triggers whenever a request is made at that endpoint.
-Multiple ``@webhook_trigger`` decorators can be applied to a single function if you want
-to trigger off different mqtt topics.
+``@webhook_trigger`` listens for calls to a `Home Assistant webhook <https://www.home-assistant.io/docs/automation/trigger/#webhook-trigger>`__ at ``your_hass_url/api/webhook/webhook_id`` and triggers whenever a request is made at that endpoint. Multiple ``@webhook_trigger`` decorators can be applied to a single function if you want to trigger off different webhook ids.
 
-An optional ``str_expr`` can be used to match against payload message data, and the trigger will only occur
-if that expression evaluates to ``True`` or non-zero. This expression has available these four
+Setting ``local_only`` option to ``False`` will allow request made from anywhere on the internet (as opposed to just on local network).
+The methods option needs to be an list or set with elements ``GET``, ``HEAD``, ``POST``, or ``PUT``.
+
+An optional ``str_expr`` can be used to match against payload message data, and the trigger will only occur if that expression evaluates to ``True`` or non-zero. This expression has available these three
 variables:
 
-Setting `local_only` option to `False` will allow request made from anywhere on the internet (as opposed to just locally).
-The methods option needs to be an list or set with elements `GET`, `HEAD`, `POST`, or `PUT`.
-
-- ``trigger_type`` is set to "mqtt"
+- ``trigger_type`` is set to "webhook"
 - ``webhook_id`` is set to the webhook_id that was called.
 - ``webhook_data`` is the data/json that was sent in the request returned as a `MultiDictProxy <https://aiohttp-kxepal-test.readthedocs.io/en/latest/multidict.html#aiohttp.MultiDictProxy>`__ (ie a python dictionary that allows multiple of the same keys).
 
-When the ``@webhook_trigger`` occurs, those same variables are passed as keyword arguments to the
-function in case it needs them. Additional keyword parameters can be specified by setting the
-optional ``kwargs`` argument to a ``dict`` with the keywords and values.
+When the ``@webhook_trigger`` occurs, those same variables are passed as keyword arguments to the function in case it needs them. Additional keyword parameters can be specified by setting the optional ``kwargs`` argument to a ``dict`` with the keywords and values.
 
 An simple example looks like
 
@@ -892,9 +886,7 @@ An simple example looks like
   def webhook_test(webhook_data, extra):
       log.info(f"It ran! {webhook_data}, {extra}")
 
-which if called using the curl command `curl -X POST -d 'key1=xyz&key2=abc' hass_url/api/webhook/myid
-bhook` outputs `It ran! <MultiDictProxy('key1': 'xyz', 'key2': 'abc')>, 10`
-
+which if called using the curl command ``curl -X POST -d 'key1=xyz&key2=abc' hass_url/api/webhook/myid`` outputs ``It ran! <MultiDictProxy('key1': 'xyz', 'key2': 'abc')>, 10``
 
 Other Function Decorators
 -------------------------
@@ -1352,9 +1344,7 @@ It takes the following keyword arguments (all are optional):
 - ``mqtt_trigger=None`` can be set to a string or list of two strings, just like
   ``@mqtt_trigger``. The first string is the MQTT topic, and the second string
   (when the setting is a two-element list) is an expression based on the message variables.
-- ``webhook_trigger=None`` can be set to a string or list of two strings, just like
-  ``@webhook_trigger``. The first string is the webhook id, and the second string
-  (when the setting is a two-element list) is an expression based on the message variables.
+- ``webhook_trigger=None`` can be set to a string or list of two strings, just like ``@webhook_trigger``. The first string is the webhook id, and the second string (when the setting is a two-element list) is an expression based on the message variables.
 - ``webhook_local_only=True`` is used with ``webhook_trigger`` to specify whether to only allow
   local webhooks.
 - ``webhook_methods={"POST", "PUT"}`` is used with ``webhook_trigger`` to specify allowed webhook

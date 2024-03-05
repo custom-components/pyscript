@@ -1,4 +1,5 @@
 """Test pyscript decorator syntax error and eval-time exception reporting."""
+
 from ast import literal_eval
 import asyncio
 from datetime import datetime as dt
@@ -217,7 +218,7 @@ def func4():
 """,
     )
     assert (
-        "func4 defined in file.hello: needs at least one trigger decorator (ie: event_trigger, mqtt_trigger, state_trigger, time_trigger)"
+        "func4 defined in file.hello: needs at least one trigger decorator (ie: event_trigger, mqtt_trigger, state_trigger, time_trigger, webhook_trigger)"
         in caplog.text
     )
 
