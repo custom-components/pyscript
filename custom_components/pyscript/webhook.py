@@ -45,9 +45,11 @@ class Webhook:
         }
 
         if "json" in request.headers.get(hdrs.CONTENT_TYPE, ""):
-            func_args["webhook_data"] = await request.json()
+            func_args["payload"] = await request.json()
         else:
-            func_args["webhook_data"] = await request.post()
+            # Could potentially return multiples of a key - only take the first
+            payload_multidict = await request.post()
+            func_args["payload"] = {k: payload_multidict.getone(k) for k in payload_multidict.keys()}
 
         await cls.update(webhook_id, func_args)
 

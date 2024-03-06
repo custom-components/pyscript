@@ -76,7 +76,6 @@ TRIGGER_KWARGS = {
     "var_name",
     "value",
     "webhook_id",
-    "webhook_data",
 }
 
 WEBHOOK_METHODS = {
