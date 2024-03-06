@@ -886,7 +886,9 @@ An simple example looks like
   def webhook_test(payload, extra):
       log.info(f"It ran! {payload}, {extra}")
 
-which if called using the curl command ``curl -X POST -d 'key1=xyz&key2=abc' hass_url/api/webhook/myid`` outputs ``It ran! <MultiDictProxy('key1': 'xyz', 'key2': 'abc')>, 10``
+which if called using the curl command ``curl -X POST -d 'key1=xyz&key2=abc' hass_url/api/webhook/myid`` outputs ``It ran! {'key1': 'xyz', 'key2': 'abc'}, 10``
+
+NOTE: A webhook_id can only be used by either a built-in Home Assistant automation or pyscript, but not both. Trying to use the same webhook_id in both will result in an error.
 
 Other Function Decorators
 -------------------------
