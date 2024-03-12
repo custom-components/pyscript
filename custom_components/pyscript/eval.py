@@ -50,6 +50,7 @@ TRIG_DECORATORS = {
     "state_trigger",
     "event_trigger",
     "mqtt_trigger",
+    "webhook_trigger",
     "state_active",
     "time_active",
     "task_unique",
@@ -74,6 +75,14 @@ TRIGGER_KWARGS = {
     "trigger_time",
     "var_name",
     "value",
+    "webhook_id",
+}
+
+WEBHOOK_METHODS = {
+    "GET",
+    "HEAD",
+    "POST",
+    "PUT",
 }
 
 
@@ -363,6 +372,7 @@ class EvalFunc:
             "mqtt_trigger",
             "state_trigger",
             "time_trigger",
+            "webhook_trigger",
         }
         arg_check = {
             "event_trigger": {"arg_cnt": {1, 2, 3}, "rep_ok": True},
@@ -373,6 +383,7 @@ class EvalFunc:
             "task_unique": {"arg_cnt": {1, 2}},
             "time_active": {"arg_cnt": {"*"}},
             "time_trigger": {"arg_cnt": {0, "*"}, "rep_ok": True},
+            "webhook_trigger": {"arg_cnt": {1, 2}, "rep_ok": True},
         }
         kwarg_check = {
             "event_trigger": {"kwargs": {dict}},
@@ -387,6 +398,11 @@ class EvalFunc:
                 "state_check_now": {bool, int},
                 "state_hold_false": {int, float},
                 "watch": {set, list},
+            },
+            "webhook_trigger": {
+                "kwargs": {dict},
+                "local_only": {bool},
+                "methods": {list, set},
             },
         }
 
@@ -516,6 +532,10 @@ class EvalFunc:
                     async_set_service_schema(Function.hass, domain, name, service_desc)
                     self.trigger_service.add(srv_name)
                 continue
+
+            if dec_name == "webhook_trigger" and "methods" in dec_kwargs:
+                if len(bad := set(dec_kwargs["methods"]).difference(WEBHOOK_METHODS)) > 0:
+                    raise TypeError(f"{exc_mesg}: {bad} aren't valid {dec_name} methods")
 
             if dec_name not in trig_decs:
                 trig_decs[dec_name] = []

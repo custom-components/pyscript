@@ -21,10 +21,9 @@ from homeassistant.const import (
     EVENT_STATE_CHANGED,
     SERVICE_RELOAD,
 )
-from homeassistant.core import Config, HomeAssistant, ServiceCall
+from homeassistant.core import Config, Event as HAEvent, HomeAssistant, ServiceCall
 from homeassistant.exceptions import HomeAssistantError
 import homeassistant.helpers.config_validation as cv
-from homeassistant.core import Event as HAEvent
 from homeassistant.helpers.restore_state import DATA_RESTORE_STATE
 from homeassistant.loader import bind_hass
 
@@ -51,6 +50,7 @@ from .mqtt import Mqtt
 from .requirements import install_requirements
 from .state import State, StateVal
 from .trigger import TrigTime
+from .webhook import Webhook
 
 _LOGGER = logging.getLogger(LOGGER_PATH)
 
@@ -241,6 +241,7 @@ async def async_setup_entry(hass: HomeAssistant, config_entry: ConfigEntry) -> b
     Mqtt.init(hass)
     TrigTime.init(hass)
     State.init(hass)
+    Webhook.init(hass)
     State.register_functions()
     GlobalContextMgr.init()
 
