@@ -400,7 +400,7 @@ class TrigTime:
             if startup_time is None:
                 startup_time = now
             if time_trigger is not None:
-                time_next, time_next_adj = cls.timer_trigger_next(time_trigger, now, startup_time)
+                time_next, time_next_adj = await cls.timer_trigger_next(time_trigger, now, startup_time)
                 _LOGGER.debug(
                     "trigger %s wait_until time_next = %s, now = %s",
                     ast_ctx.name,
@@ -605,7 +605,7 @@ class TrigTime:
         return await cls.hass.async_add_executor_job(functools.partial(func, **kwargs), *args)
 
     @classmethod
-    def parse_date_time(cls, date_time_str, day_offset, now, startup_time):
+    async def parse_date_time(cls, date_time_str, day_offset, now, startup_time):
         """Parse a date time string, returning datetime."""
         year = now.year
         month = now.month
@@ -670,10 +670,14 @@ class TrigTime:
                 location = location[0]
             try:
                 if dt_str.startswith("sunrise"):
-                    time_sun = location.sunrise(dt.date(year, month, day))
+                    time_sun = await cls.hass.async_add_executor_job(
+                        location.sunrise, dt.date(year, month, day)
+                    )
                     dt_str = dt_str[7:]
                 else:
-                    time_sun = location.sunset(dt.date(year, month, day))
+                    time_sun = await cls.hass.async_add_executor_job(
+                        location.sunset, dt.date(year, month, day)
+                    )
                     dt_str = dt_str[6:]
             except Exception:
                 _LOGGER.warning("'%s' not defined at this latitude", dt_str)
@@ -706,7 +710,7 @@ class TrigTime:
         return now
 
     @classmethod
-    def timer_active_check(cls, time_spec, now, startup_time):
+    async def timer_active_check(cls, time_spec, now, startup_time):
         """Check if the given time matches the time specification."""
         results = {"+": [], "-": []}
         for entry in time_spec if isinstance(time_spec, list) else [time_spec]:
@@ -733,8 +737,8 @@ class TrigTime:
                     _LOGGER.error("Invalid range expression: %s", exc)
                     return False
 
-                start = cls.parse_date_time(dt_start.strip(), 0, now, startup_time)
-                end = cls.parse_date_time(dt_end.strip(), 0, start, startup_time)
+                start = await cls.parse_date_time(dt_start.strip(), 0, now, startup_time)
+                end = await cls.parse_date_time(dt_end.strip(), 0, start, startup_time)
 
                 if start <= end:
                     this_match = start <= now <= end
@@ -755,7 +759,7 @@ class TrigTime:
         return result
 
     @classmethod
-    def timer_trigger_next(cls, time_spec, now, startup_time):
+    async def timer_trigger_next(cls, time_spec, now, startup_time):
         """Return the next trigger time based on the given time and time specification."""
         next_time = None
         next_time_adj = None
@@ -798,20 +802,20 @@ class TrigTime:
                     next_time_adj = now + delta
 
             elif len(match1) == 3:
-                this_t = cls.parse_date_time(match1[1].strip(), 0, now, startup_time)
+                this_t = await cls.parse_date_time(match1[1].strip(), 0, now, startup_time)
                 day_offset = (now - this_t).days + 1
                 if day_offset != 0 and this_t != startup_time:
                     #
                     # Try a day offset (won't make a difference if spec has full date)
                     #
-                    this_t = cls.parse_date_time(match1[1].strip(), day_offset, now, startup_time)
+                    this_t = await cls.parse_date_time(match1[1].strip(), day_offset, now, startup_time)
                 startup = now == this_t and now == startup_time
                 if (now < this_t or startup) and (next_time is None or this_t < next_time):
                     next_time_adj = next_time = this_t
 
             elif len(match2) == 5:
                 start_str, period_str = match2[1].strip(), match2[2].strip()
-                start = cls.parse_date_time(start_str, 0, now, startup_time)
+                start = await cls.parse_date_time(start_str, 0, now, startup_time)
                 period = parse_time_offset(period_str)
                 if period <= 0:
                     _LOGGER.error("Invalid non-positive period %s in period(): %s", period, time_spec)
@@ -828,11 +832,11 @@ class TrigTime:
                             next_time_adj = next_time = this_t
                     continue
                 end_str = match2[3].strip()
-                end = cls.parse_date_time(end_str, 0, now, startup_time)
+                end = await cls.parse_date_time(end_str, 0, now, startup_time)
                 end_offset = 1 if end < start else 0
                 for day in [-1, 0, 1]:
-                    start = cls.parse_date_time(start_str, day, now, startup_time)
-                    end = cls.parse_date_time(end_str, day + end_offset, now, startup_time)
+                    start = await cls.parse_date_time(start_str, day, now, startup_time)
+                    end = await cls.parse_date_time(end_str, day + end_offset, now, startup_time)
                     if now < start or (now == start and now == startup_time):
                         if next_time is None or start < next_time:
                             next_time_adj = next_time = start
@@ -1108,7 +1112,7 @@ class TrigInfo:
                     check_state_expr_on_start = False
                 else:
                     if self.time_trigger:
-                        time_next, time_next_adj = TrigTime.timer_trigger_next(
+                        time_next, time_next_adj = await TrigTime.timer_trigger_next(
                             self.time_trigger, now, startup_time
                         )
                         _LOGGER.debug(
@@ -1279,7 +1283,7 @@ class TrigInfo:
                         self.active_expr.get_logger().error(exc)
                         trig_ok = False
                 if trig_ok and self.time_active:
-                    trig_ok = TrigTime.timer_active_check(self.time_active, now, startup_time)
+                    trig_ok = await TrigTime.timer_active_check(self.time_active, now, startup_time)
 
                 if not trig_ok:
                     _LOGGER.debug(
