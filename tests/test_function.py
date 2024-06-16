@@ -13,7 +13,7 @@ from custom_components.pyscript import trigger
 from custom_components.pyscript.const import CONF_ALLOW_ALL_IMPORTS, CONF_HASS_IS_GLOBAL, DOMAIN, FOLDER
 from custom_components.pyscript.function import Function
 from homeassistant.const import EVENT_HOMEASSISTANT_STARTED, EVENT_STATE_CHANGED
-from homeassistant.core import Context
+from homeassistant.core import Context, ServiceRegistry
 from homeassistant.setup import async_setup_component
 
 
@@ -95,7 +95,7 @@ async def test_func_completions(
 @pytest.mark.asyncio
 async def test_service_completions(root, expected, hass, services):  # pylint: disable=redefined-outer-name
     """Test service name completion."""
-    with patch.object(hass.services, "async_services", return_value=services), patch.object(
+    with patch.object(ServiceRegistry, "async_services", return_value=services), patch.object(
         Function, "hass", hass
     ):
         words = await Function.service_completions(root)
@@ -1247,10 +1247,10 @@ def service_call_exception():
 @pytest.mark.asyncio
 async def test_service_call_params(hass):
     """Test that hass params get set properly on service calls."""
-    with patch.object(hass.services, "async_call") as call, patch.object(
+    with patch.object(ServiceRegistry, "async_call") as call, patch.object(
         Function, "service_has_service", return_value=True
     ), patch.object(
-        hass.services,
+        ServiceRegistry,
         "supports_response",
         return_value="none",
     ):

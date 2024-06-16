@@ -6,7 +6,7 @@ import pytest
 
 from custom_components.pyscript.function import Function
 from custom_components.pyscript.state import State
-from homeassistant.core import Context
+from homeassistant.core import Context, ServiceRegistry, StateMachine
 from homeassistant.helpers.state import State as HassState
 
 
@@ -20,8 +20,8 @@ async def test_service_call(hass):
                 "test": {"description": None, "fields": {"entity_id": "blah", "other_service_data": "blah"}}
             }
         },
-    ), patch.object(hass.states, "get", return_value=HassState("test.entity", "True")), patch.object(
-        hass.services, "async_call"
+    ), patch.object(StateMachine, "get", return_value=HassState("test.entity", "True")), patch.object(
+        ServiceRegistry, "async_call"
     ) as call:
         State.init(hass)
         Function.init(hass)
