@@ -258,9 +258,10 @@ Here's an example using ``input_number``, assuming it has been configured to cre
    input_number.test.set_value(value=13)
    input_number.test.set_value(13)
 
-Two additional virtual attribute values are available when you use a variable directly as
+Three additional virtual attribute values are available when you use a variable directly as
 ``DOMAIN.entity.attr`` or call ``state.get("DOMAIN.entity.attr")``:
 
+- ``entity_id`` is the DOMAIN.entity as string
 - ``last_changed`` is the last UTC time the state value was changed (not the attributes)
 - ``last_updated`` is the last UTC time the state entity was updated
 
