@@ -1458,6 +1458,7 @@ evalTestsExceptions = [
             "syntax error invalid syntax (<fstring>, line 1)",  # < 3.9
             "syntax error f-string: invalid syntax (test, line 1)",  # >= 3.9
             "syntax error f-string: invalid syntax. Perhaps you forgot a comma? (test, line 1)",  # >= 3.10
+            "syntax error invalid syntax. Perhaps you forgot a comma? (test, line 1)",  # >= 3.12
         },
     ],
     ["del xx", "Exception in test line 1 column 0: name 'xx' is not defined"],
