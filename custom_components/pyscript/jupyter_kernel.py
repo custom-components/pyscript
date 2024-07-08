@@ -344,6 +344,7 @@ class Kernel:
                 "code": msg["content"]["code"],
             }
             await self.send(self.iopub_socket, "execute_input", content, parent_header=msg["header"])
+            result = None
 
             code = msg["content"]["code"]
             #
