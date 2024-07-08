@@ -89,7 +89,7 @@ async def test_parse_date_time(hass, caplog):
     ):
         for test_data in parseDateTimeTests:
             spec, date_offset, expect = test_data
-            out = TrigTime.parse_date_time(spec, date_offset, now, now)
+            out = await TrigTime.parse_date_time(spec, date_offset, now, now)
             assert out == expect
     await Function.waiter_sync()
     await Function.waiter_stop()
@@ -128,7 +128,7 @@ async def test_parse_date_time_day_names(hass, caplog):
     ):
         for test_data in parseDateTimeTestsDayNames:
             spec, date_offset, expect = test_data
-            out = TrigTime.parse_date_time(spec, date_offset, now, now)
+            out = await TrigTime.parse_date_time(spec, date_offset, now, now)
             assert out == expect
     await Function.waiter_sync()
     await Function.waiter_stop()
@@ -211,7 +211,7 @@ async def test_timer_active_check(hass, spec, now, expected):
     Function.init(hass)
     TrigTime.init(hass)
     # print(f"calling timer_active_check({spec}, {now}, {startup_time})")
-    out = TrigTime.timer_active_check(spec, now, startup_time)
+    out = await TrigTime.timer_active_check(spec, now, startup_time)
     assert out == expected
     await Function.waiter_sync()
     await Function.waiter_stop()
@@ -479,7 +479,7 @@ async def test_timer_trigger_next(hass):
         startup_time = now = dt(2019, 9, 1, 13, 0, 0, 100000)
         spec, expect_seq = test_data
         for expect in expect_seq:
-            t_next, _ = TrigTime.timer_trigger_next(spec, now, startup_time)
+            t_next, _ = await TrigTime.timer_trigger_next(spec, now, startup_time)
             assert t_next == expect
             if t_next is None:
                 break
@@ -595,7 +595,7 @@ async def test_timer_trigger_next_month_rollover(hass):
         startup_time = now = dt(2020, 6, 30, 13, 0, 0, 100000)
         spec, expect_seq = test_data
         for expect in expect_seq:
-            t_next, _ = TrigTime.timer_trigger_next(spec, now, startup_time)
+            t_next, _ = await TrigTime.timer_trigger_next(spec, now, startup_time)
             assert t_next == expect
             if t_next is None:
                 break
@@ -665,7 +665,7 @@ async def test_timer_trigger_dst_next(hass):
         startup_time = now = dt(2019, 11, 3, 0, 0, 0, 0)
         spec, expect_seq = test_data
         for expect in expect_seq:
-            t_next, t_next_adj = TrigTime.timer_trigger_next(spec, now, startup_time)
+            t_next, t_next_adj = await TrigTime.timer_trigger_next(spec, now, startup_time)
             delta = (t_next_adj - now).total_seconds()
             # print(f"calling timer_trigger_next({spec}, {dt_util.as_local(now)}, {startup_time}) -> {dt_util.as_local(t_next)} (delta = {delta})")
             if isinstance(expect, list):
