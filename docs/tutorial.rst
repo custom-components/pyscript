@@ -13,7 +13,7 @@ with:
 
    wget https://github.com/craigbarratt/hass-pyscript-jupyter/raw/master/pyscript_tutorial.ipynb
 
-and open it with:
+and opened with:
 
 .. code:: bash
 
@@ -26,7 +26,7 @@ Writing your first script
 -------------------------
 
 Create a file ``example.py`` in the ``<config>/pyscript`` folder (you
-can use any file name, so long as it ends in ``.py``) that contains:
+can use any filename, so long as it ends in ``.py``) that contains:
 
 .. code:: python
 
@@ -37,7 +37,7 @@ can use any file name, so long as it ends in ``.py``) that contains:
        if action == "turn_on" and id is not None:
            light.turn_on(entity_id=id, brightness=255)
        elif action == "fire" and id is not None:
-           event.fire(id, param1=12, pararm2=80)
+           event.fire(id, param1=12, param2=80)
 
 After starting Home Assistant, use the Service tab in the Developer
 Tools page to call the service ``pyscript.hello_world`` with parameters
@@ -99,8 +99,8 @@ This introduces two new function decorators
 -  ``@time_active`` describes a time range that is checked whenever a
    potential trigger occurs. The Python function is only executed if the
    ``@time_active`` criteria is met. In this example the time range is
-   from 20 minutes before sunset to 15 minutes after sunrise, ie: from
-   dusk to dawn. Whenever the trigger is ``True`` and the active
+   from 20 minutes before sunset to 15 minutes after sunrise (i.e., from
+   dusk to dawn). Whenever the trigger is ``True`` and the active
    conditions are met, the function is executed as a new task. The
    trigger logic doesn't wait for the function to finish; it goes right
    back to checking for the next condition. The function turns on the
@@ -131,8 +131,8 @@ improved example:
 
 The ``task.unique`` function will terminate any task that previously
 called ``task.unique("motion_light_rear")``, and our instance will
-survive. (The function takes a 2nd argument that causes the opposite to
-happen: the older task survives and we are terminated - so long!)
+survive. (The function takes a second argument that causes the opposite
+to happen: the older task survives and we are terminated - so long!)
 
 As before, this example will turn on the light for 5 minutes, but when
 there is a new motion event, the old function (which is part way through
@@ -142,12 +142,12 @@ motion event, and stays on until there are no motion events for at least
 5 minutes. If instead the second argument to ``task.unique`` is set,
 that means the new task is terminated instead. The result is that the
 light will go on for 5 minutes following a motion event, and any new
-motion events during that time will be ignored, since each new triggered
+motion events during that time will be ignored since each new triggered
 function will be terminated. Depending on your application, either
 behavior might be preferred.
 
 There are some other improvements we could make. We could check if the
-light is already on so we don't have to turn it on again, by checking
+light is already on so we don't have to turn it on again by checking
 the relevant state variable:
 
 .. code:: python
@@ -168,8 +168,3 @@ You could also create another function that calls
 (by doing a ``@state_trigger`` on the relevant state variable), so that
 the motion logic is stopped when there is a manual event that you want
 to override the motion logic.
-
-We've introduced some of the main features. Now for some more formal
-descriptions of the decorators and the handful of extra built-in
-functions available.
-
