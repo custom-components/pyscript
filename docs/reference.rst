@@ -6,18 +6,21 @@ Reference
 Configuration
 -------------
 
-Pyscript can be configured using the UI, or via yaml. To use the UI, go to the
-Configuration -> Integrations page and select "+" to add ``Pyscript Python scripting``.
-After that, you can change the settings anytime by selecting "Options" under Pyscript
-in the Configuration -> Integrations page. You will need to select "reload" under Pyscript,
-or call the ``pyscript.reload`` service for the new settings to take effect.
+Pyscript can be configured using the UI or via yaml. To use the UI, go to the
+Settings -> Devices & services -> Integrations page and select "+" to add
+``Pyscript Python scripting``. After that, you can change the settings at any
+time by selecting "configure" under Pyscript Python scripting on the Settings
+-> Devices & services -> Integrations page. For the new settings to take
+effect, you will need to either select "Reload" from the overflow menu
+(button with three dots) next to pyscript or call the ``pyscript.reload``
+service from Developer tools -> Services.
 
 Alternatively, for yaml configuration, add ``pyscript:`` to ``<config>/configuration.yaml``.
 You can't mix these two methods - your initial choice determines how you should update
 these settings later. If you want to switch configuration methods you will need to
 uninstall and reinstall pyscript.
 
-Pyscript has two optional configuration parameters that allow any python package to be
+Pyscript has two optional configuration parameters that allow any Python package to be
 imported and exposes the ``hass`` variable as a global (both options default to ``false``).
 Assuming you didn't use the UI to configure pyscript, these can be set
 in ``<config>/configuration.yaml``:
@@ -29,7 +32,7 @@ in ``<config>/configuration.yaml``:
      hass_is_global: true
 
 It is recommended you put your pyscript configuration its own ``yaml`` file in the ``pyscript``
-folder. That way changes to that file will be automatically detected and will trigger a reload,
+folder. That way changes to the file will be automatically detected and will trigger a reload,
 which includes rereading the configuration parameters:
 
 .. code:: yaml
@@ -70,24 +73,24 @@ The ``apps`` section could also include other configuration files if you prefer 
 each application's configuration in its own file.
 
 An application will not be loaded unless it has a configuration entry (even if it is empty).
-That provides an easy was to enable or disable an application.
+That provides an easy way to enable or disable an application.
 
-An application's configuration (eg, all the settings below ``my_app1`` in the example above)
+An application's configuration (e.g., all the settings below ``my_app1`` in the example above)
 are available in the variable ``pyscript.app_config`` in the global scope of the application's
-main file (eg, ``apps/my_app1.py`` or ``apps/my_app1/__init__.py``).  Additionally, all the pyscript
+main file (e.g., ``apps/my_app1.py`` or ``apps/my_app1/__init__.py``).  Additionally, all the pyscript
 configuration settings are available via the variable ``pyscript.config``, which also includes
 all the application configuration below the ``apps`` key. However, in a future release the
 ``apps`` entry will be removed so that apps do not have access to another app's configuration
-(which might include token, passwords or keys).  See `this section <#accessing-yaml-configuration>`__
-for more information.  Note that ``pyscript.app_config`` is not defined in regular scripts - only
+(which might include token, passwords, or keys).  See `this section <#accessing-yaml-configuration>`__
+for more information.  Note that ``pyscript.app_config`` is not defined in regular scripts, only
 in each application's main file.
 
 Note that if you used the UI flow to configure pyscript, the ``allow_all_imports`` and
-``hass_is_global`` configuration settings will be ignored in the yaml file. In that case
+``hass_is_global`` configuration settings will be ignored in the yaml file. In that case,
 you should omit them from the yaml, and just use yaml for pyscript app configuration.
 
 At startup, pyscript loads the following files. It also automatically unloads and reloads
-files when they are changed, renamed, created or deleted:
+them when changed, renamed, created, or deleted:
 
 ``<config>/pyscript/*.py``
   all files with a ``.py`` suffix in the top-level directory are autoloaded.
@@ -100,13 +103,13 @@ files when they are changed, renamed, created or deleted:
 ``<config>/pyscript/apps/<app_name>/__init__.py``
   every ``__init__.py`` file in a subdirectory in the ``apps`` subdirectory is autoloaded,
   provided ``app_name`` exists in the pyscript ``yaml`` configuration under ``apps``.
-  This package form is most convenient for sharing pyscript code, since all the files for
+  This package form is convenient for sharing pyscript code because all the files for
   one application are stored in their own directory.
 
 ``<config>/pyscript/apps/<app_name>.py``
   all files in the ``apps`` subdirectory with a ``.py`` suffix are autoloaded, unless the
   package form above was loaded instead, and provided ``app_name`` exists in the pyscript
-  ``yaml`` configuration under ``apps`` (that allows each app to be disabled by simply
+  ``yaml`` configuration under ``apps`` (this allows each app to be disabled by simply
   removing its configuration and reloading).
 
 The idea is that the top-level directory ``pyscript`` and ``pyscript/scripts`` are for your own use
@@ -114,25 +117,25 @@ The idea is that the top-level directory ``pyscript`` and ``pyscript/scripts`` a
 you've written with the intent to reuse or share (and only are loaded if there is a configuration
 entry, which can be empty).
 
-Any file name that starts with ``#`` is not loaded, and similarly scripts anywhere below a directory
+Any filename that starts with ``#`` is not loaded, and similarly, scripts anywhere below a directory
 name that starts with ``#``, are not loaded. That's a convenient way to disable a specific script or
-entire directory below ``scripts`` - you can simply rename it with or without the leading ``#`` to
-disable or enable it, which automatically triggers a reload. Think of it as "commenting" the file
-name, rather than having to delete it or move it outside the pyscript directory.
+entire directory below ``scripts``. Simply rename it with or without the leading ``#`` to disable or
+enable it (respectively), which automatically triggers a reload. Think of it as "commenting" the
+filename, rather than having to delete it or move it outside the pyscript directory.
 
-Like regular Python, functions within one source file can call each other, and can share global
+Like regular Python, functions within one source file can call each other and can share global
 variables (if necessary), but just within that one file. Each file has its own separate global
 context. Each Jupyter session also has its own separate global context, so functions, triggers,
-variables and services defined in each interactive session are isolated from the script files and
+variables, and services defined in each interactive session are isolated from the script files and
 other Jupyter sessions. Pyscript provides some utility functions to switch global contexts, which
 allows an interactive Jupyter session to interact directly with functions and global variables
 created by a script file, or even another Jupyter session.
 
 The optional ``<config>/pyscript/modules`` subdirectory can contain modules (files with a ``.py``
 extension) or packages (directories that contain at least a ``__init__.py`` file) that can be
-imported by any other pyscript files, applications or modules. The module form is ignored if the
+imported by any other pyscript files, applications, or modules. The module form is ignored if the
 package form is present. They are not autoloaded. Any modules or packages in
-``<config>/pyscript/modules`` that are modified will be unloaded when they are modified, and any
+``<config>/pyscript/modules`` that are modified will be unloaded when they are modified and any
 scripts or apps that depend on those modules will be reloaded. Importing modules and packages from
 ``<config>/pyscript/modules`` are not restricted if ``allow_all_imports`` is ``False``. Typically
 common functions or features would be implemented in a module or package, and then imported and used
@@ -147,7 +150,7 @@ Reloading Scripts
 Manually reloading scripts via the ``pyscript.reload`` service is no longer necessary starting
 in 1.2.0, since changes are automatically detected and a reload is triggered.
 
-By default, calling the reload service only reloads scripts, apps or modules that have changed since
+By default, calling the reload service only reloads scripts, apps, or modules that have changed since
 they were last loaded. A change means the script, app or module file contents or modification time
 has changed.  Additionally, an app is considered changed if its yaml configuration has changed. When
 a change is detected, additional files are also reloaded if they depend on a changed file.
@@ -169,15 +172,16 @@ Additional files might still be reloaded too (all other files in the module or a
 modules, apps or scripts that import a module if ``global_ctx`` was set to a module).
 
 If you want to manually reload all scripts, apps and modules, set ``global_ctx`` to ``*`` when
-you call ``pyscript.reload``.  Alternatively, the ``Reload`` option under pyscript in the
-in the Configuration -> Integrations page will always do a full reload.
+you call ``pyscript.reload``.  Alternatively, the ``Reload`` option from the overflow menu
+(button with three dots) next to pyscript in the Settings -> Devices & services -> Integrations
+page will always do a full reload.
 
 Any function definitions, services and triggers in the reloaded files are re-created. Jupyter
-sessions are not affected. Any currently running functions (ie, functions that have been triggered
+sessions are not affected. Any currently running functions (i.e., functions that have been triggered
 and are actively executing Python code or waiting inside ``task.sleep()`` or ``task.wait_until()``)
 are not stopped on reload - they continue to run until they finish (return). You can terminate
 these running functions too on reload if you wish by calling ``task.unique()`` in the script
-file preamble (ie, outside any function definition), so it is executed on load and reload, which
+file preamble (i.e., outside any function definition), so it is executed on load and reload, which
 will terminate any running functions that have previously called ``task.unique()`` with the same
 argument.
 
@@ -202,7 +206,7 @@ In cases where you need to compute the name of the state variable dynamically, o
 get all the state attributes, you can use the built-in functions ``state.get()``, ``state.getattr()``,
 ``state.set()`` and ``state.setattr()``; see `State Functions <#state-variable-functions>`__.
 
-The function ``state.names(domain=None)`` returns a list of all state variable names (ie,
+The function ``state.names(domain=None)`` returns a list of all state variable names (i.e.,
 ``entity_id``\ s) of a domain. If ``domain`` is not specified, it returns all HASS state
 variable (entity) names.
 
@@ -211,7 +215,7 @@ component has a state variable name that collides with one of its services, you'
 ``state.get(name)`` to access that state variable.
 
 Accessing state variables that don't exist will throw a ``NameError`` exception, and accessing
-an attribute that doesn't exist will throw a ``AttributeError`` exception. One exception (!)
+an attribute that doesn't exist will throw an ``AttributeError`` exception. One exception (!)
 to this is that in a ``@state_trigger`` expression, undefined state variables and attributes will
 evaluate to ``None`` instead of throwing an exception.
 
@@ -228,7 +232,7 @@ Later, if ``binary_sensor.test1`` changes, ``test1_state`` continues to represen
 value and attributes at the time of the assignment.
 
 State variables also support virtual methods that are service calls with that ``entity_id``.
-For any state variable ``DOMAIN.ENTITY``, any services registered by ``DOMAIN``, eg:
+For any state variable ``DOMAIN.ENTITY``, any services registered by ``DOMAIN``, e.g.,
 ``DOMAIN.SERVICE``, that have an ``entity_id`` parameter can be called as a method
 ``DOMAIN.ENTITY.SERVICE()``. Each of these statements are equivalent:
 
@@ -294,7 +298,7 @@ which calls the ``myservice.flash_light`` service with the indicated parameters.
 parameter values could be any Python expression, and this call could be inside a loop, an if
 statement or any other Python code.
 
-Starting in HASS 2023.7, services can return a response, which is a dictionary of values.  You need
+Starting in HASS 2023.7, services can return a response, which is a dictionary of values. You need
 to set the keyword parameter ``return_response=True`` to get the response.  For example:
 
 .. code:: python
@@ -321,7 +325,7 @@ Firing events
 Any event can be triggered by calling ``event.fire(event_type, **kwargs)``. It takes the
 ``event_type`` as a first argument, and any keyword parameters as the event parameters. The
 ``event_type`` could be a user-defined string, or it could be one of the built-in events. You can
-access the names of those built-in events by importing from ``homeassistant.const``, eg:
+access the names of those built-in events by importing from ``homeassistant.const``, e.g.,
 
 .. code:: python
 
@@ -352,7 +356,7 @@ function.
 more state variables, and evaluates to ``True`` or ``False`` (or non-zero or zero). Whenever any of
 the state variables or attribute values mentioned in the expression change (or specified via the
 ``watch`` argument), the expression is evaluated and the trigger occurs if it evaluates to ``True``
-(or non-zero). For each state variable, eg: ``domain.name``, the prior value is also available to
+(or non-zero). For each state variable, e.g., ``domain.name``, the prior value is also available to
 the expression as ``domain.name.old`` in case you want to condition the trigger on the prior value
 too. Attribute values can be used in the expression too, using the forms ``domain.name.attr`` and
 ``domain.name.old.attr`` for the new and old attribute values respectively.
@@ -415,7 +419,7 @@ Optional arguments are:
   monitored for this trigger.  When (and only when) a variable in this set changes, the trigger
   expression is evaluated. Normally this set of names is automatically extracted from the
   ``@state_trigger`` expression, but there could be cases where it doesn't capture all the names
-  (eg, if you have to use ``state.get()`` inside the trigger expression). You could also use
+  (e.g., if you have to use ``state.get()`` inside the trigger expression). You could also use
   ``watch`` to specify a subset of the names in the trigger expression, which has the effect of
   rendering those other variables as only conditions in the trigger expression that won't cause
   a trigger themselves, since the expression won't be evaluated when they change.
@@ -452,7 +456,7 @@ although the second will throw an exception if the variable string doesn't repre
 If you want numerical inequalities you should use the second form, since string lexicographic
 ordering is not the same as numeric ordering.
 
-You can also use state variable attributes in the trigger expression, with an idenfitier of the
+You can also use state variable attributes in the trigger expression, with an identifier of the
 form ``DOMAIN.name.attr``. Attributes maintain their original type, so there is no need to cast
 then to another type.
 
@@ -469,8 +473,8 @@ For example:
    @state_trigger("domain.light_level")
 
 will trigger any time the value of ``domain.light_level`` changes (not its attributes), which
-includes the cases when that variable is first created (ie, the ``old_value`` is ``None``)
-and when it is deleted (ie, the ``value`` is ``None``).
+includes the cases when that variable is first created (i.e., the ``old_value`` is ``None``)
+and when it is deleted (i.e., the ``value`` is ``None``).
 
 If you use the "any change" form, there's no point in also specifying ``state_hold`` since the
 expression is always ``True`` whenever the state variable changes - there is no way for it to
@@ -551,7 +555,7 @@ form, if can check if ``var_name`` is in ``kwargs``.
 If ``state_hold`` is specified, the arguments to the trigger function reflect the variable change
 that cause the first trigger, not any subsequent ones during the ``state_hold`` period. Also, if
 the ``@time_active`` or ``@state_active`` decorators are used, they will be evaluated after the
-``state_hold`` period, but with the initial trigger variable value (ie, the value that caused
+``state_hold`` period, but with the initial trigger variable value (i.e., the value that caused
 the initial trigger).
 
 Inside ``str_expr``, undefined state variables, undefined state attributes, and undefined
@@ -587,7 +591,7 @@ with the following features:
   lack ``locale.nl_langinfo``, the days of week default to English).
 - The meaning of partial or missing dates depends on the trigger, as explained below.
 - The date and time can be replaced with ``now``, which means the current date and time when the
-  trigger was first evaluated (eg, at startup or when created as an inner function or closure),
+  trigger was first evaluated (e.g., at startup or when created as an inner function or closure),
   and remains fixed for the lifetime of the trigger.
 - The time can instead be ``sunrise``, ``sunset``, ``noon`` or ``midnight``.
 - If the time is missing, midnight is assumed (so ``thursday`` is the same as ``thursday 00:00:00``)
@@ -607,12 +611,12 @@ with the following features:
 
 In ``@time_trigger``, each string specification ``time_spec`` can take one of five forms:
 
-- ``"startup"`` triggers on HASS start and reload (ie, on function definition), and is
+- ``"startup"`` triggers on HASS start and reload (i.e., on function definition), and is
   equivalent to ``"once(now)"``
-- ``"shutdown"`` triggers on HASS shutdown and reload (ie, when the trigger function is
+- ``"shutdown"`` triggers on HASS shutdown and reload (i.e., when the trigger function is
   no longer referenced)
 - ``"once(datetime)"`` triggers once on the date and time. If the year is
-  omitted, it triggers once per year on the date and time (eg, birthday). If the date is just a day
+  omitted, it triggers once per year on the date and time (e.g., birthday). If the date is just a day
   of week, it triggers once on that day of the week. If the date is omitted, it triggers once each
   day at the indicated time. ``once(now + 5 min)`` means trigger once 5 minutes after startup.
 - ``"period(datetime_start, interval, datetime_end)"`` or
@@ -641,7 +645,7 @@ In ``@time_trigger``, each string specification ``time_spec`` can take one of fi
   that matches the specification. See any Linux documentation for examples and more details (note:
   names for days of week and months are not supported; only their integer values are). The cron
   features use the ``croniter`` package, so check its `documentation <https://pypi.org/project/croniter/>`__
-  for additional specification formats that are supported (eg: ``*/5`` repeats every 5th unit,
+  for additional specification formats that are supported (e.g., ``*/5`` repeats every 5th unit,
   days of week can be specified with English abbreviations, and an optional 6th field allows seconds
   to be specified).
 
@@ -666,7 +670,7 @@ specification:
 The function is not re-started after it returns, unless a reload occurs. Startup occurs when the
 ``EVENT_HOMEASSISTANT_STARTED`` event is fired, which is after everything else is initialized and
 ready, so this function can call any services etc. A startup trigger can also occur after
-HASS is started when a new trigger function is defined (eg, on reload, defined at run-time
+HASS is started when a new trigger function is defined (e.g., on reload, defined at run-time
 using inner function/closure, or interactively in Jupyter).
 
 Similarly, the ``shutdown`` trigger occurs when the ``EVENT_HOMEASSISTANT_STOP`` event is fired,
@@ -678,17 +682,17 @@ completes.
 
 Note that ``period`` and ``cron`` behave differently as daylight savings changes occur.  The
 ``datetime`` values are always in local time.  The ``interval`` in the ``period()`` trigger is
-always the same duration, even when it crosses a daylight savings time change.  For example, if
+always the same duration, even when it crosses a daylight saving time change.  For example, if
 the starting time is 6:00pm on some day in summer, and the interval is 1 day, the triggers will
 occur at 6:00pm in summer and 5:00pm in winter; they are always exactly 24 hours apart.  In
 contrast, if ``cron()`` specifies a daily trigger at a specific time of day, the interval between
-triggers will be 23 or 25 hours when it crosses a daylight savings time change, so that the trigger
+triggers will be 23 or 25 hours when it crosses a daylight saving time change, so that the trigger
 continues to be at the specific time of day according to the ``cron()`` specification.  For example,
 if the ``cron()`` specification is ``"0 18 * * *"`` (6:00pm every day), the triggers will occur at
 6:00pm every day, even when the time changes from summer to winter or vice versa.
 
 This can create some surprising behavior when the ``cron()`` specification is for a time that lands
-in the middle of the repeated or skipped hour when daylight savings time changes.  For example, if
+in the middle of the repeated or skipped hour when daylight saving time changes.  For example, if
 the ``cron()`` specification is ``"1 1-4 * * *"`` (1:01am, 2:01am, 3:01am, 4:01am every day), when
 the transition from summer to winter time occurs, the triggers will occur at 1:01am, 2:01am, 3:01am,
 4:01am, but the 2:01am trigger will occur 2 hours after the 1:01am trigger.  When the transition
@@ -714,7 +718,7 @@ parameters sent with the event, together with these two variables:
 - ``event_type`` is the string event type, which will be the same as the
   first argument to ``@event_trigger``
 
-Note unlike state variables, the event data values are not forced to be strings, so typically that
+Note, unlike state variables, the event data values are not forced to be strings, so typically that
 data has its native type.
 
 When the ``@event_trigger`` occurs, those same variables are passed as keyword arguments to the
@@ -722,16 +726,16 @@ function in case it needs them.  Additional keyword parameters can be specified 
 optional ``kwargs`` argument to a ``dict`` with the keywords and values.
 
 The ``event_type`` could be a user-defined string, or it could be one of the built-in events. You
-can access the names of those events by importing from ``homeassistant.const``, eg:
+can access the names of those events by importing from ``homeassistant.const``, e.g.,
 
 .. code:: python
 
    from homeassistant.const import EVENT_CALL_SERVICE
 
-To figure out what parameters are sent with an event and what objects (eg: ``list``, ``dict``) are
+To figure out what parameters are sent with an event and what objects (e.g., ``list``, ``dict``) are
 used to represent them, you can look at the HASS source code, or initially use the ``**kwargs``
 argument to capture all the parameters and log them. For example, you might want to trigger on
-certain service calls (not ones directed to pyscript), but you are unsure which one and what
+certain service calls (not ones directed to pyscript), but you are unsure which one, and what
 parameters it has. So initially you trigger on all service calls just to see them:
 
 .. code:: python
@@ -776,7 +780,7 @@ variables:
 - ``trigger_type`` is set to "mqtt"
 - ``topic`` is set to the topic the message was received on
 - ``payload`` is set to the string payload of the message
-- ``payload_obj`` if the payload was valid JSON, this will be set to the native python object
+- ``payload_obj`` if the payload was valid JSON, this will be set to the native Python object
   representing that payload.
 - ``qos`` is set to the message QoS.
 
@@ -898,14 +902,14 @@ Other Function Decorators
 ^^^^^^^^^^^^^^^^^
 
 By default in pyscript all functions are async, so they cannot be used in ``task.executor``,
-as callbacks or methods in python packages that expect regular functions, or used with built-in
-functions like ``filter``, ``map`` or special class methods that are called by python internals
-(eg, ``__getattr__`` or ``__del__``).
+as callbacks or methods in Python packages that expect regular functions, or used with built-in
+functions like ``filter``, ``map`` or special class methods that are called by Python internals
+(e.g., ``__getattr__`` or ``__del__``).
 
 The ``@pyscript_compile`` decorator causes the function to be treated as native Python and
-compiled, which results in a regular python function being defined, and it will run at full
+compiled, which results in a regular Python function being defined, and it will run at full
 compiled speed. A ``lambda`` function is automatically compiled so it behaves like a regular
-python ``lambda`` function (which means the lambda function body cannot contain pyscript
+Python ``lambda`` function (which means the lambda function body cannot contain pyscript
 features).
 
 For example:
@@ -920,8 +924,8 @@ For example:
 
 sets ``x`` to ``[1, 6, 11]``.
 
-One use for ``@pyscript_compile`` is to encapsulate functions that block (eg, doing I/O), so they can
-be called from ``task.executor``. This might be a more convenient way to create native python functions
+One use for ``@pyscript_compile`` is to encapsulate functions that block (e.g., doing I/O), so they can
+be called from ``task.executor``. This might be a more convenient way to create native Python functions
 called by ``task.executor``, instead of moving them all to an external module or package outside
 of ``config/pyscript``. This example reads a file using a native compiled function called by
 ``task.executor``:
@@ -943,10 +947,10 @@ of ``config/pyscript``. This example reads a file using a native compiled functi
 
 Restrictions include:
 
-- since it's native python, the function cannot use any pyscript-specific features;
-  but since it's native python, all language features are available, including ``open``,
-  ``yield`` etc
-- if you use ``@pyscript_compile`` on an inner function (ie, defined inside a pyscript
+- since it's native Python, the function cannot use any pyscript-specific features;
+  but since it's native Python, all language features are available, including ``open``,
+  ``yield`` etc.
+- if you use ``@pyscript_compile`` on an inner function (i.e., defined inside a pyscript
   function), then binding of variables defined outside the scope of the inner function
   does not work.
 
@@ -956,7 +960,7 @@ Restrictions include:
 The ``@pyscript_executor`` decorator does the same thing as ``@pyscript_compile`` and
 additionally wraps the compiled function with a call to ``task.executor``. The resulting
 function is now a pyscript (async) function that can be called like any other pyscript
-function.  This provides the cleanest way of defining a native python function that is
+function.  This provides the cleanest way of defining a native Python function that is
 executed in a new thread each time it is called, which is required for functions that
 do I/O or otherwise might block.
 
@@ -978,7 +982,7 @@ The file reading example above is simplified with the use of ``@pyscript_executo
    log.info(f"contents = {contents}")
 
 Notice that ``read_file()`` is called like a regular function, and it automatically calls
-``task.executor``, which runs the compiled native python function in a new thread, and
+``task.executor``, which runs the compiled native Python function in a new thread, and
 then returns the result.
 
 @service(service_name, ..., supports_response="none")
@@ -988,7 +992,7 @@ The ``@service`` decorator causes the function to be registered as a service so 
 externally. The string ``service_name`` argument is optional and defaults to ``"pyscript.FUNC_NAME"``,
 where ``FUNC_NAME`` is the name of the function. You can override that default by specifying
 a string with a single period of the form ``"DOMAIN.SERVICE"``. Multiple arguments and multiple
-``@service`` decorators can be used to register multiple names (eg, aliases) for the same function.
+``@service`` decorators can be used to register multiple names (e.g., aliases) for the same function.
 
 The ``supports_response`` keyword argument can be set to one of three string values: ``"none"`` (the
 default), ``"only"``, or ``"optional"``, depending on whether the service provides no response, always
@@ -1068,7 +1072,7 @@ Python.
 However, if you set a variable like ``state``, ``log`` or ``task`` to some value, then the functions
 defined with that prefix will no longer be available, since the portion after the period will now be
 interpreted as a method or class function acting on that variable. That's the same behavior as
-Python - for example if you set ``bytes`` to some value, then the ``bytes.fromhex()`` class method
+Python - for example, if you set ``bytes`` to some value then the ``bytes.fromhex()`` class method
 is no longer available in the current scope.
 
 .. _State Variable Functions:
@@ -1077,7 +1081,7 @@ State variables
 ^^^^^^^^^^^^^^^
 
 State variables can be used and set just by using them as normal Python variables. However, there
-could be cases where you want to dynamically generate the variable name (eg, in a function or loop
+could be cases where you want to dynamically generate the variable name (e.g., in a function or loop
 where the state variable name is computed dynamically). These functions allow you to get and set a
 variable using its string name. The set function also allows you to optionally set the attributes,
 which you can't do if you are directly assigning to the variable:
@@ -1092,19 +1096,19 @@ which you can't do if you are directly assigning to the variable:
   ``AttributeError`` exception is thrown if that attribute doesn't exist.
 ``state.getattr(name)``
   Returns a ``dict`` of attribute values for the state variable ``name`` string, or ``None`` if it
-  doesn't exist. Alternatively, ``name`` can be a state variable. In pyscript prior to 1.0.0,
-  this function was ``state.get_attr()``. That deprecated name is still supported, but it logs a
-  warning message and will be removed in a future version.
+  doesn't exist. Alternatively, ``name`` can be a state variable. In pyscript versions prior to
+  1.0.0, this function was ``state.get_attr()``. That deprecated name is still supported, but it
+  logs a warning message and will be removed in a future version.
 ``state.names(domain=None)``
-  Returns a list of all state variable names (ie, ``entity_id``\ s) of a
+  Returns a list of all state variable names (i.e., ``entity_id``\ s) of a
   domain. If ``domain`` is not specified, it returns all HASS state variable (``entity_id``) names.
 ``state.persist(entity_id, default_value=None, default_attributes=None)``
   Indicates that the entity ``entity_id`` should be persisted. Optionally, a default value and
   default attributes (a ``dict``) can be specified, which are applied to the entity if it doesn't
   exist or doesn't have any attributes respectively. "Persist" mean its value and attributes
   are preserved across HASS restarts. This only applies to entities in the ``pyscript``
-  domain (ie, name starts with ``pyscript.``). See `this section <#persistent-state>`__ for
-  more information
+  domain (i.e., name starts with ``pyscript.``). See `this section <#persistent-state>`__ for
+  more information.
 ``state.set(name, value=None, new_attributes=None, **kwargs)``
   Sets the state variable to the given value, with the optional attributes. The optional 3rd
   argument, ``new_attributes``, should be a ``dict`` and it will overwrite all the existing
@@ -1118,7 +1122,7 @@ which you can't do if you are directly assigning to the variable:
   state variable and attribute as a string in the form ``DOMAIN.entity.attr``.
 
 Note that in HASS, all state variable values are coerced into strings. For example, if a state
-variable has a numeric value, you might want to convert it to a numeric type (eg, using ``int()``
+variable has a numeric value, you might want to convert it to a numeric type (e.g., using ``int()``
 or ``float()``). Attributes keep their native type.
 
 Service Calls
@@ -1178,7 +1182,7 @@ For example, these settings:
        custom_components.pyscript.file: info
        custom_components.pyscript.file.my_script.my_function: debug
 
-will log all messages at ``info`` or higher (ie: ``log.info()``, ``log.warning()`` and
+will log all messages at ``info`` or higher (i.e., ``log.info()``, ``log.warning()`` and
 ``log.error()``), and inside ``my_function`` defined in the script file ``my_script.py`` (and any
 other functions it calls) will log all messages at ``debug`` or higher.
 
@@ -1209,9 +1213,9 @@ Tasks
 ^^^^^
 
 A task is a lightweight execution context that runs a function inside an event loop, effectively
-providing asynchronous (actually collaborative serial) execution.  They are part of Python's
+providing asynchronous (actually, collaborative serial) execution. They are part of Python's
 ``asyncio`` package and are central to how HASS and pyscript handle multiple activities. Tasks can
-run any Python code, provided it does not block (eg, for I/O) or run without giving up control for
+run any Python code, provided it does not block (e.g., for I/O) or run without giving up control for
 too long (which will prevent other tasks from running).
 
 Task Management
@@ -1259,7 +1263,7 @@ occurs.
   This is a more convenient alternative to the ``task_id.add_done_callback`` method that supports both pyscript
   function (coroutine) and regular function callbacks. The function ``func`` with the specified arguments
   is called when the task completes.  Multiple callbacks (with different functions) can be added to one task.
-  If you use the same ``func`` argument it replaces the prior callback for that function (ie, only one done
+  If you use the same ``func`` argument it replaces the prior callback for that function (i.e., only one done
   callback per function is supported).
 
 ``task.remove_done_callback(task_id, func)``
@@ -1276,7 +1280,7 @@ main event loop using ``task.executor``:
 ``task.executor(func, *args, **kwargs)``
   Run the given function in a separate thread. The first argument is the function to be called,
   followed by each of the positional or keyword arguments that function expects. The ``func``
-  argument can only be a regular Python function (eg, defined in an imported module), not a
+  argument can only be a regular Python function (e.g., defined in an imported module), not a
   function defined in pyscript. ``task.executor`` waits for the function to complete in the
   other thread, and it returns the return value from the function ``func``.
 
@@ -1306,7 +1310,7 @@ global context will not affect another.
 Once a task calls ``task.unique`` with a name, that name can be used to look up the task
 id by name using ``task.name2id``. So even if ``task.unique`` is not used to kill a prior
 task, it can be used to associate that task with a name which might be helpful if you need
-to manage specific tasks (eg, cancel them, wait for them to complete, or get their return
+to manage specific tasks (e.g., cancel them, wait for them to complete, or get their return
 value when they finish).
 
 A task can call ``task.unique`` multiple times with different names, which will kill
@@ -1316,7 +1320,7 @@ by a different task to kill the original task. Any of those names can be used to
 the task id by name using ``task.name2id``.
 
 ``task.unique`` can also be called outside a function, for example in the preamble of a script file
-or interactively using Jupyter. That causes any currently running functions (ie, functions that have
+or interactively using Jupyter. That causes any currently running functions (i.e., functions that have
 already been triggered and are running Python code) that previously called ``task.unique`` with the
 same name to be terminated. Since any currently running functions are not terminated on reload, this
 is the mechanism you can use should you wish to terminate specific functions on reload. If used
@@ -1395,7 +1399,7 @@ other return variables that capture the variable name and value that just caused
 included in the ``dict`` - it will just contain ``trigger_type="state"``.
 
 Here's an example. Whenever a door is opened, we want to do something if the door closes within 30
-seconds. If a timeout of more than 30 seconds elapses (ie, the door is still open), we want to do
+seconds. If a timeout of more than 30 seconds elapses (i.e., the door is still open), we want to do
 some other action. We use a decorator trigger when the door is opened, and we use
 ``task.wait_until`` to wait for either the door to close, or a timeout of 30 seconds to elapse. The
 return value tells which of the two events happened:
@@ -1471,8 +1475,8 @@ module or package that is explicitly imported). In normal use you don't need to 
 contexts. But for interactive debugging and development, you might want your Jupyter session to
 access variables and functions defined in a script file.
 
-Here is the naming convention for each file's global context (upper case mean any value;
-lower case are actual fixed names):
+Here is the naming convention for each file's global context (upper case means any value;
+lower case means actual fixed names):
 
   ======================================= ===========================
   pyscript file path                      global context name
@@ -1494,7 +1498,7 @@ Note that if the package form of an app or module (``pyscript/apps/APP/__init__.
 or ``pyscript/modules/MODULE.py``) is ignored.
 
 The logging path uses the global context name, so you can customize logging verbosity for each
-global context, to the granularity of specific functions eg:
+global context, to the granularity of specific functions e.g.,
 
 .. code:: yaml
 
@@ -1519,7 +1523,7 @@ will change the log level for the ``my_script.py`` script to ``debug``.
 
 When a script file has changed (or an app's configuration has changed, provided the ``yaml`` file is
 below the ``pyscript`` directory), a reload is triggered, and the corresponding global context whose
-names starts with ``file.``, ``modules.``, ``apps.`` or ``scripts.`` is removed. As each file is
+names start with ``file.``, ``modules.``, ``apps.`` or ``scripts.`` is removed. As each file is
 reloaded, the corresponding global context is created.
 
 Three functions are provided for getting, setting and listing the global contexts. That allows
@@ -1535,7 +1539,7 @@ space isolation among the script files. Here are the functions:
   sets the current global context to the given name.
 
 When you exit a Jupyter session, its global context is deleted, which means any triggers, functions,
-services and variables you created are deleted (HASS state variables survive). If you switch to a
+services, and variables you created are deleted (HASS state variables survive). If you switch to a
 script file's context, then any triggers, functions, services or variables you interactively create
 there will persist after you exit the Jupyter session. However, if you don't update the
 corresponding script file, whenever the script is modified and automatically reloaded,
@@ -1550,7 +1554,7 @@ Workflow
 
 Without Jupyter, the pyscript workflow involves editing scripts in the ``<config>/pyscript`` folder.
 Each time a file is changed, it is automatically reloaded. You will need to look at the log file
-for error messages (eg, syntax errors), or log output from your code.
+for error messages (e.g., syntax errors), or log output from your code.
 
 If a module or app file (or any ``yaml`` files in the ``pyscript`` directory) has changed, all files
 in that module or app get reloaded too, and also any other files that import that module. If you
@@ -1558,7 +1562,7 @@ want to reload all the files, call the ``pyscript.reload`` service with the opti
 ``global_ctx`` set to ``*``.
 
 An excellent alternative to repeatedly modifying a script file is to use Jupyter notebook to
-interactively develop and test functions, triggers and services.
+interactively develop and test functions, triggers, and services.
 
 Jupyter auto-completion (with ``<TAB>``) is supported in Jupyter notebook, console and lab. It should
 work after you have typed at least the first character. After you hit ``<TAB>`` you should see a list
@@ -1566,13 +1570,13 @@ of potential completions from which you can select. It's a great way to easily s
 variables, functions or services.
 
 In a Jupyter session, one or more functions can be defined in each code cell. Every time that cell
-is executed (eg, ``<Shift>Return``), those functions are redefined, and any existing trigger
+is executed (e.g., ``<Shift>Return``), those functions are redefined, and any existing trigger
 decorators with the same function name are canceled and replaced by the new definition. You might
 have other function and trigger definitions in another cell - they won't be affected (assuming those
 function names are different), and they will only be replaced when you re-execute that other cell.
 
 When the Jupyter session is terminated, its global context is deleted, which means any trigger
-rules, functions, services and variables you created are deleted. The pyscript Jupyter kernel is
+rules, functions, services, and variables you created are deleted. The pyscript Jupyter kernel is
 intended as an interactive sandbox. As you finalize specific functions, triggers and automation
 logic, you should copy them to a pyscript script file, which will automatically reloaded once
 that file is written. That ensures they will be loaded and run each time you re-start HASS.
@@ -1580,9 +1584,9 @@ that file is written. That ensures they will be loaded and run each time you re-
 If a function you define has been triggered and is currently executing Python code, then re-running
 the cell in which the function is defined, or exiting the Jupyter session, will not stop or cancel
 the already running function. This is the same behavior as reload. In pyscript, each triggered
-function (ie, a trigger has occurred, the trigger conditions are met, and the function is actually
+function (i.e., a trigger has occurred, the trigger conditions are met, and the function is actually
 executing Python code) runs as an independent task until it finishes. So if you are testing triggers
-of a long-running function (eg, one that uses ``task.sleep()`` or ``task.wait_until()``) you could end
+of a long-running function (e.g., one that uses ``task.sleep()`` or ``task.wait_until()``) you could end
 up with many running instances. It's strongly recommended that you use ``task.unique()`` to make sure
 old running function tasks are terminated when a new one is triggered. Then you can manually call
 ``task.unique()`` to terminate that last running function before exiting the Jupyter session.
@@ -1630,7 +1634,7 @@ which is typically compiled. Any Python packages you import will run at native, 
 
 So if you plan to run large chunks of code in pyscript without needing any of the pyscript-specific
 features, or you want access to native Python features that aren't supported in pyscript (like
-``yield``, ``open``, ``read`` or ``write``), you might consider putting them in a package and
+``yield``, ``open``, ``read``, or ``write``), you might consider putting them in a package and
 importing it instead. That way it will run at native compiled speed and have full access to
 the native Python language.
 
@@ -1646,15 +1650,15 @@ One way to do that is in one of your pyscript script files, add this code:
 This adds the directory ``/config/pyscript_modules`` to Python's module search path (you should use
 the correct full path specific to your installation). You will need to set the ``allow_all_imports``
 configuration parameter to ``true``  to allow importing of ``sys``. You can then add modules (files
-ending in ``.py``) to that folder, which will contain native python that is compiled when imported
+ending in ``.py``) to that folder, which will contain native Python that is compiled when imported
 (note that none of the pyscript-specific features are available in those modules).
 
 Pyscript can install required Python packages if they are missing. Depending on how you run HASS
-(eg, using a minimal Docker container) it might not be convenient to manually install Python packages
+(e.g., using a minimal Docker container) it might not be convenient to manually install Python packages
 using ``pip``. If your pyscript code requires particular Python packages that are not already installed
 by HASS, add a ``requirements.txt`` file the ``<config>/pyscript`` directory. This file lists each
 required package one per line, with an optional version if you require a specific version or minimum
-version of that package, eg:
+version of that package, e.g.,
 
 .. code::
 
@@ -1667,7 +1671,7 @@ When a specific version of a package is required, the ``==`` specifier must be u
 (no version specified) are also accepted, but the highest pinned version will always take precedence
 when a package has been specified as a requirement multiple times.
 
-Each app's or module's directory (assuming they use the directory-form of a package) can also
+Each app or module's directory (assuming they use the directory-form of a package) can also
 contain an optional ``requirements.txt`` file:
 
 - ``<config>/pyscript/modules/my-package-name/requirements.txt``
@@ -1685,9 +1689,9 @@ logged and the requirement will be skipped.
 Trigger Closures
 ^^^^^^^^^^^^^^^^
 
-Pyscript supports trigger functions that are defined as closures, ie: functions defined inside
-another function. This allows you to easily create many similar trigger functions that might
-differ only in a couple of parameters (eg, a common function in different rooms or for each
+Pyscript supports trigger functions that are defined as closures (i.e., functions defined inside
+another function). This allows you to easily create many similar trigger functions that might
+differ only in a couple of parameters (e.g., a common function in different rooms or for each
 media setup). The trigger will be stopped when the function is no longer referenced in
 any scope. Typically the closure function is returned, and the return value is assigned
 to a variable. If that variable is re-assigned or deleted, the trigger function will be
@@ -1764,9 +1768,9 @@ Accessing YAML Configuration
 
 Pyscript binds all of its ``yaml`` configuration to the variable ``pyscript.config``. That allows
 you to add configuration settings that can be processed by your pyscript code. Additionally, an
-application's configuration (eg, for an application ``app_name``, all the settings in ``app_name``
+application's configuration (e.g., for an application ``app_name``, all the settings in ``app_name``
 below ``apps``) are available in the variable ``pyscript.app_config`` in the global scope of the
-application's main file (eg, ``apps/app_name.py`` or ``apps/app_name/__init__.py``).  Note that
+application's main file (e.g., ``apps/app_name.py`` or ``apps/app_name/__init__.py``).  Note that
 ``pyscript.app_config`` is not defined in regular scripts - only in each application's main file.
 
 One motivation is to allow pyscript apps to be developed and shared that can instantiate triggers
@@ -1776,7 +1780,7 @@ corresponding ``yaml`` configuration.
 
 The configuration for an application should be placed below that application's name under the
 ``apps`` configuration key.  For example, the settings for a pyscript application called
-``auto_lights`` below an entry ``apps``. That entry could contain a list of settings (eg, for
+``auto_lights`` below an entry ``apps``. That entry could contain a list of settings (e.g., for
 handling multiple rooms or locations).
 
 Here's an example ``yaml`` configuration with settings for two applications, ``auto_lights``
@@ -1810,7 +1814,7 @@ and ``motion_light``:
        setting2: true
 
 For the ``auto_lights`` application, those settings are available to that application's main
-source file (eg, ``apps/auto_lights.py`` or ``apps/auto_lights/__init__.py``) in the global
+source file (e.g., ``apps/auto_lights.py`` or ``apps/auto_lights/__init__.py``) in the global
 variable ``pyscript.app_config``, which will be set to:
 
 .. code:: python
@@ -1853,7 +1857,7 @@ Your application code for ``auto_lights`` would be in either
 - ``<config>/pyscript/apps/auto_lights/__init__.py``
 
 It can simply iterate over ``pyscript.app_config`` settings up the necessary
-triggers and application logic, eg:
+triggers and application logic, e.g.,
 
 .. code:: python
 
@@ -1895,7 +1899,7 @@ comes great responsibility!
 
 For example, you can access configuration settings like ``hass.config.latitude`` or ``hass.config.time_zone``.
 
-You can use ``hass`` to compute sunrise and sunset times using the same method HASS does, eg:
+You can use ``hass`` to compute sunrise and sunset times using the same method HASS does, e.g.,
 
 .. code:: python
 
@@ -1941,8 +1945,8 @@ be blocked, which will delay all other tasks.
 
 All the built-in functionality in pyscript is written using asynchronous code, which runs seamlessly
 together with all the other tasks in the main event loop. However, if you import Python packages and
-call functions that block (eg, file or network I/O) then you need to run those functions outside
-the main event loop. That can be accomplished wrapping those function calls with the
+call functions that block (e.g., file or network I/O) then you need to run those functions outside
+the main event loop. That can be accomplished by wrapping those function calls with the
 ``task.executor`` function, which runs the function in a separate thread:
 
 ``task.executor(func, *args, **kwargs)``
@@ -2070,7 +2074,7 @@ Here are some areas where pyscript differs from real Python:
 - The pyscript-specific function names and state names that contain a period are treated as plain
   identifiers that contain a period, rather than an attribute (to the right of the period) of an object
   (to the left of the period). For example, while ``pyscript.reload`` and ``state.get`` are functions, ``pyscript``
-  and ``state`` aren't defined. However, if you set ``pyscript`` or ``state`` to some value (ie: assign them
+  and ``state`` aren't defined. However, if you set ``pyscript`` or ``state`` to some value (i.e., assign them
   as a variable), then ``pyscript.reload`` and ``state.get`` are now treated as accessing those attributes
   in the ``pyscript`` or ``state`` object, rather than calls to the built-in functions, which are no longer
   available. That's similar to regular Python, where if you set ``bytes`` to some value, the ``bytes.fromhex``
@@ -2083,9 +2087,9 @@ Here are some areas where pyscript differs from real Python:
   be declared ``async``. Unless the Python module is designed to support async callbacks, it is not
   currently possible to have Python modules and packages call pyscript functions. The workaround is
   to move your callbacks from pyscript and make them native Python functions; see `Importing <#importing>`__.
-- Continuing that point, special methods (eg, ``__eq__``) in a class created in `pyscript` will not work since
+- Continuing that point, special methods (e.g., ``__eq__``) in a class created in `pyscript` will not work since
   they are async functions and Python will not be able to call them. The two workarounds are to
-  use the ``@pyscript_compile`` decorator so the method is compiled to a native (non-ascync) Python
+  use the ``@pyscript_compile`` decorator so the method is compiled to a native (non-async) Python
   function, or write your class in native Python and import it into ``pyscript``; see `Importing <#importing>`__.
 - The ``import`` function in ``pyscript`` fails to import certain complex packages. This is an open bug and
   it would be great if someone with some Python expertise could help fix it. In the meantime, the workaround
@@ -2103,16 +2107,16 @@ A handful of language features are not supported:
 
 - generators and the ``yield`` statement; these are difficult to implement in an interpreter.
 - the ``match-case`` statement is not supported.
-- built-in functions that do I/O, such as ``open``, ``read`` and ``write`` are not supported to avoid
+- built-in functions that do I/O, such as ``open``, ``read``, and ``write`` are not supported to avoid
   I/O in the main event loop, and also to avoid security issues if people share pyscripts. The ``print``
   function only logs a message, rather than implements the real ``print`` features, such as specifying
   an output file handle.
-- The built-in function decorators (eg, ``state_trigger``) aren't functions that can be called and used
+- The built-in function decorators (e.g., ``state_trigger``) aren't functions that can be called and used
   in-line. However, you can define your own function decorators that could include those decorators on
   the inner functions they define. Currently none of Python's built-in decorators are supported.
 
 Pyscript can call Python modules and packages, so you can always write your own native Python code
-(eg, if you need a generator or other unsupported feature) that can be called by pyscript
+(e.g., if you need a generator or other unsupported feature) that can be called by pyscript
 (see `Importing <#importing>`__ for how to create and import native Python modules in pyscript).
 You can also include native Python functions in your pyscript code by using the ``@pyscript_compile``
 decorator.

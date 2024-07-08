@@ -1,11 +1,25 @@
 Installation
 ============
 
-Option 1: HACS
+Option 1: Home Assistant Community Store (HACS)
 --------------
 
-Under HACS -> Integrations, select “+”, search for ``pyscript`` and
-install it.
+HACS is an integration in Home Assistant that allows you to
+install custom integrations, frontend elements, and add-ons
+developed by the Home Assistant community without the need
+to manually download and copy files. To install HACS, follow
+the instructions on the
+`HACS website <https://hacs.xyz/docs/setup/prerequisites/>`__.
+
+With HACS installed, under HACS -> Integrations, select “+”,
+search for ``pyscript``, and install it.
+
+During installation you will be asked to identify whether to
+allow all imports and whether to allow access to HASS as a
+global variable. These settings are documented on the
+`overview <https://github.com/custom-components/pyscript/blob/master/docs/overview.rst>`__
+page and can be changed after installation in the integration
+configuration.
 
 Option 2: Manual
 ----------------
