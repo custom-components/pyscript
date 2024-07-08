@@ -150,8 +150,12 @@ async def watchdog_start(
     class WatchDogHandler(FileSystemEventHandler):
         """Class for handling watchdog events."""
 
-        def __init__(self, watchdog_q: asyncio.Queue) -> None:
+        def __init__(
+            self, watchdog_q: asyncio.Queue, observer: watchdog.observers.Observer, path: str
+        ) -> None:
             self.watchdog_q = watchdog_q
+            self._observer = observer
+            self._observer.schedule(self, path, recursive=True)
 
         def process(self, event: FileSystemEvent) -> None:
             """Send watchdog events to main loop task."""
@@ -221,7 +225,7 @@ async def watchdog_start(
         hass.data[DOMAIN][WATCHDOG_OBSERVER] = observer
         hass.data[DOMAIN][WATCHDOG_TASK] = Function.create_task(task_watchdog(watchdog_q))
 
-        observer.schedule(WatchDogHandler(watchdog_q), pyscript_folder, recursive=True)
+        await hass.async_add_executor_job(WatchDogHandler, watchdog_q, observer, pyscript_folder)
 
 
 async def async_setup_entry(hass: HomeAssistant, config_entry: ConfigEntry) -> bool:
