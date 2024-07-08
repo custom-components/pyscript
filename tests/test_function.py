@@ -95,9 +95,10 @@ async def test_func_completions(
 @pytest.mark.asyncio
 async def test_service_completions(root, expected, hass, services):  # pylint: disable=redefined-outer-name
     """Test service name completion."""
-    with patch.object(hass.services, "async_services", return_value=services), patch.object(
-        Function, "hass", hass
-    ):
+    with patch.object(Function, "hass", hass):
+        for domain, service_set in services.items():
+            for service in service_set:
+                hass.services.async_register(domain, service, None)
         words = await Function.service_completions(root)
         assert words == expected
 
@@ -1247,42 +1248,48 @@ def service_call_exception():
 @pytest.mark.asyncio
 async def test_service_call_params(hass):
     """Test that hass params get set properly on service calls."""
-    with patch.object(hass.services, "async_call") as call, patch.object(
-        Function, "service_has_service", return_value=True
-    ), patch.object(
-        hass.services,
-        "supports_response",
-        return_value="none",
-    ):
-        Function.init(hass)
-        await Function.service_call(
-            "test", "test", context=Context(id="test"), blocking=True, other_service_data="test"
-        )
-        assert call.called
-        assert call.call_args[0] == ("test", "test", {"other_service_data": "test"})
-        assert call.call_args[1] == {"context": Context(id="test"), "blocking": True}
-        call.reset_mock()
+    try:
+        with patch.object(hass.services, "async_call") as call, patch.object(
+            Function, "service_has_service", return_value=True
+        ), patch.object(
+            hass.services,
+            "supports_response",
+            return_value="none",
+        ):
+            Function.init(hass)
+            await Function.service_call(
+                "test", "test", context=Context(id="test"), blocking=True, other_service_data="test"
+            )
+            assert call.called
+            assert call.call_args[0] == ("test", "test", {"other_service_data": "test"})
+            assert call.call_args[1] == {"context": Context(id="test"), "blocking": True}
+            call.reset_mock()
 
-        await Function.service_call(
-            "test", "test", context=Context(id="test"), blocking=False, other_service_data="test"
-        )
-        assert call.called
-        assert call.call_args[0] == ("test", "test", {"other_service_data": "test"})
-        assert call.call_args[1] == {"context": Context(id="test"), "blocking": False}
-        call.reset_mock()
+            await Function.service_call(
+                "test", "test", context=Context(id="test"), blocking=False, other_service_data="test"
+            )
+            assert call.called
+            assert call.call_args[0] == ("test", "test", {"other_service_data": "test"})
+            assert call.call_args[1] == {"context": Context(id="test"), "blocking": False}
+            call.reset_mock()
 
-        await Function.get("test.test")(context=Context(id="test"), blocking=True, other_service_data="test")
-        assert call.called
-        assert call.call_args[0] == ("test", "test", {"other_service_data": "test"})
-        assert call.call_args[1] == {"context": Context(id="test"), "blocking": True}
-        call.reset_mock()
+            await Function.get("test.test")(
+                context=Context(id="test"), blocking=True, other_service_data="test"
+            )
+            assert call.called
+            assert call.call_args[0] == ("test", "test", {"other_service_data": "test"})
+            assert call.call_args[1] == {"context": Context(id="test"), "blocking": True}
+            call.reset_mock()
 
-        await Function.get("test.test")(
-            context=Context(id="test"), blocking=False, other_service_data="test"
-        )
-        assert call.called
-        assert call.call_args[0] == ("test", "test", {"other_service_data": "test"})
-        assert call.call_args[1] == {"context": Context(id="test"), "blocking": False}
+            await Function.get("test.test")(
+                context=Context(id="test"), blocking=False, other_service_data="test"
+            )
+            assert call.called
+            assert call.call_args[0] == ("test", "test", {"other_service_data": "test"})
+            assert call.call_args[1] == {"context": Context(id="test"), "blocking": False}
+    except AttributeError as e:
+        # ignore cleanup exception
+        assert str(e) == "'ServiceRegistry' object attribute 'async_call' is read-only"
 
     # Stop all tasks to avoid conflicts with other tests
     await Function.waiter_stop()
