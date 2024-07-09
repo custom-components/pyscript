@@ -38,7 +38,7 @@ from .const import (
     REQUIREMENTS_FILE,
     SERVICE_JUPYTER_KERNEL_START,
     UNSUB_LISTENERS,
-    WATCHDOG_OBSERVER,
+    WATCHDOG_RUN,
     WATCHDOG_TASK,
 )
 from .eval import AstEval
@@ -144,7 +144,7 @@ async def watchdog_start(
     hass: HomeAssistant, pyscript_folder: str, reload_scripts_handler: Callable[[None], None]
 ) -> None:
     """Start watchdog thread to look for changed files in pyscript_folder."""
-    if WATCHDOG_OBSERVER in hass.data[DOMAIN]:
+    if WATCHDOG_TASK in hass.data[DOMAIN]:
         return
 
     class WatchDogHandler(FileSystemEventHandler):
@@ -159,8 +159,9 @@ async def watchdog_start(
 
         def process(self, event: FileSystemEvent) -> None:
             """Send watchdog events to main loop task."""
-            _LOGGER.debug("watchdog process(%s)", event)
-            hass.loop.call_soon_threadsafe(self.watchdog_q.put_nowait, event)
+            if hass.data[DOMAIN].get(WATCHDOG_RUN, False):
+                _LOGGER.debug("watchdog process(%s)", event)
+                hass.loop.call_soon_threadsafe(self.watchdog_q.put_nowait, event)
 
         def on_modified(self, event: FileSystemEvent) -> None:
             """File modified."""
@@ -222,7 +223,7 @@ async def watchdog_start(
     observer = watchdog.observers.Observer()
     if observer is not None:
         # don't run watchdog when we are testing (Observer() patches to None)
-        hass.data[DOMAIN][WATCHDOG_OBSERVER] = observer
+        hass.data[DOMAIN][WATCHDOG_RUN] = False
         hass.data[DOMAIN][WATCHDOG_TASK] = Function.create_task(task_watchdog(watchdog_q))
 
         await hass.async_add_executor_job(WatchDogHandler, watchdog_q, observer, pyscript_folder)
@@ -335,16 +336,12 @@ async def async_setup_entry(hass: HomeAssistant, config_entry: ConfigEntry) -> b
         await State.get_service_params()
         hass.data[DOMAIN][UNSUB_LISTENERS].append(hass.bus.async_listen(EVENT_STATE_CHANGED, state_changed))
         start_global_contexts()
-        if WATCHDOG_OBSERVER in hass.data[DOMAIN]:
-            observer = hass.data[DOMAIN][WATCHDOG_OBSERVER]
-            observer.start()
+        if WATCHDOG_RUN in hass.data[DOMAIN]:
+            hass.data[DOMAIN][WATCHDOG_RUN] = True
 
     async def hass_stop(event: HAEvent) -> None:
-        if WATCHDOG_OBSERVER in hass.data[DOMAIN]:
-            observer = hass.data[DOMAIN][WATCHDOG_OBSERVER]
-            observer.stop()
-            observer.join()
-            del hass.data[DOMAIN][WATCHDOG_OBSERVER]
+        if WATCHDOG_RUN in hass.data[DOMAIN]:
+            hass.data[DOMAIN][WATCHDOG_RUN] = False
             Function.reaper_cancel(hass.data[DOMAIN][WATCHDOG_TASK])
             del hass.data[DOMAIN][WATCHDOG_TASK]
 
