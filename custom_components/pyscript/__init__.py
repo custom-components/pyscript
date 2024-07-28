@@ -38,7 +38,6 @@ from .const import (
     REQUIREMENTS_FILE,
     SERVICE_JUPYTER_KERNEL_START,
     UNSUB_LISTENERS,
-    WATCHDOG_RUN,
     WATCHDOG_TASK,
 )
 from .eval import AstEval
@@ -156,12 +155,29 @@ async def watchdog_start(
             self.watchdog_q = watchdog_q
             self._observer = observer
             self._observer.schedule(self, path, recursive=True)
+            if not hass.is_running:
+                hass.bus.listen_once(EVENT_HOMEASSISTANT_STARTED, self.startup)
+            else:
+                self.startup(None)
+
+            hass.bus.listen_once(EVENT_HOMEASSISTANT_STOP, self.shutdown)
+            _LOGGER.debug("watchdog init path=%s", path)
+
+        def startup(self, event: Event | None) -> None:
+            """Start the observer."""
+            _LOGGER.debug("watchdog startup")
+            self._observer.start()
+
+        def shutdown(self, event: Event | None) -> None:
+            """Stop the observer."""
+            self._observer.stop()
+            self._observer.join()
+            _LOGGER.debug("watchdog shutdown")
 
         def process(self, event: FileSystemEvent) -> None:
             """Send watchdog events to main loop task."""
-            if hass.data[DOMAIN].get(WATCHDOG_RUN, False):
-                _LOGGER.debug("watchdog process(%s)", event)
-                hass.loop.call_soon_threadsafe(self.watchdog_q.put_nowait, event)
+            _LOGGER.debug("watchdog process(%s)", event)
+            hass.loop.call_soon_threadsafe(self.watchdog_q.put_nowait, event)
 
         def on_modified(self, event: FileSystemEvent) -> None:
             """File modified."""
@@ -197,7 +213,7 @@ async def watchdog_start(
             try:
                 #
                 # since some file/dir changes create multiple events, we consume all
-                # events in a small window; first # wait indefinitely for next event
+                # events in a small window; first wait indefinitely for next event
                 #
                 do_reload = check_event(await watchdog_q.get(), False)
                 #
@@ -223,10 +239,10 @@ async def watchdog_start(
     observer = watchdog.observers.Observer()
     if observer is not None:
         # don't run watchdog when we are testing (Observer() patches to None)
-        hass.data[DOMAIN][WATCHDOG_RUN] = False
         hass.data[DOMAIN][WATCHDOG_TASK] = Function.create_task(task_watchdog(watchdog_q))
 
         await hass.async_add_executor_job(WatchDogHandler, watchdog_q, observer, pyscript_folder)
+        _LOGGER.debug("watchdog started job and task folder=%s", pyscript_folder)
 
 
 async def async_setup_entry(hass: HomeAssistant, config_entry: ConfigEntry) -> bool:
@@ -336,12 +352,9 @@ async def async_setup_entry(hass: HomeAssistant, config_entry: ConfigEntry) -> b
         await State.get_service_params()
         hass.data[DOMAIN][UNSUB_LISTENERS].append(hass.bus.async_listen(EVENT_STATE_CHANGED, state_changed))
         start_global_contexts()
-        if WATCHDOG_RUN in hass.data[DOMAIN]:
-            hass.data[DOMAIN][WATCHDOG_RUN] = True
 
     async def hass_stop(event: HAEvent) -> None:
-        if WATCHDOG_RUN in hass.data[DOMAIN]:
-            hass.data[DOMAIN][WATCHDOG_RUN] = False
+        if WATCHDOG_TASK in hass.data[DOMAIN]:
             Function.reaper_cancel(hass.data[DOMAIN][WATCHDOG_TASK])
             del hass.data[DOMAIN][WATCHDOG_TASK]
 
