@@ -872,6 +872,16 @@ true if the current time doesn't match any of the "not" (negative) specification
 allows multiple arguments with and without ``not``. The condition will be met if the current time
 matches any of the positive arguments, and none of the negative arguments.
 
+.. code:: python
+
+   @state_trigger("binary_sensor.motion_detected == 'on'")  # trigger on motion detection
+   @state_active("input_boolean.motion_light_automation == 'on'")  # but only if the automation is enabled
+   @time_active("range(8:00, 22:00)")  # but only during the day
+   def motion_controlled_light(**kwargs):
+       log.info(f"got motion. turning on the lights")
+       light.turn_on(entity_id="light.hallway")
+
+
 @webhook_trigger
 ^^^^^^^^^^^^^^^^
 
