@@ -2,7 +2,7 @@ Installation
 ============
 
 Option 1: Home Assistant Community Store (HACS)
---------------
+-----------------------------------------------
 
 HACS is an integration in Home Assistant that allows you to
 install custom integrations, frontend elements, and add-ons
