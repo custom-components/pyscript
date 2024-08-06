@@ -822,6 +822,16 @@ will be ``None`` if the trigger is not a state trigger, if a different state var
 caused the state trigger, or if the state variable that caused the trigger was set for the
 first time (so there is no prior value).
 
+.. code:: python
+
+   @state_trigger("binary_sensor.motion_detected == 'on'")  # trigger on motion detection
+   @state_active("input_boolean.motion_light_automation == 'on'")  # but only if the automation is enabled
+   def motion_controlled_light(**kwargs):
+       log.info(f"got motion. turning on the lights")
+       light.turn_on(entity_id="light.hallway")
+
+
+
 @time_active
 ^^^^^^^^^^^^
 
