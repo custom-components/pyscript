@@ -822,6 +822,16 @@ will be ``None`` if the trigger is not a state trigger, if a different state var
 caused the state trigger, or if the state variable that caused the trigger was set for the
 first time (so there is no prior value).
 
+.. code:: python
+
+   @state_trigger("binary_sensor.motion_detected == 'on'")  # trigger on motion detection
+   @state_active("input_boolean.motion_light_automation == 'on'")  # but only if the automation is enabled
+   def motion_controlled_light(**kwargs):
+       log.info(f"got motion. turning on the lights")
+       light.turn_on(entity_id="light.hallway")
+
+
+
 @time_active
 ^^^^^^^^^^^^
 
@@ -861,6 +871,16 @@ you have several ``not`` arguments, they are logically and'ed together, so the a
 true if the current time doesn't match any of the "not" (negative) specifications. ``@time_active``
 allows multiple arguments with and without ``not``. The condition will be met if the current time
 matches any of the positive arguments, and none of the negative arguments.
+
+.. code:: python
+
+   @state_trigger("binary_sensor.motion_detected == 'on'")  # trigger on motion detection
+   @state_active("input_boolean.motion_light_automation == 'on'")  # but only if the automation is enabled
+   @time_active("range(8:00, 22:00)")  # but only during the day
+   def motion_controlled_light(**kwargs):
+       log.info(f"got motion. turning on the lights")
+       light.turn_on(entity_id="light.hallway")
+
 
 @webhook_trigger
 ^^^^^^^^^^^^^^^^

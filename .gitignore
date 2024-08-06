@@ -6,3 +6,4 @@ docs/_build
 .coverage
 .vscode
 .*.swp
+.idea
