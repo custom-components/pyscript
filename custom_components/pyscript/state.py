@@ -423,6 +423,7 @@ class State:
             "state.get_attr": cls.get_attr,  # deprecated form; to be removed
             "state.persist": cls.persist,
             "state.delete": cls.delete,
+            "state.exist": cls.exist,
             "pyscript.config": cls.pyscript_config,
         }
         Function.register(functions)
