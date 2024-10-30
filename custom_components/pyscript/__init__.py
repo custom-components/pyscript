@@ -21,10 +21,11 @@ from homeassistant.const import (
     EVENT_STATE_CHANGED,
     SERVICE_RELOAD,
 )
-from homeassistant.core import Config, Event as HAEvent, HomeAssistant, ServiceCall
+from homeassistant.core import Event as HAEvent, HomeAssistant, ServiceCall
 from homeassistant.exceptions import HomeAssistantError
 import homeassistant.helpers.config_validation as cv
 from homeassistant.helpers.restore_state import DATA_RESTORE_STATE
+from homeassistant.helpers.typing import ConfigType
 from homeassistant.loader import bind_hass
 
 from .const import (
@@ -64,7 +65,7 @@ PYSCRIPT_SCHEMA = vol.Schema(
 CONFIG_SCHEMA = vol.Schema({DOMAIN: PYSCRIPT_SCHEMA}, extra=vol.ALLOW_EXTRA)
 
 
-async def async_setup(hass: HomeAssistant, config: Config) -> bool:
+async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
     """Component setup, run import config flow for each entry in config."""
     await restore_state(hass)
     if DOMAIN in config:
