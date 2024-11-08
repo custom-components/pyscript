@@ -21,7 +21,8 @@ from homeassistant.const import (
     EVENT_STATE_CHANGED,
     SERVICE_RELOAD,
 )
-from homeassistant.core import Config, Event as HAEvent, HomeAssistant, ServiceCall
+from homeassistant.core import Event as HAEvent, HomeAssistant, ServiceCall
+from homeassistant.core_config import Config
 from homeassistant.exceptions import HomeAssistantError
 import homeassistant.helpers.config_validation as cv
 from homeassistant.helpers.restore_state import DATA_RESTORE_STATE
