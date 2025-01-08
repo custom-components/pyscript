@@ -22,10 +22,10 @@ from homeassistant.const import (
     SERVICE_RELOAD,
 )
 from homeassistant.core import Event as HAEvent, HomeAssistant, ServiceCall
-from homeassistant.helpers.typing import ConfigType
 from homeassistant.exceptions import HomeAssistantError
 import homeassistant.helpers.config_validation as cv
 from homeassistant.helpers.restore_state import DATA_RESTORE_STATE
+from homeassistant.helpers.typing import ConfigType
 from homeassistant.loader import bind_hass
 
 from .const import (
@@ -151,7 +151,7 @@ async def watchdog_start(
         """Class for handling watchdog events."""
 
         def __init__(
-            self, watchdog_q: asyncio.Queue, observer: watchdog.observers.Observer, path: str
+            self, watchdog_q: asyncio.Queue, observer: watchdog.observers.ObserverType, path: str
         ) -> None:
             self.watchdog_q = watchdog_q
             self._observer = observer
