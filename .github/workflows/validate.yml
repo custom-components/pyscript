@@ -18,7 +18,7 @@ jobs:
       - uses: "actions/checkout@v2"
       - uses: "actions/setup-python@v1"
         with:
-          python-version: "3.13"
+          python-version: "3.12"
           allow-prereleases: true
       - run: python3 -m pip install black
       - run: black .
@@ -30,7 +30,7 @@ jobs:
       - uses: "actions/checkout@v2"
       - uses: "actions/setup-python@v1"
         with:
-          python-version: "3.13"
+          python-version: "3.12"
           allow-prereleases: true
       - run: python3 -m pip install -r tests/requirements_test.txt
       - run: pytest --cov=custom_components
@@ -42,7 +42,7 @@ jobs:
       - uses: "actions/checkout@v2"
       - uses: "actions/setup-python@v1"
         with:
-          python-version: "3.13"
+          python-version: "3.12"
           allow-prereleases: true
       - run: python3 -m pip install -r tests/requirements_test.txt
       - run: pylint custom_components/pyscript/*.py tests/*.py
@@ -54,7 +54,7 @@ jobs:
       - uses: "actions/checkout@v2"
       - uses: "actions/setup-python@v1"
         with:
-          python-version: "3.13"
+          python-version: "3.12"
           allow-prereleases: true
       - run: python3 -m pip install -r tests/requirements_test.txt
       - run: mypy custom_components/pyscript/*.py tests/*.py
