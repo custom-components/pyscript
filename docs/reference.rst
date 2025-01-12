@@ -791,8 +791,21 @@ optional ``kwargs`` argument to a ``dict`` with the keywords and values.
 Wildcards in topics are supported. The ``topic`` variables will be set to the full expanded topic
 the message arrived on.
 
+Wildcards are:
+- ``+`` matches a single level in the topic hierarchy.
+- ``#`` matches zero or more levels in the topic hierarchy, can only be last.
+
 NOTE: The `MQTT Integration in Home Assistant <https://www.home-assistant.io/integrations/mqtt/>`__
 must be set up to use ``@mqtt_trigger``.
+
+.. code:: python
+
+  @mqtt_trigger('zigbee2mqtt/carport/motion', "payload_obj['occupancy'] != None")
+  @time_active("range(sunset - 30m, sunrise - 30m)")
+  def carport_motion():
+      light.turn_on(entity_id="light.carport")
+      task.sleep(300)
+      light.turn_off(entity_id="light.carport")
 
 @state_active
 ^^^^^^^^^^^^^
