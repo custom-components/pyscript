@@ -800,7 +800,7 @@ must be set up to use ``@mqtt_trigger``.
 
 .. code:: python
 
-  @mqtt_trigger('zigbee2mqtt/carport/motion', "payload_obj['occupancy'] != None")
+  @mqtt_trigger('zigbee2mqtt/motion.carport', "payload_obj['occupancy'] != None")
   @time_active("range(sunset - 30m, sunrise - 30m)")
   def carport_motion():
       light.turn_on(entity_id="light.carport")
