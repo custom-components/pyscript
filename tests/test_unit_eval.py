@@ -1390,6 +1390,22 @@ res
 """,
         [0, 1, True, True, True],
     ],
+    [
+        """
+def foo():
+    def bar():
+        result = []
+        result.append("bar")
+        other = 1
+        return result
+
+    result = bar()
+    return result
+
+foo()
+""",
+        ["bar"],
+    ],
 ]
 
 

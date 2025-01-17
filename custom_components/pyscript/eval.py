@@ -2047,7 +2047,7 @@ class AstEval:
 
         cls_name = arg.__class__.__name__
         if cls_name == "Attribute":
-            full_name = await self.ast_attribute_collapse(arg)
+            full_name = await self.ast_attribute_collapse(arg, check_undef=False)
             if full_name is not None:
                 names.add(full_name)
                 return
