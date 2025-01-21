@@ -2020,10 +2020,7 @@ class AstEval:
 
     async def ast_await(self, arg):
         """Evaluate await expr."""
-        coro = await self.aeval(arg.value)
-        if coro:
-            return await coro
-        return None
+        return await self.aeval(arg.value)
 
     async def get_target_names(self, lhs):
         """Recursively find all the target names mentioned in the AST tree."""
