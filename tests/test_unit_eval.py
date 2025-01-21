@@ -1406,6 +1406,15 @@ foo()
 """,
         ["bar"],
     ],
+    [
+        """
+async def func():
+    return 42
+
+await func()
+""",
+        42,
+    ],
 ]
 
 
