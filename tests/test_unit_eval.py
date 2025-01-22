@@ -1415,6 +1415,39 @@ await func()
 """,
         42,
     ],
+    [
+        """
+import asyncio
+async def coro():
+    await asyncio.sleep(0.1)
+    return "done"
+
+await coro()
+""",
+        "done",
+    ],
+    [
+        """
+import asyncio
+
+@pyscript_compile
+async def nested():
+    await asyncio.sleep(1e-8)
+    return 42
+
+@pyscript_compile
+async def run():
+    task = asyncio.create_task(nested())
+
+    # "task" can now be used to cancel "nested()", or
+    # can simply be awaited to wait until it is complete:
+    await task
+    return "done"
+
+await run()
+""",
+        "done",
+    ],
 ]
 
 
