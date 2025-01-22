@@ -26,7 +26,7 @@ class PyscriptOptionsConfigFlow(config_entries.OptionsFlow):
 
     def __init__(self, config_entry: ConfigEntry) -> None:
         """Initialize pyscript options flow."""
-        self.config_entry = config_entry
+        self._config_entry = config_entry
         self._show_form = False
 
     async def async_step_init(self, user_input: Dict[str, Any] = None) -> Dict[str, Any]:
