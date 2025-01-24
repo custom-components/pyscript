@@ -1978,34 +1978,55 @@ be blocked, which will delay all other tasks.
 
 All the built-in functionality in pyscript is written using asynchronous code, which runs seamlessly
 together with all the other tasks in the main event loop. However, if you import Python packages and
-call functions that block (e.g., file or network I/O) then you need to run those functions outside
-the main event loop. That can be accomplished by wrapping those function calls with the
-``task.executor`` function, which runs the function in a separate thread:
+call functions that block (any type of file, network I/O, http etc), you will block the main loop and
+that will make HASS less responsive.  HASS might report an error like this:
+
+::
+
+    WARNING (MainThread) [homeassistant.util.loop] Detected blocking call to ... inside the event loop by custom
+    integration 'pyscript' at custom_components/pyscript/eval.py, line 1982: return func(*args, **kwargs)
+    (offender: ...), please create a bug report at https://github.com/custom-components/pyscript/issues
+
+    For developers, please see https://developers.home-assistant.io/docs/asyncio_blocking_operations/#open
+
+This warning is a reminder that you should not block the main loop. Do not file a bug report - the
+issue is almost certainly in your code, not pyscript.  You should review
+the `developer link <https://developers.home-assistant.io/docs/asyncio_blocking_operations/#open>`__ for
+a good summary of the numerous ways you can inadvently write pyscript code that blocks the main event loop.
+
+Currently built-in functions that do I/O, such as ``open``, ``read`` and ``write`` are not supported
+in pyscript to avoid I/O in the main event loop, and also to avoid security issues if people share pyscripts.
+Also, the ``print`` function only logs a message, rather than implements the real ``print`` features, such
+as specifying an output file handle.
+
+The ``task.executor`` function is a way to run a blocking function in a separate thread, so it doesn't
+stall the main event loop. It's a good way to run blocking code, but it's not as efficient as using
+async I/O directly:
 
 ``task.executor(func, *args, **kwargs)``
   Run the given function in a separate thread. The first argument is the function to be called,
   followed by each of the positional or keyword arguments that function expects. The ``func``
   argument can only be a regular Python function, not a function defined in pyscript.
 
-If you forget to use ``task.executor``, you might get this warning from HASS:
+If you want to do file or network I/O from pyscript, or make any system calls that might block,
+three are three main choices:
 
-::
-
-    WARNING (MainThread) [homeassistant.util.async_] Detected I/O inside the event loop. This is
-    causing stability issues. Please report issue to the custom component author for pyscript doing
-    I/O at custom_components/pyscript/eval.py, line 1583: return func(*args, **kwargs)
-
-Currently the built-in functions that do I/O, such as ``open``, ``read`` and ``write`` are not supported
-to avoid I/O in the main event loop, and also to avoid security issues if people share pyscripts. Also,
-the ``print`` function only logs a message, rather than implements the real ``print`` features, such
-as specifying an output file handle. If you want to do file I/O from pyscript, you have two choices:
-
+- Use async versions of the I/O functions you need (eg, ``ascyncio``, ``aiohttp`` etc).  This is the
+  recommended approach.
 - put the code in a separate native Python module, so that functions like ``open``, ``read`` and ``write``
   are available, and call the function in that module from pyscript using ``task.executor``. See
   `Importing <#importing>`__ for how to set Python's ``sys.path`` to import a local Python module.
-- you could use the ``os`` package (which can be imported by setting ``allow_all_imports``) and
-  calling the low-level functions like ``os.open`` and ``os.read`` using ``task.executor`` to
-  wrap every function.
+- if you really need to do file I/O directly, you could use the ``os`` package (which can be imported by
+  setting ``allow_all_imports``) and calling the low-level functions like ``os.open`` and ``os.read`` using
+  ``task.executor`` to wrap every function that calls those blocking functions.
+
+An additional trap is using modules that do lazy loading (e.g., `pytz`), which load certain data only when
+needed (e.g., specific time zone data in the case of `pytz`).  That delays the blocking file I/O until
+run-time (when it's running in the main event loop), which is bad, rather than at load time when pyscript
+loads it in a separate thread.  So you will need to avoid lazy loading modules, or be sure to call them
+at load time (i.e., outside a function in one of your scripts) in a manner that causes them to load all
+the data they need. For `pytz` , you should use `zoneinfo` instead, which is in the standard library and
+doesn't appear to do lazy loading.
 
 Here's an example fetching a URL. Inside pyscript, this is the wrong way since it does I/O without
 using a separate thread:
@@ -2014,6 +2035,7 @@ using a separate thread:
 
     import requests
 
+    # Do not fetch URLs this way!
     url = "https://raw.githubusercontent.com/custom-components/pyscript/master/README.md"
     resp = requests.get(url)
 
@@ -2023,6 +2045,7 @@ The correct way is:
 
     import requests
 
+    # Better - uses task.executor to run the blocking function in a separate thread
     url = "https://raw.githubusercontent.com/custom-components/pyscript/master/README.md"
     resp = task.executor(requests.get, url)
 
@@ -2034,6 +2057,7 @@ is optional in pyscript):
 
     import aiohttp
 
+    # Best - uses async I/O to avoid blocking the main event loop
     url = "https://raw.githubusercontent.com/custom-components/pyscript/master/README.md"
     async with aiohttp.ClientSession() as session:
         async with session.get(url) as resp:
@@ -2099,10 +2123,8 @@ Language Limitations
 Pyscript implements a Python interpreter in a fully-async manner, which means it can run safely in the
 main HASS event loop.
 
-The language coverage is relatively complete, but it's quite possible there are discrepancies with Python
-in certain cases. If so, please report them.
-
-Here are some areas where pyscript differs from real Python:
+The language coverage is relatively complete, but there are definitely limitations in pyscript where
+it doesn't faithfully mimic Python.  Here are some areas where pyscript differs from real Python:
 
 - The pyscript-specific function names and state names that contain a period are treated as plain
   identifiers that contain a period, rather than an attribute (to the right of the period) of an object
@@ -2114,6 +2136,9 @@ Here are some areas where pyscript differs from real Python:
   function is no longer available.
 - Since pyscript is async, it detects whether functions are real or async, and calls them in the
   correct manner. So it's not necessary to use ``async`` and ``await`` in pyscript code - they are optional.
+  However, if you declare a function in pyscript as ``async def``, then it doesn't behave correctly
+  like an async function in Python (i.e., calling it actually executes the function, rather than returning
+  a co-routine.  If you truly need an async function in your code, use `@pyscript_compile`.
 - All pyscript functions are async. So if you call a Python module that takes a pyscript function as
   a callback argument, that argument is an async function, not a normal function. So a Python module
   won't be able to call that pyscript function unless it uses ``await``, which requires that function to
@@ -2145,11 +2170,13 @@ A handful of language features are not supported:
   function only logs a message, rather than implements the real ``print`` features, such as specifying
   an output file handle.
 - The built-in function decorators (e.g., ``state_trigger``) aren't functions that can be called and used
-  in-line. However, you can define your own function decorators that could include those decorators on
-  the inner functions they define. Currently none of Python's built-in decorators are supported.
+  in-line like real Python decorators. However, you can define your own function decorators that
+  could include those decorators on the inner functions they define. Currently none of Python's
+  built-in decorators are supported.
 
-Pyscript can call Python modules and packages, so you can always write your own native Python code
-(e.g., if you need a generator or other unsupported feature) that can be called by pyscript
-(see `Importing <#importing>`__ for how to create and import native Python modules in pyscript).
+The typical work-around for places where pyscript falls short is to move that code into a native Python module,
+and then import that module into pyscript.  Pyscript can call Python modules and packages, so you could
+write your own native Python code (e.g., if you need a generator or other unsupported feature) that can be
+called by pyscript (see `Importing <#importing>`__ for how to create and import native Python modules in pyscript).
 You can also include native Python functions in your pyscript code by using the ``@pyscript_compile``
 decorator.
