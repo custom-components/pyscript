@@ -774,15 +774,16 @@ on that topic. Multiple ``@mqtt_trigger`` decorators can be applied to a single 
 to trigger off different mqtt topics.
 
 An optional ``str_expr`` can be used to match the MQTT message data, and the trigger will only occur
-if that expression evaluates to ``True`` or non-zero. This expression has available these four
+if that expression evaluates to ``True`` or non-zero. This expression has available these
 variables:
 
 - ``trigger_type`` is set to "mqtt"
 - ``topic`` is set to the topic the message was received on
+- ``qos`` is set to the message QoS.
 - ``payload`` is set to the string payload of the message
 - ``payload_obj`` if the payload was valid JSON, this will be set to the native Python object
-  representing that payload.
-- ``qos`` is set to the message QoS.
+  representing that payload.  A null message will not be converted.  If payload_obj is a
+  required function argument an exception will be thrown, use payload_obj=None.
 
 When the ``@mqtt_trigger`` occurs, those same variables are passed as keyword arguments to the
 function in case it needs them. Additional keyword parameters can be specified by setting the
@@ -792,6 +793,7 @@ Wildcards in topics are supported. The ``topic`` variables will be set to the fu
 the message arrived on.
 
 Wildcards are:
+
 - ``+`` matches a single level in the topic hierarchy.
 - ``#`` matches zero or more levels in the topic hierarchy, can only be last.
 
