@@ -2146,7 +2146,8 @@ it doesn't faithfully mimic Python.  Here are some areas where pyscript differs 
   won't be able to call that pyscript function unless it uses ``await``, which requires that function to
   be declared ``async``. Unless the Python module is designed to support async callbacks, it is not
   currently possible to have Python modules and packages call pyscript functions. The workaround is
-  to move your callbacks from pyscript and make them native Python functions; see `Importing <#importing>`__.
+  to move your callbacks from pyscript and make them native Python functions; see `Importing <#importing>`__,
+  call a function with the ``@pyscript_compile`` decorator, or a lambda (which is also compiled).
 - Continuing that point, special methods (e.g., ``__eq__``) in a class created in `pyscript` will not work since
   they are async functions and Python will not be able to call them. The two workarounds are to
   use the ``@pyscript_compile`` decorator so the method is compiled to a native (non-async) Python
