@@ -39,13 +39,16 @@ can use any filename, so long as it ends in ``.py``) that contains:
        elif action == "fire" and id is not None:
            event.fire(id, param1=12, param2=80)
 
-After starting Home Assistant, use the Service tab in the Developer
+After starting Home Assistant, use the Actions tab in the Developer
 Tools page to call the service ``pyscript.hello_world`` with parameters
 
 .. code:: yaml
 
-   action: hello
-   id: world
+action: pyscript.hello_world
+data:
+  action: hello
+  id: world
+
 
 The function decorator ``@service`` means ``pyscript.hello_world`` is
 registered as a service. The expected service parameters are keyword
