@@ -1721,6 +1721,27 @@ If a required package version differs from the installed one, no change is made 
 HASS has a requirement that pyscript should not change. In that case a warning message will be
 logged and the requirement will be skipped.
 
+Tasks are Asynchronous
+^^^^^^^^^^^^^^^^^^^^^^
+
+Asynchronous tasks can create unexpected race conditions in your code.
+
+All trigger decorators call the function as an asynchronous task when the trigger occurs.  All tasks
+you create explicitly are also asynchronous.  This allows each function to run in parallel with
+other tasks, and to yield control to other tasks and all other HASS activities potentially anywhere
+in the function.  However, if two closely-spaced triggers occur (or different functions have the
+same trigger), although the second trigger will begin running after the first, there is no guarantee
+that the first task will have completed (or even executed any statements before the second task
+start running.  Both trigger functions will be running asynchronously, and the order of execution of
+code among the tasks is not guaranteed.  The same is true if you start two tasks using ``task.create()``
+without any delay: the code in the tasks could run in any order relative to each other.
+
+If this is a problem for your application logic, various solutions including using ``asyncio.Lock``
+or ``asyncio.Event``, using ``task.unique()`` to ensure only one task is running at a time, or using
+``state_hold`` in the trigger arguments to ensure the trigger condition persists for some time before
+triggering the function.
+
+
 Trigger Closures
 ^^^^^^^^^^^^^^^^
 
