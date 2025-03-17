@@ -24,9 +24,9 @@ PYSCRIPT_SCHEMA = vol.Schema(
 class PyscriptOptionsConfigFlow(config_entries.OptionsFlow):
     """Handle a pyscript options flow."""
 
-    def __init__(self, config_entry: ConfigEntry) -> None:
+    def __init__(self) -> None:
         """Initialize pyscript options flow."""
-        self._config_entry = config_entry
+        self._conf_app_id: str | None = None
         self._show_form = False
 
     async def async_step_init(self, user_input: Dict[str, Any] = None) -> Dict[str, Any]:
@@ -88,7 +88,7 @@ class PyscriptConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     @callback
     def async_get_options_flow(config_entry: ConfigEntry) -> PyscriptOptionsConfigFlow:
         """Get the options flow for this handler."""
-        return PyscriptOptionsConfigFlow(config_entry)
+        return PyscriptOptionsConfigFlow()
 
     async def async_step_user(self, user_input: Dict[str, Any] = None) -> Dict[str, Any]:
         """Handle a flow initialized by the user."""
