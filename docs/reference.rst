@@ -1731,18 +1731,17 @@ Asynchronous tasks can create unexpected race conditions in your code.
 All trigger decorators call the function as an asynchronous task when the trigger occurs.  All tasks
 you create explicitly are also asynchronous.  This allows each function to run in parallel with
 other tasks, and to yield control to other tasks and all other HASS activities potentially anywhere
-in the function.  However, if two closely-spaced triggers occur (or different functions have the
+in the function.  However, if two closely-spaced triggers occur (or multiple functions have the
 same trigger), although the second trigger will begin running after the first, there is no guarantee
 that the first task will have completed (or even executed any statements) before the second task
 start running.  Both trigger functions will be running asynchronously, and the order of execution of
-code among the tasks is not guaranteed.  The same is true if you start two tasks using ``task.create()``
-without any delay: the code in the tasks could run in any order relative to each other.
+your code among the active tasks is not guaranteed.  The same is true if you start two tasks using
+``task.create()`` without any delay: the code in the tasks could run in any order relative to each other.
 
 If this is a problem for your application logic, various solutions including using ``asyncio.Lock``
 or ``asyncio.Event``, using ``task.unique()`` to ensure only one task is running at a time, or using
 ``state_hold`` in the trigger arguments to ensure the trigger condition persists for some time before
 triggering the function.
-
 
 Trigger Closures
 ^^^^^^^^^^^^^^^^
@@ -2163,7 +2162,7 @@ it doesn't faithfully mimic Python.  Here are some areas where pyscript differs 
   correct manner. So it's not necessary to use ``async`` and ``await`` in pyscript code - they are optional.
   However, if you declare a function in pyscript as ``async def``, then it doesn't behave correctly
   like an async function in Python (i.e., calling it actually executes the function, rather than returning
-  a co-routine.  If you truly need an async function in your code, use `@pyscript_compile`.
+  a co-routine).  If you truly need an async function in your code, use `@pyscript_compile`.
 - All pyscript functions are async. So if you call a Python module that takes a pyscript function as
   a callback argument, that argument is an async function, not a normal function. So a Python module
   won't be able to call that pyscript function unless it uses ``await``, which requires that function to
