@@ -216,6 +216,14 @@ chk
 """,
         [["100", 1, 3.5], ["100", 1, 10], ["100", 1, 10, 100], ["100", 1, 10, 100]],
     ],
+    [
+        """
+state.set("pyscript.var1", 100, attr1=1, attr2=3.5)
+[state.exist("pyscript.var1"), state.exist("pyscript.varDoesntExist"), state.exist("pyscript.var1.attr1"),
+    state.exist("pyscript.var1.attrDoesntExist"), state.exist("pyscript.varDoesntExist.attrDoesntExist")]
+""",
+        [True, False, True, False, False],
+    ],
     ["eval('1+2')", 3],
     ["x = 5; eval('2 * x')", 10],
     ["x = 5; exec('x = 2 * x'); x", 10],

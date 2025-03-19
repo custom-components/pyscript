@@ -204,7 +204,7 @@ You can set an attribute directly by assigning ``DOMAIN.name.attr = value``.
 
 In cases where you need to compute the name of the state variable dynamically, or you need to set or
 get all the state attributes, you can use the built-in functions ``state.get()``, ``state.getattr()``,
-``state.set()`` and ``state.setattr()``; see `State Functions <#state-variable-functions>`__.
+``state.set()``, ``state.exist()`` and ``state.setattr()``; see `State Variables <#state-variables>`__.
 
 The function ``state.names(domain=None)`` returns a list of all state variable names (i.e.,
 ``entity_id``\ s) of a domain. If ``domain`` is not specified, it returns all HASS state
@@ -1118,12 +1118,14 @@ State variables
 State variables can be used and set just by using them as normal Python variables. However, there
 could be cases where you want to dynamically generate the variable name (e.g., in a function or loop
 where the state variable name is computed dynamically). These functions allow you to get and set a
-variable using its string name. The set function also allows you to optionally set the attributes,
-which you can't do if you are directly assigning to the variable:
+variable or attribute using its string name. The set function also allows you to optionally set the
+attributes, which you can't do if you are directly assigning to the variable:
 
 ``state.delete(name)``
   Deletes the given state variable or attribute. The Python ``del`` statement can also be used
   to delete a state variable or attribute.
+``state.exist(name)``
+  Returns ``True`` if the given state variable or attribute exists, otherwise ``False``.
 ``state.get(name)``
   Returns the value of the state variable given its string ``name``. A ``NameError`` exception
   is thrown if the name doesn't exist. If ``name`` is a string of the form ``DOMAIN.entity.attr``
