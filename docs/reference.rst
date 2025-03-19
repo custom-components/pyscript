@@ -1733,7 +1733,7 @@ you create explicitly are also asynchronous.  This allows each function to run i
 other tasks, and to yield control to other tasks and all other HASS activities potentially anywhere
 in the function.  However, if two closely-spaced triggers occur (or different functions have the
 same trigger), although the second trigger will begin running after the first, there is no guarantee
-that the first task will have completed (or even executed any statements before the second task
+that the first task will have completed (or even executed any statements) before the second task
 start running.  Both trigger functions will be running asynchronously, and the order of execution of
 code among the tasks is not guaranteed.  The same is true if you start two tasks using ``task.create()``
 without any delay: the code in the tasks could run in any order relative to each other.
