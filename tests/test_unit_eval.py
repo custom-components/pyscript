@@ -1456,6 +1456,22 @@ await run()
 """,
         "done",
     ],
+    [
+        """
+class Test:
+    def __init__(self, value):
+        self.val = value
+
+    async def getval(self):
+        async def handler():
+            return self.val
+        return handler()
+
+t = Test(20)
+[await(await t.getval()), t.getval()]
+""",
+        [20, 20],
+    ],
 ]
 
 

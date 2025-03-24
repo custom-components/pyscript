@@ -931,18 +931,14 @@ class AstEval:
         name = "ast_" + arg.__class__.__name__.lower()
         raise NotImplementedError(f"{self.name}: not implemented ast " + name)
 
-    async def aeval(self, arg, undefined_check=True, do_await=True):
+    async def aeval(self, arg, undefined_check=True):
         """Vector to specific function based on ast class type."""
         name = "ast_" + arg.__class__.__name__.lower()
         try:
             if hasattr(arg, "lineno"):
                 self.lineno = arg.lineno
                 self.col_offset = arg.col_offset
-            val = (
-                await getattr(self, name, self.ast_not_implemented)(arg)
-                if do_await
-                else getattr(self, name, self.ast_not_implemented)(arg)
-            )
+            val = await getattr(self, name, self.ast_not_implemented)(arg)
             if undefined_check and isinstance(val, EvalName):
                 raise NameError(f"name '{val.name}' is not defined")
             return val
@@ -2025,7 +2021,7 @@ class AstEval:
 
     async def ast_await(self, arg):
         """Evaluate await expr."""
-        coro = await self.aeval(arg.value, do_await=False)
+        coro = await self.aeval(arg.value)
         if coro and asyncio.iscoroutine(coro):
             return await coro
         return coro
