@@ -2022,7 +2022,7 @@ class AstEval:
     async def ast_await(self, arg):
         """Evaluate await expr."""
         coro = await self.aeval(arg.value)
-        if coro and asyncio.iscoroutine(coro):
+        if coro and (asyncio.iscoroutine(coro) or asyncio.isfuture(coro)):
             return await coro
         return coro
 

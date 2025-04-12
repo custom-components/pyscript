@@ -1472,6 +1472,16 @@ t = Test(20)
 """,
         [20, 20],
     ],
+    [
+        """
+import asyncio
+
+future = asyncio.Future()
+future.set_result(True)
+await future
+""",
+        True,
+    ],
 ]
 
 
