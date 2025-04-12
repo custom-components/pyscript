@@ -1427,7 +1427,7 @@ await func()
         """
 import asyncio
 async def coro():
-    await asyncio.sleep(0.1)
+    await asyncio.sleep(1e-5)
     return "done"
 
 await coro()
@@ -1481,6 +1481,19 @@ future.set_result(True)
 await future
 """,
         True,
+    ],
+    [
+        """
+@pyscript_compile
+async def coro0():
+    return 123
+
+async def coro1():
+    return 456
+
+[await coro0(), await coro1()]
+""",
+        [123, 456],
     ],
 ]
 
