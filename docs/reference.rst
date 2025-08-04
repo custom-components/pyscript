@@ -2034,7 +2034,7 @@ async I/O directly:
   argument can only be a regular Python function, not a function defined in pyscript.
 
 If you want to do file or network I/O from pyscript, or make any system calls that might block,
-three are three main choices:
+there are three main choices:
 
 - Use async versions of the I/O functions you need (eg, ``ascyncio``, ``aiohttp`` etc).  This is the
   recommended approach.
