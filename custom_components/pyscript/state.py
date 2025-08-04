@@ -13,7 +13,7 @@ from .function import Function
 
 _LOGGER = logging.getLogger(LOGGER_PATH + ".state")
 
-STATE_VIRTUAL_ATTRS = {"entity_id", "last_changed", "last_updated"}
+STATE_VIRTUAL_ATTRS = {"entity_id", "last_changed", "last_updated", "last_reported"}
 
 
 class StateVal(str):
@@ -26,6 +26,7 @@ class StateVal(str):
         new_var.entity_id = state.entity_id
         new_var.last_updated = state.last_updated
         new_var.last_changed = state.last_changed
+        new_var.last_reported = state.last_reported
         return new_var
 
 
