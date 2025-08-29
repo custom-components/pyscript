@@ -45,6 +45,7 @@ class Mqtt:
                 "topic": mqttmsg.topic,
                 "payload": mqttmsg.payload,
                 "qos": mqttmsg.qos,
+                "retain": mqttmsg.retain,
             }
 
             try:
