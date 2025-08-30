@@ -778,13 +778,14 @@ An optional ``str_expr`` can be used to match the MQTT message data, and the tri
 if that expression evaluates to ``True`` or non-zero. This expression has available these
 variables:
 
-- ``trigger_type`` is set to "mqtt"
-- ``topic`` is set to the topic the message was received on
+- ``trigger_type`` is set to "mqtt".
+- ``topic`` is set to the topic the message was received on.
 - ``qos`` is set to the message QoS.
-- ``payload`` is set to the string payload of the message
+- ``payload`` is set to the string payload of the message.
 - ``payload_obj`` if the payload was valid JSON, this will be set to the native Python object
   representing that payload.  A null message will not be converted.  If payload_obj is a
   required function argument an exception will be thrown, use payload_obj=None.
+- ``retain`` is set to the message retain flag. True if the message was retained, False otherwise.
 
 When the ``@mqtt_trigger`` occurs, those same variables are passed as keyword arguments to the
 function in case it needs them. Additional keyword parameters can be specified by setting the
