@@ -1,4 +1,5 @@
 """Describe logbook events."""
+
 import logging
 
 from homeassistant.core import callback

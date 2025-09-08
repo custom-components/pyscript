@@ -1,4 +1,5 @@
 """Config flow for pyscript."""
+
 import json
 from typing import Any, Dict
 

@@ -1,4 +1,5 @@
 """Test the pyscript component."""
+
 from ast import literal_eval
 import asyncio
 from datetime import datetime as dt
