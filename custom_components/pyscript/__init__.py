@@ -349,9 +349,8 @@ async def async_setup_entry(hass: HomeAssistant, config_entry: ConfigEntry) -> b
         await State.update(new_vars, func_args)
 
     async def hass_started(event: HAEvent) -> None:
-        _LOGGER.debug("adding state changed listener and starting global contexts")
+        _LOGGER.debug("starting global contexts")
         await State.get_service_params()
-        hass.data[DOMAIN][UNSUB_LISTENERS].append(hass.bus.async_listen(EVENT_STATE_CHANGED, state_changed))
         start_global_contexts()
 
     async def hass_stop(event: HAEvent) -> None:
@@ -367,6 +366,8 @@ async def async_setup_entry(hass: HomeAssistant, config_entry: ConfigEntry) -> b
         await Function.reaper_stop()
 
     # Store callbacks to event listeners so we can unsubscribe on unload
+    _LOGGER.debug("adding state_changed listener")
+    hass.data[DOMAIN][UNSUB_LISTENERS].append(hass.bus.async_listen(EVENT_STATE_CHANGED, state_changed))
     hass.data[DOMAIN][UNSUB_LISTENERS].append(
         hass.bus.async_listen(EVENT_HOMEASSISTANT_STARTED, hass_started)
     )
