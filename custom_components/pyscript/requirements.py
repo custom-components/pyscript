@@ -1,4 +1,5 @@
 """Requirements helpers for pyscript."""
+
 import glob
 import logging
 import os
@@ -298,9 +299,11 @@ async def install_requirements(hass, config_entry, pyscript_folder):
             hass,
             DOMAIN,
             [
-                f"{package}=={pkg_info[ATTR_VERSION]}"
-                if pkg_info[ATTR_VERSION] != UNPINNED_VERSION
-                else package
+                (
+                    f"{package}=={pkg_info[ATTR_VERSION]}"
+                    if pkg_info[ATTR_VERSION] != UNPINNED_VERSION
+                    else package
+                )
                 for package, pkg_info in requirements_to_install.items()
             ],
         )
