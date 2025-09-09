@@ -1773,7 +1773,7 @@ async def run_one_test_exception(test_data):
     ast.parse(source)
     exc = ast.get_exception()
     if exc is not None:
-        if type(expect) == set:
+        if isinstance(expect, set):
             assert exc in expect
         else:
             assert exc == expect

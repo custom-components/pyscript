@@ -47,14 +47,14 @@ repos:
     rev: v1.37.1
     hooks:
       - id: yamllint
-  - repo: local
+  - repo: https://github.com/pycqa/pylint
+    rev: v3.3.4
     hooks:
       - id: pylint
-        name: pylint
-        args: [-j 0]
-        entry: venv/bin/pylint
-        language: system
+        args: [-j, "0", --disable=import-error]
         files: ^(custom_components|tests)/.+\.py$
+        additional_dependencies:
+          - pylint_strict_informational
   - repo: https://github.com/pre-commit/mirrors-mypy
     rev: v1.17.1
     hooks:
