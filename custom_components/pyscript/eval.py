@@ -70,6 +70,7 @@ TRIGGER_KWARGS = {
     "payload",
     "payload_obj",
     "qos",
+    "retain",
     "topic",
     "trigger_type",
     "trigger_time",
