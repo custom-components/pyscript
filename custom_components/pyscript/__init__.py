@@ -572,7 +572,7 @@ async def load_scripts(hass: HomeAssistant, config_data: Dict[str, Any], global_
         for global_ctx_name, global_ctx in ctx_all.items():
             if global_ctx_name not in ctx2files:
                 ctx_delete.add(global_ctx_name)
-        # delete all global_ctxs that have changeed source or mtime
+        # delete all global_ctxs that have changed source or mtime
         for global_ctx_name, src_info in ctx2files.items():
             if global_ctx_name in ctx_all:
                 ctx = ctx_all[global_ctx_name]

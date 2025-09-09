@@ -89,7 +89,7 @@ async def test_parse_date_time(hass, caplog):
     ):
         for test_data in parseDateTimeTests:
             spec, date_offset, expect = test_data
-            out = await TrigTime.parse_date_time(spec, date_offset, now, now)
+            out, _ = await TrigTime.parse_date_time(spec, date_offset, now, now)
             assert out == expect
     await Function.waiter_sync()
     await Function.waiter_stop()
@@ -128,7 +128,7 @@ async def test_parse_date_time_day_names(hass, caplog):
     ):
         for test_data in parseDateTimeTestsDayNames:
             spec, date_offset, expect = test_data
-            out = await TrigTime.parse_date_time(spec, date_offset, now, now)
+            out, _ = await TrigTime.parse_date_time(spec, date_offset, now, now)
             assert out == expect
     await Function.waiter_sync()
     await Function.waiter_stop()
@@ -355,6 +355,44 @@ timerTriggerNextTests = [
             dt(2019, 9, 1, 15, 0, 0, 100000),
             dt(2019, 9, 1, 16, 0, 0, 100000),
             dt(2019, 9, 1, 17, 0, 0, 100000),
+            None,
+        ],
+    ],
+    # see #714 for these two cases - in 1.6.4 and prior, they keep triggering since the
+    # end time is considered tomorrow
+    [
+        ["period(now, 1 hours, 15:00.1)"],
+        [
+            dt(2019, 9, 1, 13, 0, 0, 100000),
+            dt(2019, 9, 1, 14, 0, 0, 100000),
+            dt(2019, 9, 1, 15, 0, 0, 100000),
+            None,
+        ],
+    ],
+    [
+        ["period(now, 1 hours, 10:00)"],
+        [
+            None,
+        ],
+    ],
+    [
+        ["period(now, 1 hours, today 15:01)"],
+        [
+            dt(2019, 9, 1, 13, 0, 0, 100000),
+            dt(2019, 9, 1, 14, 0, 0, 100000),
+            dt(2019, 9, 1, 15, 0, 0, 100000),
+            None,
+        ],
+    ],
+    [
+        ["period(now, 1 hours, 10:00)"],
+        [
+            None,
+        ],
+    ],
+    [
+        ["period(today 11:00, 1 hours, today 10:00)"],
+        [
             None,
         ],
     ],

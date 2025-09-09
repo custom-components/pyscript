@@ -136,7 +136,7 @@ class TrigTime:
         cls.hass = hass
 
         def wait_until_factory(ast_ctx):
-            """Return wapper to call to astFunction with the ast context."""
+            """Return wrapper to call to astFunction with the ast context."""
 
             async def wait_until_call(*arg, **kw):
                 return await cls.wait_until(ast_ctx, *arg, **kw)
@@ -144,7 +144,7 @@ class TrigTime:
             return wait_until_call
 
         def user_task_create_factory(ast_ctx):
-            """Return wapper to call to astFunction with the ast context."""
+            """Return wrapper to call to astFunction with the ast context."""
 
             async def user_task_create(func, *args, **kwargs):
                 """Implement task.create()."""
@@ -610,6 +610,7 @@ class TrigTime:
         year = now.year
         month = now.month
         day = now.day
+        fixed_date = False
 
         dt_str_orig = dt_str = date_time_str.strip().lower()
         #
@@ -623,6 +624,7 @@ class TrigTime:
             else:
                 month, day = int(match0[1]), int(match0[2])
             day_offset = 0  # explicit date means no offset
+            fixed_date = True
             dt_str = dt_str[len(match0.group(0)) :]
         elif match1:
             skip = True
@@ -632,11 +634,17 @@ class TrigTime:
                     day_offset = dow - (now.isoweekday() % 7)
                 else:
                     day_offset = 7 + dow - (now.isoweekday() % 7)
+                fixed_date = True
             elif match1[1] == "today":
                 day_offset = 0
+                fixed_date = True
             elif match1[1] == "tomorrow":
                 day_offset = 1
+                fixed_date = True
             else:
+                if match1[1] == "now":
+                    day_offset = 0
+                    fixed_date = True
                 skip = False
             if skip:
                 dt_str = dt_str[len(match1.group(0)) :]
@@ -649,7 +657,7 @@ class TrigTime:
             now = dt.datetime(year, month, day)
         dt_str = dt_str.strip()
         if len(dt_str) == 0:
-            return now
+            return now, fixed_date
 
         #
         # parse the time
@@ -682,7 +690,7 @@ class TrigTime:
             except Exception:
                 _LOGGER.warning("'%s' not defined at this latitude", dt_str)
                 # return something in the past so it is ignored
-                return now - dt.timedelta(days=100)
+                return now - dt.timedelta(days=100), fixed_date
             now += time_sun.date() - now.date()
             hour, mins, sec = time_sun.hour, time_sun.minute, time_sun.second
         elif dt_str.startswith("noon"):
@@ -707,7 +715,7 @@ class TrigTime:
         dt_str = dt_str.strip()
         if len(dt_str) > 0:
             now = now + dt.timedelta(seconds=parse_time_offset(dt_str))
-        return now
+        return now, fixed_date
 
     @classmethod
     async def timer_active_check(cls, time_spec, now, startup_time):
@@ -737,8 +745,8 @@ class TrigTime:
                     _LOGGER.error("Invalid range expression: %s", exc)
                     return False
 
-                start = await cls.parse_date_time(dt_start.strip(), 0, now, startup_time)
-                end = await cls.parse_date_time(dt_end.strip(), 0, start, startup_time)
+                start, _ = await cls.parse_date_time(dt_start.strip(), 0, now, startup_time)
+                end, _ = await cls.parse_date_time(dt_end.strip(), 0, start, startup_time)
 
                 if start <= end:
                     this_match = start <= now <= end
@@ -802,20 +810,20 @@ class TrigTime:
                     next_time_adj = now + delta
 
             elif len(match1) == 3:
-                this_t = await cls.parse_date_time(match1[1].strip(), 0, now, startup_time)
+                this_t, _ = await cls.parse_date_time(match1[1].strip(), 0, now, startup_time)
                 day_offset = (now - this_t).days + 1
                 if day_offset != 0 and this_t != startup_time:
                     #
                     # Try a day offset (won't make a difference if spec has full date)
                     #
-                    this_t = await cls.parse_date_time(match1[1].strip(), day_offset, now, startup_time)
+                    this_t, _ = await cls.parse_date_time(match1[1].strip(), day_offset, now, startup_time)
                 startup = now == this_t and now == startup_time
                 if (now < this_t or startup) and (next_time is None or this_t < next_time):
                     next_time_adj = next_time = this_t
 
             elif len(match2) == 5:
                 start_str, period_str = match2[1].strip(), match2[2].strip()
-                start = await cls.parse_date_time(start_str, 0, now, startup_time)
+                start, fixed_date_start = await cls.parse_date_time(start_str, 0, now, startup_time)
                 period = parse_time_offset(period_str)
                 if period <= 0:
                     _LOGGER.error("Invalid non-positive period %s in period(): %s", period, time_spec)
@@ -832,12 +840,17 @@ class TrigTime:
                             next_time_adj = next_time = this_t
                     continue
                 end_str = match2[3].strip()
-                end = await cls.parse_date_time(end_str, 0, now, startup_time)
-                end_offset = 1 if end < start else 0
-                for day in [-1, 0, 1]:
-                    start = await cls.parse_date_time(start_str, day, now, startup_time)
-                    end = await cls.parse_date_time(end_str, day + end_offset, now, startup_time)
-                    if now < start or (now == start and now == startup_time):
+                end, fixed_date_end = await cls.parse_date_time(end_str, 0, now, startup_time)
+                if not fixed_date_start and not fixed_date_end:
+                    end_offset = 1 if end < start else 0
+                    day_dither = [-1, 0, 1]
+                else:
+                    end_offset = 0
+                    day_dither = [0]
+                for day in day_dither:
+                    start, _ = await cls.parse_date_time(start_str, day, now, startup_time)
+                    end, _ = await cls.parse_date_time(end_str, day + end_offset, now, startup_time)
+                    if (now < start or (now == start and now == startup_time)) and start <= end:
                         if next_time is None or start < next_time:
                             next_time_adj = next_time = start
                         break
