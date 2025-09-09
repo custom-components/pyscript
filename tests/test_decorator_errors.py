@@ -47,7 +47,6 @@ async def setup_script(hass, notify_q, now, source):
     # trigger function to return the given list of times in now.
     #
     def return_next_time():
-        nonlocal now
         if isinstance(now, list):
             if len(now) > 1:
                 return now.pop(0)
