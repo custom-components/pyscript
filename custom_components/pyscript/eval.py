@@ -382,7 +382,7 @@ class EvalFunc:
             "state_active": {"arg_cnt": {1}},
             "state_trigger": {"arg_cnt": {"*"}, "type": {list, set}, "rep_ok": True},
             "service": {"arg_cnt": {0, "*"}},
-            "task_unique": {"arg_cnt": {1, 2}},
+            "task_unique": {"arg_cnt": {1}},
             "time_active": {"arg_cnt": {"*"}},
             "time_trigger": {"arg_cnt": {0, "*"}, "rep_ok": True},
             "webhook_trigger": {"arg_cnt": {1, 2}, "rep_ok": True},

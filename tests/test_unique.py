@@ -78,6 +78,7 @@ async def test_task_unique(hass, caplog):
 seq_num = 0
 
 @time_trigger("startup")
+@task_unique("func6")
 def funcStartupSync():
     global seq_num, funcStartupSync_id
 
@@ -88,9 +89,11 @@ def funcStartupSync():
     #
     # stick around so the task.unique() still applies
     #
-    task.unique("func6")
     assert task.current_task() == task.name2id("func6")
     assert task.current_task() == task.name2id()["func6"]
+    task.unique("func7")
+    assert task.current_task() == task.name2id("func7")
+    assert task.current_task() == task.name2id()["func7"]
     task.sleep(10000)
 
 @service
