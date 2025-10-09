@@ -231,6 +231,21 @@ the variable ``test1_state`` captures both the value and attributes of ``binary_
 Later, if ``binary_sensor.test1`` changes, ``test1_state`` continues to represent the previous
 value and attributes at the time of the assignment.
 
+Keep in mind that ``test1_state`` (and any other value returned by ``state.get()`` or direct state
+reference) remains a subclass of ``str``. Pyscript exposes several helper methods on these instances
+to simplify conversions and availability checks:
+
+- ``as_float(default=None)``
+- ``as_int(default=None, base=10)``
+- ``as_bool(default=None)``
+- ``as_round(precision=0, method: Literal["common", "ceil", "floor", "half"] = "common", default=None)``
+- ``as_datetime(default=None)``
+- ``is_unknown()`` / ``is_unavailable()`` / ``has_value()``
+
+Each of the ``as_*`` helpers wraps the equivalent forgiving helper from
+``homeassistant.helpers.template``. ``default`` is optional in every case: pass it to get a fallback
+value on failure, or omit it to have a ``ValueError`` raised.
+
 State variables also support virtual methods that are service calls with that ``entity_id``.
 For any state variable ``DOMAIN.ENTITY``, any services registered by ``DOMAIN``, e.g.,
 ``DOMAIN.SERVICE``, that have an ``entity_id`` parameter can be called as a method
@@ -268,7 +283,7 @@ Four additional virtual attribute values are available when you use a variable d
 - ``entity_id`` is the DOMAIN.entity as string
 - ``last_changed`` is the last UTC time the state value was changed (not the attributes)
 - ``last_updated`` is the last UTC time the state entity was updated
-- ``last_reported``is the last UTC time the integration set the state of an entity, regardless of whether it changed or not
+- ``last_reported`` is the last UTC time the integration set the state of an entity, regardless of whether it changed or not
 
 If you need to compute how many seconds ago the ``binary_sensor.test1`` state changed, you could
 do this:
