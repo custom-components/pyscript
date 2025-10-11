@@ -78,6 +78,11 @@ class StateVal(str):
         return not self.is_unknown() and not self.is_unavailable()
 
 
+STATE_CALLABLE_ATTRS = {
+    attr for attr, value in StateVal.__dict__.items() if callable(value) and not attr.startswith("_")
+}
+
+
 class State:
     """Class for state functions."""
 
@@ -308,6 +313,7 @@ class State:
             or (parts[0] in cls.service2args and parts[2] in cls.service2args[parts[0]])
             or parts[2] in value.attributes
             or parts[2] in STATE_VIRTUAL_ATTRS
+            or parts[2] in STATE_CALLABLE_ATTRS
         ):
             return True
         return False
