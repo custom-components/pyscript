@@ -99,7 +99,7 @@ def ready():
         "light.lamp.invalid attr",
     ]
     assert response["ignored_identifiers"] == sorted(expected_ignored)
-    assert response["result"] == "OK"
+    assert response["status"] == "OK"
     assert builtins_target.exists()
     assert generated_target.exists()
 
