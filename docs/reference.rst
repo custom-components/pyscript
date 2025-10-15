@@ -140,9 +140,32 @@ scripts or apps that depend on those modules will be reloaded. Importing modules
 ``<config>/pyscript/modules`` are not restricted if ``allow_all_imports`` is ``False``. Typically
 common functions or features would be implemented in a module or package, and then imported and used
 by scripts in ``<config>/pyscript`` or applications in ``<config>/pyscript/apps``.
+Imports whose top-level package is ``stubs`` (i.e., anything below ``modules/stubs``) are ignored at
+runtime, which allows you to store IDE helper modules there without affecting execution.
 
 Even if you can't directly call one function from another script file, HASS state variables are
 global and services can be called from any script file.
+
+IDE Helpers
+-----------
+
+Pyscript can generate IDE stubs describing dynamic helpers, discovered entities, and services in
+your installation. Call the ``pyscript.generate_stubs`` service from Developer Tools -> Actions to
+build them. The generator copies the bundled ``pyscript_builtins.py`` and produces a
+``pyscript_generated.py`` module under ``<config>/pyscript/modules/stubs``. Re-run the service whenever
+you add new Pyscript services or entities to keep the metadata up to date.
+
+At runtime the interpreter ignores ``import`` statements whose top-level package is ``stubs``. That
+lets you safely add ``from stubs.pyscript_builtins import ...`` lines for type hints without affecting
+execution. Point your IDE at ``<config>/pyscript/modules`` (e.g., mark it as a source root or add it to
+the workspace) and the helpers will be picked up for code completion, inspections, and navigation.
+
+- PyCharm / IntelliJ: right-click the ``<config>/pyscript/modules`` directory in the Project tool
+  window and choose *Mark Directory as -> Sources Root*.
+- VS Code: open *Settings → Python Analysis: Extra Paths -> Add Item* -> ``pyscript/modules``.
+- Studio Code Server (Home Assistant add-on): same as in VS Code; just install ``Pyright``.
+- Other editors: ensure the Python path includes ``modules`` (for example by exporting
+  ``PYTHONPATH=/config/pyscript/modules``) before launching the IDE or language server.
 
 Reloading Scripts
 -----------------

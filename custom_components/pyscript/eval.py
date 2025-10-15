@@ -999,6 +999,14 @@ class AstEval:
                     raise ModuleNotFoundError(f"module '{imp.name}' not found")
                 self.sym_table[imp.name if imp.asname is None else imp.asname] = mod
             return
+        if arg.module == "stubs" or arg.module.startswith("stubs."):
+            for imp in arg.names:
+                if imp.asname is not None:
+                    raise ModuleNotFoundError(
+                        f"from {arg.module} import {imp.name} *as {imp.asname}* not supported for stubs"
+                    )
+            _LOGGER.debug("Skipping stubs import %s", arg.module)
+            return
         mod, error_ctx = await self.global_ctx.module_import(arg.module, arg.level)
         if error_ctx:
             self.exception_obj = error_ctx.exception_obj
