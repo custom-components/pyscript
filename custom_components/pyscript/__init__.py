@@ -314,11 +314,8 @@ async def async_setup_entry(hass: HomeAssistant, config_entry: ConfigEntry) -> b
         def write_stubs(path) -> dict[str, Any]:
             res: dict[str, Any] = {}
             try:
-                if not os.access(path, os.W_OK):
-                    res["status"] = "Error"
-                    res["message"] = f" '{path}' is not writable."
-                    return res
                 os.makedirs(path, exist_ok=True)
+
                 builtins_path = os.path.join(os.path.dirname(__file__), "stubs", "pyscript_builtins.py")
                 shutil.copy2(builtins_path, path)
 
