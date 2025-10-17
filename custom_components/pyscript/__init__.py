@@ -5,6 +5,7 @@ import glob
 import json
 import logging
 import os
+import shutil
 import time
 import traceback
 from typing import Any, Callable, Dict, List, Set, Union
@@ -37,7 +38,9 @@ from .const import (
     FOLDER,
     LOGGER_PATH,
     REQUIREMENTS_FILE,
+    SERVICE_GENERATE_STUBS,
     SERVICE_JUPYTER_KERNEL_START,
+    SERVICE_RESPONSE_ONLY,
     UNSUB_LISTENERS,
     WATCHDOG_TASK,
 )
@@ -49,6 +52,7 @@ from .jupyter_kernel import Kernel
 from .mqtt import Mqtt
 from .requirements import install_requirements
 from .state import State, StateVal
+from .stubs.generator import StubsGenerator
 from .trigger import TrigTime
 from .webhook import Webhook
 
@@ -299,6 +303,47 @@ async def async_setup_entry(hass: HomeAssistant, config_entry: ConfigEntry) -> b
         start_global_contexts(global_ctx_only=global_ctx_only)
 
     hass.services.async_register(DOMAIN, SERVICE_RELOAD, reload_scripts_handler)
+
+    async def generate_stubs_service(call: ServiceCall) -> Dict[str, Any]:
+        """Generate pyscript IDE stub files."""
+
+        generator = StubsGenerator(hass)
+        generated_body = await generator.build()
+        stubs_path = os.path.join(hass.config.path(FOLDER), "modules", "stubs")
+
+        def write_stubs(path) -> dict[str, Any]:
+            res: dict[str, Any] = {}
+            try:
+                os.makedirs(path, exist_ok=True)
+
+                builtins_path = os.path.join(os.path.dirname(__file__), "stubs", "pyscript_builtins.py")
+                shutil.copy2(builtins_path, path)
+
+                gen_path = os.path.join(path, "pyscript_generated.py")
+                with open(gen_path, "w", encoding="utf-8") as f:
+                    f.write(generated_body)
+                res["status"] = "OK"
+                return res
+            except Exception as e:
+                _LOGGER.exception("Stubs generation failed: %s", e)
+                res["status"] = "Error"
+                res["exception"] = str(e)
+                res["message"] = "Check pyscript logs"
+                return res
+
+        result = await hass.async_add_executor_job(write_stubs, stubs_path)
+
+        if generator.ignored_identifiers:
+            result["ignored_identifiers"] = sorted(generator.ignored_identifiers)
+
+        if result["status"] == "OK":
+            _LOGGER.info("Pyscript stubs generated to %s", stubs_path)
+
+        return result
+
+    hass.services.async_register(
+        DOMAIN, SERVICE_GENERATE_STUBS, generate_stubs_service, supports_response=SERVICE_RESPONSE_ONLY
+    )
 
     async def jupyter_kernel_start(call: ServiceCall) -> None:
         """Handle Jupyter kernel start call."""

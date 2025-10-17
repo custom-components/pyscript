@@ -34,6 +34,7 @@ CONF_HASS_IS_GLOBAL = "hass_is_global"
 CONF_INSTALLED_PACKAGES = "_installed_packages"
 
 SERVICE_JUPYTER_KERNEL_START = "jupyter_kernel_start"
+SERVICE_GENERATE_STUBS = "generate_stubs"
 
 LOGGER_PATH = "custom_components.pyscript"
 

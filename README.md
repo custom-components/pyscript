@@ -19,6 +19,9 @@ Pyscript also provides a kernel that interfaces with the Jupyter front-ends (eg,
 lab and VSCode). That allows you to develop and test pyscript code interactively. Plus you can interact
 with much of HASS by looking at state variables, calling services etc.
 
+Pyscript can also generate IDE stub modules by calling the `pyscript.generate_stubs` service.
+See the “IDE Helpers” section of the docs for setup details.
+
 ## Documentation
 
 Here is the [pyscript documentation](https://hacs-pyscript.readthedocs.io/en/stable).
