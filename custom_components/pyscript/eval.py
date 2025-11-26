@@ -12,6 +12,7 @@ import keyword
 import logging
 import sys
 import time
+import traceback
 import weakref
 
 import yaml
@@ -2197,11 +2198,9 @@ class AstEval:
         else:
             mesg = f"Exception in <{self.filename}>:\n"
             mesg += f"{type(exc).__name__}: {exc}"
-        #
-        # to get a more detailed traceback on exception (eg, when chasing an internal
-        # error), add an "import traceback" above, and uncomment this next line
-        #
-        # return mesg + "\n" + traceback.format_exc(-1)
+
+        if _LOGGER.isEnabledFor(logging.DEBUG):
+            mesg += "\n" + traceback.format_exc()
         return mesg
 
     def get_exception(self):
