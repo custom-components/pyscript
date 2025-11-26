@@ -144,6 +144,68 @@ evalTests = [
     ["x: int = [10, 20]; x", [10, 20]],
     ["Foo = type('Foo', (), {'x': 100}); Foo.x = 10; Foo.x", 10],
     ["Foo = type('Foo', (), {'x': 100}); Foo.x += 10; Foo.x", 110],
+    [
+        """
+from enum import IntEnum
+
+class TestIntMode(IntEnum):
+    VAL1 = 1
+    VAL2 = 2
+    VAL3 = 3
+[TestIntMode.VAL2 == 2, isinstance(TestIntMode.VAL3, IntEnum)]
+""",
+        [True, True],
+    ],
+    [
+        """
+from enum import StrEnum
+
+class TestStrEnum(StrEnum):
+    VAL1 = "val1"
+    VAL2 = "val2"
+    VAL3 = "val3"
+[TestStrEnum.VAL2 == "val2", isinstance(TestStrEnum.VAL3, StrEnum)]
+""",
+        [True, True],
+    ],
+    [
+        """
+from enum import Enum, EnumMeta
+
+class Color(Enum):
+    RED = 1
+    BLUE = 2
+[type(Color) is EnumMeta, isinstance(Color.RED, Color), list(Color.__members__.keys())]
+""",
+        [True, True, ["RED", "BLUE"]],
+    ],
+    [
+        """
+from dataclasses import dataclass
+
+@dataclass()
+class DT:
+    name: str
+    num: int = 32
+obj1 = DT(name="abc")
+obj2 = DT("xyz", 5)
+[obj1.name, obj1.num, obj2.name, obj2.num]
+""",
+        ["abc", 32, "xyz", 5],
+    ],
+    [
+        """
+class Meta(type):
+    def __new__(mcls, name, bases, ns, flag=False):
+        ns["flag"] = flag
+        return type.__new__(mcls, name, bases, ns)
+
+class Foo(metaclass=Meta, flag=True):
+    pass
+[Foo.flag, isinstance(Foo, Meta)]
+""",
+        [True, True],
+    ],
     ["Foo = [type('Foo', (), {'x': 100})]; Foo[0].x = 10; Foo[0].x", 10],
     ["Foo = [type('Foo', (), {'x': [100, 101]})]; Foo[0].x[1] = 10; Foo[0].x", [100, 10]],
     ["Foo = [type('Foo', (), {'x': [0, [[100, 101]]]})]; Foo[0].x[1][0][1] = 10; Foo[0].x[1]", [[100, 10]]],
