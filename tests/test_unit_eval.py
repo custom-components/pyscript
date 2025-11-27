@@ -222,6 +222,22 @@ Decorated.labels
 """,
         ["second", "first"],
     ],
+    [
+        """
+hits = []
+
+def anno():
+    hits.append("ok")
+    return int
+
+class Annotated:
+    a: anno()
+    b: int = 3
+    c = "skip"
+[hits, Annotated.__annotations__, Annotated.b, hasattr(Annotated, "c")]
+""",
+        [["ok"], {"a": int, "b": int}, 3, True],
+    ],
     ["Foo = [type('Foo', (), {'x': 100})]; Foo[0].x = 10; Foo[0].x", 10],
     ["Foo = [type('Foo', (), {'x': [100, 101]})]; Foo[0].x[1] = 10; Foo[0].x", [100, 10]],
     ["Foo = [type('Foo', (), {'x': [0, [[100, 101]]]})]; Foo[0].x[1][0][1] = 10; Foo[0].x[1]", [[100, 10]]],
