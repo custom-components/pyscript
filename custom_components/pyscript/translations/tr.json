@@ -1,0 +1,38 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "pyscript",
+        "description": "Bir girdi oluşturduktan sonra, betik ve fonksiyon oluşturmayı öğrenmek için [dokümantasyona](https://hacs-pyscript.readthedocs.io/en/latest/) bakabilirsiniz.",
+        "data": {
+          "allow_all_imports": "Tüm içe aktarmalara izin verilsin mi?",
+          "hass_is_global": "hass'a global değişken olarak erişilsin mi?"
+        }
+      }
+    },
+    "abort": {
+      "already_configured": "Zaten yapılandırılmış.",
+      "single_instance_allowed": "Zaten yapılandırılmış. Yalnızca tek bir yapılandırma mümkündür.",
+      "updated_entry": "Bu girdi zaten kurulmuş ancak yapılandırma güncellendi."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "pyscript yapılandırmasını güncelle",
+        "data": {
+          "allow_all_imports": "Tüm içe aktarmalara izin verilsin mi?",
+          "hass_is_global": "hass'a global değişken olarak erişilsin mi?"
+        }
+      },
+      "no_ui_configuration_allowed": {
+        "title": "Arayüz yapılandırmasına izin verilmiyor",
+        "description": "Bu girdi `configuration.yaml` dosyası aracılığıyla oluşturulmuştur, bu nedenle tüm yapılandırma parametreleri orada güncellenmelidir. [`pyscript.reload`](developer-tools/service) servisi, Home Assistant örneğinizi yeniden başlatmadan `configuration.yaml` dosyasında yaptığınız değişiklikleri uygulamanıza olanak tanır."
+      },
+      "no_update": {
+        "title": "Güncelleme gerekmiyor",
+        "description": "Güncellenecek bir şey yok."
+      }
+    }
+  }
+}
