@@ -58,14 +58,14 @@ class Mqtt:
         return mqtt_message_handler
 
     @classmethod
-    async def notify_add(cls, topic, queue):
+    async def notify_add(cls, topic, queue, encoding=None):
         """Register to notify for mqtt messages of given topic to be sent to queue."""
 
         if topic not in cls.notify:
             cls.notify[topic] = set()
             _LOGGER.debug("mqtt.notify_add(%s) -> adding mqtt subscription", topic)
             cls.notify_remove[topic] = await mqtt.async_subscribe(
-                cls.hass, topic, cls.mqtt_message_handler_maker(topic), encoding="utf-8", qos=0
+                cls.hass, topic, cls.mqtt_message_handler_maker(topic), encoding=encoding or "utf-8", qos=0
             )
         cls.notify[topic].add(queue)
 

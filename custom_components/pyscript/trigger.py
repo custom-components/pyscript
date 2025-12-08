@@ -223,6 +223,7 @@ class TrigTime:
         time_trigger=None,
         event_trigger=None,
         mqtt_trigger=None,
+        mqtt_trigger_encoding=None,
         webhook_trigger=None,
         webhook_local_only=True,
         webhook_methods=None,
@@ -359,7 +360,7 @@ class TrigTime:
                     if len(state_trig_ident) > 0:
                         State.notify_del(state_trig_ident, notify_q)
                     raise exc
-            await Mqtt.notify_add(mqtt_trigger[0], notify_q)
+            await Mqtt.notify_add(mqtt_trigger[0], notify_q, encoding=mqtt_trigger_encoding)
         if webhook_trigger is not None:
             if isinstance(webhook_trigger, str):
                 webhook_trigger = [webhook_trigger]
@@ -892,6 +893,7 @@ class TrigInfo:
         self.event_trigger_kwargs = trig_cfg.get("event_trigger", {}).get("kwargs", {})
         self.mqtt_trigger = trig_cfg.get("mqtt_trigger", {}).get("args", None)
         self.mqtt_trigger_kwargs = trig_cfg.get("mqtt_trigger", {}).get("kwargs", {})
+        self.mqtt_trigger_encoding = self.mqtt_trigger_kwargs.get("encoding", None)
         self.webhook_trigger = trig_cfg.get("webhook_trigger", {}).get("args", None)
         self.webhook_trigger_kwargs = trig_cfg.get("webhook_trigger", {}).get("kwargs", {})
         self.webhook_local_only = self.webhook_trigger_kwargs.get("local_only", True)
@@ -1082,7 +1084,7 @@ class TrigInfo:
                 Event.notify_add(self.event_trigger[0], self.notify_q)
             if self.mqtt_trigger is not None:
                 _LOGGER.debug("trigger %s adding mqtt_trigger %s", self.name, self.mqtt_trigger[0])
-                await Mqtt.notify_add(self.mqtt_trigger[0], self.notify_q)
+                await Mqtt.notify_add(self.mqtt_trigger[0], self.notify_q, encoding=self.mqtt_trigger_encoding)
             if self.webhook_trigger is not None:
                 _LOGGER.debug("trigger %s adding webhook_trigger %s", self.name, self.webhook_trigger[0])
                 Webhook.notify_add(

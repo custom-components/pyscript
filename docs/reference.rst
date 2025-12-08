@@ -806,7 +806,7 @@ more examples of built-in and user events and how to create triggers for them.
 
 .. code:: python
 
-    @mqtt_trigger(topic, str_expr=None, kwargs=None)
+    @mqtt_trigger(topic, str_expr=None, encoding="utf-8", kwargs=None)
 
 ``@mqtt_trigger`` subscribes to the given MQTT ``topic`` and triggers whenever a message is received
 on that topic. Multiple ``@mqtt_trigger`` decorators can be applied to a single function if you want
@@ -815,6 +815,9 @@ to trigger off different mqtt topics.
 An optional ``str_expr`` can be used to match the MQTT message data, and the trigger will only occur
 if that expression evaluates to ``True`` or non-zero. This expression has available these
 variables:
+
+An optional ``encoding`` argument specifies the character encoding used to decode the MQTT payload
+(default is **"utf-8"**). It can be explicitly set to other encodings if necessary.
 
 - ``trigger_type`` is set to "mqtt".
 - ``topic`` is set to the topic the message was received on.
