@@ -393,7 +393,7 @@ class StubsGenerator:
 
     def _build_docstring(self, description: str | None, fields: list[_ServiceField]) -> str | None:
         docstring = description.strip() if description else ""
-        docstring.replace("\n", f"\n{_DOCSTRING_INDENT}")
+        docstring = docstring.replace("\n", f"\n{_DOCSTRING_INDENT}")
         first_arg = True
         for field in fields:
             if not field.description:
