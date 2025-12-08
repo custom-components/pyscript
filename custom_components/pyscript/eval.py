@@ -390,7 +390,10 @@ class EvalFunc:
         }
         kwarg_check = {
             "event_trigger": {"kwargs": {dict}},
-            "mqtt_trigger": {"kwargs": {dict}},
+            "mqtt_trigger": {
+                "kwargs": {dict},
+                "encoding": {str},
+            },
             "time_trigger": {"kwargs": {dict}},
             "task_unique": {"kill_me": {bool, int}},
             "time_active": {"hold_off": {int, float}},
