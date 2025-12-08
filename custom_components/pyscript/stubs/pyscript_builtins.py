@@ -105,12 +105,15 @@ def time_active(*time_spec: str, hold_off: int | float | None = None) -> Callabl
     ...
 
 
-def mqtt_trigger(topic: str, str_expr: str | None = None, **kwargs) -> Callable[..., Any]:
+def mqtt_trigger(
+    topic: str, str_expr: str | None = None, encoding: str = "utf-8", **kwargs
+) -> Callable[..., Any]:
     """Trigger when a subscribed MQTT message matches the specification.
 
     Args:
         topic: MQTT topic to monitor; wildcards ``+`` and ``#`` are supported.
         str_expr: Optional expression evaluated against ``payload``, ``payload_obj``, ``retain``, ``topic``, and ``qos``.
+        encoding: Character encoding for MQTT payload decoding; defaults to ``"utf-8"``.
         kwargs: Extra keyword arguments merged into each invocation.
     """
     ...
@@ -417,6 +420,7 @@ class task:
         time_trigger: str | list[str] | None = None,
         event_trigger: str | list[str] | None = None,
         mqtt_trigger: str | list[str] | None = None,
+        mqtt_trigger_encoding: str | None = None,
         webhook_trigger: str | list[str] | None = None,
         webhook_local_only: bool = True,
         webhook_methods: list[str] = ("POST", "PUT"),
@@ -432,6 +436,7 @@ class task:
             time_trigger: Time specifications matching ``@time_trigger`` semantics.
             event_trigger: Event types or filters matching ``@event_trigger`` semantics.
             mqtt_trigger: MQTT topics or filters matching ``@mqtt_trigger`` semantics.
+            mqtt_trigger_encoding: Character encoding for MQTT payload decoding; defaults to ``"utf-8"`` when omitted.
             webhook_trigger: Webhook ids matching ``@webhook_trigger`` semantics.
             webhook_local_only: Limit webhooks to local network clients when ``True``.
             webhook_methods: Allowed HTTP methods for webhook triggers.
