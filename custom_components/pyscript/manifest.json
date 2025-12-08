@@ -12,6 +12,6 @@
   "issue_tracker": "https://github.com/custom-components/pyscript/issues",
   "requirements": ["croniter==6.0.0", "watchdog==6.0.0"],
   "ssdp": [],
-  "version": "1.6.4",
+  "version": "1.7.0",
   "zeroconf": []
 }
