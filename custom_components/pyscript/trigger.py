@@ -360,7 +360,7 @@ class TrigTime:
                     if len(state_trig_ident) > 0:
                         State.notify_del(state_trig_ident, notify_q)
                     raise exc
-            await Mqtt.notify_add(mqtt_trigger[0], notify_q, mqtt_trigger_encoding)
+            await Mqtt.notify_add(mqtt_trigger[0], notify_q, encoding=mqtt_trigger_encoding)
         if webhook_trigger is not None:
             if isinstance(webhook_trigger, str):
                 webhook_trigger = [webhook_trigger]
