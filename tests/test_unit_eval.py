@@ -181,6 +181,58 @@ class Color(Enum):
     ],
     [
         """
+from enum import Enum
+
+class HomeState(Enum):
+    HOME = "home"
+    AWAY = "away"
+
+    def name_and_value(self):
+        return f"{self.name}:{self.value}"
+
+[HomeState.HOME.name_and_value(), HomeState.AWAY.name_and_value()]
+""",
+        ["HOME:home", "AWAY:away"],
+    ],
+    [
+        """
+class Device:
+    def greet(self, name):
+        return f"hi {name} from {self.__class__.__name__}"
+
+d = Device()
+d.greet("Alice")
+""",
+        "hi Alice from Device",
+    ],
+    [
+        """
+def add(self, x, y=0):
+    return x + y
+
+class Calc:
+    pass
+
+Calc.add = add
+Calc().add(2, 3)
+""",
+        5,
+    ],
+    [
+        """
+class Base:
+    def tag(self):
+        return "base"
+
+class Child(Base):
+    pass
+
+Child().tag()
+""",
+        "base",
+    ],
+    [
+        """
 from dataclasses import dataclass
 
 @dataclass()

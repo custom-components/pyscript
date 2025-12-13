@@ -873,6 +873,15 @@ class EvalFuncVar:
         """Return the ast context."""
         return self.ast_ctx
 
+    def __get__(self, obj, objtype=None):
+        """Support descriptor protocol so class attributes bind to instances."""
+        if obj is None:
+            return self
+        # we use weak references when we bind the method calls to the instance inst;
+        # otherwise these self references cause the object to not be deleted until
+        # it is later garbage collected
+        return EvalFuncVarClassInst(self.func, self.ast_ctx, weakref.ref(obj))
+
     def __del__(self):
         """On deletion, stop any triggers for this function."""
         if self.func:
@@ -1983,22 +1992,6 @@ class AstEval:
         if inspect.isclass(func) and hasattr(func, "__init__evalfunc_wrap__"):
             has_init_wrapper = getattr(func, "__init__evalfunc_wrap__") is not None
             inst = func(*args, **kwargs) if not has_init_wrapper else func()
-            #
-            # we use weak references when we bind the method calls to the instance inst;
-            # otherwise these self references cause the object to not be deleted until
-            # it is later garbage collected
-            #
-            inst_weak = weakref.ref(inst)
-            for name in dir(inst):
-                try:
-                    value = getattr(inst, name)
-                except AttributeError:
-                    # same effect as hasattr (which also catches AttributeError)
-                    # dir() may list names that aren't actually accessible attributes
-                    continue
-                if type(value) is not EvalFuncVar:
-                    continue
-                setattr(inst, name, EvalFuncVarClassInst(value.get_func(), value.get_ast_ctx(), inst_weak))
             if has_init_wrapper:
                 #
                 # since our __init__ function is async, call the renamed one
