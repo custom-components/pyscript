@@ -133,7 +133,7 @@ def start_global_contexts(global_ctx_only: str = None) -> None:
     start_list = []
     for global_ctx_name, global_ctx in GlobalContextMgr.items():
         idx = global_ctx_name.find(".")
-        if idx < 0 or global_ctx_name[0:idx] not in {"file", "apps", "scripts"}:
+        if idx < 0 or global_ctx_name[0:idx] not in {"file", "apps", "modules", "scripts"}:
             continue
         if global_ctx_only is not None and global_ctx_only != "*":
             if global_ctx_name != global_ctx_only and not global_ctx_name.startswith(global_ctx_only + "."):

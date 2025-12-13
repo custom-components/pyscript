@@ -188,7 +188,7 @@ class GlobalContext:
         global_ctx = GlobalContext(
             ctx_name, global_sym_table=mod.__dict__, manager=self.manager, rel_import_path=rel_import_path
         )
-        global_ctx.set_auto_start(True)
+        global_ctx.set_auto_start(self.auto_start)
         _, error_ctx = await self.manager.load_file(global_ctx, file_path)
         if error_ctx:
             _LOGGER.error(
