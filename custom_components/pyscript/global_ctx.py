@@ -1,5 +1,6 @@
 """Global context handling."""
 
+import ast
 from collections.abc import Awaitable, Callable
 import logging
 import os
@@ -9,7 +10,9 @@ from typing import Any, ClassVar
 from homeassistant.config_entries import ConfigEntry
 
 from .const import CONF_HASS_IS_GLOBAL, CONFIG_ENTRY, DOMAIN, FOLDER, LOGGER_PATH
-from .eval import AstEval, EvalFunc, SymTable
+from .decorator import DecoratorRegistry, FunctionDecoratorManager
+from .decorator_abc import Decorator, DecoratorManagerStatus
+from .eval import AstEval, EvalFunc, EvalFuncVar, SymTable
 from .function import Function
 from .trigger import TrigInfo
 
@@ -34,6 +37,8 @@ class GlobalContext:
         self.global_sym_table: SymTable = global_sym_table if global_sym_table else {}
         self.triggers: set[EvalFunc] = set()
         self.triggers_delay_start: set[EvalFunc] = set()
+        self.dms: set[FunctionDecoratorManager] = set()
+        self.dms_delay_start: set[FunctionDecoratorManager] = set()
         self.logger: logging.Logger = logging.getLogger(LOGGER_PATH + "." + name)
         self.manager = manager
         self.auto_start: bool = False
@@ -61,6 +66,30 @@ class GlobalContext:
         self.triggers_delay_start.add(func)
         return False
 
+    async def get_decorator_by_expr(self, ast_ctx: AstEval, dec: ast.expr) -> Decorator | None:
+        """Return decorator instance from an AST decorator expression."""
+        return await DecoratorRegistry.get_decorator_by_expr(ast_ctx, dec)
+
+    async def create_decorator_manager(
+        self, decs: list[Decorator], ast_ctx: AstEval, func_var: EvalFuncVar
+    ) -> None:
+        """Create decorator manager from an AST decorator expression."""
+        dm = FunctionDecoratorManager(ast_ctx, func_var)
+        for dec in decs:
+            dm.add(dec)
+
+        try:
+            await dm.validate()
+            if dm.status is DecoratorManagerStatus.VALIDATED:
+                self.dms.add(dm)
+
+                if self.auto_start:
+                    await dm.start()
+                else:
+                    self.dms_delay_start.add(dm)
+        except Exception as exc:
+            _LOGGER.error(ast_ctx.format_exc(exc, dm.lineno, dm.col_offset))
+
     def trigger_unregister(self, func: EvalFunc) -> None:
         """Unregister a trigger function."""
         self.triggers.discard(func)
@@ -76,12 +105,20 @@ class GlobalContext:
             func.trigger_start()
         self.triggers_delay_start = set()
 
+        for dm in self.dms_delay_start:
+            Function.hass.async_create_task(dm.start())
+        self.dms_delay_start = set()
+
     def stop(self) -> None:
         """Stop all triggers and auto_start."""
         for func in self.triggers:
             func.trigger_stop()
         self.triggers = set()
         self.triggers_delay_start = set()
+        for dm in self.dms:
+            Function.hass.async_create_task(dm.stop())
+        self.dms = set()
+        self.dms_delay_start = set()
         self.set_auto_start(False)
 
     def get_name(self) -> str:
