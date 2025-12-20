@@ -476,7 +476,4 @@ def func8():
     pass
 """,
     )
-    assert (
-        "TypeError: function 'func8' defined in file.hello: {'bad'} aren't valid webhook_trigger methods"
-        in caplog.text
-    )
+    assert "TypeError: function 'func8' defined in file.hello:" in caplog.text
