@@ -325,6 +325,7 @@ class EvalFunc:
         self.defaults = []
         self.kw_defaults = []
         self.decorators = []
+        self.dm_decorators = []
         self.global_names = set()
         self.nonlocal_names = set()
         self.local_names = None
@@ -613,8 +614,11 @@ class EvalFunc:
 
         dec_other = []
         dec_trig = []
+        dec_dm = []
         for dec in self.func_def.decorator_list:
-            if (
+            if known_dec := await ast_ctx.global_ctx.get_decorator_by_expr(ast_ctx, dec):
+                dec_dm.append(known_dec)
+            elif (
                 isinstance(dec, ast.Call)
                 and isinstance(dec.func, ast.Name)
                 and dec.func.id in TRIG_SERV_DECORATORS
@@ -628,7 +632,7 @@ class EvalFunc:
                 dec_other.append(await ast_ctx.aeval(dec))
 
         ast_ctx.code_str, ast_ctx.code_list = code_str, code_list
-        return dec_trig, reversed(dec_other)
+        return dec_trig, reversed(dec_other), dec_dm
 
     async def resolve_nonlocals(self, ast_ctx):
         """Tag local variables and resolve nonlocals."""
@@ -1197,7 +1201,7 @@ class AstEval:
         await func.eval_defaults(self)
         await func.resolve_nonlocals(self)
         name = func.get_name()
-        dec_trig, dec_other = await func.eval_decorators(self)
+        dec_trig, dec_other, dec_dm = await func.eval_decorators(self)
         self.dec_eval_depth += 1
         for dec_func in dec_other:
             func = await self.call_func(dec_func, None, func)
@@ -1206,16 +1210,21 @@ class AstEval:
                 func.set_name(name)
                 func = func.remove_func()
                 dec_trig += func.decorators
+                dec_dm += func.dm_decorators
             elif isinstance(func, EvalFunc):
                 func.set_name(name)
         self.dec_eval_depth -= 1
         if isinstance(func, EvalFunc):
             func.decorators = dec_trig
+            func.dm_decorators = dec_dm
             if self.dec_eval_depth == 0:
                 func.trigger_stop()
                 await func.trigger_init(self.global_ctx, name)
                 func_var = EvalFuncVar(func)
                 func_var.set_ast_ctx(self)
+
+                if len(dec_dm) > 0:
+                    await self.get_global_ctx().create_decorator_manager(dec_dm, self, func_var)
             else:
                 func_var = EvalFuncVar(func)
                 func_var.set_ast_ctx(self)

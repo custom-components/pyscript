@@ -3,6 +3,7 @@
 import pytest
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
+from custom_components.pyscript import DecoratorRegistry
 from custom_components.pyscript.const import CONF_ALLOW_ALL_IMPORTS, CONFIG_ENTRY, DOMAIN
 from custom_components.pyscript.eval import AstEval
 from custom_components.pyscript.function import Function
@@ -1666,6 +1667,7 @@ async def test_eval(hass):
     State.init(hass)
     State.register_functions()
     TrigTime.init(hass)
+    DecoratorRegistry.init(hass)
 
     for test_data in evalTests:
         await run_one_test(test_data)

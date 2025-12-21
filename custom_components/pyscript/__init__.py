@@ -44,6 +44,7 @@ from .const import (
     UNSUB_LISTENERS,
     WATCHDOG_TASK,
 )
+from .decorator import DecoratorRegistry
 from .eval import AstEval
 from .event import Event
 from .function import Function
@@ -270,6 +271,7 @@ async def async_setup_entry(hass: HomeAssistant, config_entry: ConfigEntry) -> b
     Webhook.init(hass)
     State.register_functions()
     GlobalContextMgr.init()
+    DecoratorRegistry.init(hass, config_entry)
 
     pyscript_folder = hass.config.path(FOLDER)
     if not await hass.async_add_executor_job(os.path.isdir, pyscript_folder):
