@@ -169,10 +169,6 @@ class DecoratorManager(ABC):
                 _LOGGER.debug("Validating decorator: %s", decorator)
                 self.lineno, self.col_offset = decorator.lineno, decorator.col_offset
                 await decorator.validate()
-
-                if decorator.name == "service":
-                    # FIXME For test compatibility. In the legacy implementation, the service was registered immediately.
-                    await decorator.start()
         except Exception:
             self.update_status(DecoratorManagerStatus.INVALID)
             raise
@@ -193,9 +189,6 @@ class DecoratorManager(ABC):
         self.update_status(DecoratorManagerStatus.RUNNING)
         started = []
         for decorator in self._decorators:
-            # FIXME For test compatibility.
-            if decorator.name == "service":
-                continue
             _LOGGER.debug("Starting decorator: %s", decorator)
             try:
                 await decorator.start()
@@ -218,10 +211,6 @@ class DecoratorManager(ABC):
         """Stop all decorators."""
         if self.status is not DecoratorManagerStatus.RUNNING:
             _LOGGER.warning("Stopping before starting for %s (status=%s)", self.name, self.status.value)
-            for dec in self.get_decorators():
-                # FIXME For test compatibility.
-                if dec.name == "service":
-                    await self._stop_decorator(dec)
             return
 
         _LOGGER.debug("Stopping all decorators %s", self)
