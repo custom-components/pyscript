@@ -64,6 +64,8 @@ async def setup_script(hass, notify_q, now, source, script_name="/hello.py"):
             await notify_q.put(value)
 
         hass.bus.async_listen(EVENT_STATE_CHANGED, state_changed)
+    await hass.async_start()
+    await hass.async_block_till_done()
 
 
 async def wait_until_done(notify_q):
@@ -370,7 +372,6 @@ def func5(var_name=None, value=None):
     #
     # first time: fire event to startup triggers and run func_startup_sync
     #
-    hass.bus.async_fire(EVENT_HOMEASSISTANT_STARTED)
     for i in range(6):
         if i & 1:
             seq_num = 10
