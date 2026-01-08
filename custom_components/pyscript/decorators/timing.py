@@ -155,5 +155,5 @@ class TimeTriggerDecorator(TriggerDecorator):
     async def start(self) -> None:
         """Start the decorator."""
         await super().start()
-        self._cycle_task = self.dm.hass.async_create_task(self._cycle())
+        self._cycle_task = self.dm.hass.async_create_background_task(self._cycle(), repr(self))
         self._cycle_task.add_done_callback(self._on_task_done)

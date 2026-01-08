@@ -292,7 +292,6 @@ class StateTriggerDecorator(TriggerDecorator, ExpressionDecorator, AutoKwargsDec
         await super().start()
         self.notify_q = asyncio.Queue(0)
         if not await State.notify_add(self.state_trig_ident, self.notify_q):
-            # FIXME raise exception?
             self.dm.logger.error(
                 "trigger %s: @state_trigger is not watching any variables; will never trigger",
                 self.dm.name,
@@ -300,7 +299,7 @@ class StateTriggerDecorator(TriggerDecorator, ExpressionDecorator, AutoKwargsDec
             return
         _LOGGER.debug("trigger %s: starting", self.name)
 
-        self.cycle_task = self.dm.hass.async_create_task(self._cycle())
+        self.cycle_task = self.dm.hass.async_create_background_task(self._cycle(), repr(self))
         self.cycle_task.add_done_callback(self._on_task_done)
 
     async def stop(self):
