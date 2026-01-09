@@ -191,6 +191,9 @@ def func15():
 
     hass.bus.async_listen(EVENT_STATE_CHANGED, state_changed)
 
+    await hass.async_start()
+    await hass.async_block_till_done()
+
     assert not hass.services.has_service("pyscript", "func10")
     assert not hass.services.has_service("pyscript", "func11")
     assert hass.services.has_service("pyscript", "func1")
