@@ -1,12 +1,15 @@
+"""Base abstractions for pyscript decorators and decorator managers."""
+
 from __future__ import annotations
 
-import logging
 from abc import ABC, abstractmethod
-from dataclasses import field, dataclass
+from dataclasses import dataclass, field
 from enum import StrEnum
-from typing import ClassVar, Any, TypeVar, Type, final
+import logging
+from typing import Any, ClassVar, final
 
 import voluptuous as vol
+
 from homeassistant.core import Context, HomeAssistant
 
 from . import trigger
@@ -109,6 +112,7 @@ class Decorator(ABC):
         """Stop the decorator."""
 
     def __repr__(self):
+        """Represent the decorator as a string with the decorator name and arguments."""
         parts = []
         if self.raw_args is not None:
             parts.append(",".join(map(str, self.raw_args)))
@@ -117,15 +121,13 @@ class Decorator(ABC):
         return f"@{self.name}({', '.join(parts)})"
 
 
-DecoratorType = TypeVar("DecoratorType", bound=Decorator)
-
-
 class DecoratorManager(ABC):
-    """Maintain and validate a set of decorators"""
+    """Maintain and validate a set of decorators."""
 
     hass: ClassVar[HomeAssistant]
 
     def __init__(self, ast_ctx: AstEval, name: str) -> None:
+        """Initialize the manager."""
         self.ast_ctx = ast_ctx
         self.name = name
         self.func_name = name.split(".")[-1]
@@ -154,7 +156,7 @@ class DecoratorManager(ABC):
         self._decorators.append(decorator)
         decorator.dm = self
 
-    def get_decorators(self, decorator_type: Type[DecoratorType] | None = None) -> list[DecoratorType]:
+    def get_decorators[DT](self, decorator_type: type[DT] | None = None) -> list[DT]:  # noqa: D102
         """Get decorators of a specific type."""
         if decorator_type is None:
             return self._decorators.copy()
@@ -221,9 +223,10 @@ class DecoratorManager(ABC):
 
     @abstractmethod
     async def dispatch(self, data: DispatchData) -> None:
-        pass
+        """Dispatch a trigger call."""
 
     def __repr__(self):
+        """Return a string representation of the manager with status and decorators."""
         return f"{self.__class__.__name__}({self.status}) {self._decorators} for {self.name}()>"
 
 
@@ -231,6 +234,7 @@ class TriggerDecorator(Decorator, ABC):
     """Base class for trigger-based decorators."""
 
     def __init_subclass__(cls, **kwargs):
+        """Initialize the decorator class."""
         super().__init_subclass__(**kwargs)
         # kwargs for all triggers
         if "kwargs" not in cls.kwargs_schema.schema.keys():
@@ -280,7 +284,6 @@ class CallHandlerDecorator(Decorator, ABC):
     @abstractmethod
     async def handle_call(self, data: DispatchData) -> bool | None:
         """Handle an action call. Return False for stop calling."""
-        pass
 
 
 class CallResultHandlerDecorator(Decorator, ABC):
@@ -289,4 +292,3 @@ class CallResultHandlerDecorator(Decorator, ABC):
     @abstractmethod
     async def handle_call_result(self, data: DispatchData, result: Any) -> None:
         """Handle an action call result."""
-        pass

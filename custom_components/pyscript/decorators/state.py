@@ -1,13 +1,19 @@
+"""State decorators."""
+
 import asyncio
+import logging
 import re
+from typing import Any
+
+import voluptuous as vol
 
 from homeassistant.helpers import config_validation as cv
 
-from .base import ExpressionDecorator, AutoKwargsDecorator
 from ..decorator import WaitUntilDecoratorManager
-from ..decorator_abc import *
+from ..decorator_abc import DecoratorManagerStatus, DispatchData, TriggerDecorator, TriggerHandlerDecorator
 from ..state import State
 from ..trigger import ident_any_values_changed, ident_values_changed
+from .base import AutoKwargsDecorator, ExpressionDecorator
 
 STATE_RE = re.compile(r"\w+\.\w+(\.((\w+)|\*))?$")
 
@@ -36,6 +42,7 @@ class StateActiveDecorator(TriggerHandlerDecorator, ExpressionDecorator):
         self.var_names = await self._ast_expression.get_names()
 
     async def handle_dispatch(self, data: DispatchData) -> bool:
+        """Handle dispatch events."""
         new_vars = data.trigger_context.get("new_vars", {})
         active_vars = State.notify_var_get(self.var_names, new_vars)
         return await self.check_expression_vars(active_vars)
@@ -91,7 +98,11 @@ class StateTriggerDecorator(TriggerDecorator, ExpressionDecorator, AutoKwargsDec
     true_entered_at: float | None
     false_entered_at: float | None
 
+    last_func_args: dict[str, Any]
+    last_new_vars: dict[str, Any]
+
     async def validate(self) -> None:
+        """Validate and normalize arguments."""
         await super().validate()
         self.state_trig_ident = set()
         self.state_trig_ident_any = set()
@@ -136,8 +147,7 @@ class StateTriggerDecorator(TriggerDecorator, ExpressionDecorator, AutoKwargsDec
     def _diff(self, dt: float, now: float) -> str:
         if dt is None:
             return "None"
-        else:
-            return f"{(now-dt):g} ago"
+        return f"{(now - dt):g} ago"
 
     async def _check_new_state(self, trig_ok: bool):
         now = asyncio.get_running_loop().time()
@@ -145,9 +155,11 @@ class StateTriggerDecorator(TriggerDecorator, ExpressionDecorator, AutoKwargsDec
             msg = f"check_new_state: {self}"
             msg += f"\ntrig_ok: {trig_ok} now {now} func_args: {self.last_func_args} new_vars: {self.last_new_vars}"
             if self.true_entered_at:
-                msg += f"\ntrue_entered_at: {self.true_entered_at}({(now-self.true_entered_at):g} ago)\n"
+                msg += f"\ntrue_entered_at: {self.true_entered_at}({(now - self.true_entered_at):g} ago)\n"
             if self.false_entered_at:
-                msg += f"\nfalse_entered_at: {self.false_entered_at}({(now-self.false_entered_at):g} ago)\n"
+                msg += (
+                    f"\nfalse_entered_at: {self.false_entered_at}({(now - self.false_entered_at):g} ago)\n"
+                )
             _LOGGER.debug(msg)
 
         state_hold_false_passed = False
@@ -277,8 +289,7 @@ class StateTriggerDecorator(TriggerDecorator, ExpressionDecorator, AutoKwargsDec
     async def _is_trig_ok(self) -> bool:
         if self.has_expression():
             return await self.check_expression_vars(self.last_new_vars)
-        else:
-            return True
+        return True
 
     def _on_task_done(self, task: asyncio.Task) -> None:
         if task.cancelled():

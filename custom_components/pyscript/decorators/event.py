@@ -1,10 +1,13 @@
+"""Event decorator."""
+
 import logging
 
 import voluptuous as vol
-from homeassistant.core import Event, CALLBACK_TYPE
 
-from .base import ExpressionDecorator
+from homeassistant.core import CALLBACK_TYPE, Event
+
 from ..decorator_abc import DispatchData, TriggerDecorator
+from .base import ExpressionDecorator
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -29,7 +32,6 @@ class EventTriggerDecorator(TriggerDecorator, ExpressionDecorator):
             self.create_expression(self.args[1])
 
     async def _event_callback(self, event: Event) -> None:
-        """Callback for the event trigger."""
         _LOGGER.debug("Event trigger received: %s %s", type(event), event)
         func_args = {
             "trigger_type": "event",

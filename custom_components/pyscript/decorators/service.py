@@ -3,25 +3,27 @@
 from __future__ import annotations
 
 import ast
+from collections import OrderedDict
 import io
 import logging
 import typing
-from collections import OrderedDict
 
 import voluptuous as vol
 import yaml
+
 from homeassistant.const import SERVICE_RELOAD
 from homeassistant.core import ServiceCall, SupportsResponse
 from homeassistant.helpers.service import async_set_service_schema
-from ..decorator import FunctionDecoratorManager
 
-from ..decorator_abc import Decorator
 from .. import DOMAIN, SERVICE_JUPYTER_KERNEL_START, AstEval, Function, State
+from ..decorator import FunctionDecoratorManager
+from ..decorator_abc import Decorator
 
 _LOGGER = logging.getLogger(__name__)
 
 
 def service_validator(args: list[str]) -> list[str]:
+    """Validate and normalize service name."""
     if len(args) == 0:
         return []
     s = str(args[0]).strip()
@@ -47,11 +49,12 @@ class ServiceDecorator(Decorator):
     description: dict
 
     async def validate(self) -> None:
+        """Validate the arguments."""
         await super().validate()
 
         if len(self.args) != 2:
             self.args = [DOMAIN, self.dm.func_name]
-        # FIXME This condition doesn’t verify the domain - it may not be Pyscript.
+        # FIXME This condition doesn't verify the domain - it may not be Pyscript.
         #       The error is kept for backward compatibility.
         if self.args[1] in (SERVICE_RELOAD, SERVICE_JUPYTER_KERNEL_START):
             # FIXME For test compatibility. Update the message in the future.
@@ -81,7 +84,6 @@ class ServiceDecorator(Decorator):
         else:
             fields = OrderedDict()
             for arg in ast_funcdef.args.posonlyargs + ast_funcdef.args.args:
-                # _LOGGER.warning(f"------ {type(arg.arg)} {arg.arg}")
                 fields[arg.arg] = OrderedDict(description=f"argument {arg.arg}")
             self.description = {"description": desc, "fields": fields}
 
@@ -99,7 +101,6 @@ class ServiceDecorator(Decorator):
         }
         func_args.update(call.data)
 
-        #
         async def do_service_call(func, ast_ctx, data):
             try:
                 _LOGGER.debug("Service call start: %s", func.name)
@@ -112,7 +113,6 @@ class ServiceDecorator(Decorator):
                 _LOGGER.exception(exc)
                 return None
 
-        #
         task = Function.create_task(do_service_call(self.dm.eval_func, ast_ctx, func_args))
         await task
         return task.result()

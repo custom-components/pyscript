@@ -1,3 +1,5 @@
+"""Time decorators."""
+
 from __future__ import annotations
 
 import asyncio
@@ -6,12 +8,13 @@ import logging
 import time
 
 import voluptuous as vol
+
 from homeassistant.helpers import config_validation as cv
 
-from .base import AutoKwargsDecorator
 from .. import trigger
 from ..decorator import WaitUntilDecoratorManager
-from ..decorator_abc import DispatchData, TriggerHandlerDecorator, TriggerDecorator, DecoratorManagerStatus
+from ..decorator_abc import DecoratorManagerStatus, DispatchData, TriggerDecorator, TriggerHandlerDecorator
+from .base import AutoKwargsDecorator
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -34,6 +37,7 @@ class TimeActiveDecorator(TriggerHandlerDecorator, AutoKwargsDecorator):
     last_trig_time: float = 0.0
 
     async def handle_dispatch(self, data: DispatchData) -> bool:
+        """Handle dispatch."""
         if self.last_trig_time > 0.0 and self.hold_off > 0.0:
             if time.monotonic() - self.last_trig_time < self.hold_off:
                 return False

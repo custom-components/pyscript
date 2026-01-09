@@ -1,4 +1,4 @@
-"""Trigger decorator implementations."""
+"""Mqtt decorator."""
 
 from __future__ import annotations
 
@@ -6,11 +6,12 @@ import json
 import logging
 
 import voluptuous as vol
+
 from homeassistant.components import mqtt
 from homeassistant.core import CALLBACK_TYPE
 
-from .base import ExpressionDecorator, AutoKwargsDecorator
 from ..decorator_abc import DispatchData, TriggerDecorator
+from .base import AutoKwargsDecorator, ExpressionDecorator
 
 _LOGGER = logging.getLogger(__name__)
 
