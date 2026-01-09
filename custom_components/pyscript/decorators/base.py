@@ -1,7 +1,7 @@
 """Base mixins for pyscript decorators."""
 
-import logging
 from abc import ABC
+import logging
 from typing import Any
 
 import voluptuous as vol

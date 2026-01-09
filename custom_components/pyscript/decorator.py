@@ -1,24 +1,26 @@
+"""Decorator registry and manager logic for pyscript decorators."""
+
 from __future__ import annotations
 
 import ast
 import asyncio
 import logging
 import os
+from typing import Any, ClassVar, Type, TypeVar
 import weakref
-from typing import Type, ClassVar, Any, TypeVar
 
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.core import HomeAssistant, Context
+from homeassistant.core import Context, HomeAssistant
 
 from .decorator_abc import (
+    CallHandlerDecorator,
+    CallResultHandlerDecorator,
     Decorator,
     DecoratorManager,
-    DispatchData,
     DecoratorManagerStatus,
-    TriggerHandlerDecorator,
-    CallHandlerDecorator,
+    DispatchData,
     TriggerDecorator,
-    CallResultHandlerDecorator,
+    TriggerHandlerDecorator,
 )
 from .eval import AstEval, EvalFunc, EvalFuncVar
 from .function import Function
@@ -49,7 +51,8 @@ class DecoratorRegistry:
             cls.prefix = ""
             space = "\n" + " " * 35
             border = space + "=" * 35
-            _LOGGER.warning(border + space + "DecoratorManager enabled by default" + border)
+            msg = border + space + "DecoratorManager enabled by default" + border
+            _LOGGER.warning(msg)
         else:
             cls.prefix = "e"
 
@@ -57,7 +60,7 @@ class DecoratorRegistry:
 
         Function.register_ast({cls.prefix + "task.wait_until": DecoratorRegistry.wait_until_factory})
 
-        from .decorators import DECORATORS
+        from .decorators import DECORATORS  # noqa: PLC0415 pylint: disable=import-outside-toplevel
 
         for dec_type in DECORATORS:
             cls.register(dec_type)
@@ -171,6 +174,7 @@ class WaitUntilDecoratorManager(DecoratorManager):
     """Decorator manager for task.wait_until."""
 
     def __init__(self, ast_ctx: AstEval, **kwargs: dict[str, Any]) -> None:
+        """Initialize the task.wait_until decorator manager."""
         super().__init__(ast_ctx, ast_ctx.name)
         self.kwargs = kwargs
         self._future: asyncio.Future[DispatchData] = self.hass.loop.create_future()
@@ -212,6 +216,7 @@ class FunctionDecoratorManager(DecoratorManager):
     """Maintain and validate a set of decorators applied to a function."""
 
     def __init__(self, ast_ctx: AstEval, eval_func_var: EvalFuncVar) -> None:
+        """Initialize the function decorator manager."""
         super().__init__(ast_ctx, f"{ast_ctx.get_global_ctx_name()}.{eval_func_var.get_name()}")
         self.eval_func: EvalFunc = eval_func_var.func
 

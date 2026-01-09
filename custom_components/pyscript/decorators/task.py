@@ -5,11 +5,12 @@ from __future__ import annotations
 import logging
 
 import voluptuous as vol
+
 from homeassistant.helpers import config_validation as cv
 
-from .base import AutoKwargsDecorator
-from ..decorator_abc import DispatchData, CallHandlerDecorator
+from ..decorator_abc import CallHandlerDecorator, DispatchData
 from ..function import Function
+from .base import AutoKwargsDecorator
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -24,6 +25,7 @@ class TaskUniqueDecorator(CallHandlerDecorator, AutoKwargsDecorator):
     kill_me: bool
 
     async def handle_call(self, data: DispatchData) -> bool:
+        """Handle call."""
         if self.kill_me:
             if Function.unique_name_used(data.call_ast_ctx, self.args[0]):
                 _LOGGER.debug(

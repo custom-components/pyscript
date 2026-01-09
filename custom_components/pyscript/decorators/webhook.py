@@ -1,13 +1,16 @@
+"""Webhook decorator."""
+
 import logging
 
-import voluptuous as vol
 from aiohttp import hdrs
+import voluptuous as vol
+
 from homeassistant.components import webhook
 from homeassistant.components.webhook import SUPPORTED_METHODS
 from homeassistant.helpers import config_validation as cv
 
-from .base import ExpressionDecorator, AutoKwargsDecorator
 from ..decorator_abc import DispatchData, TriggerDecorator
+from .base import AutoKwargsDecorator, ExpressionDecorator
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -78,5 +81,4 @@ class WebhookTriggerDecorator(TriggerDecorator, ExpressionDecorator, AutoKwargsD
     async def stop(self):
         """Stop the webhook trigger."""
         await super().stop()
-        # FIXME uncomment
         webhook.async_unregister(self.dm.hass, self.webhook_id)
