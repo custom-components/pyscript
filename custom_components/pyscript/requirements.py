@@ -1,9 +1,9 @@
 """Requirements helpers for pyscript."""
 
 import glob
+from importlib.metadata import PackageNotFoundError, version as installed_version
 import logging
 import os
-import sys
 
 from homeassistant.loader import bind_hass
 from homeassistant.requirements import async_process_requirements
@@ -20,17 +20,6 @@ from .const import (
     REQUIREMENTS_PATHS,
     UNPINNED_VERSION,
 )
-
-if sys.version_info[:2] >= (3, 8):
-    from importlib.metadata import (  # pylint: disable=no-name-in-module,import-error
-        PackageNotFoundError,
-        version as installed_version,
-    )
-else:
-    from importlib_metadata import (  # pylint: disable=import-error
-        PackageNotFoundError,
-        version as installed_version,
-    )
 
 _LOGGER = logging.getLogger(LOGGER_PATH)
 
