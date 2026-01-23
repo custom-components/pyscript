@@ -7,9 +7,9 @@ import logging
 import traceback
 from typing import ClassVar
 
-from homeassistant.core import Context
+from homeassistant.core import Context, SupportsResponse
 
-from .const import LOGGER_PATH, SERVICE_RESPONSE_NONE, SERVICE_RESPONSE_ONLY
+from .const import LOGGER_PATH
 
 _LOGGER = logging.getLogger(LOGGER_PATH + ".function")
 
@@ -416,25 +416,16 @@ class Function:
     @classmethod
     async def hass_services_async_call(cls, domain, service, kwargs, **hass_args):
         """Call a hass async service."""
-        if SERVICE_RESPONSE_ONLY is None:
-            # backwards compatibility < 2023.7
-            await cls.hass.services.async_call(domain, service, kwargs, **hass_args)
-        else:
-            # allow service responses >= 2023.7
-            if (
-                "return_response" in hass_args
-                and hass_args["return_response"]
-                and "blocking" not in hass_args
-            ):
+        if "return_response" in hass_args and hass_args["return_response"] and "blocking" not in hass_args:
+            hass_args["blocking"] = True
+        elif (
+            "return_response" not in hass_args
+            and cls.hass.services.supports_response(domain, service) == SupportsResponse.ONLY
+        ):
+            hass_args["return_response"] = True
+            if "blocking" not in hass_args:
                 hass_args["blocking"] = True
-            elif (
-                "return_response" not in hass_args
-                and cls.hass.services.supports_response(domain, service) == SERVICE_RESPONSE_ONLY
-            ):
-                hass_args["return_response"] = True
-                if "blocking" not in hass_args:
-                    hass_args["blocking"] = True
-            return await cls.hass.services.async_call(domain, service, kwargs, **hass_args)
+        return await cls.hass.services.async_call(domain, service, kwargs, **hass_args)
 
     @classmethod
     async def run_coro(cls, coro, ast_ctx=None):
@@ -477,7 +468,7 @@ class Function:
 
     @classmethod
     def service_register(
-        cls, global_ctx_name, domain, service, callback, supports_response=SERVICE_RESPONSE_NONE
+        cls, global_ctx_name, domain, service, callback, supports_response=SupportsResponse.NONE
     ):
         """Register a new service callback."""
         key = f"{domain}.{service}"
@@ -490,12 +481,7 @@ class Function:
                 f"{global_ctx_name}: can't register service {key}; already defined in {cls.service2global_ctx[key]}"
             )
         cls.service_cnt[key] += 1
-        if SERVICE_RESPONSE_ONLY is None:
-            # backwards compatibility < 2023.7
-            cls.hass.services.async_register(domain, service, callback)
-        else:
-            # allow service responses >= 2023.7
-            cls.hass.services.async_register(domain, service, callback, supports_response=supports_response)
+        cls.hass.services.async_register(domain, service, callback, supports_response=supports_response)
 
     @classmethod
     def service_remove(cls, global_ctx_name, domain, service):

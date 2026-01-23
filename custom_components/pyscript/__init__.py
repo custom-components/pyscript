@@ -23,7 +23,7 @@ from homeassistant.const import (
     EVENT_STATE_CHANGED,
     SERVICE_RELOAD,
 )
-from homeassistant.core import Event as HAEvent, HomeAssistant, ServiceCall
+from homeassistant.core import Event as HAEvent, HomeAssistant, ServiceCall, SupportsResponse
 from homeassistant.exceptions import HomeAssistantError
 import homeassistant.helpers.config_validation as cv
 from homeassistant.helpers.restore_state import DATA_RESTORE_STATE
@@ -41,7 +41,6 @@ from .const import (
     REQUIREMENTS_FILE,
     SERVICE_GENERATE_STUBS,
     SERVICE_JUPYTER_KERNEL_START,
-    SERVICE_RESPONSE_ONLY,
     UNSUB_LISTENERS,
     WATCHDOG_TASK,
 )
@@ -345,7 +344,7 @@ async def async_setup_entry(hass: HomeAssistant, config_entry: ConfigEntry) -> b
         return result
 
     hass.services.async_register(
-        DOMAIN, SERVICE_GENERATE_STUBS, generate_stubs_service, supports_response=SERVICE_RESPONSE_ONLY
+        DOMAIN, SERVICE_GENERATE_STUBS, generate_stubs_service, supports_response=SupportsResponse.ONLY
     )
 
     async def jupyter_kernel_start(call: ServiceCall) -> None:
