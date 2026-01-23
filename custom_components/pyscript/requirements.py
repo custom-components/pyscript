@@ -206,10 +206,8 @@ async def install_requirements(hass, config_entry, pyscript_folder):
 
     if all_requirements and not config_entry.data.get(CONF_ALLOW_ALL_IMPORTS, False):
         _LOGGER.error(
-            (
-                "Requirements detected but 'allow_all_imports' is set to False, set "
-                "'allow_all_imports' to True if you want packages to be installed"
-            )
+            "Requirements detected but 'allow_all_imports' is set to False, set "
+            "'allow_all_imports' to True if you want packages to be installed"
         )
         return
 
@@ -223,10 +221,7 @@ async def install_requirements(hass, config_entry, pyscript_folder):
             # defer to what is installed
             if version_to_install == UNPINNED_VERSION:
                 _LOGGER.debug(
-                    (
-                        "Skipping unpinned version of package '%s' because version '%s' is "
-                        "already installed"
-                    ),
+                    "Skipping unpinned version of package '%s' because version '%s' is already installed",
                     package,
                     pkg_installed_version,
                 )
