@@ -249,8 +249,9 @@ class StubsGenerator:
                         required=True,
                         default=None,
                         description="Entity ID",
-                    )
-                ] + field_nodes
+                    ),
+                    *field_nodes,
+                ]
 
         elif def_type == "entity":
             args.append(ast.arg(arg="self"))
