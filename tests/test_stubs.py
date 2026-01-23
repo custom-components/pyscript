@@ -10,6 +10,7 @@ from typing import Any
 import pytest
 
 from custom_components.pyscript.const import DOMAIN, FOLDER, SERVICE_GENERATE_STUBS
+from homeassistant.core import HomeAssistant
 
 from tests.test_init import setup_script
 
@@ -47,7 +48,7 @@ def ready():
     )
     monkeypatch.setattr("custom_components.pyscript.stubs.generator.er.async_get", lambda _: dummy_registry)
 
-    async def fake_service_descriptions(_hass) -> dict[str, dict[str, dict[str, Any]]]:
+    async def fake_service_descriptions(_hass: HomeAssistant) -> dict[str, dict[str, dict[str, Any]]]:
         return {
             "light": {
                 "blink": {

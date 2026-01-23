@@ -1,8 +1,11 @@
 """Function call handling."""
 
 import asyncio
+from asyncio import Task
+from collections.abc import Callable
 import logging
 import traceback
+from typing import ClassVar
 
 from homeassistant.core import Context
 
@@ -22,34 +25,34 @@ class Function:
     #
     # Mappings of tasks ids <-> task names
     #
-    unique_task2name = {}
-    unique_name2task = {}
+    unique_task2name: ClassVar[dict[Task, set[str]]] = {}
+    unique_name2task: ClassVar[dict[str, Task]] = {}
 
     #
     # Mappings of task id to hass contexts
-    task2context = {}
+    task2context: ClassVar[dict[Task, Context]] = {}
 
     #
     # Set of tasks that are running
     #
-    our_tasks = set()
+    our_tasks: ClassVar[set[Task]] = set()
 
     #
     # Done callbacks for each task
     #
-    task2cb = {}
+    task2cb: ClassVar[dict[Task, dict]] = {}
 
     #
     # initial list of available functions
     #
-    functions = {}
+    functions: ClassVar[dict[str, Callable]] = {}
 
     #
     # Functions that take the AstEval context as a first argument,
     # which is needed by a handful of special functions that need the
     # ast context
     #
-    ast_functions = {}
+    ast_functions: ClassVar[dict[str, Callable]] = {}
 
     #
     # task id of the task that cancels and waits for other tasks,
@@ -68,13 +71,13 @@ class Function:
     # registers the service call before the old one is removed, so we only
     # remove the service registration when the reference count goes to zero
     #
-    service_cnt = {}
+    service_cnt: ClassVar[dict[str, int]] = {}
 
     #
     # save the global_ctx name where a service is registered so we can raise
     # an exception if it gets registered by a different global_ctx.
     #
-    service2global_ctx = {}
+    service2global_ctx: ClassVar[dict[str, str]] = {}
 
     def __init__(self):
         """Warn on Function instantiation."""
@@ -439,7 +442,7 @@ class Function:
         #
         # Add a placeholder for the new task so we know it's one we started
         #
-        task: asyncio.Task = None
+        task: asyncio.Task | None = None
         try:
             task = asyncio.current_task()
             cls.our_tasks.add(task)

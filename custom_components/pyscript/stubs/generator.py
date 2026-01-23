@@ -127,7 +127,7 @@ class StubsGenerator:
         ast.fix_missing_locations(module)
         return ast.unparse(module)
 
-    def _get_or_create_class(self, domain_id: str, base_class: str = None) -> ast.ClassDef:
+    def _get_or_create_class(self, domain_id: str, base_class: str | None = None) -> ast.ClassDef:
         cls = self._classes.get(domain_id)
         if cls is None:
             cls = ast.ClassDef(
@@ -199,7 +199,6 @@ class StubsGenerator:
 
         descriptions = await async_get_all_descriptions(self._hass)
         for domain_id, services in descriptions.items():
-
             domain_class = self._get_or_create_class(domain_id)
             for service_id, payload in services.items():
                 if not self._is_identifier(service_id, f"{domain_id}.{service_id}"):

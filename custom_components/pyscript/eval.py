@@ -13,6 +13,7 @@ import logging
 import sys
 import time
 import traceback
+from typing import TYPE_CHECKING, Any
 import weakref
 
 import yaml
@@ -31,6 +32,11 @@ from .const import (
 )
 from .function import Function
 from .state import State
+
+if TYPE_CHECKING:
+    from .global_ctx import GlobalContext
+
+type SymTable = dict[str, Any]
 
 _LOGGER = logging.getLogger(LOGGER_PATH + ".eval")
 
@@ -315,7 +321,14 @@ class EvalAttrSet:
 class EvalFunc:
     """Class for a callable pyscript function."""
 
-    def __init__(self, func_def, code_list, code_str, global_ctx, async_func=False):
+    def __init__(
+        self,
+        func_def: ast.FunctionDef,
+        code_list: list[str],
+        code_str: str,
+        global_ctx: "GlobalContext",
+        async_func: bool = False,
+    ) -> None:
         """Initialize a function calling context."""
         self.func_def = func_def
         self.name = func_def.name
@@ -838,12 +851,12 @@ class EvalFunc:
 class EvalFuncVar:
     """Class for a callable pyscript function."""
 
-    def __init__(self, func):
+    def __init__(self, func: EvalFunc) -> None:
         """Initialize instance with given EvalFunc function."""
         self.func = func
-        self.ast_ctx = None
+        self.ast_ctx: AstEval | None = None
 
-    def get_func(self):
+    def get_func(self) -> EvalFunc:
         """Return the EvalFunc function."""
         return self.func
 
@@ -895,7 +908,7 @@ class EvalFuncVar:
 class EvalFuncVarClassInst(EvalFuncVar):
     """Class for a callable pyscript class instance function."""
 
-    def __init__(self, func, ast_ctx, class_inst_weak):
+    def __init__(self, func: EvalFunc, ast_ctx: "AstEval", class_inst_weak: weakref.ReferenceType) -> None:
         """Initialize instance with given EvalFunc function."""
         super().__init__(func)
         self.ast_ctx = ast_ctx
@@ -913,25 +926,25 @@ class EvalFuncVarClassInst(EvalFuncVar):
 class AstEval:
     """Python interpreter AST object evaluator."""
 
-    def __init__(self, name, global_ctx, logger_name=None):
+    def __init__(self, name: str, global_ctx: "GlobalContext", logger_name: str | None = None) -> None:
         """Initialize an interpreter execution context."""
         self.name = name
         self.str = None
         self.ast = None
         self.global_ctx = global_ctx
-        self.global_sym_table = global_ctx.get_global_sym_table() if global_ctx else {}
-        self.sym_table_stack = []
+        self.global_sym_table: SymTable = global_ctx.get_global_sym_table() if global_ctx else {}
+        self.sym_table_stack: list[SymTable] = []
         self.sym_table = self.global_sym_table
-        self.local_sym_table = {}
-        self.user_locals = {}
-        self.curr_func = None
+        self.local_sym_table: SymTable = {}
+        self.user_locals: SymTable = {}
+        self.curr_func: EvalFunc | None = None
         self.filename = name
-        self.code_str = None
-        self.code_list = None
-        self.exception = None
-        self.exception_obj = None
-        self.exception_long = None
-        self.exception_curr = None
+        self.code_str: str | None = None
+        self.code_list: list[str] | None = None
+        self.exception: str | None = None
+        self.exception_obj: Exception | None = None
+        self.exception_long: str | None = None
+        self.exception_curr: Exception | None = None
         self.lineno = 1
         self.col_offset = 0
         self.logger_handlers = set()
@@ -2159,7 +2172,7 @@ class AstEval:
             await self.get_names_set(this_ast, names, nonlocal_names, global_names, local_names)
         return names
 
-    def parse(self, code_str, filename=None, mode="exec"):
+    def parse(self, code_str: str, filename: str | None = None, mode: str = "exec") -> bool:
         """Parse the code_str source code into an AST tree."""
         self.exception = None
         self.exception_obj = None
@@ -2313,7 +2326,7 @@ class AstEval:
                 words.add(name)
         return words
 
-    async def eval(self, new_state_vars=None, merge_local=False):
+    async def eval(self, new_state_vars: dict[str, Any] | None = None, merge_local: bool = False) -> None:
         """Execute parsed code, with the optional state variables added to the scope."""
         self.exception = None
         self.exception_obj = None

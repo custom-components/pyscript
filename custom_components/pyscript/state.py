@@ -3,9 +3,10 @@
 import asyncio
 from datetime import datetime
 import logging
+from typing import Any, ClassVar, Self
 
 from homeassistant.const import STATE_UNAVAILABLE, STATE_UNKNOWN
-from homeassistant.core import Context
+from homeassistant.core import Context, HomeAssistant, State as CoreState
 from homeassistant.helpers.restore_state import DATA_RESTORE_STATE
 from homeassistant.helpers.service import async_get_all_descriptions
 from homeassistant.helpers.template import (
@@ -30,7 +31,7 @@ STATE_VIRTUAL_ATTRS = {"entity_id", "last_changed", "last_updated", "last_report
 class StateVal(str):
     """Class for representing the value and attributes of a state variable."""
 
-    def __new__(cls, state):
+    def __new__(cls, state: CoreState) -> Self:
         """Create a new instance given a state variable."""
         new_var = super().__new__(cls, state.state)
         new_var.__dict__ = state.attributes.copy()
@@ -89,12 +90,12 @@ class State:
     #
     # Global hass instance
     #
-    hass = None
+    hass: HomeAssistant | None = None
 
     #
     # notify message queues by variable
     #
-    notify = {}
+    notify: ClassVar[dict[str, dict[asyncio.Queue, list[str]]]] = {}
 
     #
     # Last value of state variable notifications.  We maintain this
@@ -102,22 +103,22 @@ class State:
     # rather than fetching the current value, which is subject to
     # race conditions when multiple state variables are set quickly.
     #
-    notify_var_last = {}
+    notify_var_last: ClassVar[dict[str, StateVal | None]] = {}
 
     #
     # pyscript yaml configuration
     #
-    pyscript_config = {}
+    pyscript_config: ClassVar[dict[str, Any]] = {}
 
     #
     # pyscript vars which have already been registered as persisted
     #
-    persisted_vars = {}
+    persisted_vars: ClassVar[dict[str, PyscriptEntity]] = {}
 
     #
     # other parameters of all services that have "entity_id" as a parameter
     #
-    service2args = {}
+    service2args: ClassVar[dict[str, dict[str, Any]]] = {}
 
     def __init__(self):
         """Warn on State instantiation."""
@@ -142,7 +143,7 @@ class State:
                 cls.service2args[domain][service].discard("entity_id")
 
     @classmethod
-    async def notify_add(cls, var_names, queue):
+    async def notify_add(cls, var_names: set[str], queue: asyncio.Queue) -> bool:
         """Register to notify state variables changes to be sent to queue."""
 
         added = False
@@ -158,7 +159,7 @@ class State:
         return added
 
     @classmethod
-    def notify_del(cls, var_names, queue):
+    def notify_del(cls, var_names: set[str], queue: asyncio.Queue) -> None:
         """Unregister notify of state variables changes for given queue."""
 
         for var_name in var_names if isinstance(var_names, set) else {var_names}:
@@ -171,7 +172,7 @@ class State:
             del cls.notify[state_var_name][queue]
 
     @classmethod
-    async def update(cls, new_vars, func_args):
+    async def update(cls, new_vars: dict[str, Any], func_args: dict[str, Any]) -> None:
         """Deliver all notifications for state variable changes."""
 
         notify = {}
