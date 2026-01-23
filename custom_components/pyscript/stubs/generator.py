@@ -63,13 +63,13 @@ class StubsGenerator:
 
         module_body: list[ast.stmt] = []
 
-        imports = {
+        base_imports = {
             "typing": ["Any", "Literal"],
             "datetime": ["datetime"],
             "pyscript_builtins": [_STATE_CLASS],
         }
 
-        for module, imports in imports.items():
+        for module, imports in base_imports.items():
             module_body.append(
                 ast.ImportFrom(
                     module=module,
