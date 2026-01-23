@@ -2311,7 +2311,7 @@ class AstEval:
                     for attr in var.__dict__:
                         if attr.lower().startswith(attr_root) and (attr_root != "" or attr[0:1] != "_"):
                             words.add(f"{name}.{attr}")
-                except Exception:
+                except Exception:  # noqa: S110
                     pass
         for keyw in set(keyword.kwlist) - {"yield"}:
             if keyw.lower().startswith(root):
