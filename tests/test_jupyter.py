@@ -280,9 +280,9 @@ async def test_jupyter_kernel_msgs(hass, caplog, socket_enabled):
     #
     for i in range(5):
         if i & 1:
-            msg = (f"hello {i} " * 40).encode("utf-8")
+            msg = (f"hello {i} " * 40).encode()
         else:
-            msg = f"hello {i}".encode("utf-8")
+            msg = f"hello {i}".encode()
         await sock["hb_port"].send(msg)
         await sock["iopub_port"].send(msg)
         await sock["stdin_port"].send(msg)
@@ -422,9 +422,9 @@ async def test_jupyter_kernel_port_close(hass, caplog, socket_enabled):
     #
     for i in range(5):
         if i & 1:
-            msg = (f"hello {i} " * 40).encode("utf-8")
+            msg = (f"hello {i} " * 40).encode()
         else:
-            msg = f"hello {i}".encode("utf-8")
+            msg = f"hello {i}".encode()
         await sock["hb_port"].send(msg)
         await sock["iopub_port"].send(msg)
         await sock["stdin_port"].send(msg)
@@ -445,9 +445,9 @@ async def test_jupyter_kernel_port_close(hass, caplog, socket_enabled):
     #
     for i in range(5):
         if i & 1:
-            msg = (f"hello {i} " * 40).encode("utf-8")
+            msg = (f"hello {i} " * 40).encode()
         else:
-            msg = f"hello {i}".encode("utf-8")
+            msg = f"hello {i}".encode()
         await sock["hb_port"].send(msg)
         await sock["iopub_port"].send(msg)
         await sock["stdin_port"].send(msg)

@@ -97,7 +97,7 @@ class ZmqSocket:
         # _LOGGER.debug(f"handshake: got initial greeting {greeting}")
         await self.write_bytes(b"\x03")
         _ = await self.read_bytes(1)
-        await self.write_bytes(b"\x00" + "NULL".encode() + b"\x00" * 16 + b"\x00" + b"\x00" * 31)
+        await self.write_bytes(b"\x00" + b"NULL" + b"\x00" * 16 + b"\x00" + b"\x00" * 31)
         _ = await self.read_bytes(53)
         # _LOGGER.debug(f"handshake: got rest of greeting {greeting}")
         params = [["Socket-Type", self.type]]

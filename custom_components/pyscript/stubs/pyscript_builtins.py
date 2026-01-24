@@ -61,12 +61,12 @@ def state_active(str_expr: str) -> Callable[..., Any]:
     ...
 
 
-def time_trigger(*time_spec: str | None, **kwargs) -> Callable[..., Any]:
+def time_trigger(*time_spec: str | None, kwargs: dict | None = None) -> Callable[..., Any]:
     """Schedule the function using time specifications.
 
     Args:
-        *time_spec: Time expressions such as ``startup``, ``shutdown``, ``once()``, ``period()``, or ``cron()``.
-        **kwargs: Optional trigger keywords merged into each invocation.
+        time_spec: Time expressions such as ``startup``, ``shutdown``, ``once()``, ``period()``, or ``cron()``.
+        kwargs: Optional trigger keywords merged into each invocation.
     """
     ...
 
@@ -81,7 +81,9 @@ def task_unique(name: str, kill_me: bool = False) -> Callable[..., Any]:
     ...
 
 
-def event_trigger(*event_type: str, str_expr: str = None, **kwargs) -> Callable[..., Any]:
+def event_trigger(
+    *event_type: str, str_expr: str | None = None, kwargs: dict | None = None
+) -> Callable[..., Any]:
     """Trigger when a Home Assistant event matches the criteria.
 
     Args:
@@ -106,7 +108,7 @@ def time_active(*time_spec: str, hold_off: int | float | None = None) -> Callabl
 
 
 def mqtt_trigger(
-    topic: str, str_expr: str | None = None, encoding: str = "utf-8", **kwargs
+    topic: str, str_expr: str | None = None, encoding: str = "utf-8", kwargs: dict | None = None
 ) -> Callable[..., Any]:
     """Trigger when a subscribed MQTT message matches the specification.
 

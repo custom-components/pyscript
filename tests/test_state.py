@@ -1,6 +1,6 @@
 """Test pyscripts test module."""
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from unittest.mock import patch
 
 import pytest
@@ -73,7 +73,7 @@ def test_state_val_conversions():
     assert round_state.as_round(precision=2) == pytest.approx(3.14)
 
     datetime_state = StateVal(HassState("test.datetime", "2024-03-05T06:07:08+00:00"))
-    assert datetime_state.as_datetime() == datetime(2024, 3, 5, 6, 7, 8, tzinfo=timezone.utc)
+    assert datetime_state.as_datetime() == datetime(2024, 3, 5, 6, 7, 8, tzinfo=UTC)
 
     invalid_state = StateVal(HassState("test.invalid", "invalid"))
     with pytest.raises(ValueError):
@@ -93,7 +93,7 @@ def test_state_val_conversions():
 
     assert invalid_state.as_round(default=0) == 0
 
-    fallback_datetime = datetime(1999, 1, 2, 3, 4, 5, tzinfo=timezone.utc)
+    fallback_datetime = datetime(1999, 1, 2, 3, 4, 5, tzinfo=UTC)
     assert invalid_state.as_datetime(default=fallback_datetime) == fallback_datetime
 
     unknown_state = StateVal(HassState("test.unknown", STATE_UNKNOWN))

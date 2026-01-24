@@ -183,14 +183,14 @@ class Color(Enum):
         """
 from enum import Enum
 
-class HomeState(Enum):
+class HState(Enum):
     HOME = "home"
     AWAY = "away"
 
     def name_and_value(self):
         return f"{self.name}:{self.value}"
 
-[HomeState.HOME.name_and_value(), HomeState.AWAY.name_and_value()]
+[HState.HOME.name_and_value(), HState.AWAY.name_and_value()]
 """,
         ["HOME:home", "AWAY:away"],
     ],

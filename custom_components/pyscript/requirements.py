@@ -1,9 +1,9 @@
 """Requirements helpers for pyscript."""
 
 import glob
+from importlib.metadata import PackageNotFoundError, version as installed_version
 import logging
 import os
-import sys
 
 from homeassistant.loader import bind_hass
 from homeassistant.requirements import async_process_requirements
@@ -20,17 +20,6 @@ from .const import (
     REQUIREMENTS_PATHS,
     UNPINNED_VERSION,
 )
-
-if sys.version_info[:2] >= (3, 8):
-    from importlib.metadata import (  # pylint: disable=no-name-in-module,import-error
-        PackageNotFoundError,
-        version as installed_version,
-    )
-else:
-    from importlib_metadata import (  # pylint: disable=import-error
-        PackageNotFoundError,
-        version as installed_version,
-    )
 
 _LOGGER = logging.getLogger(LOGGER_PATH)
 
@@ -75,7 +64,7 @@ def process_all_requirements(pyscript_folder, requirements_paths, requirements_f
     all_requirements_to_process = {}
     for root in requirements_paths:
         for requirements_path in glob.glob(os.path.join(pyscript_folder, root, requirements_file)):
-            with open(requirements_path, "r", encoding="utf-8") as requirements_fp:
+            with open(requirements_path, encoding="utf-8") as requirements_fp:
                 all_requirements_to_process[requirements_path] = requirements_fp.readlines()
 
     all_requirements_to_install = {}
@@ -217,10 +206,8 @@ async def install_requirements(hass, config_entry, pyscript_folder):
 
     if all_requirements and not config_entry.data.get(CONF_ALLOW_ALL_IMPORTS, False):
         _LOGGER.error(
-            (
-                "Requirements detected but 'allow_all_imports' is set to False, set "
-                "'allow_all_imports' to True if you want packages to be installed"
-            )
+            "Requirements detected but 'allow_all_imports' is set to False, set "
+            "'allow_all_imports' to True if you want packages to be installed"
         )
         return
 
@@ -234,10 +221,7 @@ async def install_requirements(hass, config_entry, pyscript_folder):
             # defer to what is installed
             if version_to_install == UNPINNED_VERSION:
                 _LOGGER.debug(
-                    (
-                        "Skipping unpinned version of package '%s' because version '%s' is "
-                        "already installed"
-                    ),
+                    "Skipping unpinned version of package '%s' because version '%s' is already installed",
                     package,
                     pkg_installed_version,
                 )
