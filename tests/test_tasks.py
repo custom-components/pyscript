@@ -137,21 +137,17 @@ done, pending = task.wait({t5})
         return result
 
     conf = {"apps": {"world": {}}}
-    with patch("custom_components.pyscript.os.path.isdir", return_value=True), patch(
-        "custom_components.pyscript.glob.iglob"
-    ) as mock_glob, patch("custom_components.pyscript.global_ctx.open", mock_open), patch(
-        "custom_components.pyscript.open", mock_open
-    ), patch(
-        "homeassistant.config.load_yaml_config_file", return_value={"pyscript": conf}
-    ), patch(
-        "custom_components.pyscript.os.path.getmtime", return_value=1000
-    ), patch(
-        "custom_components.pyscript.watchdog_start", return_value=None
-    ), patch(
-        "custom_components.pyscript.global_ctx.os.path.getmtime", return_value=1000
-    ), patch(
-        "custom_components.pyscript.os.path.isfile"
-    ) as mock_isfile:
+    with (
+        patch("custom_components.pyscript.os.path.isdir", return_value=True),
+        patch("custom_components.pyscript.glob.iglob") as mock_glob,
+        patch("custom_components.pyscript.global_ctx.open", mock_open),
+        patch("custom_components.pyscript.open", mock_open),
+        patch("homeassistant.config.load_yaml_config_file", return_value={"pyscript": conf}),
+        patch("custom_components.pyscript.os.path.getmtime", return_value=1000),
+        patch("custom_components.pyscript.watchdog_start", return_value=None),
+        patch("custom_components.pyscript.global_ctx.os.path.getmtime", return_value=1000),
+        patch("custom_components.pyscript.os.path.isfile") as mock_isfile,
+    ):
         mock_isfile.side_effect = isfile_side_effect
         mock_glob.side_effect = glob_side_effect
         assert await async_setup_component(hass, "pyscript", {DOMAIN: conf})

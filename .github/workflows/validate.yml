@@ -16,12 +16,12 @@ jobs:
     name: Check style formatting
     steps:
       - uses: "actions/checkout@v2"
-      - uses: "actions/setup-python@v1"
+      - uses: "astral-sh/ruff-action@v3"
         with:
-          python-version: "3.13"
-          allow-prereleases: true
-      - run: python3 -m pip install black
-      - run: black .
+          args: "check --output-format=github"
+      - uses: "astral-sh/ruff-action@v3"
+        with:
+          args: "format --check --diff"
 
   pytest:
     runs-on: "ubuntu-latest"

@@ -70,12 +70,11 @@ def test_install_ast_funcs(ast_functions):  # pylint: disable=redefined-outer-na
     ids=lambda x: x if not isinstance(x, set) else f"set({len(x)})",
 )
 @pytest.mark.asyncio
-async def test_func_completions(
-    ast_functions, functions, root, expected
-):  # pylint: disable=redefined-outer-name
+async def test_func_completions(ast_functions, functions, root, expected):  # pylint: disable=redefined-outer-name
     """Test function name completion."""
-    with patch.object(Function, "ast_functions", ast_functions), patch.object(
-        Function, "functions", functions
+    with (
+        patch.object(Function, "ast_functions", ast_functions),
+        patch.object(Function, "functions", functions),
     ):
         words = await Function.func_completions(root)
         assert words == expected
@@ -95,8 +94,9 @@ async def test_func_completions(
 @pytest.mark.asyncio
 async def test_service_completions(root, expected, hass, services):  # pylint: disable=redefined-outer-name
     """Test service name completion."""
-    with patch.object(ServiceRegistry, "async_services", return_value=services), patch.object(
-        Function, "hass", hass
+    with (
+        patch.object(ServiceRegistry, "async_services", return_value=services),
+        patch.object(Function, "hass", hass),
     ):
         words = await Function.service_completions(root)
         assert words == expected
@@ -129,26 +129,22 @@ async def setup_script(hass, notify_q, notify_q2, now, source, config=None):
 
     if not config:
         config = {DOMAIN: {CONF_ALLOW_ALL_IMPORTS: True}}
-    with patch("custom_components.pyscript.os.path.isdir", return_value=True), patch(
-        "custom_components.pyscript.glob.iglob"
-    ) as mock_glob, patch("custom_components.pyscript.global_ctx.open", mock_open), patch(
-        "custom_components.pyscript.trigger.dt_now", return_value=now
-    ), patch(
-        "custom_components.pyscript.open", mock_open
-    ), patch(
-        "homeassistant.config.load_yaml_config_file", return_value=config
-    ), patch(
-        "custom_components.pyscript.install_requirements",
-        return_value=None,
-    ), patch(
-        "custom_components.pyscript.watchdog_start", return_value=None
-    ), patch(
-        "custom_components.pyscript.os.path.getmtime", return_value=1000
-    ), patch(
-        "custom_components.pyscript.global_ctx.os.path.getmtime", return_value=1000
-    ), patch(
-        "custom_components.pyscript.os.path.isfile"
-    ) as mock_isfile:
+    with (
+        patch("custom_components.pyscript.os.path.isdir", return_value=True),
+        patch("custom_components.pyscript.glob.iglob") as mock_glob,
+        patch("custom_components.pyscript.global_ctx.open", mock_open),
+        patch("custom_components.pyscript.trigger.dt_now", return_value=now),
+        patch("custom_components.pyscript.open", mock_open),
+        patch("homeassistant.config.load_yaml_config_file", return_value=config),
+        patch(
+            "custom_components.pyscript.install_requirements",
+            return_value=None,
+        ),
+        patch("custom_components.pyscript.watchdog_start", return_value=None),
+        patch("custom_components.pyscript.os.path.getmtime", return_value=1000),
+        patch("custom_components.pyscript.global_ctx.os.path.getmtime", return_value=1000),
+        patch("custom_components.pyscript.os.path.isfile") as mock_isfile,
+    ):
         mock_isfile.side_effect = isfile_side_effect
         mock_glob.side_effect = glob_side_effect
         assert await async_setup_component(hass, "pyscript", config)
@@ -1246,12 +1242,14 @@ def service_call_exception():
 @pytest.mark.asyncio
 async def test_service_call_params(hass):
     """Test that hass params get set properly on service calls."""
-    with patch.object(ServiceRegistry, "async_call") as call, patch.object(
-        Function, "service_has_service", return_value=True
-    ), patch.object(
-        ServiceRegistry,
-        "supports_response",
-        return_value="none",
+    with (
+        patch.object(ServiceRegistry, "async_call") as call,
+        patch.object(Function, "service_has_service", return_value=True),
+        patch.object(
+            ServiceRegistry,
+            "supports_response",
+            return_value="none",
+        ),
     ):
         Function.init(hass)
         await Function.service_call(
