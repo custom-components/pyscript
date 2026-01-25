@@ -287,8 +287,9 @@ async def test_options_flow_user_no_change(hass, pyscript_bypass_setup):
 @pytest.mark.asyncio
 async def test_config_entry_reload(hass):
     """Test that config entry reload does not duplicate listeners."""
-    with patch("homeassistant.config.load_yaml_config_file", return_value={}), patch(
-        "custom_components.pyscript.watchdog_start", return_value=None
+    with (
+        patch("homeassistant.config.load_yaml_config_file", return_value={}),
+        patch("custom_components.pyscript.watchdog_start", return_value=None),
     ):
         result = await hass.config_entries.flow.async_init(
             DOMAIN,

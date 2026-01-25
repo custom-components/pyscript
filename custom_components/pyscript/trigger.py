@@ -1055,7 +1055,6 @@ class TrigInfo:
         """Task that runs for each trigger, waiting for the next trigger and calling the function."""
 
         try:
-
             if self.state_trigger is not None:
                 self.state_trig_ident = set()
                 if self.state_user_watch:
@@ -1084,7 +1083,9 @@ class TrigInfo:
                 Event.notify_add(self.event_trigger[0], self.notify_q)
             if self.mqtt_trigger is not None:
                 _LOGGER.debug("trigger %s adding mqtt_trigger %s", self.name, self.mqtt_trigger[0])
-                await Mqtt.notify_add(self.mqtt_trigger[0], self.notify_q, encoding=self.mqtt_trigger_encoding)
+                await Mqtt.notify_add(
+                    self.mqtt_trigger[0], self.notify_q, encoding=self.mqtt_trigger_encoding
+                )
             if self.webhook_trigger is not None:
                 _LOGGER.debug("trigger %s adding webhook_trigger %s", self.name, self.webhook_trigger[0])
                 Webhook.notify_add(

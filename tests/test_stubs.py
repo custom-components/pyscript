@@ -11,7 +11,6 @@ import pytest
 
 from custom_components.pyscript.const import DOMAIN, FOLDER, SERVICE_GENERATE_STUBS
 from homeassistant.core import HomeAssistant
-
 from tests.test_init import setup_script
 
 

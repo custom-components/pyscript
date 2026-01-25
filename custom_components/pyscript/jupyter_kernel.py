@@ -338,7 +338,6 @@ class Kernel:
         await self.send(self.iopub_socket, "status", content, parent_header=msg["header"])
 
         if msg["header"]["msg_type"] == "execute_request":
-
             content = {
                 "execution_count": self.execution_count,
                 "code": msg["content"]["code"],

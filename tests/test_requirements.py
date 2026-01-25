@@ -33,11 +33,12 @@ def bypass_package_install_fixture():
 @pytest.mark.asyncio
 async def test_install_requirements(hass, caplog):
     """Test install_requirements function."""
-    with patch(
-        "custom_components.pyscript.requirements.process_all_requirements"
-    ) as process_requirements, patch(
-        "custom_components.pyscript.requirements.async_process_requirements"
-    ) as ha_install_requirements:
+    with (
+        patch("custom_components.pyscript.requirements.process_all_requirements") as process_requirements,
+        patch(
+            "custom_components.pyscript.requirements.async_process_requirements"
+        ) as ha_install_requirements,
+    ):
         entry = MockConfigEntry(domain=DOMAIN, data={CONF_ALLOW_ALL_IMPORTS: True})
         entry.add_to_hass(hass)
 
@@ -161,11 +162,12 @@ async def test_install_requirements(hass, caplog):
 @pytest.mark.asyncio
 async def test_install_unpinned_requirements(hass, caplog):
     """Test install_requirements function with unpinned versions."""
-    with patch(
-        "custom_components.pyscript.requirements.process_all_requirements"
-    ) as process_requirements, patch(
-        "custom_components.pyscript.requirements.async_process_requirements"
-    ) as ha_install_requirements:
+    with (
+        patch("custom_components.pyscript.requirements.process_all_requirements") as process_requirements,
+        patch(
+            "custom_components.pyscript.requirements.async_process_requirements"
+        ) as ha_install_requirements,
+    ):
         entry = MockConfigEntry(domain=DOMAIN, data={CONF_ALLOW_ALL_IMPORTS: True})
         entry.add_to_hass(hass)
 
@@ -272,11 +274,12 @@ async def test_install_unpinned_requirements(hass, caplog):
 @pytest.mark.asyncio
 async def test_install_requirements_not_allowed(hass):
     """Test that install requirements will not work because 'allow_all_imports' is False."""
-    with patch(
-        "custom_components.pyscript.requirements.process_all_requirements"
-    ) as process_requirements, patch(
-        "custom_components.pyscript.requirements.async_process_requirements"
-    ) as ha_install_requirements:
+    with (
+        patch("custom_components.pyscript.requirements.process_all_requirements") as process_requirements,
+        patch(
+            "custom_components.pyscript.requirements.async_process_requirements"
+        ) as ha_install_requirements,
+    ):
         entry = MockConfigEntry(domain=DOMAIN, data={CONF_ALLOW_ALL_IMPORTS: False})
         entry.add_to_hass(hass)
 

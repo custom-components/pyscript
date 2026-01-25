@@ -15,16 +15,21 @@ from homeassistant.helpers.state import State as HassState
 @pytest.mark.asyncio
 async def test_service_call(hass):
     """Test calling a service using the entity_id as a property."""
-    with patch(
-        "custom_components.pyscript.state.async_get_all_descriptions",
-        return_value={
-            "test": {
-                "test": {"description": None, "fields": {"entity_id": "blah", "other_service_data": "blah"}}
-            }
-        },
-    ), patch.object(StateMachine, "get", return_value=HassState("test.entity", "True")), patch.object(
-        ServiceRegistry, "async_call"
-    ) as call:
+    with (
+        patch(
+            "custom_components.pyscript.state.async_get_all_descriptions",
+            return_value={
+                "test": {
+                    "test": {
+                        "description": None,
+                        "fields": {"entity_id": "blah", "other_service_data": "blah"},
+                    }
+                }
+            },
+        ),
+        patch.object(StateMachine, "get", return_value=HassState("test.entity", "True")),
+        patch.object(ServiceRegistry, "async_call") as call,
+    ):
         State.init(hass)
         Function.init(hass)
         await State.get_service_params()

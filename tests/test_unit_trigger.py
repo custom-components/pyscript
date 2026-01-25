@@ -84,8 +84,9 @@ async def test_parse_date_time(hass, caplog):
     #
     now = dt(2019, 9, 1, 13, 0, 0, 0)
 
-    with patch("homeassistant.helpers.condition.dt_util.utcnow", return_value=now), patch(
-        "homeassistant.util.dt.utcnow", return_value=now
+    with (
+        patch("homeassistant.helpers.condition.dt_util.utcnow", return_value=now),
+        patch("homeassistant.util.dt.utcnow", return_value=now),
     ):
         for test_data in parseDateTimeTests:
             spec, date_offset, expect = test_data
@@ -123,8 +124,9 @@ async def test_parse_date_time_day_names(hass, caplog):
     # This set of tests assumes it's currently 13:00 on 2019/9/3
     #
     now = dt(2019, 9, 3, 13, 0, 0, 0)
-    with patch("homeassistant.helpers.condition.dt_util.utcnow", return_value=now), patch(
-        "homeassistant.util.dt.utcnow", return_value=now
+    with (
+        patch("homeassistant.helpers.condition.dt_util.utcnow", return_value=now),
+        patch("homeassistant.util.dt.utcnow", return_value=now),
     ):
         for test_data in parseDateTimeTestsDayNames:
             spec, date_offset, expect = test_data

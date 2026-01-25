@@ -133,23 +133,18 @@ log.info(f"BOTCH shouldn't load {__name__}")
         return result
 
     conf = {"apps": {"world": {}, "world2": {"var1": 100}}}
-    with patch("custom_components.pyscript.os.path.isdir", return_value=True), patch(
-        "custom_components.pyscript.glob.iglob"
-    ) as mock_glob, patch("custom_components.pyscript.global_ctx.open", mock_open), patch(
-        "custom_components.pyscript.open", mock_open
-    ), patch(
-        "homeassistant.util.yaml.loader.open", mock_open
-    ), patch(
-        "homeassistant.config.load_yaml_config_file", return_value={"pyscript": conf}
-    ), patch(
-        "custom_components.pyscript.watchdog_start", return_value=None
-    ), patch(
-        "custom_components.pyscript.os.path.getmtime", return_value=1000
-    ), patch(
-        "custom_components.pyscript.global_ctx.os.path.getmtime", return_value=1000
-    ), patch(
-        "custom_components.pyscript.os.path.isfile"
-    ) as mock_isfile:
+    with (
+        patch("custom_components.pyscript.os.path.isdir", return_value=True),
+        patch("custom_components.pyscript.glob.iglob") as mock_glob,
+        patch("custom_components.pyscript.global_ctx.open", mock_open),
+        patch("custom_components.pyscript.open", mock_open),
+        patch("homeassistant.util.yaml.loader.open", mock_open),
+        patch("homeassistant.config.load_yaml_config_file", return_value={"pyscript": conf}),
+        patch("custom_components.pyscript.watchdog_start", return_value=None),
+        patch("custom_components.pyscript.os.path.getmtime", return_value=1000),
+        patch("custom_components.pyscript.global_ctx.os.path.getmtime", return_value=1000),
+        patch("custom_components.pyscript.os.path.isfile") as mock_isfile,
+    ):
         mock_isfile.side_effect = isfile_side_effect
         mock_glob.side_effect = glob_side_effect
         assert await async_setup_component(hass, "pyscript", {DOMAIN: conf})
@@ -178,9 +173,7 @@ log.info(f"BOTCH shouldn't load {__name__}")
         #
         # add a new script file
         #
-        file_contents[
-            f"{conf_dir}/hello2.py"
-        ] = """
+        file_contents[f"{conf_dir}/hello2.py"] = """
 log.info(f"{__name__} global_ctx={pyscript.get_global_ctx()};")
 
 @service
@@ -223,9 +216,7 @@ def func20():
         #
         # change a module file and confirm the parent script is reloaded too
         #
-        file_contents[
-            f"{conf_dir}/modules/xyz2/other.py"
-        ] = """
+        file_contents[f"{conf_dir}/modules/xyz2/other.py"] = """
 log.info(f"modules/xyz2/other global_ctx={pyscript.get_global_ctx()};")
 
 xyz = 456
@@ -248,9 +239,7 @@ xyz = 456
         #
         # change a module inside an app
         #
-        file_contents[
-            f"{conf_dir}/apps/world2/other.py"
-        ] = """
+        file_contents[f"{conf_dir}/apps/world2/other.py"] = """
 other_abc = 654
 
 log.info(f"{__name__} global_ctx={pyscript.get_global_ctx()}")
