@@ -4,3 +4,78 @@ line-length = 109
 #[tool.pytest.ini_options]
 #asyncio_mode = "auto"
 #asyncio_default_fixture_loop_scope = "function"
+
+[tool.ruff]
+target-version = "py314"
+line-length = 109
+src = ["custom_components", "tests"]
+include = ["custom_components/**/*.py", "tests/**/*.py"]
+
+[tool.ruff.format]
+docstring-code-format = true
+
+[tool.ruff.lint.flake8-annotations]
+ignore-fully-untyped = true
+
+[tool.ruff.lint.isort]
+force-sort-within-sections = true
+known-first-party = ["homeassistant", "tests", "custom_components.pyscript"]
+combine-as-imports = true
+
+[tool.ruff.lint]
+select = [
+    "ANN", # flake8-annotations
+    "B", # flake8-bugbear
+    "D", # pydocstyle
+    "E", # pycodestyle
+    "F", # pyflakes
+    "FIX", # flake8-fixme
+    "G", # flake8-logging-format
+    "I", # isort
+    "PLC", #pylint convention
+    "RUF", # ruff-specific rules
+    "S", # flake8-bandit
+    "UP", # pyupgrade
+    "W", # pycodestyle
+]
+ignore = [
+    "ANN003", # missing-type-kwargs
+    "ANN401", # any-type
+    "D202", # blank-line-after-function
+    "D203", # incorrect-blank-line-before-class
+    "D212", # multi-line-summary-first-line
+    "E501", # line-too-long
+    "UP037", # quoted-annotation
+    #pylint covered
+    "B012", # jump-statement-in-finally
+    "B904", # raise-without-from-inside-except
+    "PLC0415", # import-outside-top-level
+    "S102", # exec-builtin
+]
+
+
+[tool.ruff.lint.per-file-ignores]
+"eval.py" = [
+    "B007", # unused-loop-control-variable
+    "B009", # get-attr-with-constant
+    "B905", # zip-without-explicit-strict
+    "S506", # unsafe-yaml-load
+    "RUF005", #collection-literal-concatenation
+]
+"pyscript_builtins.py" = [
+    "ANN", # flake8-annotations
+    "B", # flake8-bugbear
+    "D", # pydocstyle
+]
+"tests/*.py" = [
+    "S101", # assert
+    "B011"# assert-false
+]
+#temporary
+"__init__.py" = ["B007"]
+"config_flow.py" = ["B007", "UP006", "UP035", "RUF013"]
+"event.py" = ["RUF012"]
+"jupyter_kernel.py" = ["RUF006", "S104"]
+"mqtt.py" = ["RUF012"]
+"trigger.py" = ["RUF012", "UP041"]
+"webhook.py" = ["RUF012"]

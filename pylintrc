@@ -12,7 +12,6 @@ good-names=id,i,j,k,ex,Run,_,fp,T
 
 [MESSAGES CONTROL]
 # Reasons disabled:
-# format - handled by black
 # locally-disabled - it spams too much
 # duplicate-code - unavoidable
 # cyclic-import - doesn't test if both import on load
@@ -25,7 +24,6 @@ good-names=id,i,j,k,ex,Run,_,fp,T
 # too-many-ancestors - it's too strict.
 # wrong-import-order - isort guards this
 disable=
-  format,
   abstract-method,
   broad-except,
   cyclic-import,
@@ -53,7 +51,20 @@ disable=
   no-value-for-parameter,
   unsubscriptable-object,
   wrong-import-order,
-  unidiomatic-typecheck
+  unidiomatic-typecheck,
+  # Covered by Ruff
+  format,
+  unused-import,
+  unused-variable,
+  undefined-variable,
+  used-before-assignment,
+  redefined-outer-name,
+  wildcard-import,
+  unused-wildcard-import,
+  missing-module-docstring,
+  missing-class-docstring,
+  missing-function-docstring,
+  empty-docstring
 enable=
   use-symbolic-message-instead
 
