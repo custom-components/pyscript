@@ -1254,7 +1254,7 @@ class AstEval:
                 body=[ast.Return(value=arg.body, lineno=arg.body.lineno, col_offset=arg.body.col_offset)],
                 name=name,
                 decorator_list=[ast.Name(id="pyscript_compile", ctx=ast.Load())],
-                lineno=arg.col_offset,
+                lineno=arg.lineno,
                 col_offset=arg.col_offset,
             )
         )
