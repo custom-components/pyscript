@@ -2228,6 +2228,7 @@ it doesn't faithfully mimic Python.  Here are some areas where pyscript differs 
   Python code (and not call any pyscript functions, which are all async). Bad things will happen
   if you call pyscript functions from a thread you create; currently there isn't error checking
   for that case.
+- Avoid using ``exit()`` calls in your scripts, as they can `crash <https://github.com/custom-components/pyscript/issues/811>`__ the whole Home Assistant.
 
 A handful of language features are not supported:
 
