@@ -722,6 +722,7 @@ class EvalFunc:
         except Exception as err:
             if ast_ctx.exception_long is None:
                 ast_ctx.exception_long = ast_ctx.format_exc(err, arg.lineno, arg.col_offset)
+            raise err
 
     async def call(self, ast_ctx, *args, **kwargs):
         """Call the function with the given context and arguments."""

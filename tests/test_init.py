@@ -165,6 +165,39 @@ xyz
 
 
 @pytest.mark.asyncio
+async def test_service_divide_by_zero(hass, caplog):
+    """Test calling a service that raises divide by zero."""
+
+    await setup_script(
+        hass,
+        None,
+        dt(2020, 7, 1, 11, 59, 59, 999999),
+        """
+
+@pyscript_compile
+def test_native():
+    async def native(callback):
+        return await callback()
+
+    return native
+
+def div_zero():
+    res = 1 / 0
+    return res
+
+@service
+def div_zero_service():
+    try:
+        x = test_native()(div_zero)
+    except Exception as e:
+        log.error(f"got exception {e}")
+""",
+    )
+    await hass.services.async_call("pyscript", "div_zero_service", {}, blocking=True)
+    assert "got exception division by zero" in caplog.text
+
+
+@pytest.mark.asyncio
 async def test_service_description(hass):
     """Test service description defined in doc_string."""
 

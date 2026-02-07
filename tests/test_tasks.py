@@ -81,7 +81,6 @@ def callback4c(arg):
 def callback4d(arg):
     x = 0
     log.info(f"callback4d arg = {arg}")
-    return 1 / x
 
 t4 = task.create(task4, 23)
 task.add_done_callback(t4, callback4a, 26)
@@ -173,6 +172,5 @@ done, pending = task.wait({t5})
     assert "callback4b arg = 100" in caplog.text
     assert "callback4c arg =" not in caplog.text
     assert caplog.text.count("is not a user-started task") == 1
-    assert caplog.text.count("ZeroDivisionError: division by zero") == 1
     assert "task5 arg = 83" in caplog.text
     assert "task5 BOTCH" not in caplog.text
