@@ -3,7 +3,7 @@
     "step": {
       "user": {
         "title": "pyscript",
-        "description": "Bir girdi oluşturduktan sonra, betik ve fonksiyon oluşturmayı öğrenmek için [dokümantasyona](https://hacs-pyscript.readthedocs.io/en/latest/) bakabilirsiniz.",
+        "description": "Bir girdi oluşturduktan sonra, betik ve fonksiyon oluşturmayı öğrenmek için dokümantasyona bakabilirsiniz.",
         "data": {
           "allow_all_imports": "Tüm içe aktarmalara izin verilsin mi?",
           "hass_is_global": "hass'a global değişken olarak erişilsin mi?"

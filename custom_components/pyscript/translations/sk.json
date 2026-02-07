@@ -3,7 +3,7 @@
     "step": {
       "user": {
         "title": "pyscript",
-        "description": "Akonáhle ste vytvorili položku, pozrite si [docs](https://hacs-pyscript.readthedocs.io/en/latest/) naučiť sa, ako vytvárať skripty a funkcie.",
+        "description": "Akonáhle ste vytvorili položku, pozrite si docs naučiť sa, ako vytvárať skripty a funkcie.",
         "data": {
           "allow_all_imports": "Povoliť všetky importy?",
           "hass_is_global": "Prístup k globálnej premennej?"
