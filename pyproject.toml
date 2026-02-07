@@ -46,6 +46,7 @@ ignore = [
     "D212", # multi-line-summary-first-line
     "E501", # line-too-long
     "UP037", # quoted-annotation
+    "UP034", # extraneous-parentheses (it incorrectly complains about except statements with multiple exceptions in parens)
     #pylint covered
     "B012", # jump-statement-in-finally
     "B904", # raise-without-from-inside-except

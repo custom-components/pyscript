@@ -3,7 +3,7 @@
     "step": {
       "user": {
         "title": "pyscript",
-        "description": "Once you have created an entry, refer to the [docs](https://hacs-pyscript.readthedocs.io/en/latest/) to learn how to create scripts and functions.",
+        "description": "Once you have created an entry, refer to the pyscript docs to learn how to create scripts and functions.",
         "data": {
           "allow_all_imports": "Allow All Imports?",
           "hass_is_global": "Access hass as a global variable?"
