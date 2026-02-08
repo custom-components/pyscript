@@ -80,3 +80,8 @@ ignore = [
 "mqtt.py" = ["RUF012"]
 "trigger.py" = ["RUF012", "UP041"]
 "webhook.py" = ["RUF012"]
+
+[dependency-groups]
+dev = [
+    "ruff<0.15.0",
+]
