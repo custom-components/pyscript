@@ -1907,6 +1907,26 @@ def func():
 """,
         "Exception in test line 4 column 0: can only specify single decorator of pyscript_compile, pyscript_executor",
     ],
+    [
+        """
+try:
+    raise ValueError("Random error")
+except KeyError:
+    pass
+""",
+        "Exception in test line 3 column 21: Random error",
+    ],
+    [
+        """
+try:
+    raise ValueError("Random error")
+except ValueError as e:
+    pass
+
+raise
+""",
+        "Exception in test line 7 column 0: No active exception to reraise",
+    ],
 ]
 
 

@@ -1343,6 +1343,10 @@ class AstEval:
                 val = await self.aeval(arg1)
                 if isinstance(val, EvalStopFlow):
                     return val  # pylint: disable=lost-exception,return-in-finally
+        self.exception = None
+        self.exception_obj = None
+        self.exception_long = None
+        self.exception_curr = None
         return None
 
     async def ast_raise(self, arg):
