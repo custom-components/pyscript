@@ -817,28 +817,26 @@ class EvalFunc:
         ast_ctx.user_locals = {}
         ast_ctx.curr_func = self
         del args, kwargs
-        for arg1 in self.func_def.body:
-            val = await self.try_aeval(ast_ctx, arg1)
-            if isinstance(val, EvalReturn):
-                val = val.value
-                break
+        try:
+            for arg1 in self.func_def.body:
+                val = await self.try_aeval(ast_ctx, arg1)
+                if isinstance(val, EvalReturn):
+                    return val.value
             # return None at end if there isn't a return
-            val = None
-            if ast_ctx.get_exception_obj():
-                break
-        ast_ctx.curr_func = prev_func
-        ast_ctx.user_locals = save_user_locals
-        ast_ctx.code_str, ast_ctx.code_list = code_str, code_list
-        if prev_sym_table is not None:
-            (
-                ast_ctx.global_sym_table,
-                ast_ctx.sym_table,
-                ast_ctx.sym_table_stack,
-                ast_ctx.global_ctx,
-            ) = prev_sym_table
-        else:
-            ast_ctx.sym_table = ast_ctx.sym_table_stack.pop()
-        return val
+            return None
+        finally:
+            ast_ctx.curr_func = prev_func
+            ast_ctx.user_locals = save_user_locals
+            ast_ctx.code_str, ast_ctx.code_list = code_str, code_list
+            if prev_sym_table is not None:
+                (
+                    ast_ctx.global_sym_table,
+                    ast_ctx.sym_table,
+                    ast_ctx.sym_table_stack,
+                    ast_ctx.global_ctx,
+                ) = prev_sym_table
+            else:
+                ast_ctx.sym_table = ast_ctx.sym_table_stack.pop()
 
     async def check_for_closure(self, arg):
         """Recursively check ast tree arg and return True if there is an inner function or class."""
