@@ -524,10 +524,11 @@ class EvalFunc:
                         func_args.update(call.data)
 
                         async def do_service_call(func, ast_ctx, data):
-                            retval = await func.call(ast_ctx, **data)
-                            if ast_ctx.get_exception_obj():
-                                ast_ctx.get_logger().error(ast_ctx.get_exception_long())
-                            return retval
+                            try:
+                                return await func.call(ast_ctx, **data)
+                            except Exception as exc:
+                                ast_ctx.log_exception(exc)
+                            return None
 
                         task = Function.create_task(do_service_call(func, ast_ctx, func_args))
                         await task
@@ -993,12 +994,7 @@ class AstEval:
     async def ast_import(self, arg):
         """Execute import."""
         for imp in arg.names:
-            mod, error_ctx = await self.global_ctx.module_import(imp.name, 0)
-            if error_ctx:
-                self.exception_obj = error_ctx.exception_obj
-                self.exception = error_ctx.exception
-                self.exception_long = error_ctx.exception_long
-                raise self.exception_obj
+            mod = await self.global_ctx.module_import(imp.name, 0)
             if not mod:
                 if (
                     not self.config_entry.data.get(CONF_ALLOW_ALL_IMPORTS, False)
@@ -1016,12 +1012,7 @@ class AstEval:
         if arg.module is None:
             # handle: "from . import xyz"
             for imp in arg.names:
-                mod, error_ctx = await self.global_ctx.module_import(imp.name, arg.level)
-                if error_ctx:
-                    self.exception_obj = error_ctx.exception_obj
-                    self.exception = error_ctx.exception
-                    self.exception_long = error_ctx.exception_long
-                    raise self.exception_obj
+                mod = await self.global_ctx.module_import(imp.name, arg.level)
                 if not mod:
                     raise ModuleNotFoundError(f"module '{imp.name}' not found")
                 self.sym_table[imp.name if imp.asname is None else imp.asname] = mod
@@ -1034,12 +1025,7 @@ class AstEval:
                     )
             _LOGGER.debug("Skipping stubs import %s", arg.module)
             return
-        mod, error_ctx = await self.global_ctx.module_import(arg.module, arg.level)
-        if error_ctx:
-            self.exception_obj = error_ctx.exception_obj
-            self.exception = error_ctx.exception
-            self.exception_long = error_ctx.exception_long
-            raise self.exception_obj
+        mod = await self.global_ctx.module_import(arg.module, arg.level)
         if not mod:
             if (
                 not self.config_entry.data.get(CONF_ALLOW_ALL_IMPORTS, False)
@@ -1227,7 +1213,10 @@ class AstEval:
             func.decorators = dec_trig
             if self.dec_eval_depth == 0:
                 func.trigger_stop()
-                await func.trigger_init(self.global_ctx, name)
+                try:
+                    await func.trigger_init(self.global_ctx, name)
+                except Exception as e:
+                    self.log_exception(e)
                 func_var = EvalFuncVar(func)
                 func_var.set_ast_ctx(self)
             else:
@@ -2177,7 +2166,7 @@ class AstEval:
             await self.get_names_set(this_ast, names, nonlocal_names, global_names, local_names)
         return names
 
-    def parse(self, code_str: str, filename: str | None = None, mode: str = "exec") -> bool:
+    def parse(self, code_str: str | list[str], filename: str | None = None, mode: str = "exec") -> None:
         """Parse the code_str source code into an AST tree."""
         self.exception = None
         self.exception_obj = None
@@ -2196,7 +2185,6 @@ class AstEval:
                 self.code_str = code_str
                 self.code_list = []
             self.ast = ast.parse(self.code_str, filename=self.filename, mode=mode)
-            return True
         except SyntaxError as err:
             self.exception_obj = err
             self.lineno = err.lineno
@@ -2206,7 +2194,7 @@ class AstEval:
                 self.exception_long = self.format_exc(err, self.lineno, self.col_offset)
             else:
                 self.exception_long = self.format_exc(err, 1, self.col_offset, code_list=[err.text])
-            return False
+            raise
         except asyncio.CancelledError:
             raise
         except Exception as err:
@@ -2215,7 +2203,13 @@ class AstEval:
             self.col_offset = 0
             self.exception = f"parsing error {err}"
             self.exception_long = self.format_exc(err)
-            return False
+            raise
+
+    def log_exception(self, exc: Exception) -> None:
+        """Log eval exception."""
+        if self.get_exception_long() is None:
+            self.exception_long = self.format_exc(exc)
+        self.get_logger().error(self.get_exception_long())
 
     def format_exc(self, exc, lineno=None, col_offset=None, short=False, code_list=None):
         """Format an multi-line exception message using lineno if available."""
@@ -2351,6 +2345,7 @@ class AstEval:
             except Exception as err:
                 if self.exception_long is None:
                     self.exception_long = self.format_exc(err, self.lineno, self.col_offset)
+                raise
         return None
 
     def dump(self, this_ast=None):

@@ -355,15 +355,13 @@ class Kernel:
                 code = "print([])"
 
             self.global_ctx.set_auto_start(False)
-            self.ast_ctx.parse(code)
-            exc = self.ast_ctx.get_exception_obj()
-            if exc is None:
+            try:
+                self.ast_ctx.parse(code)
                 result = await self.ast_ctx.eval()
-                exc = self.ast_ctx.get_exception_obj()
-            await Function.waiter_sync()
-            self.global_ctx.set_auto_start(True)
-            self.global_ctx.start()
-            if exc:
+                await Function.waiter_sync()
+                self.global_ctx.set_auto_start(True)
+                self.global_ctx.start()
+            except Exception as exc:
                 traceback_mesg = self.ast_ctx.get_exception_long().split("\n")
 
                 metadata = {
@@ -503,9 +501,6 @@ class Kernel:
 
         elif msg["header"]["msg_type"] == "is_complete_request":
             code = msg["content"]["code"]
-            self.ast_ctx.parse(code)
-            exc = self.ast_ctx.get_exception_obj()
-
             # determine indent of last line
             indent = 0
             i = code.rfind("\n")
@@ -513,7 +508,8 @@ class Kernel:
                 while i + 1 < len(code) and code[i + 1] == " ":
                     i += 1
                     indent += 1
-            if exc is None:
+            try:
+                self.ast_ctx.parse(code)
                 if indent == 0:
                     content = {
                         # One of 'complete', 'incomplete', 'invalid', 'unknown'
@@ -529,7 +525,7 @@ class Kernel:
                         "status": "incomplete",
                         "indent": " " * indent,
                     }
-            else:
+            except Exception as exc:
                 #
                 # if the syntax error is right at the end, then we label it incomplete,
                 # otherwise it's invalid

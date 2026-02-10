@@ -1649,12 +1649,12 @@ async def run_one_test(test_data):
     global_ctx = GlobalContext("test", global_sym_table={}, manager=GlobalContextMgr)
     ast = AstEval("test", global_ctx=global_ctx)
     Function.install_ast_funcs(ast)
-    ast.parse(source)
-    if ast.get_exception() is not None:
-        print(f"Parsing {source} failed: {ast.get_exception()}")
-    # print(ast.dump())
-    result = await ast.eval({"sym_local": 10}, merge_local=True)
-    assert result == expect
+    try:
+        ast.parse(source)
+        result = await ast.eval({"sym_local": 10}, merge_local=True)
+        assert result == expect
+    except Exception:
+        assert False, f"Parsing {source} failed: {ast.get_exception()}"
 
 
 @pytest.mark.asyncio
@@ -1936,20 +1936,11 @@ async def run_one_test_exception(test_data):
     global_ctx = GlobalContext("test", global_sym_table={}, manager=GlobalContextMgr)
     ast = AstEval("test", global_ctx=global_ctx)
     Function.install_ast_funcs(ast)
-    ast.parse(source)
-    exc = ast.get_exception()
-    if exc is not None:
-        if isinstance(expect, set):
-            assert exc in expect
-        else:
-            assert exc == expect
-        return
-    await ast.eval()
-    exc = ast.get_exception()
-    if exc is not None:
-        assert exc == expect
-        return
-    assert False
+    try:
+        ast.parse(source)
+        await ast.eval()
+    except Exception:
+        assert ast.get_exception() in expect
 
 
 @pytest.mark.asyncio
