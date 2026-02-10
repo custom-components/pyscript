@@ -944,7 +944,6 @@ class AstEval:
         self.exception: str | None = None
         self.exception_obj: Exception | None = None
         self.exception_long: str | None = None
-        self.exception_curr: Exception | None = None
         self.lineno = 1
         self.col_offset = 0
         self.logger_handlers = set()
@@ -1260,11 +1259,7 @@ class AstEval:
                 val = await self.aeval(arg1)
                 if isinstance(val, EvalStopFlow):
                     return val
-                if self.exception_obj is not None:
-                    raise self.exception_obj
         except Exception as err:
-            curr_exc = self.exception_curr
-            self.exception_curr = err
             for handler in arg.handlers:
                 match = False
                 if handler.type:
@@ -1278,12 +1273,6 @@ class AstEval:
                 else:
                     match = True
                 if match:
-                    save_obj = self.exception_obj
-                    save_exc_long = self.exception_long
-                    save_exc = self.exception
-                    self.exception_obj = None
-                    self.exception = None
-                    self.exception_long = None
                     if handler.name is not None:
                         if handler.name in self.sym_table and isinstance(
                             self.sym_table[handler.name], EvalLocalVar
@@ -1291,34 +1280,16 @@ class AstEval:
                             self.sym_table[handler.name].set(err)
                         else:
                             self.sym_table[handler.name] = err
-                    for arg1 in handler.body:
-                        try:
+                    try:
+                        for arg1 in handler.body:
                             val = await self.aeval(arg1)
                             if isinstance(val, EvalStopFlow):
-                                if handler.name is not None:
-                                    del self.sym_table[handler.name]
-                                self.exception_curr = curr_exc
                                 return val
-                        except Exception:
-                            if self.exception_obj is not None:
-                                if handler.name is not None:
-                                    del self.sym_table[handler.name]
-                                self.exception_curr = curr_exc
-                                if self.exception_obj == save_obj:
-                                    self.exception_long = save_exc_long
-                                    self.exception = save_exc
-                                else:
-                                    self.exception_long = (
-                                        save_exc_long
-                                        + "\n\nDuring handling of the above exception, another exception occurred:\n\n"
-                                        + self.exception_long
-                                    )
-                                raise self.exception_obj  # pylint: disable=raise-missing-from
-                    if handler.name is not None:
-                        del self.sym_table[handler.name]
+                    finally:
+                        if handler.name is not None:
+                            del self.sym_table[handler.name]
                     break
             else:
-                self.exception_curr = curr_exc
                 raise err
         else:
             for arg1 in arg.orelse:
@@ -1333,23 +1304,17 @@ class AstEval:
         self.exception = None
         self.exception_obj = None
         self.exception_long = None
-        self.exception_curr = None
         return None
 
     async def ast_raise(self, arg):
         """Execute raise statement."""
-        if not arg.exc:
-            if not self.exception_curr:
-                raise RuntimeError("No active exception to reraise")
-            exc = self.exception_curr
-        else:
+        if arg.exc:
             exc = await self.aeval(arg.exc)
-        if self.exception_curr:
-            exc.__cause__ = self.exception_curr
-        if arg.cause:
-            cause = await self.aeval(arg.cause)
-            raise exc from cause
-        raise exc
+            if arg.cause:
+                cause = await self.aeval(arg.cause)
+                raise exc from cause
+            raise exc
+        raise  # pylint: disable=misplaced-bare-raise
 
     async def ast_with(self, arg, async_attr=""):
         """Execute with statement."""
