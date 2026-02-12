@@ -208,5 +208,5 @@ def func15():
     assert "modules/xyz2 global_ctx=modules.xyz2;" in caplog.text
     assert "func14 global_ctx=scripts.a.b.c.d.func14;" in caplog.text
     assert "ModuleNotFoundError: import of no_such_package not allowed" in caplog.text
-    # assert "SyntaxError: invalid syntax (bad_module.py, line 2)" in caplog.text    # <= 3.9
-    assert "SyntaxError: expected ':' (bad_module.py, line 2)" in caplog.text
+    assert "SyntaxError: expected ':'" in caplog.text
+    assert 'modules/bad_module.py", line 2' in caplog.text

@@ -13,6 +13,7 @@ import logging
 import sys
 import time
 import traceback
+from types import TracebackType
 from typing import TYPE_CHECKING, Any
 import weakref
 
@@ -2170,9 +2171,16 @@ class AstEval:
 
     def log_exception(self, exc: Exception) -> None:
         """Log eval exception."""
-        if self.get_exception_long() is None:
-            self.exception_long = self.format_exc(exc)
-        self.get_logger().error(self.get_exception_long())
+        try:
+            fmt = EvalExceptionFormatter(exc)
+            msg = "\n" + "".join(fmt.format())
+            self.get_logger().error(msg)
+
+            if _LOGGER.isEnabledFor(logging.DEBUG):
+                msg = "\n" + "".join(traceback.format_tb(exc.__traceback__))
+                _LOGGER.error(msg)
+        except Exception:
+            _LOGGER.exception("Error while formatting ast exception")
 
     def format_exc(self, exc, lineno=None, col_offset=None, short=False, code_list=None):
         """Format an multi-line exception message using lineno if available."""
@@ -2314,3 +2322,152 @@ class AstEval:
     def dump(self, this_ast=None):
         """Dump the AST tree for debugging."""
         return ast.dump(this_ast if this_ast else self.ast)
+
+
+class EvalExceptionFormatter:
+    """Format exceptions using pyscript-aware traceback frames."""
+
+    def __init__(self, exc: BaseException) -> None:
+        """Initialize exception formatter state."""
+        self.exc = exc
+
+        self.current_func: str | None = None
+        self.current_code_list: list[str] | None = None
+        self.current_filename: str | None = None
+        self.last_eval_frame: traceback.FrameSummary | None = None
+        self.lineno: int = 1
+        self.col_offset: int = 0
+        self.end_col_offset: int = 0
+
+        self.stack = traceback.StackSummary()
+        self._build_stack()
+        self.chained_msg: str | None = None
+        self.chained_exc: EvalExceptionFormatter | None = None
+        if exc.__cause__ is not None:
+            self.chained_msg = traceback._cause_message
+            self.chained_exc = EvalExceptionFormatter(exc.__cause__)
+        elif exc.__context__ is not None and not exc.__suppress_context__:
+            self.chained_msg = traceback._context_message
+            self.chained_exc = EvalExceptionFormatter(exc.__context__)
+
+    def format(self) -> list[str]:
+        """Return formatted traceback lines for this exception."""
+        result = []
+
+        if self.chained_msg and self.chained_exc:
+            result.extend(self.chained_exc.format())
+            result.append(self.chained_msg)
+
+        result.extend(self.stack.format())
+        if isinstance(self.exc, SyntaxError):
+            format_exc = [f"{type(self.exc).__name__}: {self.exc.msg}\n"]
+        else:
+            format_exc = traceback.format_exception_only(self.exc)
+        result.extend(format_exc)
+
+        return result
+
+    def _build_stack(self) -> None:
+        """Build stack summary from traceback frames."""
+        current_tb = self.exc.__traceback__
+
+        while current_tb:
+            frame = current_tb.tb_frame
+            code = frame.f_code
+
+            if code.co_filename == __file__:
+                if code.co_qualname == EvalFunc.call.__qualname__:
+                    eval_func = frame.f_locals.get("self")
+                    if isinstance(eval_func, EvalFunc):
+                        self.current_func = eval_func.get_name()
+                        self.current_code_list = eval_func.code_list
+                        self.current_filename = eval_func.global_ctx.get_file_path()
+                elif code.co_qualname == AstEval.call_func.__qualname__ and self.current_func is None:
+                    self.current_func = frame.f_locals.get("func_name", None)
+                elif code.co_qualname == AstEval.parse.__qualname__ and isinstance(self.exc, SyntaxError):
+                    ctx = frame.f_locals.get("self")
+                    self.current_code_list = ctx.code_list
+                    self.current_filename = ctx.global_ctx.get_file_path() or ctx.filename
+                    self.lineno = self.exc.lineno
+                    self.col_offset = self.exc.offset - 1
+                    self.end_col_offset = self.exc.end_offset - 1
+                    self.ast_frame(ctx)
+                    # cancel frames from ast.py
+                    return
+                elif code.co_qualname in [AstEval.aeval.__qualname__, AstEval.recurse_assign.__qualname__]:
+                    ctx = frame.f_locals.get("self")
+                    if not self.current_filename:
+                        self.current_filename = ctx.global_ctx.get_file_path() or ctx.filename
+                    if not self.current_code_list:
+                        self.current_code_list = ctx.code_list
+
+                    for val in frame.f_locals.values():
+                        if isinstance(val, (ast.expr, ast.stmt)) and hasattr(val, "lineno"):
+                            self.lineno = getattr(val, "lineno", self.lineno)
+                            self.col_offset = getattr(val, "col_offset", self.col_offset)
+                            self.end_col_offset = getattr(val, "end_col_offset", self.col_offset)
+                            self.ast_frame(ctx)
+                            break
+            else:
+                self.real_frame(current_tb)
+
+            current_tb = current_tb.tb_next
+
+    def ast_frame(self, ctx: AstEval) -> None:
+        """Add or replace a frame that points to AST source."""
+        source = ctx.get_global_ctx().source or ""
+        code_list = self.current_code_list or source.splitlines()
+        if code_list and self.lineno <= len(code_list):
+            codeline = code_list[self.lineno - 1]
+        else:
+            _LOGGER.error("Source code is unavailable for %s.", self.current_filename)
+            codeline = None
+
+        func = self.current_func
+        if not func and self.current_filename != ctx.name:
+            func = ctx.name
+
+        new_frame = traceback.FrameSummary(
+            filename=self.current_filename,
+            lineno=self.lineno,
+            name=func,
+            colno=self.col_offset,
+            line=codeline,
+            lookup_line=False,
+            end_lineno=self.lineno,
+            end_colno=self.end_col_offset,
+        )
+
+        last_frame = self.stack[-1] if self.stack else None
+        if last_frame and new_frame.filename == last_frame.filename and new_frame.name == last_frame.name:
+            # Replace with more detailed (deeper) data
+            self.stack[-1] = new_frame
+        else:
+            self.stack.append(new_frame)
+        self.last_eval_frame = new_frame
+
+    def real_frame(self, tb: TracebackType) -> None:
+        """Add a regular Python traceback frame."""
+        lineno = tb.tb_lineno
+        end_lineno = colno = end_colno = None
+        frame = tb.tb_frame
+        code = frame.f_code
+
+        if tb.tb_lasti >= 0:
+            target = tb.tb_lasti // 2
+            for idx, pos in enumerate(code.co_positions()):
+                if idx == target:
+                    if pos[0] is not None:
+                        lineno = pos[0]
+                    end_lineno, colno, end_colno = pos[1:]
+                    break
+        self.stack.append(
+            traceback.FrameSummary(
+                filename=code.co_filename,
+                lineno=lineno,
+                name=code.co_name,
+                end_lineno=end_lineno,
+                colno=colno,
+                end_colno=end_colno,
+            )
+        )

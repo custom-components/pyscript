@@ -20,6 +20,7 @@ import traceback
 import uuid
 
 from .const import LOGGER_PATH
+from .eval import EvalExceptionFormatter
 from .function import Function
 from .global_ctx import GlobalContextMgr
 from .state import State
@@ -362,7 +363,7 @@ class Kernel:
                 self.global_ctx.set_auto_start(True)
                 self.global_ctx.start()
             except Exception as exc:
-                traceback_mesg = self.ast_ctx.get_exception_long().split("\n")
+                traceback_mesg = EvalExceptionFormatter(exc).format()
 
                 metadata = {
                     "dependencies_met": True,

@@ -126,8 +126,8 @@ def func1()
     pass
 """,
     )
-    # assert "SyntaxError: invalid syntax (hello.py, line 3)" in caplog.text   # <= 3.9
-    assert "SyntaxError: expected ':' (hello.py, line 3)" in caplog.text
+    assert "SyntaxError: expected ':'" in caplog.text
+    assert 'File "/hello.py", line 3' in caplog.text
 
 
 @pytest.mark.asyncio
@@ -142,7 +142,8 @@ async def test_syntax_error2(hass, caplog):
 xyz def 123
 """,
     )
-    assert "SyntaxError: invalid syntax (hello.py, line 2)" in caplog.text
+    assert "SyntaxError: invalid syntax" in caplog.text
+    assert 'File "/hello.py", line 2' in caplog.text
 
 
 @pytest.mark.asyncio
