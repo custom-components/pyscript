@@ -128,10 +128,7 @@ def ast_eval_exec_factory(ast_ctx, mode):
                     del eval_ast.sym_table[var]
 
         eval_ast.curr_func = None
-        try:
-            eval_result = await eval_ast.aeval(eval_ast.ast)
-        except Exception:
-            raise
+        eval_result = await eval_ast.aeval(eval_ast.ast)
         #
         # save variables only in the locals scope
         #
@@ -703,15 +700,6 @@ class EvalFunc:
             args.append(arg.arg)
         return args
 
-    async def try_aeval(self, ast_ctx, arg):
-        """Call self.aeval and capture exceptions."""
-        try:
-            return await ast_ctx.aeval(arg)
-        except asyncio.CancelledError:
-            raise
-        except Exception as err:
-            raise err
-
     async def call(self, ast_ctx, *args, **kwargs):
         """Call the function with the given context and arguments."""
         sym_table = {}
@@ -803,7 +791,7 @@ class EvalFunc:
         del args, kwargs
         try:
             for arg1 in self.func_def.body:
-                val = await self.try_aeval(ast_ctx, arg1)
+                val = await ast_ctx.aeval(arg1)
                 if isinstance(val, EvalReturn):
                     return val.value
             # return None at end if there isn't a return
@@ -939,13 +927,10 @@ class AstEval:
     async def aeval(self, arg, undefined_check=True):
         """Vector to specific function based on ast class type."""
         name = "ast_" + arg.__class__.__name__.lower()
-        try:
-            val = await getattr(self, name, self.ast_not_implemented)(arg)
-            if undefined_check and isinstance(val, EvalName):
-                raise NameError(f"name '{val.name}' is not defined")
-            return val
-        except Exception:
-            raise
+        val = await getattr(self, name, self.ast_not_implemented)(arg)
+        if undefined_check and isinstance(val, EvalName):
+            raise NameError(f"name '{val.name}' is not defined")
+        return val
 
     # Statements return NONE, EvalBreak, EvalContinue, EvalReturn
     async def ast_module(self, arg):
@@ -2100,23 +2085,16 @@ class AstEval:
         self.ast = None
         if filename is not None:
             self.filename = filename
-        try:
-            if isinstance(code_str, list):
-                self.code_list = code_str
-                self.code_str = "\n".join(code_str)
-            elif isinstance(code_str, str):
-                self.code_str = code_str
-                self.code_list = code_str.split("\n")
-            else:
-                self.code_str = code_str
-                self.code_list = []
-            self.ast = ast.parse(self.code_str, filename=self.filename, mode=mode)
-        except SyntaxError:
-            raise
-        except asyncio.CancelledError:
-            raise
-        except Exception:
-            raise
+        if isinstance(code_str, list):
+            self.code_list = code_str
+            self.code_str = "\n".join(code_str)
+        elif isinstance(code_str, str):
+            self.code_str = code_str
+            self.code_list = code_str.split("\n")
+        else:
+            self.code_str = code_str
+            self.code_list = []
+        self.ast = ast.parse(self.code_str, filename=self.filename, mode=mode)
 
     def log_exception(self, exc: Exception) -> None:
         """Log eval exception."""
@@ -2218,15 +2196,10 @@ class AstEval:
                 self.local_sym_table = {}
             self.local_sym_table.update(new_state_vars)
         if self.ast:
-            try:
-                val = await self.aeval(self.ast)
-                if isinstance(val, EvalStopFlow):
-                    return None
-                return val
-            except asyncio.CancelledError:
-                raise
-            except Exception:
-                raise
+            val = await self.aeval(self.ast)
+            if isinstance(val, EvalStopFlow):
+                return None
+            return val
         return None
 
     def dump(self, this_ast=None):
