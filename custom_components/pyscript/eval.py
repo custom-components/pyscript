@@ -101,8 +101,6 @@ def ast_eval_exec_factory(ast_ctx, mode):
     async def eval_func(arg_str, eval_globals=None, eval_locals=None):
         eval_ast = AstEval(ast_ctx.name, ast_ctx.global_ctx)
         eval_ast.parse(arg_str, f"{mode}()", mode=mode)
-        if eval_ast.exception_obj:
-            raise eval_ast.exception_obj
         eval_ast.local_sym_table = ast_ctx.local_sym_table
         if eval_globals is not None:
             eval_ast.global_sym_table = eval_globals
@@ -132,14 +130,7 @@ def ast_eval_exec_factory(ast_ctx, mode):
         eval_ast.curr_func = None
         try:
             eval_result = await eval_ast.aeval(eval_ast.ast)
-        except Exception as err:
-            ast_ctx.exception_obj = err
-            ast_ctx.exception = f"Exception in {ast_ctx.filename} line {ast_ctx.lineno} column {ast_ctx.col_offset}: {eval_ast.exception}"
-            ast_ctx.exception_long = (
-                ast_ctx.format_exc(err, ast_ctx.lineno, ast_ctx.col_offset, short=True)
-                + "\n"
-                + eval_ast.exception_long
-            )
+        except Exception:
             raise
         #
         # save variables only in the locals scope
@@ -348,9 +339,6 @@ class EvalFunc:
         self.num_posn_arg = self.num_posonly_arg + len(self.func_def.args.args) - len(self.defaults)
         self.code_list = code_list
         self.code_str = code_str
-        self.exception = None
-        self.exception_obj = None
-        self.exception_long = None
         self.trigger = []
         self.trigger_service = set()
         self.has_closure = False
@@ -722,8 +710,6 @@ class EvalFunc:
         except asyncio.CancelledError:
             raise
         except Exception as err:
-            if ast_ctx.exception_long is None:
-                ast_ctx.exception_long = ast_ctx.format_exc(err, arg.lineno, arg.col_offset)
             raise err
 
     async def call(self, ast_ctx, *args, **kwargs):
@@ -810,9 +796,6 @@ class EvalFunc:
         ast_ctx.sym_table = sym_table
         code_str, code_list = ast_ctx.code_str, ast_ctx.code_list
         ast_ctx.code_str, ast_ctx.code_list = self.code_str, self.code_list
-        self.exception = None
-        self.exception_obj = None
-        self.exception_long = None
         prev_func = ast_ctx.curr_func
         save_user_locals = ast_ctx.user_locals
         ast_ctx.user_locals = {}
@@ -942,11 +925,6 @@ class AstEval:
         self.filename = name
         self.code_str: str | None = None
         self.code_list: list[str] | None = None
-        self.exception: str | None = None
-        self.exception_obj: Exception | None = None
-        self.exception_long: str | None = None
-        self.lineno = 1
-        self.col_offset = 0
         self.logger_handlers = set()
         self.logger = None
         self.set_logger_name(logger_name if logger_name is not None else self.name)
@@ -962,19 +940,11 @@ class AstEval:
         """Vector to specific function based on ast class type."""
         name = "ast_" + arg.__class__.__name__.lower()
         try:
-            if hasattr(arg, "lineno"):
-                self.lineno = arg.lineno
-                self.col_offset = arg.col_offset
             val = await getattr(self, name, self.ast_not_implemented)(arg)
             if undefined_check and isinstance(val, EvalName):
                 raise NameError(f"name '{val.name}' is not defined")
             return val
-        except Exception as err:
-            if not self.exception_obj:
-                func_name = self.curr_func.get_name() + "(), " if self.curr_func else ""
-                self.exception_obj = err
-                self.exception = f"Exception in {func_name}{self.filename} line {self.lineno} column {self.col_offset}: {err}"
-                self.exception_long = self.format_exc(err, self.lineno, self.col_offset)
+        except Exception:
             raise
 
     # Statements return NONE, EvalBreak, EvalContinue, EvalReturn
@@ -1302,9 +1272,6 @@ class AstEval:
                 val = await self.aeval(arg1)
                 if isinstance(val, EvalStopFlow):
                     return val  # pylint: disable=lost-exception,return-in-finally
-        self.exception = None
-        self.exception_obj = None
-        self.exception_long = None
         return None
 
     async def ast_raise(self, arg):
@@ -1974,9 +1941,7 @@ class AstEval:
         if callable(func):
             if func == time.sleep:  # pylint: disable=comparison-with-callable
                 _LOGGER.warning(
-                    "%s line %s calls blocking time.sleep(); replaced with asyncio.sleep()",
-                    self.filename,
-                    self.lineno,
+                    "%s calls blocking time.sleep(); replaced with asyncio.sleep()", self.filename
                 )
                 return await asyncio.sleep(*args, **kwargs)
             return func(*args, **kwargs)
@@ -2132,9 +2097,6 @@ class AstEval:
 
     def parse(self, code_str: str | list[str], filename: str | None = None, mode: str = "exec") -> None:
         """Parse the code_str source code into an AST tree."""
-        self.exception = None
-        self.exception_obj = None
-        self.exception_long = None
         self.ast = None
         if filename is not None:
             self.filename = filename
@@ -2149,24 +2111,11 @@ class AstEval:
                 self.code_str = code_str
                 self.code_list = []
             self.ast = ast.parse(self.code_str, filename=self.filename, mode=mode)
-        except SyntaxError as err:
-            self.exception_obj = err
-            self.lineno = err.lineno
-            self.col_offset = err.offset - 1
-            self.exception = f"syntax error {err}"
-            if err.filename == self.filename:
-                self.exception_long = self.format_exc(err, self.lineno, self.col_offset)
-            else:
-                self.exception_long = self.format_exc(err, 1, self.col_offset, code_list=[err.text])
+        except SyntaxError:
             raise
         except asyncio.CancelledError:
             raise
-        except Exception as err:
-            self.exception_obj = err
-            self.lineno = 1
-            self.col_offset = 0
-            self.exception = f"parsing error {err}"
-            self.exception_long = self.format_exc(err)
+        except Exception:
             raise
 
     def log_exception(self, exc: Exception) -> None:
@@ -2181,40 +2130,6 @@ class AstEval:
                 _LOGGER.error(msg)
         except Exception:
             _LOGGER.exception("Error while formatting ast exception")
-
-    def format_exc(self, exc, lineno=None, col_offset=None, short=False, code_list=None):
-        """Format an multi-line exception message using lineno if available."""
-        if code_list is None:
-            code_list = self.code_list
-        if lineno is not None and lineno <= len(code_list):
-            if short:
-                mesg = f"In <{self.filename}> line {lineno}:\n"
-                mesg += "    " + code_list[lineno - 1]
-            else:
-                mesg = f"Exception in <{self.filename}> line {lineno}:\n"
-                mesg += "    " + code_list[lineno - 1] + "\n"
-                if col_offset is not None:
-                    mesg += "    " + " " * col_offset + "^\n"
-                mesg += f"{type(exc).__name__}: {exc}"
-        else:
-            mesg = f"Exception in <{self.filename}>:\n"
-            mesg += f"{type(exc).__name__}: {exc}"
-
-        if _LOGGER.isEnabledFor(logging.DEBUG):
-            mesg += "\n" + traceback.format_exc()
-        return mesg
-
-    def get_exception(self):
-        """Return the last exception str."""
-        return self.exception
-
-    def get_exception_obj(self):
-        """Return the last exception object."""
-        return self.exception_obj
-
-    def get_exception_long(self):
-        """Return the last exception in a longer str form."""
-        return self.exception_long
 
     def set_local_sym_table(self, sym_table):
         """Set the local symbol table."""
@@ -2298,9 +2213,6 @@ class AstEval:
 
     async def eval(self, new_state_vars: dict[str, Any] | None = None, merge_local: bool = False) -> None:
         """Execute parsed code, with the optional state variables added to the scope."""
-        self.exception = None
-        self.exception_obj = None
-        self.exception_long = None
         if new_state_vars:
             if not merge_local:
                 self.local_sym_table = {}
@@ -2313,9 +2225,7 @@ class AstEval:
                 return val
             except asyncio.CancelledError:
                 raise
-            except Exception as err:
-                if self.exception_long is None:
-                    self.exception_long = self.format_exc(err, self.lineno, self.col_offset)
+            except Exception:
                 raise
         return None
 
