@@ -728,6 +728,9 @@ async def load_scripts(
             mtime=src_info.mtime,
         )
         reload = src_info.global_ctx_name in ctx_delete
-        await GlobalContextMgr.load_file(
-            global_ctx, src_info.file_path, source=src_info.source, reload=reload
-        )
+        try:
+            await GlobalContextMgr.load_file(
+                global_ctx, src_info.file_path, source=src_info.source, reload=reload
+            )
+        except Exception:
+            _LOGGER.error("Failed to load %s", src_info.file_path)

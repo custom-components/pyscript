@@ -163,33 +163,27 @@ def func8():
     hass.states.async_set("pyscript.var_done", 1)
     assert literal_eval(await wait_until_done(notify_q)) == seq_num
 
-    assert (
-        # "SyntaxError: unexpected EOF while parsing (file.hello.func1 @state_trigger(), line 1)"   # <= 3.9
-        "SyntaxError: invalid syntax (file.hello.func1 @state_trigger(), line 1)"  # >= 3.10
-        in caplog.text
-    )
-    assert (
-        # "SyntaxError: unexpected EOF while parsing (file.hello.func2 @event_trigger(), line 1)"  # <= 3.9
-        "SyntaxError: '(' was never closed (file.hello.func2 @event_trigger(), line 1)"  # >= 3.10
-        in caplog.text
-    )
-    assert "SyntaxError: invalid syntax (file.hello.func3 @state_active(), line 1)" in caplog.text
+    assert "SyntaxError: invalid syntax" in caplog.text
+    assert 'File "/hello.py", line 1, in file.hello.func1 @state_trigger()' in caplog.text
+    assert "SyntaxError: '(' was never closed" in caplog.text
+    assert 'File "/hello.py", line 1, in file.hello.func2 @event_trigger()' in caplog.text
+    assert 'File "/hello.py", line 1, in file.hello.func3 @state_active()' in caplog.text
     assert (
         "trigger file.hello.func8: @state_trigger is not watching any variables; will never trigger"
         in caplog.text
     )
     assert (
-        """Exception in <file.hello.func5 @state_trigger()> line 1:
+        """File "/hello.py", line 1, in file.hello.func5 @state_trigger()
     1 / int(pyscript.var1)
-            ^
+    ~~^~~~~~~~~~~~~~~~~~~~
 ZeroDivisionError: division by zero"""
         in caplog.text
     )
 
     assert (
-        """Exception in <file.hello.func6 @state_active()> line 1:
+        """File "/hello.py", line 1, in file.hello.func6 @state_active()
     1 / pyscript.var1
-        ^
+    ~~^~~~~~~~~~~~~~~
 TypeError: unsupported operand type(s) for /: 'int' and 'StateVal'"""
         in caplog.text
     )

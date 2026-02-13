@@ -449,9 +449,10 @@ class Function:
             if task in cls.task2cb:
                 for callback, info in cls.task2cb[task]["cb"].items():
                     ast_ctx, args, kwargs = info
-                    await ast_ctx.call_func(callback, None, *args, **kwargs)
-                    if ast_ctx.get_exception_obj():
-                        ast_ctx.get_logger().error(ast_ctx.get_exception_long())
+                    try:
+                        await ast_ctx.call_func(callback, None, *args, **kwargs)
+                    except Exception as e:
+                        ast_ctx.log_exception(e)
                         break
             if task in cls.unique_task2name:
                 for name in cls.unique_task2name[task]:

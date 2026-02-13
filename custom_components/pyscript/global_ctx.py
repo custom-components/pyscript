@@ -120,9 +120,7 @@ class GlobalContext:
         """Return a new trigger info instance with the given args."""
         return TrigInfo(name, trig_args, self)
 
-    async def module_import(
-        self, module_name: str, import_level: int
-    ) -> tuple[ModuleType | None, AstEval | None]:
+    async def module_import(self, module_name: str, import_level: int) -> ModuleType | None:
         """Import a pyscript module from the pyscript/modules or apps folder."""
 
         pyscript_dir = Function.hass.config.path(FOLDER)
@@ -176,14 +174,14 @@ class GlobalContext:
             mod_ctx = self.manager.get(ctx_name)
             if mod_ctx and mod_ctx.module:
                 self.imports.add(mod_ctx.get_name())
-                return mod_ctx.module, None
+                return mod_ctx.module
 
         #
         # not loaded already, so try to find and import it
         #
         file_info = await Function.hass.async_add_executor_job(find_first_file, file_paths)
         if not file_info:
-            return None, None
+            return None
 
         [ctx_name, file_path, rel_import_path] = file_info
 
@@ -192,18 +190,20 @@ class GlobalContext:
             ctx_name, global_sym_table=mod.__dict__, manager=self.manager, rel_import_path=rel_import_path
         )
         global_ctx.set_auto_start(self.auto_start)
-        _, error_ctx = await self.manager.load_file(global_ctx, file_path)
-        if error_ctx:
+        try:
+            await self.manager.load_file(global_ctx, file_path)
+        except Exception:
             _LOGGER.error(
                 "module_import: failed to load module %s, ctx = %s, path = %s",
                 module_name,
                 ctx_name,
                 file_path,
             )
-            return None, error_ctx
+            global_ctx.stop()
+            raise
         global_ctx.module = mod
         self.imports.add(ctx_name)
-        return mod, None
+        return mod
 
 
 class GlobalContextMgr:
@@ -301,8 +301,8 @@ class GlobalContextMgr:
     @classmethod
     async def load_file(
         cls, global_ctx: GlobalContext, file_path: str, source: str | None = None, reload: bool = False
-    ) -> tuple[bool, AstEval | None]:
-        """Load, parse and run the given script file; returns error ast_ctx on error, or None if ok."""
+    ) -> None:
+        """Load, parse and run the given script file."""
 
         mtime = None
         if source is None:
@@ -319,7 +319,7 @@ class GlobalContextMgr:
             source, mtime = await Function.hass.async_add_executor_job(read_file, file_path)
 
         if source is None:
-            return False, None
+            return
 
         ctx_curr = cls.get(global_ctx.get_name())
         if ctx_curr:
@@ -332,24 +332,17 @@ class GlobalContextMgr:
         #
         ast_ctx = AstEval(global_ctx.get_name(), global_ctx)
         Function.install_ast_funcs(ast_ctx)
-
-        if not ast_ctx.parse(source, filename=file_path):
-            exc = ast_ctx.get_exception_long()
-            ast_ctx.get_logger().error(exc)
-            global_ctx.stop()
-            return False, ast_ctx
-        await ast_ctx.eval()
-        exc = ast_ctx.get_exception_long()
-        if exc is not None:
-            ast_ctx.get_logger().error(exc)
-            global_ctx.stop()
-            return False, ast_ctx
         global_ctx.source = source
         global_ctx.file_path = file_path
         if mtime is not None:
             global_ctx.mtime = mtime
+        try:
+            ast_ctx.parse(source, filename=file_path)
+            await ast_ctx.eval()
+        except Exception as e:
+            global_ctx.stop()
+            ast_ctx.log_exception(e)
+            raise
         cls.set(global_ctx.get_name(), global_ctx)
 
         _LOGGER.info("%s %s", "Reloaded" if reload else "Loaded", file_path)
-
-        return True, None

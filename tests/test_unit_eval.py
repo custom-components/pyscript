@@ -1,10 +1,13 @@
 """Unit tests for Python interpreter."""
 
+from dataclasses import dataclass
+from types import ModuleType
+
 import pytest
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
 from custom_components.pyscript.const import CONF_ALLOW_ALL_IMPORTS, CONFIG_ENTRY, DOMAIN
-from custom_components.pyscript.eval import AstEval
+from custom_components.pyscript.eval import AstEval, EvalExceptionFormatter
 from custom_components.pyscript.function import Function
 from custom_components.pyscript.global_ctx import GlobalContext, GlobalContextMgr
 from custom_components.pyscript.state import State
@@ -89,7 +92,6 @@ evalTests = [
     ["i = 0\nwhile i < 5: i += 2\ni", 6],
     ["i = 0\nwhile i < 5:\n    i += 1\n    if i == 3: break\n2 * i", 6],
     ["i = 0; k = 10\nwhile i < 5:\n    i += 1\n    if i <= 2: continue\n    k += 1\nk + i", 18],
-    ["i = 1; break; i = 1/0", None],
     ["s = 0;\nfor i in range(5):\n    s += i\ns", 10],
     ["s = 0;\nfor i in iter([10,20,30]):\n    s += i\ns", 60],
     ["z = {'foo': 'bar', 'foo2': 12}; z['foo'] = 'bar2'; z", {"foo": "bar2", "foo2": 12}],
@@ -1650,12 +1652,12 @@ async def run_one_test(test_data):
     global_ctx = GlobalContext("test", global_sym_table={}, manager=GlobalContextMgr)
     ast = AstEval("test", global_ctx=global_ctx)
     Function.install_ast_funcs(ast)
-    ast.parse(source)
-    if ast.get_exception() is not None:
-        print(f"Parsing {source} failed: {ast.get_exception()}")
-    # print(ast.dump())
-    result = await ast.eval({"sym_local": 10}, merge_local=True)
-    assert result == expect
+    try:
+        ast.parse(source)
+        result = await ast.eval({"sym_local": 10}, merge_local=True)
+        assert result == expect
+    except Exception as exc:
+        assert False, f"Parsing {source} failed: {exc!s}"
 
 
 @pytest.mark.asyncio
@@ -1674,92 +1676,106 @@ async def test_eval(hass):
     await Function.reaper_stop()
 
 
+@dataclass
+class ED:
+    """Exception description."""
+
+    exception: type[Exception]
+    message: str
+    lineno: int = 1
+    col_offset: int = 0
+    end_col_offset: int = 0
+
+
 evalTestsExceptions = [
-    [None, "parsing error compile() arg 1 must be a string, bytes or AST object"],
-    ["1+", "syntax error invalid syntax (test, line 1)"],
-    ["1+'x'", "Exception in test line 1 column 2: unsupported operand type(s) for +: 'int' and 'str'"],
-    ["xx", "Exception in test line 1 column 0: name 'xx' is not defined"],
-    ["(x, y) = (1, 2, 4)", "Exception in test line 1 column 16: too many values to unpack (expected 2)"],
-    [
-        "(x, y) = iter([1, 2, 4])",
-        "Exception in test line 1 column 21: too many values to unpack (expected 2)",
-    ],
-    ["(x, y, z) = (1, 2)", "Exception in test line 1 column 16: too few values to unpack (expected 3)"],
-    [
-        "(x, y, z) = iter([1, 2])",
-        "Exception in test line 1 column 21: too few values to unpack (expected 3)",
-    ],
-    ["(x, y) = 1", "Exception in test line 1 column 9: cannot unpack non-iterable object"],
-    ["x: int; x", "Exception in test line 1 column 8: name 'x' is not defined"],
+    [None, ED(TypeError, "compile() arg 1 must be a string, bytes or AST object")],
+    ["1+", ED(SyntaxError, "invalid syntax (test, line 1)", col_offset=2, end_col_offset=3)],
+    ["1+'x'", ED(TypeError, "unsupported operand type(s) for +: 'int' and 'str'", end_col_offset=5)],
+    ["xx", ED(NameError, "name 'xx' is not defined", end_col_offset=2)],
+    ["(x, y) = (1, 2, 4)", ED(ValueError, "too many values to unpack (expected 2)", end_col_offset=6)],
+    ["(x, y) = iter([1, 2, 4])", ED(ValueError, "too many values to unpack (expected 2)", end_col_offset=6)],
+    ["(x, y, z) = (1, 2)", ED(ValueError, "too few values to unpack (expected 3)", end_col_offset=9)],
+    ["(x, y, z) = iter([1, 2])", ED(ValueError, "too few values to unpack (expected 3)", end_col_offset=9)],
+    ["(x, y) = 1", ED(TypeError, "cannot unpack non-iterable object", end_col_offset=6)],
+    ["x: int; x", ED(NameError, "name 'x' is not defined", col_offset=8, end_col_offset=9)],
     [
         "a, *y, w, z = range(2)",
-        "Exception in test line 1 column 20: too few values to unpack (expected at least 3)",
+        ED(ValueError, "too few values to unpack (expected at least 3)", end_col_offset=11),
     ],
-    ["assert 1 == 0, 'this is an error'", "Exception in test line 1 column 15: this is an error"],
-    ["assert 1 == 0", "Exception in test line 1 column 12: "],
-    ["pyscript.var1.attr1 = 10", "Exception in test line 1 column 0: state pyscript.var1 doesn't exist"],
+    ["assert 1 == 0, 'this is an error'", ED(AssertionError, "this is an error", end_col_offset=33)],
+    ["assert 1 == 0", ED(AssertionError, "", end_col_offset=13)],
+    ["pyscript.var1.attr1 = 10", ED(NameError, "state pyscript.var1 doesn't exist", end_col_offset=19)],
     [
         "import math; math.sinXYZ",
-        "Exception in test line 1 column 13: module 'math' has no attribute 'sinXYZ'",
+        ED(AttributeError, "module 'math' has no attribute 'sinXYZ'", col_offset=13, end_col_offset=24),
     ],
-    ["f'xxx{'", "syntax error f-string: expecting '}' (test, line 1)"],
+    ["f'xxx{'", ED(SyntaxError, "f-string: expecting '}' (test, line 1)", col_offset=6, end_col_offset=6)],
     [
         "f'xxx{foo() i}'",
-        {
-            "syntax error invalid syntax (<fstring>, line 1)",  # < 3.9
-            "syntax error f-string: invalid syntax (test, line 1)",  # >= 3.9
-            "syntax error f-string: invalid syntax. Perhaps you forgot a comma? (test, line 1)",  # >= 3.10
-            "syntax error invalid syntax. Perhaps you forgot a comma? (test, line 1)",  # >= 3.12
-        },
+        ED(
+            SyntaxError,
+            "invalid syntax. Perhaps you forgot a comma? (test, line 1)",
+            col_offset=6,
+            end_col_offset=13,
+        ),
     ],
-    ["del xx", "Exception in test line 1 column 0: name 'xx' is not defined"],
+    ["del xx", ED(NameError, "name 'xx' is not defined", end_col_offset=6)],
     [
         "pyscript.var1 = 1; del pyscript.var1; pyscript.var1",
-        "Exception in test line 1 column 38: name 'pyscript.var1' is not defined",
+        ED(NameError, "name 'pyscript.var1' is not defined", col_offset=38, end_col_offset=51),
     ],
     [
         "pyscript.var1 = 1; state.delete('pyscript.var1'); pyscript.var1",
-        "Exception in test line 1 column 50: name 'pyscript.var1' is not defined",
+        ED(NameError, "name 'pyscript.var1' is not defined", col_offset=50, end_col_offset=63),
     ],
-    ["return", "Exception in test line 1 column 0: return statement outside function"],
-    ["break", "Exception in test line 1 column 0: break statement outside loop"],
-    ["continue", "Exception in test line 1 column 0: continue statement outside loop"],
-    ["raise", "Exception in test line 1 column 0: No active exception to reraise"],
-    ["yield", "Exception in test line 1 column 0: test: not implemented ast ast_yield"],
-    ["task.executor(5)", "Exception in test line 1 column 14: function 5 is not callable by task.executor"],
+    ["return", ED(SyntaxError, "return statement outside function")],
+    ["break", ED(SyntaxError, "break statement outside loop")],
+    [
+        "i = 1; break; i = 1/0",
+        ED(SyntaxError, "break statement outside loop"),
+    ],
+    ["continue", ED(SyntaxError, "continue statement outside loop")],
+    ["raise", ED(RuntimeError, "No active exception to reraise", end_col_offset=5)],
+    ["yield", ED(NotImplementedError, "test: not implemented ast ast_yield", end_col_offset=5)],
+    ["task.executor(5)", ED(TypeError, "function 5 is not callable by task.executor", end_col_offset=16)],
     [
         "task.executor(task.sleep)",
-        "Exception in test line 1 column 14: function <bound method Function.async_sleep of <class 'custom_components.pyscript.function.Function'>> is not callable by task.executor",
+        ED(
+            TypeError,
+            "function <bound method Function.async_sleep of "
+            "<class 'custom_components.pyscript.function.Function'>> is not callable by task.executor",
+            end_col_offset=25,
+        ),
     ],
-    ["task.name2id('notask')", "Exception in test line 1 column 13: task name 'notask' is unknown"],
+    ["task.name2id('notask')", ED(NameError, "task name 'notask' is unknown", end_col_offset=22)],
     [
         "state.get('pyscript.xyz1.abc')",
-        "Exception in test line 1 column 10: name 'pyscript.xyz1' is not defined",
+        ED(NameError, "name 'pyscript.xyz1' is not defined", end_col_offset=30),
     ],
     [
         "pyscript.xyz1 = 1; state.get('pyscript.xyz1.abc')",
-        "Exception in test line 1 column 29: state 'pyscript.xyz1' has no attribute 'abc'",
+        ED(AttributeError, "state 'pyscript.xyz1' has no attribute 'abc'", col_offset=19, end_col_offset=49),
     ],
     [
         "import cmath; exec('xyz = cmath.sqrt(complex(3, 4))', {})",
-        "Exception in test line 1 column 54: Exception in exec() line 1 column 6: name 'cmath.sqrt' is not defined",
+        ED(NameError, "name 'cmath.sqrt' is not defined", col_offset=6, end_col_offset=16),
     ],
-    ["func1(1)", "Exception in test line 1 column 0: name 'func1' is not defined"],
+    ["func1(1)", ED(NameError, "name 'func1' is not defined", end_col_offset=5)],
     [
         "def func(a):\n    pass\nfunc()",
-        "Exception in test line 3 column 0: func() missing 1 required positional arguments",
+        ED(TypeError, "func() missing 1 required positional arguments", lineno=3, end_col_offset=6),
     ],
     [
         "def func(a):\n    pass\nfunc(1, 2)",
-        "Exception in test line 3 column 8: func() called with too many positional arguments",
+        ED(TypeError, "func() called with too many positional arguments", lineno=3, end_col_offset=10),
     ],
     [
         "def func(a=1):\n    pass\nfunc(1, a=3)",
-        "Exception in test line 3 column 5: func() got multiple values for argument 'a'",
+        ED(TypeError, "func() got multiple values for argument 'a'", lineno=3, end_col_offset=12),
     ],
     [
         "def func(*a, b):\n    pass\nfunc(1, 2)",
-        "Exception in test line 3 column 8: func() missing required keyword-only arguments",
+        ED(TypeError, "func() missing required keyword-only arguments", lineno=3, end_col_offset=10),
     ],
     [
         """
@@ -1768,7 +1784,7 @@ def func(b=1):
 
 func(a=2, trigger_type=1)
 """,
-        "Exception in test line 5 column 23: func() called with unexpected keyword arguments: a",
+        ED(TypeError, "func() called with unexpected keyword arguments: a", lineno=5, end_col_offset=25),
     ],
     [
         """
@@ -1776,7 +1792,12 @@ def f(x, z, /, y = 5):
     return x + y
 f(x=4, z=2)
 """,
-        "Exception in test line 4 column 9: f() got some positional-only arguments passed as keyword arguments: 'x, z'",
+        ED(
+            TypeError,
+            "f() got some positional-only arguments passed as keyword arguments: 'x, z'",
+            lineno=4,
+            end_col_offset=11,
+        ),
     ],
     [
         """
@@ -1784,23 +1805,31 @@ def f(x, /, y = 5):
     return x + y
 f(x=4)
 """,
-        "Exception in test line 4 column 4: f() got some positional-only arguments passed as keyword arguments: 'x'",
+        ED(
+            TypeError,
+            "f() got some positional-only arguments passed as keyword arguments: 'x'",
+            lineno=4,
+            end_col_offset=6,
+        ),
     ],
     [
         "from .xyz import abc",
-        "Exception in test line 1 column 0: attempted relative import with no known parent package",
+        ED(ImportError, "attempted relative import with no known parent package", end_col_offset=20),
     ],
     [
         "from ...xyz import abc",
-        "Exception in test line 1 column 0: attempted relative import with no known parent package",
+        ED(ImportError, "attempted relative import with no known parent package", end_col_offset=22),
     ],
     [
         "from . import abc",
-        "Exception in test line 1 column 0: attempted relative import with no known parent package",
+        ED(ImportError, "attempted relative import with no known parent package", end_col_offset=17),
     ],
-    ["import asyncio", "Exception in test line 1 column 0: import of asyncio not allowed"],
-    ["import xyzabc123", "Exception in test line 1 column 0: import of xyzabc123 not allowed"],
-    ["from asyncio import xyz", "Exception in test line 1 column 0: import from asyncio not allowed"],
+    ["import asyncio", ED(ModuleNotFoundError, "import of asyncio not allowed", end_col_offset=14)],
+    ["import xyzabc123", ED(ModuleNotFoundError, "import of xyzabc123 not allowed", end_col_offset=16)],
+    [
+        "from asyncio import xyz",
+        ED(ModuleNotFoundError, "import from asyncio not allowed", end_col_offset=23),
+    ],
     [
         """
 def func():
@@ -1808,7 +1837,7 @@ def func():
     x = 1
 func()
 """,
-        "Exception in test line 2 column 0: no binding for nonlocal 'x' found",
+        ED(SyntaxError, "no binding for nonlocal 'x' found", lineno=2, end_col_offset=9),
     ],
     [
         """
@@ -1817,7 +1846,7 @@ def func():
     x += 1
 func()
 """,
-        "Exception in test line 2 column 0: no binding for nonlocal 'x' found",
+        ED(SyntaxError, "no binding for nonlocal 'x' found", lineno=2, end_col_offset=10),
     ],
     [
         """
@@ -1826,7 +1855,7 @@ def func():
     return x
 func()
 """,
-        "Exception in func(), test line 4 column 11: global name 'x' is not defined",
+        ED(NameError, "global name 'x' is not defined", lineno=4, col_offset=11, end_col_offset=12),
     ],
     [
         """
@@ -1835,7 +1864,7 @@ def func():
     eval('1 + y')
 func()
 """,
-        "Exception in test line 4 column 9: Exception in eval() line 1 column 4: name 'y' is not defined",
+        ED(NameError, "name 'y' is not defined", col_offset=4, end_col_offset=5),
     ],
     [
         """
@@ -1845,7 +1874,7 @@ try:
 except KeyError:
     raise
 """,
-        "Exception in test line 4 column 10: 'bad_key'",
+        ED(KeyError, "'bad_key'", lineno=4, col_offset=8, end_col_offset=20),
     ],
     [
         """
@@ -1854,7 +1883,13 @@ def func():
     x += 1
 func()
 """,
-        "Exception in func(), test line 4 column 4: local variable 'x' referenced before assignment",
+        ED(
+            UnboundLocalError,
+            "local variable 'x' referenced before assignment",
+            lineno=4,
+            col_offset=4,
+            end_col_offset=5,
+        ),
     ],
     [
         """
@@ -1867,7 +1902,7 @@ def func():
     func2()
 func()
 """,
-        "Exception in func2(), test line 6 column 8: name 'x' is not defined",
+        ED(NameError, "name 'x' is not defined", lineno=6, col_offset=8, end_col_offset=13),
     ],
     [
         """
@@ -1880,7 +1915,7 @@ def func():
     return func2()
 func()
 """,
-        "Exception in func2(), test line 4 column 12: name 'x' is not defined",
+        ED(NameError, "name 'x' is not defined", lineno=4, col_offset=12, end_col_offset=13),
     ],
     [
         """
@@ -1888,7 +1923,7 @@ func()
 def func():
     pass
 """,
-        "Exception in test line 3 column 0: @pyscript_compile() takes 0 positional arguments",
+        ED(TypeError, "@pyscript_compile() takes 0 positional arguments", lineno=3, end_col_offset=8),
     ],
     [
         """
@@ -1896,7 +1931,7 @@ def func():
 def func():
     pass
 """,
-        "Exception in test line 3 column 0: @pyscript_compile() takes no keyword arguments",
+        ED(TypeError, "@pyscript_compile() takes no keyword arguments", lineno=3, end_col_offset=8),
     ],
     [
         """
@@ -1905,7 +1940,12 @@ def func():
 def func():
     pass
 """,
-        "Exception in test line 4 column 0: can only specify single decorator of pyscript_compile, pyscript_executor",
+        ED(
+            SyntaxError,
+            "can only specify single decorator of pyscript_compile, pyscript_executor",
+            lineno=4,
+            end_col_offset=8,
+        ),
     ],
     [
         """
@@ -1914,7 +1954,7 @@ try:
 except KeyError:
     pass
 """,
-        "Exception in test line 3 column 21: Random error",
+        ED(ValueError, "Random error", lineno=3, col_offset=4, end_col_offset=36),
     ],
     [
         """
@@ -1925,7 +1965,43 @@ except ValueError as e:
 
 raise
 """,
-        "Exception in test line 7 column 0: No active exception to reraise",
+        ED(RuntimeError, "No active exception to reraise", lineno=7, end_col_offset=5),
+    ],
+    [
+        """
+try:
+    raise ValueError("Random error")
+except ValueError:
+    raise
+""",
+        ED(ValueError, "Random error", lineno=3, col_offset=4, end_col_offset=36),
+    ],
+    [
+        """
+try:
+    raise ValueError("Random error")
+except ValueError as e:
+    raise e
+""",
+        ED(ValueError, "Random error", lineno=3, col_offset=4, end_col_offset=36),
+    ],
+    [
+        """
+try:
+    1 / 0
+except ZeroDivisionError as e:
+    raise ValueError("Random error") from e
+""",
+        ED(ValueError, "Random error", lineno=5, col_offset=4, end_col_offset=43),
+    ],
+    [
+        """
+try:
+    1 / 0
+except ZeroDivisionError:
+    raise ValueError("Random error") from None
+""",
+        ED(ValueError, "Random error", lineno=5, col_offset=4, end_col_offset=46),
     ],
 ]
 
@@ -1936,20 +2012,20 @@ async def run_one_test_exception(test_data):
     global_ctx = GlobalContext("test", global_sym_table={}, manager=GlobalContextMgr)
     ast = AstEval("test", global_ctx=global_ctx)
     Function.install_ast_funcs(ast)
-    ast.parse(source)
-    exc = ast.get_exception()
-    if exc is not None:
-        if isinstance(expect, set):
-            assert exc in expect
-        else:
-            assert exc == expect
-        return
-    await ast.eval()
-    exc = ast.get_exception()
-    if exc is not None:
-        assert exc == expect
-        return
-    assert False
+    with pytest.raises(expect.exception) as exc:
+        ast.parse(source)
+        await ast.eval()
+    assert str(exc.value) == expect.message
+    formatted = EvalExceptionFormatter(exc.value)
+    assert formatted.lineno == expect.lineno, (
+        f"invalid line number {formatted.lineno} (expected {expect.lineno}) for {source}"
+    )
+    assert formatted.col_offset == expect.col_offset, (
+        f"invalid column offset {formatted.col_offset} (expected {expect.col_offset}) for {source}"
+    )
+    assert formatted.end_col_offset == expect.end_col_offset, (
+        f"invalid end column offset {formatted.end_col_offset} (expected {expect.end_col_offset}) for {source}"
+    )
 
 
 @pytest.mark.asyncio
@@ -1963,6 +2039,141 @@ async def test_eval_exceptions(hass):
 
     for test_data in evalTestsExceptions:
         await run_one_test_exception(test_data)
+    await Function.waiter_sync()
+    await Function.waiter_stop()
+    await Function.reaper_stop()
+
+
+async def test_eval_exception_formatter(hass):
+    """Test interpreter exception formatter."""
+    hass.data[DOMAIN] = {CONFIG_ENTRY: MockConfigEntry(domain=DOMAIN, data={CONF_ALLOW_ALL_IMPORTS: False})}
+    Function.init(hass)
+    State.init(hass)
+    State.register_functions()
+    TrigTime.init(hass)
+
+    module_name = "mod_exc"
+    mod = ModuleType(module_name)
+    module_ctx = GlobalContext(module_name, global_sym_table=mod.__dict__, manager=GlobalContextMgr)
+    module_ctx.module = mod
+    module_ctx.file_path = f"modules/{module_name}.py"
+    module_ast = AstEval(module_name, global_ctx=module_ctx)
+
+    module_ast.parse("""
+def problem():
+    return 0/0
+    """)
+    await module_ast.eval()
+    GlobalContextMgr.set("modules.mod_exc", module_ctx)
+
+    global_ctx = GlobalContext("test", global_sym_table={}, manager=GlobalContextMgr)
+    ast = AstEval("test", global_ctx=global_ctx)
+    Function.install_ast_funcs(ast)
+    ast.parse("""
+from mod_exc import problem
+
+try:
+    problem()
+except ZeroDivisionError:
+    unknown_func()
+""")
+    with pytest.raises(NameError, match="name 'unknown_func' is not defined") as excinfo:
+        await ast.eval()
+    exc = excinfo.value
+    assert isinstance(exc.__context__, ZeroDivisionError)
+    formatted = EvalExceptionFormatter(exc).format()
+
+    expected_list = [
+        """\
+  File "test", line 5, in None
+    problem()
+    ~~~~~~~^^
+""",
+        """\
+  File "modules/mod_exc.py", line 3, in problem
+    return 0/0
+           ~^~
+""",
+        "\nDuring handling of the above exception, another exception occurred:\n\n",
+        """\
+  File "test", line 7, in None
+    unknown_func()
+    ^^^^^^^^^^^^
+""",
+    ]
+    for expected in expected_list:
+        assert expected in formatted
+
+    await Function.waiter_sync()
+    await Function.waiter_stop()
+    await Function.reaper_stop()
+
+
+async def test_eval_exception_chain(hass):
+    """Test chain of eval exceptions."""
+    hass.data[DOMAIN] = {CONFIG_ENTRY: MockConfigEntry(domain=DOMAIN, data={CONF_ALLOW_ALL_IMPORTS: False})}
+    Function.init(hass)
+    global_ctx = GlobalContext("test", global_sym_table={}, manager=GlobalContextMgr)
+    ast = AstEval("test", global_ctx=global_ctx)
+    Function.install_ast_funcs(ast)
+    ast.parse("""
+def test_context():
+    try:
+        try:
+            1 / 0
+        except ZeroDivisionError:
+            int("x")  # ValueError with __context__
+    except ValueError as e:
+        assert isinstance(e.__context__, ZeroDivisionError)
+        assert e.__cause__ is None
+        assert e.__suppress_context__ is False
+    else:
+        raise AssertionError("ValueError not raised")
+
+def test_cause_raise_from():
+    try:
+        try:
+            1 / 0
+        except ZeroDivisionError as err:
+            raise ValueError("bad") from err
+    except ValueError as e:
+        assert isinstance(e.__cause__, ZeroDivisionError)
+    else:
+        raise AssertionError("ValueError not raised")
+
+def test_suppressed_from_none():
+    try:
+        try:
+            1 / 0
+        except ZeroDivisionError:
+            raise ValueError("bad") from None
+    except ValueError as e:
+        assert e.__cause__ is None
+        assert isinstance(e.__context__, ZeroDivisionError)  # stored, but suppressed in printing
+        assert e.__suppress_context__ is True
+    else:
+        raise AssertionError("ValueError not raised")
+
+
+def test_reraise():
+    try:
+        try:
+            1 / 0
+        except ZeroDivisionError:
+            raise
+    except ZeroDivisionError as e:
+        assert e.__context__ is None
+        assert e.__cause__ is None
+    else:
+        raise AssertionError("ZeroDivisionError not raised")
+
+test_context()
+test_cause_raise_from()
+test_suppressed_from_none()
+test_reraise()
+    """)
+    await ast.eval()
+
     await Function.waiter_sync()
     await Function.waiter_stop()
     await Function.reaper_stop()
