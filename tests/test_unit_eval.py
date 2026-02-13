@@ -2107,3 +2107,73 @@ except ZeroDivisionError:
     await Function.waiter_sync()
     await Function.waiter_stop()
     await Function.reaper_stop()
+
+
+async def test_eval_exception_chain(hass):
+    """Test chain of eval exceptions."""
+    hass.data[DOMAIN] = {CONFIG_ENTRY: MockConfigEntry(domain=DOMAIN, data={CONF_ALLOW_ALL_IMPORTS: False})}
+    Function.init(hass)
+    global_ctx = GlobalContext("test", global_sym_table={}, manager=GlobalContextMgr)
+    ast = AstEval("test", global_ctx=global_ctx)
+    Function.install_ast_funcs(ast)
+    ast.parse("""
+def test_context():
+    try:
+        try:
+            1 / 0
+        except ZeroDivisionError:
+            int("x")  # ValueError with __context__
+    except ValueError as e:
+        assert isinstance(e.__context__, ZeroDivisionError)
+        assert e.__cause__ is None
+        assert e.__suppress_context__ is False
+    else:
+        raise AssertionError("ValueError not raised")
+
+def test_cause_raise_from():
+    try:
+        try:
+            1 / 0
+        except ZeroDivisionError as err:
+            raise ValueError("bad") from err
+    except ValueError as e:
+        assert isinstance(e.__cause__, ZeroDivisionError)
+    else:
+        raise AssertionError("ValueError not raised")
+
+def test_suppressed_from_none():
+    try:
+        try:
+            1 / 0
+        except ZeroDivisionError:
+            raise ValueError("bad") from None
+    except ValueError as e:
+        assert e.__cause__ is None
+        assert isinstance(e.__context__, ZeroDivisionError)  # stored, but suppressed in printing
+        assert e.__suppress_context__ is True
+    else:
+        raise AssertionError("ValueError not raised")
+
+
+def test_reraise():
+    try:
+        try:
+            1 / 0
+        except ZeroDivisionError:
+            raise
+    except ZeroDivisionError as e:
+        assert e.__context__ is None
+        assert e.__cause__ is None
+    else:
+        raise AssertionError("ZeroDivisionError not raised")
+
+test_context()
+test_cause_raise_from()
+test_suppressed_from_none()
+test_reraise()
+    """)
+    await ast.eval()
+
+    await Function.waiter_sync()
+    await Function.waiter_stop()
+    await Function.reaper_stop()
