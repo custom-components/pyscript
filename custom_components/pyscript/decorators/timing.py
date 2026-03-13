@@ -21,7 +21,7 @@ _LOGGER = logging.getLogger(__name__)
 
 def dt_now():
     """Return current time."""
-    # FIXME For test compatibility. The tests patch this function
+    # Keep this wrapper so tests can patch it during the transition.
     return trigger.dt_now()
 
 
@@ -70,7 +70,7 @@ class TimeTriggerDecorator(TriggerDecorator):
             vol.Length(min=0),
             vol.All(
                 [str], msg="argument 2 should be a string"
-            ),  # FIXME For test compatibility. Update the message in the future.
+            ),  # Keep this wording for transition compatibility.
         )
     )
 
@@ -154,7 +154,7 @@ class TimeTriggerDecorator(TriggerDecorator):
             return
         exc = task.exception()
         if exc is not None:
-            self.dm.logger.exception(f"{self} failed", exc_info=exc)
+            self.dm.logger.error("%s failed", self, exc_info=exc)
 
     async def start(self) -> None:
         """Start the decorator."""

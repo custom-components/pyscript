@@ -15,7 +15,7 @@ from custom_components.pyscript.function import Function
 from custom_components.pyscript.global_ctx import GlobalContextMgr
 from custom_components.pyscript.state import State
 from homeassistant import loader
-from homeassistant.const import EVENT_HOMEASSISTANT_STARTED, EVENT_STATE_CHANGED
+from homeassistant.const import EVENT_STATE_CHANGED
 from homeassistant.core import Context
 from homeassistant.helpers.service import async_get_all_descriptions
 from homeassistant.setup import async_setup_component

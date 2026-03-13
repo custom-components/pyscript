@@ -6,7 +6,7 @@ import ast
 import asyncio
 import logging
 import os
-from typing import Any, ClassVar, Type, TypeVar
+from typing import Any, ClassVar, TypeVar
 import weakref
 
 from homeassistant.config_entries import ConfigEntry
@@ -32,7 +32,7 @@ _LOGGER = logging.getLogger(__name__)
 class DecoratorRegistry:
     """Decorator registry."""
 
-    _decorators: dict[str, Type[Decorator]]  # decorator name to class
+    _decorators: dict[str, type[Decorator]]  # decorator name to class
     hass: ClassVar[HomeAssistant]
     prefix: ClassVar[str] = "e"
 
@@ -60,13 +60,13 @@ class DecoratorRegistry:
 
         Function.register_ast({cls.prefix + "task.wait_until": DecoratorRegistry.wait_until_factory})
 
-        from .decorators import DECORATORS  # noqa: PLC0415 pylint: disable=import-outside-toplevel
+        from .decorators import DECORATORS  # pylint: disable=import-outside-toplevel
 
         for dec_type in DECORATORS:
             cls.register(dec_type)
 
     @classmethod
-    def register(cls, dec_type: Type[Decorator]):
+    def register(cls, dec_type: type[Decorator]) -> None:
         """Register a decorator."""
         if not dec_type.name:
             raise TypeError(f"Decorator name is required {dec_type}")
@@ -103,7 +103,7 @@ class DecoratorRegistry:
         return None
 
     @classmethod
-    async def wait_until(cls, ast_ctx: AstEval, *arg, **kwargs):
+    async def wait_until(cls, ast_ctx: AstEval, *_arg: Any, **kwargs: Any) -> Any:
         """Build a temporary decorator manager that waits until one of trigger decorators fires."""
         func_args = set(kwargs.keys())
         if len(func_args) == 0:

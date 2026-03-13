@@ -54,10 +54,12 @@ class ServiceDecorator(Decorator):
 
         if len(self.args) != 2:
             self.args = [DOMAIN, self.dm.func_name]
-        # FIXME This condition doesn't verify the domain - it may not be Pyscript.
-        #       The error is kept for backward compatibility.
+        # This condition still does not verify the domain. Keep the behavior
+        # for transition compatibility and revisit it after the legacy
+        # subsystem is removed.
         if self.args[1] in (SERVICE_RELOAD, SERVICE_JUPYTER_KERNEL_START):
-            # FIXME For test compatibility. Update the message in the future.
+            # Keep this wording for transition compatibility. Once the legacy
+            # subsystem is removed, update the message and related tests.
             raise SyntaxError(
                 f"function '{self.dm.func_name}' defined in {self.dm.ast_ctx.get_global_ctx_name()}: "
                 f"@service conflicts with builtin service"
@@ -72,7 +74,7 @@ class ServiceDecorator(Decorator):
             try:
                 desc = desc[4:].lstrip(" \n\r")
                 file_desc = io.StringIO(desc)
-                self.description = yaml.load(file_desc, Loader=yaml.BaseLoader) or OrderedDict()
+                self.description = yaml.safe_load(file_desc) or OrderedDict()
                 file_desc.close()
             except Exception as exc:
                 self.dm.logger.error(

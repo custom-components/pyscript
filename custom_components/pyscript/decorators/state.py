@@ -28,7 +28,7 @@ class StateActiveDecorator(TriggerHandlerDecorator, ExpressionDecorator):
         vol.All(
             vol.Length(
                 min=1, max=1, msg="got 2 arguments, expected 1"
-            ),  # FIXME For test compatibility. Update the message in the future.
+            ),  # Keep this wording for transition compatibility.
             vol.All([str]),
         )
     )
@@ -149,7 +149,7 @@ class StateTriggerDecorator(TriggerDecorator, ExpressionDecorator, AutoKwargsDec
             return "None"
         return f"{(now - dt):g} ago"
 
-    async def _check_new_state(self, trig_ok: bool):
+    async def _check_new_state(self, trig_ok: bool) -> None:
         now = asyncio.get_running_loop().time()
         if _LOGGER.isEnabledFor(logging.DEBUG):
             msg = f"check_new_state: {self}"
@@ -206,7 +206,7 @@ class StateTriggerDecorator(TriggerDecorator, ExpressionDecorator, AutoKwargsDec
                     _LOGGER.debug("state_hold_false started, %s", self)
                     self.false_entered_at = now
 
-    async def _check_state_hold(self):
+    async def _check_state_hold(self) -> None:
         if self.true_entered_at is None:
             raise RuntimeError(f"state_hold not started for {self}")
 
@@ -218,7 +218,7 @@ class StateTriggerDecorator(TriggerDecorator, ExpressionDecorator, AutoKwargsDec
                 DispatchData(self.last_func_args, trigger_context={"new_vars": self.last_new_vars})
             )
 
-    async def _cycle(self):
+    async def _cycle(self) -> None:
         """Run the trigger cycle with state_hold and state_hold_false logic."""
         loop = asyncio.get_running_loop()
 
@@ -283,7 +283,7 @@ class StateTriggerDecorator(TriggerDecorator, ExpressionDecorator, AutoKwargsDec
                 else:
                     trig_ok = False
                 await self._check_new_state(trig_ok)
-            except asyncio.TimeoutError:
+            except TimeoutError:
                 await self._check_state_hold()
 
     async def _is_trig_ok(self) -> bool:
@@ -296,7 +296,7 @@ class StateTriggerDecorator(TriggerDecorator, ExpressionDecorator, AutoKwargsDec
             return
         exc = task.exception()
         if exc is not None:
-            self.dm.logger.exception(f"{self} failed", exc_info=exc)
+            self.dm.logger.error("%s failed", self, exc_info=exc)
 
     async def start(self) -> None:
         """Start the trigger."""

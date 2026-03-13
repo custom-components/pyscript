@@ -46,7 +46,7 @@ class DispatchData:
     call_ast_ctx: AstEval | None = field(default=None, kw_only=True)
     hass_context: Context | None = field(default=None, kw_only=True)
 
-    # Normally shouldn’t be used.
+    # Normally shouldn't be used.
     exception: Exception | None = field(default=None, kw_only=True)
     exception_text: str | None = field(default=None, kw_only=True)
 
@@ -90,7 +90,8 @@ class Decorator(ABC):
             self.kwargs = self.kwargs_schema(self.raw_kwargs)
 
         except vol.Invalid as err:
-            # FIXME For test compatibility. Update the message in the future.
+            # Keep this wording for transition compatibility. Once the legacy
+            # subsystem is removed, update the message and related tests.
             if len(err.path) == 1:
                 if "extra keys not allowed" in err.msg:
                     message = f"invalid keyword argument '{err.path[0]}'"
@@ -105,9 +106,11 @@ class Decorator(ABC):
             )
             raise type_error from err
 
+    @abstractmethod
     async def start(self):
         """Start the decorator."""
 
+    @abstractmethod
     async def stop(self):
         """Stop the decorator."""
 
@@ -156,7 +159,7 @@ class DecoratorManager(ABC):
         self._decorators.append(decorator)
         decorator.dm = self
 
-    def get_decorators[DT](self, decorator_type: type[DT] | None = None) -> list[DT]:  # noqa: D102
+    def get_decorators[DT](self, decorator_type: type[DT] | None = None) -> list[DT]:
         """Get decorators of a specific type."""
         if decorator_type is None:
             return self._decorators.copy()
@@ -242,7 +245,7 @@ class TriggerDecorator(Decorator, ABC):
                 {vol.Optional("kwargs"): vol.Coerce(dict[str, Any], msg="should be type dict")}
             )
 
-    async def dispatch(self, data: DispatchData):
+    async def dispatch(self, data: DispatchData) -> None:
         """Dispatch a trigger call to the function."""
         if not data.trigger:
             data.trigger = self
@@ -260,7 +263,8 @@ class TriggerHandlerDecorator(Decorator, ABC):
         await super().validate()
         decorators = self.dm.get_decorators(TriggerDecorator)
         if len(decorators) == 0:
-            # FIXME For test compatibility. Update the message in the future.
+            # Keep this wording for transition compatibility. Once the legacy
+            # subsystem is removed, update the message and related tests.
             trig_decorators_reqd = {
                 "event_trigger",
                 "mqtt_trigger",
