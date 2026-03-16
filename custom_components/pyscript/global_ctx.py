@@ -88,7 +88,7 @@ class GlobalContext:
                 else:
                     self.dms_delay_start.add(dm)
         except Exception as exc:
-            _LOGGER.error(ast_ctx.format_exc(exc, dm.lineno, dm.col_offset))
+            ast_ctx.log_exception(exc)
 
     def trigger_unregister(self, func: EvalFunc) -> None:
         """Unregister a trigger function."""

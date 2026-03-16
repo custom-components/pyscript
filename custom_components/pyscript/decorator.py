@@ -97,7 +97,7 @@ class DecoratorRegistry:
                 args = []
                 kwargs = {}
 
-            decorator = know_decorator(args, kwargs, dec_expr.lineno, dec_expr.col_offset)
+            decorator = know_decorator(args, kwargs)
             return decorator
 
         return None
@@ -136,7 +136,7 @@ class DecoratorRegistry:
                 if key in kwargs:
                     dec_kwargs[key] = kwargs[key]
                     found_args.add(key)
-            dec = dec_class(dec_args, dec_kwargs, ast_ctx.lineno, ast_ctx.col_offset)
+            dec = dec_class(dec_args, dec_kwargs)
             dm.add(dec)
 
         unknown_args = set(kwargs.keys()).difference(found_args)
@@ -181,9 +181,7 @@ class WaitUntilDecoratorManager(DecoratorManager):
         self.timeout_decorator = None
         if timeout := kwargs.get("timeout"):
             to_dec = DecoratorRegistry._decorators.get(DecoratorRegistry.prefix + "time_trigger")
-            self.timeout_decorator = to_dec(
-                [f"once(now + {timeout}s)"], {}, ast_ctx.lineno, ast_ctx.col_offset
-            )
+            self.timeout_decorator = to_dec([f"once(now + {timeout}s)"], {})
             self.add(self.timeout_decorator)
 
     async def dispatch(self, data: DispatchData) -> None:
@@ -196,11 +194,17 @@ class WaitUntilDecoratorManager(DecoratorManager):
         await self.stop()
         self._future.set_result(data)
 
+    async def handle_exception(self, exc: Exception) -> None:
+        """Propagate an evaluation exception to the waiting caller."""
+        if self._future.done():
+            _LOGGER.debug("task.wait_until future already completed: %s", self._future.exception())
+            return
+        await self.stop()
+        self._future.set_exception(exc)
+
     async def wait_until(self) -> dict[str, Any]:
         """Wait for dispatch and normalize the return payload."""
         data = await self._future
-        if data.exception is not None:
-            raise data.exception
         if data.trigger == self.timeout_decorator:
             ret = {"trigger_type": "timeout"}
         else:
@@ -253,16 +257,9 @@ class FunctionDecoratorManager(DecoratorManager):
         for result_handler_dec in result_handlers:
             await result_handler_dec.handle_call_result(data, result)
 
-        if data.call_ast_ctx.get_exception_obj():
-            data.call_ast_ctx.get_logger().error(data.call_ast_ctx.get_exception_long())
-
     async def dispatch(self, data: DispatchData) -> None:
         """Handle a trigger dispatch: run guards, create a context, and invoke the function."""
         _LOGGER.debug("Dispatching for %s: %s", self.name, data)
-
-        if data.exception:
-            self.logger.error(data.exception_text)
-            return
 
         decorators = self.get_decorators(TriggerHandlerDecorator)
         for dec in decorators:

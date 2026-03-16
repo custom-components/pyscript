@@ -46,10 +46,6 @@ class DispatchData:
     call_ast_ctx: AstEval | None = field(default=None, kw_only=True)
     hass_context: Context | None = field(default=None, kw_only=True)
 
-    # Normally shouldn't be used.
-    exception: Exception | None = field(default=None, kw_only=True)
-    exception_text: str | None = field(default=None, kw_only=True)
-
 
 class Decorator(ABC):
     """Generic decorator abstraction."""
@@ -70,15 +66,10 @@ class Decorator(ABC):
     kwargs: dict[str, Any]
 
     @final
-    def __init__(
-        self, raw_args: list[Any], raw_kwargs: dict[str, Any], lineno: int, col_offset: int
-    ) -> None:
+    def __init__(self, raw_args: list[Any], raw_kwargs: dict[str, Any]) -> None:
         """Initialize the decorator definition."""
-
         self.raw_args = raw_args
         self.raw_kwargs = raw_kwargs
-        self.lineno = lineno
-        self.col_offset = col_offset
 
     async def validate(self) -> None:
         """Validate the arguments."""
@@ -106,12 +97,10 @@ class Decorator(ABC):
             )
             raise type_error from err
 
-    @abstractmethod
-    async def start(self):
+    async def start(self):  # noqa: B027
         """Start the decorator."""
 
-    @abstractmethod
-    async def stop(self):
+    async def stop(self):  # noqa: B027
         """Stop the decorator."""
 
     def __repr__(self):
@@ -135,9 +124,6 @@ class DecoratorManager(ABC):
         self.name = name
         self.func_name = name.split(".")[-1]
         self.logger = ast_ctx.get_logger()
-
-        self.lineno = ast_ctx.lineno
-        self.col_offset = ast_ctx.col_offset
 
         self.status: DecoratorManagerStatus = DecoratorManagerStatus.INIT
         self.startup_time = None
@@ -167,18 +153,13 @@ class DecoratorManager(ABC):
 
     async def validate(self) -> None:
         """Validate all decorators."""
-        lineno, col_offset = self.ast_ctx.lineno, self.ast_ctx.col_offset
         try:
             for decorator in self._decorators:
-                self.ast_ctx.lineno, self.ast_ctx.col_offset = decorator.lineno, decorator.col_offset
                 _LOGGER.debug("Validating decorator: %s", decorator)
-                self.lineno, self.col_offset = decorator.lineno, decorator.col_offset
                 await decorator.validate()
         except Exception:
             self.update_status(DecoratorManagerStatus.INVALID)
             raise
-
-        self.ast_ctx.lineno, self.ast_ctx.col_offset = lineno, col_offset
 
         if len(self._decorators) == 0:
             self.update_status(DecoratorManagerStatus.NO_DECORATORS)
@@ -223,6 +204,10 @@ class DecoratorManager(ABC):
             await self._stop_decorator(decorator)
 
         self.update_status(DecoratorManagerStatus.STOPPED)
+
+    async def handle_exception(self, exc: Exception) -> None:
+        """Handle a decorator exception."""
+        self.ast_ctx.log_exception(exc)
 
     @abstractmethod
     async def dispatch(self, data: DispatchData) -> None:

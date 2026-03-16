@@ -144,7 +144,7 @@ class TimeTriggerDecorator(TriggerDecorator):
 
     async def stop(self):
         """Stop the trigger."""
-        if hasattr(self, "_cycle_task"):
+        if self._cycle_task is not None:
             self._cycle_task.cancel()
         if self.run_on_shutdown:
             await self.dispatch(DispatchData({"trigger_type": "time", "trigger_time": "shutdown"}))

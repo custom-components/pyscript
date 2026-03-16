@@ -7,7 +7,7 @@ from typing import Any
 import voluptuous as vol
 
 from ..decorator import FunctionDecoratorManager
-from ..decorator_abc import Decorator, DispatchData
+from ..decorator_abc import Decorator
 from ..eval import AstEval, Function
 
 _LOGGER = logging.getLogger(__name__)
@@ -43,9 +43,6 @@ class ExpressionDecorator(Decorator, ABC):
         )
         Function.install_ast_funcs(self._ast_expression)
         self._ast_expression.parse(expression, mode="eval")
-        exc = self._ast_expression.get_exception_obj()
-        if exc is not None:
-            raise exc
 
     def has_expression(self) -> bool:
         """Return True if expression was created."""
@@ -55,9 +52,8 @@ class ExpressionDecorator(Decorator, ABC):
         """Evaluate expression and dispatch an exception event via manager on failure."""
         if not self.has_expression():
             raise AttributeError(f"{self} has no expression defined")
-        ret = await self._ast_expression.eval(state_vars)
-        if exception := self._ast_expression.get_exception_obj():
-            exception_text = self._ast_expression.get_exception_long()
-            await self.dm.dispatch(DispatchData({}, exception=exception, exception_text=exception_text))
+        try:
+            return await self._ast_expression.eval(state_vars)
+        except Exception as exc:
+            await self.dm.handle_exception(exc)
             return False
-        return ret

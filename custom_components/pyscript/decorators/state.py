@@ -316,6 +316,6 @@ class StateTriggerDecorator(TriggerDecorator, ExpressionDecorator, AutoKwargsDec
     async def stop(self):
         """Stop the trigger."""
         await super().stop()
-        if hasattr(self, "cycle_task"):
+        if self.cycle_task is not None:
             self.cycle_task.cancel()
         State.notify_del(self.state_trig_ident, self.notify_q)

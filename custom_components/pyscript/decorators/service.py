@@ -74,7 +74,7 @@ class ServiceDecorator(Decorator):
             try:
                 desc = desc[4:].lstrip(" \n\r")
                 file_desc = io.StringIO(desc)
-                self.description = yaml.safe_load(file_desc) or OrderedDict()
+                self.description = yaml.load(file_desc, Loader=yaml.BaseLoader) or OrderedDict()  # noqa: S506
                 file_desc.close()
             except Exception as exc:
                 self.dm.logger.error(
@@ -106,13 +106,9 @@ class ServiceDecorator(Decorator):
         async def do_service_call(func, ast_ctx, data):
             try:
                 _LOGGER.debug("Service call start: %s", func.name)
-                retval = await func.call(ast_ctx, **data)
-                _LOGGER.debug("Service call done: %s", ast_ctx.get_exception_long())
-                if ast_ctx.get_exception_obj():
-                    ast_ctx.get_logger().error(ast_ctx.get_exception_long())
-                return retval
+                return await func.call(ast_ctx, **data)
             except Exception as exc:
-                _LOGGER.exception(exc)
+                await self.dm.handle_exception(exc)
                 return None
 
         task = Function.create_task(do_service_call(self.dm.eval_func, ast_ctx, func_args))
