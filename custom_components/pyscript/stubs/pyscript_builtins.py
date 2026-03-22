@@ -30,7 +30,7 @@ def service(
 
 
 def state_trigger(
-    *str_expr: str,
+    *str_expr: str | list[str] | set[str],
     state_hold: int | float | None = None,
     state_hold_false: int | float | None = None,
     state_check_now: bool = False,
