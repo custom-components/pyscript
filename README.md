@@ -62,12 +62,14 @@ this [README](https://github.com/craigbarratt/hass-pyscript-jupyter/blob/master/
 
 ## Configuration
 
-* Go to the Integrations menu in the Home Assistant Configuration UI and add `Pyscript Python scripting` from there. Alternatively, add `pyscript:` to `<config>/configuration.yaml`; pyscript has two optional configuration parameters that allow any python package to be imported if set and to expose `hass` as a variable; both default to `false`:
+* Go to the Integrations menu in the Home Assistant Configuration UI and add `Pyscript Python scripting` from there. Alternatively, add `pyscript:` to `<config>/configuration.yaml`; pyscript has three optional configuration parameters that allow any python package to be imported if set, expose `hass` as a variable, and temporarily switch back to the legacy decorator subsystem; all three default to `false`:
     ```yaml
     pyscript:
       allow_all_imports: true
       hass_is_global: true
+      legacy_decorators: true
     ```
+   Starting with version `2.0.0`, pyscript uses the new decorator subsystem by default. If you find a problem in the new implementation, you can temporarily set `legacy_decorators: true` to switch back to the legacy one. If you do, please also file a bug report in [GitHub Issues](https://github.com/custom-components/pyscript/issues) so the new subsystem can be fixed.
 * Add files with a suffix of `.py` in the folder `<config>/pyscript`.
 * Restart HASS.
 * Whenever you change a script file, make a `reload` service call to `pyscript`.

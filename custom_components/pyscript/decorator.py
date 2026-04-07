@@ -12,6 +12,7 @@ import weakref
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import Context, HomeAssistant
 
+from .const import CONF_LEGACY_DECORATORS
 from .decorator_abc import (
     CallHandlerDecorator,
     CallResultHandlerDecorator,
@@ -34,31 +35,25 @@ class DecoratorRegistry:
 
     _decorators: dict[str, type[Decorator]]  # decorator name to class
     hass: ClassVar[HomeAssistant]
-    prefix: ClassVar[str] = "e"
 
     @classmethod
     def init(cls, hass: HomeAssistant, config_entry: ConfigEntry = None) -> None:
         """Initialize the decorator registry."""
         cls.hass = hass
         cls._decorators = {}
-        enabled = False
-        if "PYTEST_CURRENT_TEST" in os.environ:
-            enabled = "NODM" not in os.environ
-        elif config_entry is not None and config_entry.data.get("dm", False):
-            enabled = True
+        disabled = False
+        if config_entry is not None and config_entry.data.get(CONF_LEGACY_DECORATORS, False):
+            disabled = True
+        elif "PYTEST_CURRENT_TEST" in os.environ and "NODM" in os.environ:
+            disabled = True
 
-        if enabled:
-            cls.prefix = ""
-            space = "\n" + " " * 35
-            border = space + "=" * 35
-            msg = border + space + "DecoratorManager enabled by default" + border
-            _LOGGER.warning(msg)
-        else:
-            cls.prefix = "e"
+        if disabled:
+            _LOGGER.warning("Using legacy decorators")
+            return
 
         DecoratorManager.hass = hass
 
-        Function.register_ast({cls.prefix + "task.wait_until": DecoratorRegistry.wait_until_factory})
+        Function.register_ast({"task.wait_until": DecoratorRegistry.wait_until_factory})
 
         from .decorators import DECORATORS  # pylint: disable=import-outside-toplevel
 
@@ -71,11 +66,15 @@ class DecoratorRegistry:
         if not dec_type.name:
             raise TypeError(f"Decorator name is required {dec_type}")
 
-        name = cls.prefix + dec_type.name
-        _LOGGER.debug("Registering decorator @%s %s", name, dec_type)
-        if name in cls._decorators:
-            _LOGGER.warning("Overriding decorator: %s %s with %s", name, cls._decorators[name], dec_type)
-        cls._decorators[name] = dec_type
+        _LOGGER.debug("Registering decorator @%s %s", dec_type.name, dec_type)
+        if dec_type.name in cls._decorators:
+            _LOGGER.warning(
+                "Overriding decorator: %s %s with %s",
+                dec_type.name,
+                cls._decorators[dec_type.name],
+                dec_type,
+            )
+        cls._decorators[dec_type.name] = dec_type
 
     @classmethod
     async def get_decorator_by_expr(cls, ast_ctx: AstEval, dec_expr: ast.expr) -> Decorator | None:
@@ -115,12 +114,9 @@ class DecoratorRegistry:
         found_args.add("timeout")
         found_args.add("__test_handshake__")
 
-        prefix_len = len(DecoratorRegistry.prefix)
         for dec_name, dec_class in cls._decorators.items():
             if not issubclass(dec_class, TriggerDecorator):
                 continue
-            if prefix_len > 0:
-                dec_name = dec_name[prefix_len:]
             if dec_name not in func_args:
                 continue
 
@@ -180,7 +176,7 @@ class WaitUntilDecoratorManager(DecoratorManager):
         self._future: asyncio.Future[DispatchData] = self.hass.loop.create_future()
         self.timeout_decorator = None
         if timeout := kwargs.get("timeout"):
-            to_dec = DecoratorRegistry._decorators.get(DecoratorRegistry.prefix + "time_trigger")
+            to_dec = DecoratorRegistry._decorators.get("time_trigger")
             self.timeout_decorator = to_dec([f"once(now + {timeout}s)"], {})
             self.add(self.timeout_decorator)
 
