@@ -6,7 +6,8 @@
         "description": "Akonáhle ste vytvorili položku, pozrite si docs naučiť sa, ako vytvárať skripty a funkcie.",
         "data": {
           "allow_all_imports": "Povoliť všetky importy?",
-          "hass_is_global": "Prístup k globálnej premennej?"
+          "hass_is_global": "Prístup k globálnej premennej?",
+          "legacy_decorators": "Použiť legacy dekorátory?"
         }
       }
     },
@@ -22,7 +23,8 @@
         "title": "Aktualizovať pyscript konfiguráciu",
         "data": {
           "allow_all_imports": "povoliť všetky importy?",
-          "hass_is_global": "Prístup k globálnej premennej?"
+          "hass_is_global": "Prístup k globálnej premennej?",
+          "legacy_decorators": "Použiť legacy dekorátory?"
         }
       },
       "no_ui_configuration_allowed": {

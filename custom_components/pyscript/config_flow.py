@@ -9,14 +9,21 @@ from homeassistant import config_entries
 from homeassistant.config_entries import SOURCE_IMPORT, ConfigEntry
 from homeassistant.core import callback
 
-from .const import CONF_ALLOW_ALL_IMPORTS, CONF_HASS_IS_GLOBAL, CONF_INSTALLED_PACKAGES, DOMAIN
+from .const import (
+    CONF_ALLOW_ALL_IMPORTS,
+    CONF_HASS_IS_GLOBAL,
+    CONF_INSTALLED_PACKAGES,
+    CONF_LEGACY_DECORATORS,
+    DOMAIN,
+)
 
-CONF_BOOL_ALL = {CONF_ALLOW_ALL_IMPORTS, CONF_HASS_IS_GLOBAL}
+CONF_BOOL_ALL = (CONF_ALLOW_ALL_IMPORTS, CONF_HASS_IS_GLOBAL, CONF_LEGACY_DECORATORS)
 
 PYSCRIPT_SCHEMA = vol.Schema(
     {
         vol.Optional(CONF_ALLOW_ALL_IMPORTS, default=False): bool,
         vol.Optional(CONF_HASS_IS_GLOBAL, default=False): bool,
+        vol.Optional(CONF_LEGACY_DECORATORS, default=False): bool,
     },
     extra=vol.ALLOW_EXTRA,
 )

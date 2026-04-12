@@ -6,7 +6,12 @@ from unittest.mock import patch
 import pytest
 
 from custom_components.pyscript import PYSCRIPT_SCHEMA
-from custom_components.pyscript.const import CONF_ALLOW_ALL_IMPORTS, CONF_HASS_IS_GLOBAL, DOMAIN
+from custom_components.pyscript.const import (
+    CONF_ALLOW_ALL_IMPORTS,
+    CONF_HASS_IS_GLOBAL,
+    CONF_LEGACY_DECORATORS,
+    DOMAIN,
+)
 from homeassistant import data_entry_flow
 from homeassistant.config_entries import SOURCE_IMPORT, SOURCE_USER
 
@@ -34,8 +39,10 @@ async def test_user_flow_minimum_fields(hass, pyscript_bypass_setup):
     assert result["type"] == data_entry_flow.FlowResultType.CREATE_ENTRY
     assert CONF_ALLOW_ALL_IMPORTS in result["data"]
     assert CONF_HASS_IS_GLOBAL in result["data"]
+    assert CONF_LEGACY_DECORATORS in result["data"]
     assert not result["data"][CONF_ALLOW_ALL_IMPORTS]
     assert not result["data"][CONF_HASS_IS_GLOBAL]
+    assert not result["data"][CONF_LEGACY_DECORATORS]
 
 
 @pytest.mark.asyncio
@@ -48,13 +55,19 @@ async def test_user_flow_all_fields(hass, pyscript_bypass_setup):
     assert result["step_id"] == "user"
 
     result = await hass.config_entries.flow.async_configure(
-        result["flow_id"], user_input={CONF_ALLOW_ALL_IMPORTS: True, CONF_HASS_IS_GLOBAL: True}
+        result["flow_id"],
+        user_input={
+            CONF_ALLOW_ALL_IMPORTS: True,
+            CONF_HASS_IS_GLOBAL: True,
+            CONF_LEGACY_DECORATORS: True,
+        },
     )
 
     assert result["type"] == data_entry_flow.FlowResultType.CREATE_ENTRY
     assert CONF_ALLOW_ALL_IMPORTS in result["data"]
     assert result["data"][CONF_ALLOW_ALL_IMPORTS]
     assert result["data"][CONF_HASS_IS_GLOBAL]
+    assert result["data"][CONF_LEGACY_DECORATORS]
 
 
 @pytest.mark.asyncio
@@ -63,7 +76,11 @@ async def test_user_already_configured(hass, pyscript_bypass_setup):
     result = await hass.config_entries.flow.async_init(
         DOMAIN,
         context={"source": SOURCE_USER},
-        data={CONF_ALLOW_ALL_IMPORTS: True, CONF_HASS_IS_GLOBAL: True},
+        data={
+            CONF_ALLOW_ALL_IMPORTS: True,
+            CONF_HASS_IS_GLOBAL: True,
+            CONF_LEGACY_DECORATORS: False,
+        },
     )
 
     assert result["type"] == data_entry_flow.FlowResultType.CREATE_ENTRY
@@ -71,7 +88,11 @@ async def test_user_already_configured(hass, pyscript_bypass_setup):
     result = await hass.config_entries.flow.async_init(
         DOMAIN,
         context={"source": SOURCE_USER},
-        data={CONF_ALLOW_ALL_IMPORTS: True, CONF_HASS_IS_GLOBAL: True},
+        data={
+            CONF_ALLOW_ALL_IMPORTS: True,
+            CONF_HASS_IS_GLOBAL: True,
+            CONF_LEGACY_DECORATORS: False,
+        },
     )
 
     assert result["type"] == data_entry_flow.FlowResultType.ABORT
@@ -100,7 +121,11 @@ async def test_import_flow_update_allow_all_imports(hass, pyscript_bypass_setup)
     result = await hass.config_entries.flow.async_init(
         DOMAIN,
         context={"source": SOURCE_IMPORT},
-        data={CONF_ALLOW_ALL_IMPORTS: True, CONF_HASS_IS_GLOBAL: True},
+        data={
+            CONF_ALLOW_ALL_IMPORTS: True,
+            CONF_HASS_IS_GLOBAL: True,
+            CONF_LEGACY_DECORATORS: True,
+        },
     )
 
     assert result["type"] == data_entry_flow.FlowResultType.ABORT
@@ -162,7 +187,13 @@ async def test_import_flow_update_user(hass, pyscript_bypass_setup):
     result = await hass.config_entries.flow.async_init(
         DOMAIN,
         context={"source": SOURCE_USER},
-        data=PYSCRIPT_SCHEMA({CONF_ALLOW_ALL_IMPORTS: True, CONF_HASS_IS_GLOBAL: True}),
+        data=PYSCRIPT_SCHEMA(
+            {
+                CONF_ALLOW_ALL_IMPORTS: True,
+                CONF_HASS_IS_GLOBAL: True,
+                CONF_LEGACY_DECORATORS: True,
+            }
+        ),
     )
 
     assert result["type"] == data_entry_flow.FlowResultType.CREATE_ENTRY
@@ -177,6 +208,7 @@ async def test_import_flow_update_user(hass, pyscript_bypass_setup):
     assert hass.config_entries.async_entries(DOMAIN)[0].data == {
         CONF_ALLOW_ALL_IMPORTS: True,
         CONF_HASS_IS_GLOBAL: True,
+        CONF_LEGACY_DECORATORS: True,
         "apps": {"test_app": {"param": 1}},
     }
 
@@ -187,7 +219,13 @@ async def test_import_flow_update_import(hass, pyscript_bypass_setup):
     result = await hass.config_entries.flow.async_init(
         DOMAIN,
         context={"source": SOURCE_IMPORT},
-        data=PYSCRIPT_SCHEMA({CONF_ALLOW_ALL_IMPORTS: True, CONF_HASS_IS_GLOBAL: True}),
+        data=PYSCRIPT_SCHEMA(
+            {
+                CONF_ALLOW_ALL_IMPORTS: True,
+                CONF_HASS_IS_GLOBAL: True,
+                CONF_LEGACY_DECORATORS: True,
+            }
+        ),
     )
 
     assert result["type"] == data_entry_flow.FlowResultType.CREATE_ENTRY
@@ -208,7 +246,13 @@ async def test_options_flow_import(hass, pyscript_bypass_setup):
     result = await hass.config_entries.flow.async_init(
         DOMAIN,
         context={"source": SOURCE_IMPORT},
-        data=PYSCRIPT_SCHEMA({CONF_ALLOW_ALL_IMPORTS: True, CONF_HASS_IS_GLOBAL: True}),
+        data=PYSCRIPT_SCHEMA(
+            {
+                CONF_ALLOW_ALL_IMPORTS: True,
+                CONF_HASS_IS_GLOBAL: True,
+                CONF_LEGACY_DECORATORS: True,
+            }
+        ),
     )
     await hass.async_block_till_done()
     assert result["type"] == data_entry_flow.FlowResultType.CREATE_ENTRY
@@ -231,7 +275,13 @@ async def test_options_flow_user_change(hass, pyscript_bypass_setup):
     result = await hass.config_entries.flow.async_init(
         DOMAIN,
         context={"source": SOURCE_USER},
-        data=PYSCRIPT_SCHEMA({CONF_ALLOW_ALL_IMPORTS: True, CONF_HASS_IS_GLOBAL: True}),
+        data=PYSCRIPT_SCHEMA(
+            {
+                CONF_ALLOW_ALL_IMPORTS: True,
+                CONF_HASS_IS_GLOBAL: True,
+                CONF_LEGACY_DECORATORS: True,
+            }
+        ),
     )
     await hass.async_block_till_done()
     assert result["type"] == data_entry_flow.FlowResultType.CREATE_ENTRY
@@ -243,7 +293,12 @@ async def test_options_flow_user_change(hass, pyscript_bypass_setup):
     assert result["step_id"] == "init"
 
     result = await hass.config_entries.options.async_configure(
-        result["flow_id"], user_input={CONF_ALLOW_ALL_IMPORTS: False, CONF_HASS_IS_GLOBAL: False}
+        result["flow_id"],
+        user_input={
+            CONF_ALLOW_ALL_IMPORTS: False,
+            CONF_HASS_IS_GLOBAL: False,
+            CONF_LEGACY_DECORATORS: False,
+        },
     )
     await hass.async_block_till_done()
 
@@ -252,6 +307,7 @@ async def test_options_flow_user_change(hass, pyscript_bypass_setup):
 
     assert entry.data[CONF_ALLOW_ALL_IMPORTS] is False
     assert entry.data[CONF_HASS_IS_GLOBAL] is False
+    assert entry.data[CONF_LEGACY_DECORATORS] is False
 
 
 @pytest.mark.asyncio
@@ -260,7 +316,13 @@ async def test_options_flow_user_no_change(hass, pyscript_bypass_setup):
     result = await hass.config_entries.flow.async_init(
         DOMAIN,
         context={"source": SOURCE_USER},
-        data=PYSCRIPT_SCHEMA({CONF_ALLOW_ALL_IMPORTS: True, CONF_HASS_IS_GLOBAL: True}),
+        data=PYSCRIPT_SCHEMA(
+            {
+                CONF_ALLOW_ALL_IMPORTS: True,
+                CONF_HASS_IS_GLOBAL: True,
+                CONF_LEGACY_DECORATORS: True,
+            }
+        ),
     )
     await hass.async_block_till_done()
     assert result["type"] == data_entry_flow.FlowResultType.CREATE_ENTRY
@@ -272,7 +334,12 @@ async def test_options_flow_user_no_change(hass, pyscript_bypass_setup):
     assert result["step_id"] == "init"
 
     result = await hass.config_entries.options.async_configure(
-        result["flow_id"], user_input={CONF_ALLOW_ALL_IMPORTS: True, CONF_HASS_IS_GLOBAL: True}
+        result["flow_id"],
+        user_input={
+            CONF_ALLOW_ALL_IMPORTS: True,
+            CONF_HASS_IS_GLOBAL: True,
+            CONF_LEGACY_DECORATORS: True,
+        },
     )
 
     assert result["type"] == data_entry_flow.FlowResultType.FORM
@@ -294,7 +361,13 @@ async def test_config_entry_reload(hass):
         result = await hass.config_entries.flow.async_init(
             DOMAIN,
             context={"source": SOURCE_USER},
-            data=PYSCRIPT_SCHEMA({CONF_ALLOW_ALL_IMPORTS: True, CONF_HASS_IS_GLOBAL: True}),
+            data=PYSCRIPT_SCHEMA(
+                {
+                    CONF_ALLOW_ALL_IMPORTS: True,
+                    CONF_HASS_IS_GLOBAL: True,
+                    CONF_LEGACY_DECORATORS: True,
+                }
+            ),
         )
         await hass.async_block_till_done()
         assert result["type"] == data_entry_flow.FlowResultType.CREATE_ENTRY
