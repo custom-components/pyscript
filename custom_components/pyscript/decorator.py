@@ -6,7 +6,7 @@ import ast
 import asyncio
 import logging
 import os
-from typing import Any, ClassVar, TypeVar
+from typing import Any, ClassVar
 import weakref
 
 from homeassistant.config_entries import ConfigEntry
@@ -207,9 +207,6 @@ class WaitUntilDecoratorManager(DecoratorManager):
             ret = data.func_args
         _LOGGER.debug("task.wait_until finish: %s", ret)
         return ret
-
-
-DT = TypeVar("DT", bound=Decorator)
 
 
 class FunctionDecoratorManager(DecoratorManager):
