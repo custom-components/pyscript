@@ -15,7 +15,7 @@ from custom_components.pyscript.function import Function
 from custom_components.pyscript.global_ctx import GlobalContextMgr
 from custom_components.pyscript.state import State
 from homeassistant import loader
-from homeassistant.const import EVENT_HOMEASSISTANT_STARTED, EVENT_STATE_CHANGED
+from homeassistant.const import EVENT_STATE_CHANGED
 from homeassistant.core import Context
 from homeassistant.helpers.service import async_get_all_descriptions
 from homeassistant.setup import async_setup_component
@@ -61,6 +61,8 @@ async def setup_script(hass, notify_q, now, source, script_name="/hello.py"):
             await notify_q.put(value)
 
         hass.bus.async_listen(EVENT_STATE_CHANGED, state_changed)
+    await hass.async_start()
+    await hass.async_block_till_done()
 
 
 async def wait_until_done(notify_q):
@@ -402,7 +404,6 @@ def func5(var_name=None, value=None):
     #
     # first time: fire event to startup triggers and run func_startup_sync
     #
-    hass.bus.async_fire(EVENT_HOMEASSISTANT_STARTED)
     for i in range(6):
         if i & 1:
             seq_num = 10

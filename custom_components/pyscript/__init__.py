@@ -33,6 +33,7 @@ from homeassistant.loader import bind_hass
 from .const import (
     CONF_ALLOW_ALL_IMPORTS,
     CONF_HASS_IS_GLOBAL,
+    CONF_LEGACY_DECORATORS,
     CONFIG_ENTRY,
     CONFIG_ENTRY_OLD,
     DOMAIN,
@@ -44,6 +45,7 @@ from .const import (
     UNSUB_LISTENERS,
     WATCHDOG_TASK,
 )
+from .decorator import DecoratorRegistry
 from .eval import AstEval
 from .event import Event
 from .function import Function
@@ -62,6 +64,7 @@ PYSCRIPT_SCHEMA = vol.Schema(
     {
         vol.Optional(CONF_ALLOW_ALL_IMPORTS, default=False): cv.boolean,
         vol.Optional(CONF_HASS_IS_GLOBAL, default=False): cv.boolean,
+        vol.Optional(CONF_LEGACY_DECORATORS, default=False): cv.boolean,
     },
     extra=vol.ALLOW_EXTRA,
 )
@@ -114,14 +117,15 @@ async def update_yaml_config(hass: HomeAssistant, config_entry: ConfigEntry) -> 
     # since they affect all scripts
     #
     config_save = {
-        param: config_entry.data.get(param, False) for param in [CONF_HASS_IS_GLOBAL, CONF_ALLOW_ALL_IMPORTS]
+        param: config_entry.data.get(param, False)
+        for param in [CONF_HASS_IS_GLOBAL, CONF_ALLOW_ALL_IMPORTS, CONF_LEGACY_DECORATORS]
     }
     if DOMAIN not in hass.data:
         hass.data.setdefault(DOMAIN, {})
     if CONFIG_ENTRY_OLD in hass.data[DOMAIN]:
         old_entry = hass.data[DOMAIN][CONFIG_ENTRY_OLD]
         hass.data[DOMAIN][CONFIG_ENTRY_OLD] = config_save
-        for param in [CONF_HASS_IS_GLOBAL, CONF_ALLOW_ALL_IMPORTS]:
+        for param in [CONF_HASS_IS_GLOBAL, CONF_ALLOW_ALL_IMPORTS, CONF_LEGACY_DECORATORS]:
             if old_entry.get(param, False) != config_entry.data.get(param, False):
                 return True
     hass.data[DOMAIN][CONFIG_ENTRY_OLD] = config_save
@@ -272,6 +276,7 @@ async def async_setup_entry(hass: HomeAssistant, config_entry: ConfigEntry) -> b
     Webhook.init(hass)
     State.register_functions()
     GlobalContextMgr.init()
+    DecoratorRegistry.init(hass, config_entry)
 
     pyscript_folder = hass.config.path(FOLDER)
     if not await hass.async_add_executor_job(os.path.isdir, pyscript_folder):

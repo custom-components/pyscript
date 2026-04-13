@@ -6,7 +6,8 @@
         "description": "Once you have created an entry, refer to the pyscript docs to learn how to create scripts and functions.",
         "data": {
           "allow_all_imports": "Allow All Imports?",
-          "hass_is_global": "Access hass as a global variable?"
+          "hass_is_global": "Access hass as a global variable?",
+          "legacy_decorators": "Use legacy decorators?"
         }
       }
     },
@@ -22,7 +23,8 @@
         "title": "Update pyscript configuration",
         "data": {
           "allow_all_imports": "Allow All Imports?",
-          "hass_is_global": "Access hass as a global variable?"
+          "hass_is_global": "Access hass as a global variable?",
+          "legacy_decorators": "Use legacy decorators?"
         }
       },
       "no_ui_configuration_allowed": {
