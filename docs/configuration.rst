@@ -20,9 +20,10 @@ Configuration
 
   Starting with version ``2.0.0``, pyscript uses the new decorator subsystem by default.
   If you run into a problem in the new implementation, you can temporarily set
-  ``legacy_decorators: true`` to switch back to the legacy subsystem. If you do that,
-  please also file a bug report in the `GitHub issue tracker <https://github.com/custom-components/pyscript/issues>`__
-  so the problem can be fixed.
+  ``legacy_decorators: true`` to switch back to the legacy subsystem. This setting takes
+  effect only after restarting Home Assistant. If you do that, please also file a bug report
+  in the `GitHub issue tracker <https://github.com/custom-components/pyscript/issues>`__ so
+  the problem can be fixed.
 
 - Add files with a suffix of ``.py`` in the folder ``<config>/pyscript``.
 - Restart HASS after installing pyscript.
