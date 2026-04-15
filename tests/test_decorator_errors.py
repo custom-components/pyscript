@@ -214,6 +214,74 @@ def func4():
 
 
 @pytest.mark.asyncio
+async def test_trigger_expression_errors(hass, caplog, monkeypatch):
+    """Legacy trigger expression errors should not stop trigger loops."""
+    notify_q = asyncio.Queue(0)
+    await setup_script(
+        hass,
+        notify_q,
+        [dt(2020, 7, 1, 10, 59, 59, 999999), dt(2020, 7, 1, 11, 59, 59, 999999)],
+        """
+seq_num = 0
+
+@time_trigger("startup")
+def func_startup_sync(trigger_type=None, trigger_time=None):
+    global seq_num
+
+    seq_num += 1
+    pyscript.done = seq_num
+
+@event_trigger("test_event", "1 / int(arg1)")
+def func1(arg1=None):
+    global seq_num
+
+    seq_num += 1
+    pyscript.done = ["event", seq_num, arg1]
+
+@state_trigger("1 / int(pyscript.var1)")
+def func2(var_name=None, value=None):
+    global seq_num
+
+    seq_num += 1
+    pyscript.done = ["state", seq_num, var_name, int(value)]
+""",
+    )
+
+    hass.bus.async_fire(EVENT_HOMEASSISTANT_STARTED)
+    assert literal_eval(await wait_until_done(notify_q)) == 1
+
+    hass.bus.async_fire("test_event", {"arg1": 0})
+    await hass.async_block_till_done()
+    assert notify_q.empty()
+
+    hass.states.async_set("pyscript.var1", 0)
+    await hass.async_block_till_done()
+    assert notify_q.empty()
+
+    hass.bus.async_fire("test_event", {"arg1": 1})
+    assert literal_eval(await wait_until_done(notify_q)) == ["event", 2, 1]
+
+    hass.states.async_set("pyscript.var1", 1)
+    assert literal_eval(await wait_until_done(notify_q)) == ["state", 3, "pyscript.var1", 1]
+
+    assert (
+        """File "/hello.py", line 1, in file.hello.func1 @event_trigger()
+    1 / int(arg1)
+    ~~^~~~~~~~~~~
+ZeroDivisionError: division by zero"""
+        in caplog.text
+    )
+
+    assert (
+        """File "/hello.py", line 1, in file.hello.func2 @state_trigger()
+    1 / int(pyscript.var1)
+    ~~^~~~~~~~~~~~~~~~~~~~
+ZeroDivisionError: division by zero"""
+        in caplog.text
+    )
+
+
+@pytest.mark.asyncio
 async def test_decorator_errors_missing_arg(hass, caplog):
     """Test decorator syntax and run-time errors."""
     notify_q = asyncio.Queue(0)

@@ -1196,11 +1196,7 @@ class TrigInfo:
                             continue
 
                         if self.state_trig_eval:
-                            try:
-                                trig_ok = await self.state_trig_eval.eval(new_vars)
-                            except Exception as e:
-                                self.state_trig_eval.log_exception(e)
-                                trig_ok = False
+                            trig_ok = await self._call_expression(self.state_trig_eval, new_vars)
 
                             if self.state_hold_false is not None:
                                 if "var_name" not in func_args:
@@ -1269,17 +1265,17 @@ class TrigInfo:
                     func_args = notify_info
                     user_kwargs = self.event_trigger_kwargs.get("kwargs", {})
                     if self.event_trig_expr:
-                        trig_ok = await self.event_trig_expr.eval(notify_info)
+                        trig_ok = await self._call_expression(self.event_trig_expr, notify_info)
                 elif notify_type == "mqtt":
                     func_args = notify_info
                     user_kwargs = self.mqtt_trigger_kwargs.get("kwargs", {})
                     if self.mqtt_trig_expr:
-                        trig_ok = await self.mqtt_trig_expr.eval(notify_info)
+                        trig_ok = await self._call_expression(self.mqtt_trig_expr, notify_info)
                 elif notify_type == "webhook":
                     func_args = notify_info
                     user_kwargs = self.webhook_trigger_kwargs.get("kwargs", {})
                     if self.webhook_trig_expr:
-                        trig_ok = await self.webhook_trig_expr.eval(notify_info)
+                        trig_ok = await self._call_expression(self.webhook_trig_expr, notify_info)
 
                 else:
                     user_kwargs = self.time_trigger_kwargs.get("kwargs", {})
@@ -1338,6 +1334,13 @@ class TrigInfo:
             if self.webhook_trigger is not None:
                 Webhook.notify_del(self.webhook_trigger[0], self.notify_q)
             return
+
+    async def _call_expression(self, ast_expr, notify_info):
+        try:
+            return await ast_expr.eval(notify_info)
+        except Exception as exc:
+            ast_expr.log_exception(exc)
+            return False
 
     def call_action(self, notify_type, func_args, run_task=True):
         """Call the trigger action function."""
