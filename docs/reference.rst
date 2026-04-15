@@ -13,7 +13,8 @@ time by selecting "configure" under Pyscript Python scripting on the Settings
 -> Devices & services -> Integrations page. For the new settings to take
 effect, you will need to either select "Reload" from the overflow menu
 (button with three dots) next to pyscript or call the ``pyscript.reload``
-service from Developer tools -> Services.
+service from Developer tools -> Services, except for ``legacy_decorators``,
+which currently takes effect only after restarting Home Assistant.
 
 Alternatively, for yaml configuration, add ``pyscript:`` to ``<config>/configuration.yaml``.
 You can't mix these two methods - your initial choice determines how you should update
@@ -35,8 +36,9 @@ in ``<config>/configuration.yaml``:
 
 Starting with version ``2.0.0``, pyscript uses the new decorator subsystem by default.
 If you find a problem in the new implementation, you can temporarily set
-``legacy_decorators: true`` to switch back to the legacy subsystem. If you do,
-please also file a bug report in the `GitHub issue tracker <https://github.com/custom-components/pyscript/issues>`__
+``legacy_decorators: true`` to switch back to the legacy subsystem. This setting takes effect
+only after restarting Home Assistant. If you do, please also file a bug report in the
+`GitHub issue tracker <https://github.com/custom-components/pyscript/issues>`__
 so the problem can be fixed.
 
 It is recommended you put your pyscript configuration its own ``yaml`` file in the ``pyscript``

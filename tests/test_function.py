@@ -751,6 +751,45 @@ def func10d(var_name=None, value=None, trigger_type=None, context=None, old_valu
 
 
 @pytest.mark.asyncio
+async def test_trigger_kwargs_none(hass):
+    """Test that explicit None kwargs are accepted for trigger decorators."""
+    notify_q = asyncio.Queue(0)
+
+    await setup_script(
+        hass,
+        notify_q,
+        None,
+        [dt(2020, 7, 1, 10, 59, 59, 999998)],
+        """
+seq_num = 0
+
+@state_trigger("True", watch={"pyscript.var1"})
+@time_active(hold_off=None)
+def func1(var_name=None, value=None):
+    global seq_num
+
+    seq_num += 1
+    pyscript.done = ["hold_off", seq_num, var_name, value]
+
+@state_trigger("pyscript.var2 == '2'", watch=None)
+def func2(var_name=None, value=None):
+    pyscript.done = ["watch_none", var_name, value]
+""",
+    )
+
+    hass.bus.async_fire(EVENT_HOMEASSISTANT_STARTED)
+    await hass.async_block_till_done()
+    hass.states.async_set("pyscript.var1", 2)
+    assert literal_eval(await wait_until_done(notify_q)) == ["hold_off", 1, "pyscript.var1", "2"]
+
+    hass.states.async_set("pyscript.var1", 0)
+    assert literal_eval(await wait_until_done(notify_q)) == ["hold_off", 2, "pyscript.var1", "0"]
+
+    hass.states.async_set("pyscript.var2", 2)
+    assert literal_eval(await wait_until_done(notify_q)) == ["watch_none", "pyscript.var2", "2"]
+
+
+@pytest.mark.asyncio
 async def test_state_trigger_time(hass, caplog):
     """Test state trigger."""
     notify_q = asyncio.Queue(0)

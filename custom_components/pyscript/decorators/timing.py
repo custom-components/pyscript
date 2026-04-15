@@ -30,15 +30,15 @@ class TimeActiveDecorator(TriggerHandlerDecorator, AutoKwargsDecorator):
 
     name = "time_active"
     args_schema = vol.Schema(vol.All([vol.Coerce(str)], vol.Length(min=0)))
-    kwargs_schema = vol.Schema({vol.Optional("hold_off", default=0.0): cv.positive_float})
+    kwargs_schema = vol.Schema({vol.Optional("hold_off", default=0.0): vol.Any(None, cv.positive_float)})
 
-    hold_off: float
+    hold_off: float | None
 
     last_trig_time: float = 0.0
 
     async def handle_dispatch(self, data: DispatchData) -> bool:
         """Handle dispatch."""
-        if self.last_trig_time > 0.0 and self.hold_off > 0.0:
+        if self.last_trig_time > 0.0 and self.hold_off is not None and self.hold_off > 0.0:
             if time.monotonic() - self.last_trig_time < self.hold_off:
                 return False
 

@@ -79,7 +79,7 @@ class StateTriggerDecorator(TriggerDecorator, ExpressionDecorator, AutoKwargsDec
             vol.Optional("state_hold"): vol.Any(None, cv.positive_float),
             vol.Optional("state_hold_false"): vol.Any(None, cv.positive_float),
             vol.Optional("state_check_now"): cv.boolean,
-            vol.Optional("watch"): vol.Coerce(set[str], msg="should be type list or set"),
+            vol.Optional("watch"): vol.Any(None, vol.Coerce(set), msg="should be type list or set"),
             vol.Optional("__test_handshake__"): vol.Coerce(list),
         }
     )
