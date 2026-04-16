@@ -384,12 +384,13 @@ access the names of those built-in events by importing from ``homeassistant.cons
 Function Trigger Decorators
 ---------------------------
 
-There are four decorators for defining state, time, event and MQTT triggers, and two decorators for
-defining whether any trigger actually causes the function to run (i.e., is active), based on
-state-based expressions or one or more time-windows. The decorators should appear immediately before
-the function they refer to. A single function can have any or all of the decorator types specified.
-Multiple trigger decorators of the same type can be added to a single function, but only one
-``@state_active``, ``@time_active`` or ``@task_unique`` can be used per function.
+There are five decorators for defining state, time, event, MQTT and webhook triggers, and two
+decorators for defining whether any trigger actually causes the function to run (i.e., is active),
+based on state-based expressions or one or more time-windows. The decorators should appear
+immediately before the function they refer to. A single function can have any or all of the
+decorator types specified.  Multiple trigger decorators of the same type can be added to a single
+function, but only one ``@state_active``, ``@time_active`` or ``@task_unique`` can be used per
+function.
 
 A Python function with decorators is still a normal Python function that can be called by any other
 Python function. The decorators have no effect in the case where you call it directly from another
@@ -863,6 +864,39 @@ must be set up to use ``@mqtt_trigger``.
       task.sleep(300)
       light.turn_off(entity_id="light.carport")
 
+@webhook_trigger
+^^^^^^^^^^^^^^^^
+
+.. code:: python
+
+    @webhook_trigger(webhook_id, str_expr=None, local_only=True, methods={"POST", "PUT"}, kwargs=None)
+
+``@webhook_trigger`` listens for calls to a `Home Assistant webhook <https://www.home-assistant.io/docs/automation/trigger/#webhook-trigger>`__ at ``your_hass_url/api/webhook/webhook_id`` and triggers whenever a request is made at that endpoint. Multiple ``@webhook_trigger`` decorators can be applied to a single function if you want to trigger off different webhook ids.
+
+Setting ``local_only`` option to ``False`` will allow request made from anywhere on the internet (as opposed to just on local network).
+The methods option needs to be an list or set with elements ``GET``, ``HEAD``, ``POST``, or ``PUT``.
+
+An optional ``str_expr`` can be used to match against payload message data, and the trigger will only occur if that expression evaluates to ``True`` or non-zero. This expression has available these three
+variables:
+
+- ``trigger_type`` is set to "webhook"
+- ``webhook_id`` is set to the webhook_id that was called.
+- ``payload`` is the data/json that was sent in the request returned as a dictionary.
+
+When the ``@webhook_trigger`` occurs, those same variables are passed as keyword arguments to the function in case it needs them. Additional keyword parameters can be specified by setting the optional ``kwargs`` argument to a ``dict`` with the keywords and values.
+
+An simple example looks like
+
+.. code:: python
+
+  @webhook_trigger("myid", kwargs={"extra": 10})
+  def webhook_test(payload, extra):
+      log.info(f"It ran! {payload}, {extra}")
+
+which if called using the curl command ``curl -X POST -d 'key1=xyz&key2=abc' hass_url/api/webhook/myid`` outputs ``It ran! {'key1': 'xyz', 'key2': 'abc'}, 10``
+
+NOTE: A webhook_id can only be used by either a built-in Home Assistant automation or pyscript, but not both. Trying to use the same webhook_id in both will result in an error.
+
 @state_active
 ^^^^^^^^^^^^^
 
@@ -949,40 +983,6 @@ matches any of the positive arguments, and none of the negative arguments.
    def motion_controlled_light(**kwargs):
        log.info(f"got motion. turning on the lights")
        light.turn_on(entity_id="light.hallway")
-
-
-@webhook_trigger
-^^^^^^^^^^^^^^^^
-
-.. code:: python
-
-    @webhook_trigger(webhook_id, str_expr=None, local_only=True, methods={"POST", "PUT"}, kwargs=None)
-
-``@webhook_trigger`` listens for calls to a `Home Assistant webhook <https://www.home-assistant.io/docs/automation/trigger/#webhook-trigger>`__ at ``your_hass_url/api/webhook/webhook_id`` and triggers whenever a request is made at that endpoint. Multiple ``@webhook_trigger`` decorators can be applied to a single function if you want to trigger off different webhook ids.
-
-Setting ``local_only`` option to ``False`` will allow request made from anywhere on the internet (as opposed to just on local network).
-The methods option needs to be an list or set with elements ``GET``, ``HEAD``, ``POST``, or ``PUT``.
-
-An optional ``str_expr`` can be used to match against payload message data, and the trigger will only occur if that expression evaluates to ``True`` or non-zero. This expression has available these three
-variables:
-
-- ``trigger_type`` is set to "webhook"
-- ``webhook_id`` is set to the webhook_id that was called.
-- ``payload`` is the data/json that was sent in the request returned as a dictionary.
-
-When the ``@webhook_trigger`` occurs, those same variables are passed as keyword arguments to the function in case it needs them. Additional keyword parameters can be specified by setting the optional ``kwargs`` argument to a ``dict`` with the keywords and values.
-
-An simple example looks like
-
-.. code:: python
-
-  @webhook_trigger("myid", kwargs={"extra": 10})
-  def webhook_test(payload, extra):
-      log.info(f"It ran! {payload}, {extra}")
-
-which if called using the curl command ``curl -X POST -d 'key1=xyz&key2=abc' hass_url/api/webhook/myid`` outputs ``It ran! {'key1': 'xyz', 'key2': 'abc'}, 10``
-
-NOTE: A webhook_id can only be used by either a built-in Home Assistant automation or pyscript, but not both. Trying to use the same webhook_id in both will result in an error.
 
 Other Function Decorators
 -------------------------
