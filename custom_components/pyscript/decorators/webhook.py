@@ -2,10 +2,11 @@
 
 from __future__ import annotations
 
+import asyncio
 import logging
-from typing import ClassVar
+from typing import Any, ClassVar
 
-from aiohttp import hdrs
+from aiohttp import hdrs, web
 import voluptuous as vol
 
 from homeassistant.components import webhook
@@ -32,12 +33,14 @@ class WebhookTriggerDecorator(TriggerDecorator, ExpressionDecorator, AutoKwargsD
         {
             vol.Optional("local_only", default=True): cv.boolean,
             vol.Optional("methods"): vol.All(list[str], [vol.In(SUPPORTED_METHODS)]),
+            vol.Optional("sets_http_response_code", default=False): cv.boolean,
         }
     )
 
     webhook_id: str
     local_only: bool
     methods: set[str]
+    sets_http_response_code: bool
 
     webhook_id2triggers: ClassVar[dict[str, set[WebhookTriggerDecorator]]] = {}
 
@@ -50,7 +53,7 @@ class WebhookTriggerDecorator(TriggerDecorator, ExpressionDecorator, AutoKwargsD
             self.create_expression(self.args[1])
 
     @staticmethod
-    async def _handler(_hass, webhook_id, request):
+    async def _handler(hass, webhook_id, request):
         func_args = {
             "trigger_type": "webhook",
             "webhook_id": webhook_id,
@@ -64,17 +67,59 @@ class WebhookTriggerDecorator(TriggerDecorator, ExpressionDecorator, AutoKwargsD
             payload_multidict = await request.post()
             func_args["payload"] = {k: payload_multidict.getone(k) for k in payload_multidict.keys()}
 
+        response_future: asyncio.Future[Any] | None = None
+        futures: list[asyncio.Future[Any]] = []
         for trigger in WebhookTriggerDecorator.webhook_id2triggers.get(webhook_id, set()).copy():
             trigger_args = func_args.copy()
             if trigger.has_expression():
                 if not await trigger.check_expression_vars(trigger_args):
                     continue
-            await trigger.dispatch(DispatchData(trigger_args))
+            future: asyncio.Future[Any] = hass.loop.create_future()
+            if trigger.sets_http_response_code:
+                response_future = future
+            futures.append(future)
+            await trigger.dispatch(DispatchData(trigger_args, result_future=future))
+
+        if not futures:
+            return None
+
+        await asyncio.gather(*futures, return_exceptions=True)
+
+        if response_future is None:
+            return None
+        return WebhookTriggerDecorator.coerce_response(response_future.result())
+
+    @staticmethod
+    def coerce_response(value: Any) -> web.Response | None:
+        """Convert a webhook function return value to an aiohttp Response."""
+        if value is None:
+            return None
+        if isinstance(value, web.Response):
+            return value
+        # bool is a subclass of int; reject it so True/False don't become 1/0 status codes.
+        if isinstance(value, int) and not isinstance(value, bool):
+            return web.Response(status=value)
+        _LOGGER.warning(
+            "webhook function returned unsupported type %s; expected int status code or aiohttp.web.Response",
+            type(value).__name__,
+        )
+        return None
 
     @staticmethod
     def _add_trigger(trigger: WebhookTriggerDecorator) -> None:
         webhook_id = trigger.webhook_id
-        if webhook_id not in WebhookTriggerDecorator.webhook_id2triggers:
+        existing = WebhookTriggerDecorator.webhook_id2triggers.get(webhook_id)
+        if (
+            trigger.sets_http_response_code
+            and existing is not None
+            and any(t.sets_http_response_code for t in existing)
+        ):
+            raise ValueError(
+                f"webhook_id '{webhook_id}' already has a @webhook_trigger with "
+                f"sets_http_response_code=True; only one is allowed"
+            )
+
+        if existing is None:
             webhook.async_register(
                 trigger.dm.hass,
                 "pyscript",  # DOMAIN

@@ -3,12 +3,15 @@
 from ast import literal_eval
 import asyncio
 from datetime import datetime as dt
-from unittest.mock import mock_open, patch
+from http import HTTPStatus
+from unittest.mock import Mock, mock_open, patch
 
+from aiohttp import web
 import pytest
 
 from custom_components.pyscript import trigger
 from custom_components.pyscript.const import DOMAIN
+from custom_components.pyscript.decorators.webhook import WebhookTriggerDecorator
 from custom_components.pyscript.function import Function
 from homeassistant.components import webhook
 from homeassistant.const import EVENT_HOMEASSISTANT_STARTED, EVENT_STATE_CHANGED
@@ -256,3 +259,169 @@ def webhook_test(payload, request):
     await webhook.async_handle_webhook(hass, "test_req_hook", request)
 
     assert literal_eval(await wait_until_done(notify_q)) == ["abc123", "POST", {"hello": "world"}]
+
+
+def _post_webhook_request() -> MockRequest:
+    """Build a MockRequest representing a webhook POST with form data."""
+    return MockRequest(
+        content=b"",
+        headers={},
+        method="POST",
+        query_string="",
+        mock_source="test",
+        remote="127.0.0.1",
+    )
+
+
+def test_webhook_coerce_response_none():
+    """A None return should fall through to the HA default response."""
+    assert WebhookTriggerDecorator.coerce_response(None) is None
+
+
+def test_webhook_coerce_response_int():
+    """Int returns should produce an aiohttp Response with that status."""
+    response = WebhookTriggerDecorator.coerce_response(HTTPStatus.CREATED.value)
+    assert isinstance(response, web.Response)
+    assert response.status == HTTPStatus.CREATED
+
+
+def test_webhook_coerce_response_passthrough():
+    """An aiohttp Response should be returned unchanged."""
+    custom = web.Response(status=HTTPStatus.ACCEPTED, body=b"queued")
+    assert WebhookTriggerDecorator.coerce_response(custom) is custom
+
+
+def test_webhook_coerce_response_bool_warns(caplog):
+    """Bool returns should be rejected so True/False don't masquerade as 1/0."""
+    assert WebhookTriggerDecorator.coerce_response(True) is None
+    assert "unsupported type bool" in caplog.text
+
+
+def test_webhook_coerce_response_unsupported_warns(caplog):
+    """Other return types should warn and fall through."""
+    assert WebhookTriggerDecorator.coerce_response("ok") is None
+    assert "unsupported type str" in caplog.text
+
+
+@pytest.mark.asyncio
+async def test_webhook_function_returns_status_code(hass):
+    """A flagged webhook function returning an int should set the HTTP status."""
+    await setup_script(
+        hass,
+        None,
+        dt(2020, 7, 1, 11, 59, 59, 999999),
+        """
+@webhook_trigger("status_hook", sets_http_response_code=True)
+def func_status(payload):
+    return 201
+""",
+    )
+    hass.bus.async_fire(EVENT_HOMEASSISTANT_STARTED)
+    await hass.async_block_till_done()
+    response = await webhook.async_handle_webhook(hass, "status_hook", _post_webhook_request())
+    await hass.async_block_till_done()
+    assert response.status == HTTPStatus.CREATED
+
+
+@pytest.mark.asyncio
+async def test_webhook_function_default_response(hass):
+    """A pyscript webhook function returning None should produce a 200 OK."""
+    await setup_script(
+        hass,
+        None,
+        dt(2020, 7, 1, 11, 59, 59, 999999),
+        """
+@webhook_trigger("default_hook")
+def func_default(payload):
+    pass
+""",
+    )
+    hass.bus.async_fire(EVENT_HOMEASSISTANT_STARTED)
+    await hass.async_block_till_done()
+    response = await webhook.async_handle_webhook(hass, "default_hook", _post_webhook_request())
+    await hass.async_block_till_done()
+    assert response.status == HTTPStatus.OK
+
+
+@pytest.mark.asyncio
+async def test_webhook_unflagged_return_ignored(hass):
+    """A return value from a trigger without sets_http_response_code is ignored."""
+    await setup_script(
+        hass,
+        None,
+        dt(2020, 7, 1, 11, 59, 59, 999999),
+        """
+@webhook_trigger("unflagged_hook")
+def func_unflagged(payload):
+    return 418
+""",
+    )
+    hass.bus.async_fire(EVENT_HOMEASSISTANT_STARTED)
+    await hass.async_block_till_done()
+    response = await webhook.async_handle_webhook(hass, "unflagged_hook", _post_webhook_request())
+    await hass.async_block_till_done()
+    assert response.status == HTTPStatus.OK
+
+
+@pytest.mark.asyncio
+async def test_webhook_only_flagged_trigger_controls_response(hass):
+    """When multiple triggers share an id, only the flagged one drives the response."""
+    await setup_script(
+        hass,
+        None,
+        dt(2020, 7, 1, 11, 59, 59, 999999),
+        """
+@webhook_trigger("multi_hook")
+def func_silent(payload):
+    return 500
+
+@webhook_trigger("multi_hook", sets_http_response_code=True)
+def func_loud(payload):
+    return 418
+""",
+    )
+    hass.bus.async_fire(EVENT_HOMEASSISTANT_STARTED)
+    await hass.async_block_till_done()
+    response = await webhook.async_handle_webhook(hass, "multi_hook", _post_webhook_request())
+    await hass.async_block_till_done()
+    assert response.status == 418
+
+
+@pytest.mark.asyncio
+async def test_webhook_flag_is_per_webhook_id(hass):
+    """Different webhook_ids may each have their own sets_http_response_code=True trigger."""
+    await setup_script(
+        hass,
+        None,
+        dt(2020, 7, 1, 11, 59, 59, 999999),
+        """
+@webhook_trigger("hook_a", sets_http_response_code=True)
+def func_a(payload):
+    return 201
+
+@webhook_trigger("hook_b", sets_http_response_code=True)
+def func_b(payload):
+    return 202
+""",
+    )
+    hass.bus.async_fire(EVENT_HOMEASSISTANT_STARTED)
+    await hass.async_block_till_done()
+    response_a = await webhook.async_handle_webhook(hass, "hook_a", _post_webhook_request())
+    response_b = await webhook.async_handle_webhook(hass, "hook_b", _post_webhook_request())
+    await hass.async_block_till_done()
+    assert response_a.status == HTTPStatus.CREATED
+    assert response_b.status == HTTPStatus.ACCEPTED
+
+
+def test_webhook_multiple_flagged_triggers_fails_at_setup():
+    """A second flagged trigger for the same webhook_id should be rejected at start."""
+    first = Mock(webhook_id="dup_hook", sets_http_response_code=True)
+    second = Mock(webhook_id="dup_hook", sets_http_response_code=True)
+
+    WebhookTriggerDecorator.webhook_id2triggers.pop("dup_hook", None)
+    WebhookTriggerDecorator.webhook_id2triggers["dup_hook"] = {first}
+    try:
+        with pytest.raises(ValueError, match="sets_http_response_code=True"):
+            WebhookTriggerDecorator._add_trigger(second)  # pylint: disable=protected-access
+    finally:
+        WebhookTriggerDecorator.webhook_id2triggers.pop("dup_hook", None)

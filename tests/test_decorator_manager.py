@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import logging
 from typing import ClassVar
 from unittest.mock import patch
@@ -353,9 +354,15 @@ def make_dispatch_data(
     *,
     call_ast_ctx: DummyCallAstCtx | None = None,
     hass_context: Context | None = None,
+    result_future: asyncio.Future | None = None,
 ) -> DispatchData:
     """Build DispatchData from test doubles."""
-    return DispatchData(func_args, call_ast_ctx=call_ast_ctx, hass_context=hass_context)
+    return DispatchData(
+        func_args,
+        call_ast_ctx=call_ast_ctx,
+        hass_context=hass_context,
+        result_future=result_future,
+    )
 
 
 def setup_global_context_function_hass(hass: HomeAssistant, config_data: dict | None = None) -> None:
@@ -597,6 +604,77 @@ async def test_function_decorator_manager_logs_call_exception(hass):
     assert call_ast_ctx.calls == [(manager.eval_func, None, {"arg1": 1})]
     assert len(ast_ctx.logged_exceptions) == 1
     assert str(ast_ctx.logged_exceptions[0]) == "decorated call failed"
+
+
+@pytest.mark.asyncio
+async def test_function_decorator_manager_result_future_success(hass):
+    """Successful calls should resolve result_future with the function's return value."""
+    DecoratorManager.hass = hass
+    manager = FunctionDecoratorManager(DummyAstCtx(), DummyEvalFuncVar())
+    call_ast_ctx = DummyCallAstCtx(result=201)
+    future: asyncio.Future = hass.loop.create_future()
+
+    with patch.object(Function, "store_hass_context"):
+        await call_function_manager(
+            manager,
+            make_dispatch_data(
+                {"arg1": 1},
+                call_ast_ctx=call_ast_ctx,
+                hass_context=Context(id="call-parent"),
+                result_future=future,
+            ),
+        )
+        await hass.async_block_till_done()
+
+    assert future.done()
+    assert future.result() == 201
+
+
+@pytest.mark.asyncio
+async def test_function_decorator_manager_result_future_cancel(hass):
+    """When a call handler cancels, result_future should resolve to None."""
+    DecoratorManager.hass = hass
+    manager = FunctionDecoratorManager(DummyAstCtx(), DummyEvalFuncVar())
+    manager.add(make_cancel_call_handler())
+    future: asyncio.Future = hass.loop.create_future()
+
+    await call_function_manager(
+        manager,
+        make_dispatch_data(
+            {"arg1": 1},
+            call_ast_ctx=DummyCallAstCtx(result="unused"),
+            hass_context=Context(id="call-parent"),
+            result_future=future,
+        ),
+    )
+
+    assert future.done()
+    assert future.result() is None
+
+
+@pytest.mark.asyncio
+async def test_function_decorator_manager_result_future_exception(hass):
+    """When the decorated function raises, result_future should resolve to None."""
+    DecoratorManager.hass = hass
+    ast_ctx = DummyAstCtx()
+    manager = FunctionDecoratorManager(ast_ctx, DummyEvalFuncVar())
+    call_ast_ctx = DummyCallAstCtx(exc=RuntimeError("boom"))
+    future: asyncio.Future = hass.loop.create_future()
+
+    with patch.object(Function, "store_hass_context"):
+        await call_function_manager(
+            manager,
+            make_dispatch_data(
+                {"arg1": 1},
+                call_ast_ctx=call_ast_ctx,
+                hass_context=Context(id="call-parent"),
+                result_future=future,
+            ),
+        )
+
+    assert future.done()
+    assert future.result() is None
+    assert len(ast_ctx.logged_exceptions) == 1
 
 
 def test_decorator_registry_register_requires_name():

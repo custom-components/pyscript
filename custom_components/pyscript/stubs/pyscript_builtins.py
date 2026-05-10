@@ -127,6 +127,7 @@ def webhook_trigger(
     str_expr: str | None = None,
     local_only: bool = True,
     methods: set[SUPPORTED_METHODS] | list[SUPPORTED_METHODS] = {"POST", "PUT"},
+    sets_http_response_code: bool = False,
     kwargs: dict | None = None,
 ) -> Callable[..., Any]:
     """Trigger when a request is made to a webhook endpoint.
@@ -136,6 +137,7 @@ def webhook_trigger(
         str_expr: Optional expression evaluated against ``trigger_type``, ``webhook_id``, ``request``, and ``payload``.
         local_only: If False, allow requests from anywhere on the internet.
         methods: HTTP methods to allow.
+        sets_http_response_code: If True, the function's return value drives the HTTP response (``int`` status code or ``aiohttp.web.Response``); at most one trigger per ``webhook_id`` may set this.
         kwargs: Extra keyword arguments merged into each invocation.
 
     Trigger kwargs include ``trigger_type="webhook"``, ``webhook_id``, the parsed payload fields, and ``request`` (the underlying ``aiohttp.web.Request``).

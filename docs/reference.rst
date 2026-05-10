@@ -915,6 +915,18 @@ To validate an HMAC signature on incoming requests, declare ``request`` in the f
           return
       log.info(f"verified webhook: {payload}")
 
+To control the HTTP response sent back to the webhook caller, opt in by passing ``sets_http_response_code=True``. The flagged function's return value then drives the response: ``None`` produces a ``200 OK``, an ``int`` sends back a response with that status code, and an ``aiohttp.web.Response`` allows full control over the body and headers. Return values from triggers without the flag are ignored. For example:
+
+.. code:: python
+
+  @webhook_trigger("myid", sets_http_response_code=True)
+  def webhook_check(payload):
+      if "token" not in payload:
+          return 401
+      return 204
+
+At most one ``@webhook_trigger`` per ``webhook_id`` may set ``sets_http_response_code=True``; declaring more than one is an error at setup time. The webhook handler waits for all decorated function(s) for the ``webhook_id`` to finish before responding, so use ``task.create()`` to fire-and-forget any long-running work.
+
 NOTE: A webhook_id can only be used by either a built-in Home Assistant automation or pyscript, but not both. Trying to use the same webhook_id in both will result in an error.
 
 @state_active
