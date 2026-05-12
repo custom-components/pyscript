@@ -13,13 +13,15 @@ from homeassistant.components import webhook
 from homeassistant.components.webhook import SUPPORTED_METHODS
 from homeassistant.helpers import config_validation as cv
 
-from ..decorator_abc import DispatchData, TriggerDecorator
+from ..decorator_abc import CallResultHandlerDecorator, DispatchData, TriggerDecorator
 from .base import AutoKwargsDecorator, ExpressionDecorator
 
 _LOGGER = logging.getLogger(__name__)
 
 
-class WebhookTriggerDecorator(TriggerDecorator, ExpressionDecorator, AutoKwargsDecorator):
+class WebhookTriggerDecorator(
+    TriggerDecorator, ExpressionDecorator, AutoKwargsDecorator, CallResultHandlerDecorator
+):
     """Implementation for @webhook_trigger."""
 
     name = "webhook_trigger"
@@ -41,6 +43,7 @@ class WebhookTriggerDecorator(TriggerDecorator, ExpressionDecorator, AutoKwargsD
     local_only: bool
     methods: set[str]
     sets_http_response_code: bool
+    future: asyncio.Future[Any] | None = None
 
     webhook_id2triggers: ClassVar[dict[str, set[WebhookTriggerDecorator]]] = {}
 
@@ -75,10 +78,11 @@ class WebhookTriggerDecorator(TriggerDecorator, ExpressionDecorator, AutoKwargsD
                 if not await trigger.check_expression_vars(trigger_args):
                     continue
             future: asyncio.Future[Any] = hass.loop.create_future()
+            trigger.future = future
             if trigger.sets_http_response_code:
                 response_future = future
             futures.append(future)
-            await trigger.dispatch(DispatchData(trigger_args, result_future=future))
+            await trigger.dispatch(DispatchData(trigger_args))
 
         if not futures:
             return None
@@ -88,6 +92,14 @@ class WebhookTriggerDecorator(TriggerDecorator, ExpressionDecorator, AutoKwargsD
         if response_future is None:
             return None
         return WebhookTriggerDecorator.coerce_response(response_future.result())
+
+    async def handle_call_result(self, data: DispatchData, result: Any) -> None:
+        """Resolve the response future with the decorated function's return value."""
+        if data.trigger is not self:
+            return
+        response_future = self.future
+        if response_future is not None and not response_future.done():
+            response_future.set_result(result)
 
     @staticmethod
     def coerce_response(value: Any) -> web.Response | None:

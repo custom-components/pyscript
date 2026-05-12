@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-import asyncio
 from dataclasses import dataclass, field
 from enum import StrEnum
 import logging
@@ -46,16 +45,6 @@ class DispatchData:
 
     call_ast_ctx: AstEval | None = field(default=None, kw_only=True)
     hass_context: Context | None = field(default=None, kw_only=True)
-
-    # When set, the dispatch pipeline resolves this future with the
-    # decorated function's return value. Resolved with None if the
-    # function is skipped (guard rejection) or raises.
-    result_future: asyncio.Future[Any] | None = field(default=None, kw_only=True)
-
-    def set_result(self, value: Any) -> None:
-        """Resolve result_future with value if it is still pending."""
-        if self.result_future is not None and not self.result_future.done():
-            self.result_future.set_result(value)
 
 
 class Decorator(ABC):
