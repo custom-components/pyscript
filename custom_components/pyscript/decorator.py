@@ -258,29 +258,50 @@ class FunctionDecoratorManager(DecoratorManager):
         handlers = self.get_decorators(CallHandlerDecorator)
         result_handlers = self.get_decorators(CallResultHandlerDecorator)
 
-        for handler_dec in handlers:
-            if await handler_dec.handle_call(data) is False:
-                self.logger.debug("Calling canceled by %s", handler_dec)
-                # notify handlers with "None"
-                for result_handler_dec in result_handlers:
-                    await result_handler_dec.handle_call_result(data, None)
-                return
-        # Fire an event indicating that pyscript is running
-        # Note: the event must have an entity_id for logbook to work correctly.
-        ev_name = self.name.replace(".", "_")
-        ev_entity_id = f"pyscript.{ev_name}"
-
-        event_data = {"name": ev_name, "entity_id": ev_entity_id, "func_args": data.func_args}
-        self.hass.bus.async_fire("pyscript_running", event_data, context=data.hass_context)
-        # Store HASS Context for this Task
-        Function.store_hass_context(data.hass_context)
-
-        try:
-            result = await data.call_ast_ctx.call_func(self.eval_func, None, **data.func_args)
+        async def notify_result(result: Any) -> None:
             for result_handler_dec in result_handlers:
                 await result_handler_dec.handle_call_result(data, result)
+
+        async def notify_exception(exc: BaseException) -> None:
+            for result_handler_dec in result_handlers:
+                await result_handler_dec.handle_call_exception(data, exc)
+
+        # Track whether result handlers have already been told the outcome so the
+        # cancellation guard in ``finally`` never notifies them twice.
+        notified = False
+        try:
+            for handler_dec in handlers:
+                if await handler_dec.handle_call(data) is False:
+                    self.logger.debug("Calling canceled by %s", handler_dec)
+                    # notify handlers with "None"
+                    notified = True
+                    await notify_result(None)
+                    return
+            # Fire an event indicating that pyscript is running
+            # Note: the event must have an entity_id for logbook to work correctly.
+            ev_name = self.name.replace(".", "_")
+            ev_entity_id = f"pyscript.{ev_name}"
+
+            event_data = {"name": ev_name, "entity_id": ev_entity_id, "func_args": data.func_args}
+            self.hass.bus.async_fire("pyscript_running", event_data, context=data.hass_context)
+            # Store HASS Context for this Task
+            Function.store_hass_context(data.hass_context)
+
+            result = await data.call_ast_ctx.call_func(self.eval_func, None, **data.func_args)
+            notified = True
+            await notify_result(result)
         except Exception as e:
+            notified = True
+            await notify_exception(e)
             await self.handle_exception(e)
+        finally:
+            if not notified:
+                # The action task was cancelled (CancelledError is a BaseException, so
+                # it is not caught above) or torn down before producing a result. Release
+                # anything awaiting one -- e.g. a @webhook_handler's HTTP response future --
+                # so it fails fast instead of hanging; the original exception keeps
+                # propagating once this block returns.
+                await notify_exception(asyncio.CancelledError())
 
     async def dispatch(self, data: DispatchData) -> None:
         """Handle a trigger dispatch: run guards, create a context, and invoke the function."""
@@ -290,6 +311,8 @@ class FunctionDecoratorManager(DecoratorManager):
         for dec in decorators:
             if await dec.handle_dispatch(data) is False:
                 self.logger.debug("Trigger not active due to %s", dec)
+                for result_handler_dec in self.get_decorators(CallResultHandlerDecorator):
+                    await result_handler_dec.handle_call_result(data, None)
                 return
 
         action_ast_ctx = AstEval(

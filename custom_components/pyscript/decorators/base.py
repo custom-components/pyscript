@@ -1,6 +1,7 @@
 """Base mixins for pyscript decorators."""
 
 from abc import ABC
+import inspect
 import logging
 from typing import Any
 
@@ -19,10 +20,21 @@ class AutoKwargsDecorator(Decorator, ABC):
     async def validate(self) -> None:
         """Run base validation and materialize annotated kwargs as attributes."""
         await super().validate()
-        for k in self.__class__.kwargs_schema.schema:
+        # Collect annotations declared anywhere in the class hierarchy so kwargs
+        # handling keeps working when attributes are declared on a shared base
+        # class (a class's ``__annotations__`` only exposes its own annotations).
+        # ``Decorator`` is skipped because its ``args``/``kwargs`` annotations would
+        # otherwise clobber the validated values.
+        annotations = {
+            name
+            for klass in type(self).__mro__
+            if klass is not Decorator
+            for name in inspect.get_annotations(klass)
+        }
+        for k in type(self).kwargs_schema.schema:
             if isinstance(k, vol.Marker):
                 k = k.schema
-            if k in self.__class__.__annotations__:
+            if k in annotations:
                 setattr(self, k, self.kwargs.get(k, None))
 
 

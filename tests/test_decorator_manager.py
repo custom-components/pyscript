@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import logging
 from typing import ClassVar
 from unittest.mock import patch
@@ -271,7 +272,7 @@ class DummyEvalFuncVar:
 class DummyCallAstCtx:
     """Minimal action AstEval stub for manager call tests."""
 
-    def __init__(self, result: object = None, exc: Exception | None = None) -> None:
+    def __init__(self, result: object = None, exc: BaseException | None = None) -> None:
         """Initialize the dummy action context."""
         self.result = result
         self.exc = exc
@@ -597,6 +598,60 @@ async def test_function_decorator_manager_logs_call_exception(hass):
     assert call_ast_ctx.calls == [(manager.eval_func, None, {"arg1": 1})]
     assert len(ast_ctx.logged_exceptions) == 1
     assert str(ast_ctx.logged_exceptions[0]) == "decorated call failed"
+
+
+@pytest.mark.asyncio
+async def test_function_decorator_manager_exception_calls_result_handlers(hass):
+    """When the decorated function raises, result handlers should be notified with None."""
+    DecoratorManager.hass = hass
+    ast_ctx = DummyAstCtx()
+    manager = FunctionDecoratorManager(ast_ctx, DummyEvalFuncVar())
+    result_handler = make_recording_result_handler()
+    manager.add(result_handler)
+    call_ast_ctx = DummyCallAstCtx(exc=RuntimeError("boom"))
+
+    with patch.object(Function, "store_hass_context"):
+        await call_function_manager(
+            manager,
+            make_dispatch_data(
+                {"arg1": 1},
+                call_ast_ctx=call_ast_ctx,
+                hass_context=Context(id="call-parent"),
+            ),
+        )
+
+    assert result_handler.results == [None]
+    assert len(ast_ctx.logged_exceptions) == 1
+
+
+@pytest.mark.asyncio
+async def test_function_decorator_manager_cancellation_notifies_result_handlers(hass):
+    """A cancelled action must still release result handlers, then re-raise the cancellation."""
+    DecoratorManager.hass = hass
+    ast_ctx = DummyAstCtx()
+    manager = FunctionDecoratorManager(ast_ctx, DummyEvalFuncVar())
+    result_handler = make_recording_result_handler()
+    manager.add(result_handler)
+    call_ast_ctx = DummyCallAstCtx(exc=asyncio.CancelledError())
+
+    with (
+        patch.object(Function, "store_hass_context"),
+        pytest.raises(asyncio.CancelledError),
+    ):
+        await call_function_manager(
+            manager,
+            make_dispatch_data(
+                {"arg1": 1},
+                call_ast_ctx=call_ast_ctx,
+                hass_context=Context(id="call-parent"),
+            ),
+        )
+
+    # The cancelled call still notifies result handlers (so e.g. a @webhook_handler
+    # response future is resolved rather than orphaned)...
+    assert result_handler.results == [None]
+    # ...but a cancellation is not logged as an error the way a normal exception is.
+    assert not ast_ctx.logged_exceptions
 
 
 def test_decorator_registry_register_requires_name():

@@ -143,6 +143,34 @@ def webhook_trigger(
     ...
 
 
+def webhook_handler(
+    webhook_id: str,
+    str_expr: str | None = None,
+    local_only: bool = True,
+    methods: set[SUPPORTED_METHODS] | list[SUPPORTED_METHODS] = {"POST", "PUT"},
+    kwargs: dict | None = None,
+) -> Callable[..., Any]:
+    """Handle a request to a webhook endpoint and control its HTTP response.
+
+    Like ``webhook_trigger``, but only one ``webhook_handler`` is allowed per ``webhook_id`` and
+    the decorated function's return value drives the HTTP response: ``None`` produces a ``200 OK``,
+    an ``int`` sends that status code, and an ``aiohttp.web.Response`` gives full control over the
+    body and headers. The handler waits for the function to return before responding, so use
+    ``task.create()`` for any long-running work.
+
+    Args:
+        webhook_id: Webhook id to listen to. Must be unique; it cannot be shared with another
+            ``webhook_handler`` or ``webhook_trigger``.
+        str_expr: Optional expression evaluated against ``trigger_type``, ``webhook_id``, ``request``, and ``payload``.
+        local_only: If False, allow requests from anywhere on the internet.
+        methods: HTTP methods to allow.
+        kwargs: Extra keyword arguments merged into each invocation.
+
+    Handler kwargs include ``trigger_type="webhook"``, ``webhook_id``, the parsed payload fields, and ``request`` (the underlying ``aiohttp.web.Request``).
+    """
+    ...
+
+
 def pyscript_compile() -> Callable[..., Any]:
     """Compile the wrapped function into native (synchronous) Python.
 

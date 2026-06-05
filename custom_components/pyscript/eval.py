@@ -59,6 +59,7 @@ TRIG_DECORATORS = {
     "event_trigger",
     "mqtt_trigger",
     "webhook_trigger",
+    "webhook_handler",
     "state_active",
     "time_active",
     "task_unique",
@@ -377,6 +378,7 @@ class EvalFunc:
             "state_trigger",
             "time_trigger",
             "webhook_trigger",
+            "webhook_handler",
         }
         arg_check = {
             "event_trigger": {"arg_cnt": {1, 2, 3}, "rep_ok": True},
@@ -388,6 +390,7 @@ class EvalFunc:
             "time_active": {"arg_cnt": {"*"}},
             "time_trigger": {"arg_cnt": {0, "*"}, "rep_ok": True},
             "webhook_trigger": {"arg_cnt": {1, 2}, "rep_ok": True},
+            "webhook_handler": {"arg_cnt": {1, 2}, "rep_ok": True},
         }
         kwarg_check = {
             "event_trigger": {"kwargs": {dict}},
@@ -407,6 +410,11 @@ class EvalFunc:
                 "watch": {set, list},
             },
             "webhook_trigger": {
+                "kwargs": {dict},
+                "local_only": {bool},
+                "methods": {list, set},
+            },
+            "webhook_handler": {
                 "kwargs": {dict},
                 "local_only": {bool},
                 "methods": {list, set},
@@ -541,7 +549,7 @@ class EvalFunc:
                     self.trigger_service.add(srv_name)
                 continue
 
-            if dec_name == "webhook_trigger" and "methods" in dec_kwargs:
+            if dec_name in ("webhook_trigger", "webhook_handler") and "methods" in dec_kwargs:
                 if len(bad := set(dec_kwargs["methods"]).difference(WEBHOOK_METHODS)) > 0:
                     raise TypeError(f"{exc_mesg}: {bad} aren't valid {dec_name} methods")
 

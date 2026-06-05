@@ -256,6 +256,7 @@ class TriggerHandlerDecorator(Decorator, ABC):
                 "state_trigger",
                 "time_trigger",
                 "webhook_trigger",
+                "webhook_handler",
             }
             raise ValueError(
                 f"{self.dm.func_name} defined in {self.dm.ast_ctx.get_global_ctx_name()}: "
@@ -281,3 +282,12 @@ class CallResultHandlerDecorator(Decorator, ABC):
     @abstractmethod
     async def handle_call_result(self, data: DispatchData, result: Any) -> None:
         """Handle an action call result."""
+
+    async def handle_call_exception(self, data: DispatchData, exc: Exception) -> None:
+        """
+        Handle an unhandled exception raised by the action call.
+
+        Defaults to treating the exception as a ``None`` result. Subclasses may
+        override to react to the failure (e.g. produce an error response).
+        """
+        await self.handle_call_result(data, None)

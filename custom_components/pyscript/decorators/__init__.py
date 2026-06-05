@@ -7,6 +7,7 @@ from .state import StateActiveDecorator, StateTriggerDecorator
 from .task import TaskUniqueDecorator
 from .timing import TimeActiveDecorator, TimeTriggerDecorator
 from .webhook import WebhookTriggerDecorator
+from .webhook_handler import WebhookHandlerDecorator
 
 DECORATORS = [
     StateTriggerDecorator,
@@ -17,5 +18,6 @@ DECORATORS = [
     EventTriggerDecorator,
     MQTTTriggerDecorator,
     WebhookTriggerDecorator,
+    WebhookHandlerDecorator,
     ServiceDecorator,
 ]

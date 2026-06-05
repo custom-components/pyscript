@@ -917,6 +917,42 @@ To validate an HMAC signature on incoming requests, declare ``request`` in the f
 
 NOTE: A webhook_id can only be used by either a built-in Home Assistant automation or pyscript, but not both. Trying to use the same webhook_id in both will result in an error.
 
+@webhook_handler
+^^^^^^^^^^^^^^^^
+
+.. code:: python
+
+    @webhook_handler(webhook_id, str_expr=None, local_only=True, methods={"POST", "PUT"}, kwargs=None)
+
+``@webhook_handler`` is like ``@webhook_trigger``, with two differences: only **one** handler is allowed per ``webhook_id``, and the decorated function's **return value controls the HTTP response** sent back to the caller. Use it when the caller needs a meaningful status code or response body; use ``@webhook_trigger`` for fire-and-forget notifications where the response is always ``200 OK``.
+
+The ``local_only``, ``methods``, ``str_expr`` and ``kwargs`` options, and the ``trigger_type``, ``webhook_id``, ``payload`` and ``request`` variables, behave exactly as for ``@webhook_trigger`` (see above).
+
+The return value is mapped to the response as follows:
+
+- ``None`` (or no ``return``) produces a ``200 OK``.
+- an ``int`` in the range ``100``-``599`` sends back a response with that status code, e.g. ``return 404``. An out-of-range int is ignored (a warning is logged) and a ``200 OK`` is sent.
+- an ``aiohttp.web.Response`` is returned as-is, giving full control over the status, body and headers. Constructing one requires ``from aiohttp import web``, which needs ``allow_all_imports: true`` in your pyscript configuration.
+- any other type is ignored (a warning is logged) and a ``200 OK`` is sent.
+
+If the function raises an unhandled exception, the exception is logged and a ``500 Internal Server Error`` is sent. Catch the exception in your function if you want to return a different status.
+
+If the request body cannot be parsed (for example a body declared as ``application/json`` that is not valid JSON), the function is not called and a ``400 Bad Request`` is sent.
+
+For example:
+
+.. code:: python
+
+  @webhook_handler("myid")
+  def webhook_check(payload):
+      if "token" not in payload:
+          return 401
+      return 204
+
+The handler waits for the decorated function to finish before sending the response, so use ``task.create()`` to fire-and-forget any long-running work and return promptly.
+
+NOTE: The ``webhook_id`` used by a ``@webhook_handler`` must be unique - it cannot be shared with another ``@webhook_handler`` or with a ``@webhook_trigger``. Attempting to reuse a ``webhook_id`` will result in an error when the script is loaded.
+
 @state_active
 ^^^^^^^^^^^^^
 
