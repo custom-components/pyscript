@@ -755,7 +755,7 @@ trigger will occur 1 hour after the 1:01am trigger.
 
 .. code:: python
 
-    @event_trigger(event_type, str_expr=None, kwargs=None)
+    @event_trigger(event_type, str_expr=None, event_filter=None, kwargs=None)
 
 ``@event_trigger`` triggers on the given ``event_type``. Multiple ``@event_trigger`` decorators
 can be applied to a single function if you want to trigger the same function with different event
@@ -771,6 +771,29 @@ parameters sent with the event, together with these two variables:
 
 Note, unlike state variables, the event data values are not forced to be strings, so typically that
 data has its native type.
+
+An optional ``event_filter`` keyword argument can be set to an expression string that is evaluated
+at the Home Assistant event bus *before* the event is delivered to your function. Unlike
+``str_expr`` (which is evaluated by the pyscript engine just before the function runs), the
+``event_filter`` expression is evaluated natively and synchronously on the bus, so it can only
+reference keys of the event data (no pyscript state variables, functions, or builtins are in
+scope). Use it as a fast pre-filter to avoid waking the trigger for high-volume events, and use
+``str_expr`` when you need full pyscript-style matching. If the expression raises (for example a
+referenced key is missing) the event is skipped and the error is logged.
+
+Some events require a bus filter: Home Assistant rejects a plain ``async_listen`` for high-volume
+events such as ``EVENT_STATE_REPORTED``. For those events you must supply an ``event_filter``;
+without one the trigger fails to start and the error is logged. This deliberately prevents
+accidentally subscribing to every event of such a high-volume type. To intentionally receive them
+all, pass a filter that always matches, e.g. ``event_filter="True"``. Example:
+
+.. code:: python
+
+   from homeassistant.const import EVENT_STATE_REPORTED
+
+   @event_trigger(EVENT_STATE_REPORTED, event_filter="entity_id == 'sensor.kitchen_temp'")
+   def on_kitchen_temp_reported(new_state=None, **kwargs):
+       log.info(f"kitchen temp reported: {new_state.state}")
 
 When the ``@event_trigger`` occurs, those same variables are passed as keyword arguments to the
 function in case it needs them.  Additional keyword parameters can be specified by setting the
