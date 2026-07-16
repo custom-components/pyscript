@@ -42,6 +42,7 @@ class Webhook:
         func_args = {
             "trigger_type": "webhook",
             "webhook_id": webhook_id,
+            "request": request,
         }
 
         if "json" in request.headers.get(hdrs.CONTENT_TYPE, ""):
