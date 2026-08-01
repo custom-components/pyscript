@@ -1,4 +1,4 @@
-coverage==7.13.5
+coverage==7.14.1
 croniter==6.0.0
 watchdog==6.0.0
 mock-open==1.4.0
@@ -6,7 +6,7 @@ mypy==1.10.1
 pre-commit==3.7.1
 pytest==9.0.3
 pytest-cov==7.1.0
-pytest-homeassistant-custom-component==0.13.326
+pytest-homeassistant-custom-component==0.13.348
 ruff==0.15.12
 pylint==3.3.4
 pylint-strict-informational==0.1

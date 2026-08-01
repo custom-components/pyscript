@@ -266,6 +266,7 @@ class TriggerHandlerDecorator(Decorator, ABC):
             trig_decorators_reqd = {
                 "event_trigger",
                 "mqtt_trigger",
+                "sentence_trigger",
                 "state_trigger",
                 "time_trigger",
                 "webhook_trigger",
