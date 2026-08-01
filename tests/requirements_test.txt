@@ -1,4 +1,4 @@
-coverage==7.13.5
+coverage==7.14.1
 croniter==6.0.0
 watchdog==6.0.0
 mock-open==1.4.0
