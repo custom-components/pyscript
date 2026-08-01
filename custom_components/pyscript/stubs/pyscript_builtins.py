@@ -12,10 +12,11 @@ from collections.abc import Callable
 from datetime import datetime
 from typing import Any, Literal
 
-from homeassistant.components.webhook import SUPPORTED_METHODS
 from homeassistant.core import HomeAssistant
 
 hass: HomeAssistant
+
+WebhookMethod = Literal["GET", "HEAD", "POST", "PUT"]
 
 
 def service(
@@ -129,7 +130,7 @@ def webhook_trigger(
     webhook_id: str,
     str_expr: str | None = None,
     local_only: bool = True,
-    methods: set[SUPPORTED_METHODS] | list[SUPPORTED_METHODS] = {"POST", "PUT"},
+    methods: set[WebhookMethod] | list[WebhookMethod] = {"POST", "PUT"},
     kwargs: dict | None = None,
 ) -> Callable[..., Any]:
     """Trigger when a request is made to a webhook endpoint.
@@ -150,7 +151,7 @@ def webhook_handler(
     webhook_id: str,
     str_expr: str | None = None,
     local_only: bool = True,
-    methods: set[SUPPORTED_METHODS] | list[SUPPORTED_METHODS] = {"POST", "PUT"},
+    methods: set[WebhookMethod] | list[WebhookMethod] = {"POST", "PUT"},
     timeout: int | float = 10.0,
     kwargs: dict | None = None,
 ) -> Callable[..., Any]:
@@ -491,7 +492,7 @@ class task:
         mqtt_trigger_encoding: str | None = None,
         webhook_trigger: str | list[str] | None = None,
         webhook_local_only: bool = True,
-        webhook_methods: list[SUPPORTED_METHODS] = ("POST", "PUT"),
+        webhook_methods: list[WebhookMethod] = ["POST", "PUT"],
         timeout: int | float | None = None,
         state_check_now: bool = True,
         state_hold: int | float | None = None,
