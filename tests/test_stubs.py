@@ -4,7 +4,6 @@ from __future__ import annotations
 
 from datetime import datetime as dt
 from pathlib import Path
-from types import SimpleNamespace
 from typing import Any
 
 import pytest
@@ -40,12 +39,7 @@ def ready():
         },
     )
 
-    dummy_registry = SimpleNamespace(
-        entities={
-            "light.lamp": SimpleNamespace(entity_id="light.lamp", disabled=False),
-        }
-    )
-    monkeypatch.setattr("custom_components.pyscript.stubs.generator.er.async_get", lambda _: dummy_registry)
+    hass.states.async_set("remote.tv", "off", {})
 
     async def fake_service_descriptions(_hass: HomeAssistant) -> dict[str, dict[str, dict[str, Any]]]:
         return {
@@ -68,7 +62,44 @@ def ready():
                     },
                     "response": {"optional": True},
                 }
-            }
+            },
+            "remote": {
+                "send_command": {
+                    "description": "Send a command.",
+                    "fields": {
+                        "delay_secs": {
+                            "required": False,
+                            "default": 0.4,
+                            "selector": {"number": {"step": 0.1, "min": 0.0, "max": 5.0}},
+                            "description": "Delay between commands.",
+                        },
+                    },
+                },
+                "turn_on": {
+                    "description": "Turn on remote.",
+                    "target": {"entity": {"domain": "remote"}},
+                    "fields": {
+                        "activity": {
+                            "required": False,
+                            "selector": {"text": None},
+                            "description": "Activity to start.",
+                        },
+                    },
+                },
+            },
+            "voice_satellite": {
+                "show": {
+                    "description": "Show something.",
+                    "fields": {
+                        "pipeline": {
+                            "required": False,
+                            "default": 1,
+                            "selector": {"text": None},
+                            "description": "Pipeline name or slot.",
+                        },
+                    },
+                },
+            },
         }
 
     monkeypatch.setattr(
@@ -115,6 +146,13 @@ def ready():
     assert "'fast'" in generated_content
     assert "-> dict[str, Any]" in generated_content
 
+    # Fractional number selector produces float annotation.
+    assert "delay_secs: float" in generated_content
+    # Type mismatch between selector (str) and default (int) widens annotation.
+    assert "str | int" in generated_content
+    # Entity service with single optional arg preserves the default.
+    assert "turn_on(self, activity: str | None=None)" in generated_content
+
     original_builtins = (
         Path(__file__).resolve().parent.parent
         / "custom_components"
@@ -156,3 +194,56 @@ def stub_import_ready():
 
     assert hass.services.has_service(DOMAIN, "stub_import_ready")
     assert "ModuleNotFoundError" not in caplog.text
+
+
+@pytest.mark.asyncio
+async def test_stubs_include_state_only_entities(hass, caplog, monkeypatch):
+    """Entities only in the state machine (not in entity registry) must appear in stubs."""
+
+    await setup_script(
+        hass,
+        notify_q=None,
+        now=dt(2024, 3, 3, 0, 0, 0),
+        source="""
+@service
+def ready2():
+    pass
+""",
+        script_name="/stub_state_only.py",
+    )
+
+    # Entity in state machine but NOT in the registry (template entity / zone.home pattern).
+    hass.states.async_set(
+        "binary_sensor.my_sensor",
+        "off",
+        {"device_class": "running", "friendly_name": "Van Car Running"},
+    )
+    hass.states.async_set(
+        "zone.home",
+        "0",
+        {"latitude": 40.0, "longitude": -74.0, "radius": 100, "persons": ["person.me"]},
+    )
+
+    # Empty registry - forces all entities to come from state machine only.
+
+    async def fake_service_descriptions(_hass: HomeAssistant) -> dict[str, dict[str, dict[str, Any]]]:
+        return {}
+
+    monkeypatch.setattr(
+        "custom_components.pyscript.stubs.generator.async_get_all_descriptions", fake_service_descriptions
+    )
+
+    stubs_dir = Path(hass.config.path(FOLDER)) / "modules" / "stubs"
+    generated_target = stubs_dir / "pyscript_generated.py"
+    stubs_dir.mkdir(parents=True, exist_ok=True)
+
+    await hass.services.async_call(DOMAIN, SERVICE_GENERATE_STUBS, {}, blocking=True, return_response=True)
+
+    content = generated_target.read_text(encoding="utf-8")
+    assert "my_sensor: _binary_sensor_state" in content
+    assert "home: _zone_state" in content
+
+    # Cleanup
+    for child in stubs_dir.iterdir():
+        child.unlink()
+    stubs_dir.rmdir()
