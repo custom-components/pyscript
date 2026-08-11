@@ -1016,7 +1016,7 @@ When the trigger fires, these keyword arguments are passed to the function:
    }
 
 - ``sentence`` is the raw spoken text.
-- ``slots`` is a flat ``dict[str, str]`` of slot name to matched value for quick access.
+- ``slots`` is a flat ``dict[str, Any]`` of slot name to matched value for quick access.
 - ``details`` contains the full hassil match information per slot (name, raw text, resolved value).
 - ``device_id`` is the HA device registry ID of the physical voice hardware that captured the command. Use it for hardware-level identity.
 - ``satellite_id`` is the ``entity_id`` of the ``assist_satellite`` entity representing the voice satellite. Use it to resolve area context (the satellite entity carries area assignment and pipeline config).

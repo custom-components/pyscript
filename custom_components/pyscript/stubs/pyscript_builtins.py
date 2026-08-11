@@ -166,7 +166,7 @@ def webhook_handler(
         local_only: If False, allow requests from anywhere on the internet.
         methods: HTTP methods to allow.
         timeout: Seconds to wait for the function before returning ``504 Gateway Timeout``.
-    kwargs: Extra keyword arguments merged into each invocation.
+        kwargs: Extra keyword arguments merged into each invocation.
 
     Trigger kwargs are identical to ``@webhook_trigger``.
 
@@ -206,7 +206,7 @@ def sentence_trigger(
     Trigger kwargs:
         - ``trigger_type`` = ``"sentence"``
         - ``sentence``: the raw spoken text
-        - ``slots``: ``dict[str, str]`` mapping slot names to matched values
+        - ``slots``: ``dict[str, Any]`` mapping slot names to matched values
         - ``details``: full hassil match info per slot (name, text, value)
         - ``device_id``: HA device registry id of the voice hardware (or None)
         - ``satellite_id``: entity_id of the assist_satellite entity (or None)
