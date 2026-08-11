@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import voluptuous as vol
 
@@ -12,6 +12,9 @@ from homeassistant.core import CALLBACK_TYPE
 
 from ..decorator_abc import CallResultHandlerDecorator, DispatchData, TriggerDecorator
 from .base import AutoKwargsDecorator
+
+if TYPE_CHECKING:
+    from homeassistant.components.conversation import ConversationInput, RecognizeResult
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -50,12 +53,12 @@ class SentenceTriggerDecorator(TriggerDecorator, AutoKwargsDecorator, CallResult
         self.sentences = raw if isinstance(raw, list) else [raw]
         self._unregister = None
 
-    async def _trigger_callback(self, user_input, result) -> str | None:
+    async def _trigger_callback(self, user_input: ConversationInput, result: RecognizeResult) -> str | None:
         """Handle a matched sentence from the conversation agent."""
         details = {
             entity_name: {
                 "name": entity_name,
-                "text": entity.text.strip(),
+                "text": entity.text.strip() if isinstance(entity.text, str) else entity.text,
                 "value": (entity.value.strip() if isinstance(entity.value, str) else entity.value),
             }
             for entity_name, entity in result.entities.items()
@@ -101,13 +104,19 @@ class SentenceTriggerDecorator(TriggerDecorator, AutoKwargsDecorator, CallResult
     async def start(self):
         """Register sentences with the conversation agent manager."""
         await super().start()
-        from homeassistant.components.conversation.agent_manager import get_agent_manager
+        try:
+            from homeassistant.components.conversation.agent_manager import get_agent_manager
 
-        mgr = get_agent_manager(self.dm.hass)
-        self._unregister = mgr.register_trigger(
-            sentences=self.sentences,
-            trigger_callback=self._trigger_callback,
-        )
+            mgr = get_agent_manager(self.dm.hass)
+            self._unregister = mgr.register_trigger(
+                sentences=self.sentences,
+                trigger_callback=self._trigger_callback,
+            )
+        except Exception as err:
+            _LOGGER.warning(
+                "sentence_trigger %s failed to register; conversations unavailable: %s", self.dm.name, err
+            )
+            return
         _LOGGER.debug("sentence_trigger %s registered sentences: %s", self.dm.name, self.sentences)
 
     async def stop(self):
