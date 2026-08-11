@@ -11,7 +11,6 @@ from typing import Any, Literal
 
 from custom_components.pyscript.stubs.pyscript_builtins import StateVal
 from homeassistant.core import HomeAssistant, split_entity_id
-from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers.service import async_get_all_descriptions
 
 _LOGGER = logging.getLogger(__name__)
@@ -70,10 +69,11 @@ class StubsGenerator:
         }
 
         for module, imports in base_imports.items():
+            level = 1 if module == "pyscript_builtins" else 0
             module_body.append(
                 ast.ImportFrom(
                     module=module,
-                    level=0,
+                    level=level,
                     names=[ast.alias(name=imp, asname=None) for imp in imports],
                 )
             )
@@ -163,13 +163,11 @@ class StubsGenerator:
         return f"_{domain_id}{_STATE_CLASS_SUFFIX}"
 
     async def _build_entity_classes(self):
-        for entity in er.async_get(self._hass).entities.values():
-            if entity.disabled:
-                continue
+        for state_obj in sorted(self._hass.states.async_all(), key=lambda s: s.entity_id):
+            full_entity_id = state_obj.entity_id
+            domain_id, entity_id = split_entity_id(full_entity_id)
 
-            domain_id, entity_id = split_entity_id(entity.entity_id)
-
-            if not self._is_identifier(entity_id, entity.entity_id):
+            if not self._is_identifier(entity_id, full_entity_id):
                 continue
 
             self._collect_entity_atts(domain_id, entity_id)
@@ -235,6 +233,7 @@ class StubsGenerator:
         kwonlyargs: list[ast.arg] = []
         kw_defaults: list[ast.expr] = []
         decorator_list: list[ast.expr] = []
+        defaults: list[ast.expr] = []
 
         has_target = "target" in payload
 
@@ -258,6 +257,9 @@ class StubsGenerator:
 
         if def_type == "entity" and len(field_nodes) == 1:  # simple calling with 1 arg service
             args.append(ast.arg(arg=field_nodes[0].name, annotation=field_nodes[0].annotation))
+            # Preserve the default for the single positional argument.
+            if field_nodes[0].default is not None:
+                defaults.append(field_nodes[0].default)
         else:
             for field in field_nodes:
                 kwonlyargs.append(ast.arg(arg=field.name, annotation=field.annotation))
@@ -287,7 +289,7 @@ class StubsGenerator:
                 kwonlyargs=kwonlyargs,
                 kw_defaults=kw_defaults,
                 kwarg=None,
-                defaults=[],
+                defaults=defaults,
             ),
             body=body,
             decorator_list=decorator_list,
@@ -330,6 +332,13 @@ class StubsGenerator:
             if default_value is not None and isinstance(default_value, (int, float, str, bool)):
                 default_expr = ast.Constant(value=default_value)
 
+            # Widen annotation when the default's type conflicts with the selector type.
+            if default_expr is not None and annotation is not None:
+                ann_str = ast.unparse(annotation)
+                default_type = type(default_value).__name__
+                if default_type not in ann_str and default_type in ("int", "float", "str", "bool"):
+                    annotation = ast.BinOp(left=annotation, op=ast.BitOr(), right=self._name(default_type))
+
             if not is_required:
                 if default_expr is None:
                     if annotation is not None:
@@ -361,8 +370,14 @@ class StubsGenerator:
             if selector_id == "number":
                 if selector_value == "any":
                     return self._name("float")
-                if isinstance(selector_value, dict) and selector_value.get("mode") == "box":
-                    return self._name("float")
+                if isinstance(selector_value, dict):
+                    if selector_value.get("mode") == "box":
+                        return self._name("float")
+                    # Use float when step or min/max are fractional.
+                    for key in ("step", "min", "max"):
+                        val = selector_value.get(key)
+                        if isinstance(val, float) and val != int(val):
+                            return self._name("float")
                 return self._name("int")
             if selector_id == "select":
                 options = []

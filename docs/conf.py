@@ -22,7 +22,7 @@ copyright = "2020-2026, Craig Barratt"
 author = "Craig Barratt"
 
 # The full version, including alpha/beta/rc tags
-release = "2.0.1"
+release = "2.1.0"
 
 master_doc = "index"
 

@@ -8,8 +8,8 @@ You can also install the master (head of tree) version from GitHub, either using
 Because pyscript has quite a few unit tests, generally the master version should work ok. But it's not
 guaranteed to work at any random time, and newly-added features might change.
 
-This is 2.0.1, released on May 2, 2026.  Here is the `documentation
-<https://hacs-pyscript.readthedocs.io/en/2.0.1>`__ for that release.  Here is the
+This is 2.1.0, released on August 11, 2026.  Here is the `documentation
+<https://hacs-pyscript.readthedocs.io/en/2.1.0>`__ for that release.  Here is the
 `stable documentation <https://hacs-pyscript.readthedocs.io/en/stable>`__ for
 the latest release.
 
@@ -17,5 +17,5 @@ Over time, the master (head of tree) version in GitHub will include new features
 Here is the `latest documentation <https://hacs-pyscript.readthedocs.io/en/latest>`__ if you want
 to see the development version of the documentation.
 
-If you want to see development progress since 2.0.1, look at the
+If you want to see development progress since 2.1.0, look at the
 `GitHub repository <https://github.com/custom-components/pyscript>`__.
