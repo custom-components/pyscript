@@ -982,7 +982,7 @@ For full control over the response, return an ``aiohttp.web.Response``:
 
 .. code:: python
 
-    @sentence_trigger(sentences, timeout=10.0, kwargs=None)
+    @sentence_trigger(*sentences, timeout=10.0, kwargs=None)
 
 ``@sentence_trigger`` registers one or more sentence templates with Home Assistant's conversation agent. When a spoken (or typed) sentence matches a template, the decorated function is called. If the function returns a non-``None`` value, it becomes the spoken response.
 
@@ -991,7 +991,7 @@ Sentence templates use `hassil <https://github.com/home-assistant/hassil>`__ wil
 Arguments:
 
 ``sentences``
-  A single sentence template string, or a list of templates. Each template is registered independently with the conversation agent.
+  One or more sentence template strings or lists of templates. Each template is registered independently with the conversation agent.
 
 ``timeout``
   Seconds to wait for the function to return before giving up on a spoken response. Defaults to ``10.0``. If the function does not finish in time, no spoken response is provided (the function continues running in the background).
@@ -1035,7 +1035,7 @@ Examples:
       service.call("light", "turn_on", entity_id=f"light.{slots['name']}")
       return f"Turned on {slots['name']} in the {slots['area']}"
 
-  @sentence_trigger(["what time is it", "tell me the time"])
+  @sentence_trigger("what time is it", "tell me the time")
   def voice_time():
       from datetime import datetime
       return f"It is {datetime.now().strftime('%I:%M %p')}"
