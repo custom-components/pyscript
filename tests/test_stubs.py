@@ -173,6 +173,72 @@ def ready():
 
 
 @pytest.mark.asyncio
+async def test_stubs_flatten_additional_fields(pyscript, monkeypatch):
+    """Fields nested under "additional_fields" (e.g. light.turn_on) must be flattened, not dropped."""
+
+    hass = pyscript.hass
+
+    async def fake_service_descriptions(_hass: HomeAssistant) -> dict[str, dict[str, dict[str, Any]]]:
+        return {
+            "light": {
+                "turn_on": {
+                    "description": "Turn on a light.",
+                    "target": {"entity": {"domain": "light"}},
+                    "fields": {
+                        "transition": {
+                            "required": False,
+                            "selector": {"number": {}},
+                            "description": "Transition.",
+                        },
+                        "additional_fields": {
+                            "collapsed": True,
+                            "fields": {
+                                "brightness": {
+                                    "required": False,
+                                    "selector": {"number": {"min": 0, "max": 255}},
+                                    "description": "Brightness.",
+                                },
+                                "xy_color": {
+                                    "required": False,
+                                    "selector": {"object": None},
+                                    "description": "XY color.",
+                                },
+                            },
+                        },
+                    },
+                }
+            }
+        }
+
+    monkeypatch.setattr(
+        "custom_components.pyscript.stubs.generator.async_get_all_descriptions", fake_service_descriptions
+    )
+
+    await pyscript.start()
+
+    stubs_dir = Path(hass.config.path(FOLDER)) / "modules" / "stubs"
+    generated_target = stubs_dir / "pyscript_generated.py"
+    stubs_dir.mkdir(parents=True, exist_ok=True)
+
+    await hass.services.async_call(DOMAIN, SERVICE_GENERATE_STUBS, {}, blocking=True, return_response=True)
+
+    generated_content = generated_target.read_text(encoding="utf-8")
+
+    # Sibling top-level field survives alongside the flattened ones.
+    assert "transition" in generated_content
+    # Fields nested under "additional_fields" must be flattened into the signature...
+    assert "brightness" in generated_content
+    assert "xy_color" in generated_content
+    # ...and "additional_fields" itself must not show up as a bogus parameter.
+    assert "additional_fields" not in generated_content
+
+    # Cleanup
+    for child in stubs_dir.iterdir():
+        child.unlink()
+    stubs_dir.rmdir()
+
+
+@pytest.mark.asyncio
 async def test_stub_imports_are_ignored(hass, caplog):
     """Verify importing from stubs.* does not raise even when the module is missing."""
 

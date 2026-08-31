@@ -187,7 +187,7 @@ class StubsGenerator:
         def process_fields(fields: dict[str, Any]) -> list[_ServiceField]:
             result: list[_ServiceField] = []
             for field_name, field in (fields.get("fields") or {}).items():
-                if field_name == "advanced_fields":
+                if field_name in ("additional_fields", "advanced_fields"):
                     result.extend(process_fields(field))
                     continue
                 definition = self._describe_service_field(service_id, field_name, field)
