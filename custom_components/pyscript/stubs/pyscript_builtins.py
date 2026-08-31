@@ -188,7 +188,7 @@ def webhook_handler(
 
 
 def sentence_trigger(
-    sentences: str | list[str],
+    *sentences: str | list[str],
     timeout: float = 10.0,
     kwargs: dict | None = None,
 ) -> Callable[..., Any]:
@@ -199,7 +199,7 @@ def sentence_trigger(
     not None, becomes the spoken response.
 
     Args:
-        sentences: A sentence template or list of templates using hassil ``{slot}`` wildcards.
+        sentences: One or more sentence templates or lists of templates using hassil ``{slot}`` wildcards.
         timeout: Seconds to wait for the function to return before giving up on a spoken response.
         kwargs: Extra keyword arguments merged into each invocation.
 

@@ -1,12 +1,14 @@
 """Test pyscript @sentence_trigger decorator."""
 
-import asyncio
-import sys
 from dataclasses import dataclass, field
+import logging
 from typing import Any
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 import pytest
+
+from custom_components.pyscript.decorators import sentence as sentence_decorator
+from homeassistant.components.conversation import trigger as conversation_trigger
 
 
 @dataclass
@@ -55,18 +57,10 @@ class MockAgentManager:
 def agent_manager():
     """Provide a mock agent manager that intercepts register_trigger calls."""
     mgr = MockAgentManager()
-
-    # The lazy import `from homeassistant.components.conversation.agent_manager
-    # import get_agent_manager` requires the module to be importable. Inject a
-    # fake into sys.modules so the import succeeds in the test environment.
-    fake_conv = MagicMock()
-    fake_conv.agent_manager.get_agent_manager = lambda hass: mgr
-
-    modules_patch = {
-        "homeassistant.components.conversation": fake_conv,
-        "homeassistant.components.conversation.agent_manager": fake_conv.agent_manager,
-    }
-    with patch.dict(sys.modules, modules_patch):
+    with patch(
+        "homeassistant.components.conversation.agent_manager.get_agent_manager",
+        return_value=mgr,
+    ):
         yield mgr
 
 
@@ -127,6 +121,97 @@ def voice_time():
 
 
 @pytest.mark.asyncio
+async def test_sentence_trigger_positional_and_list_sentences(pyscript, agent_manager):
+    """Separate positional arguments and lists are flattened."""
+    await pyscript.start("""
+@sentence_trigger("hello", ["hi", "hey"])
+def voice_greetings():
+    pass
+""")
+
+    assert agent_manager.triggers[0]["sentences"] == ["hello", "hi", "hey"]
+
+
+@pytest.mark.asyncio
+async def test_sentence_trigger_apostrophe(pyscript, agent_manager):
+    """An apostrophe is valid sentence punctuation."""
+    await pyscript.start("""
+@sentence_trigger("It's party time")
+def voice_party():
+    pass
+""")
+
+    assert agent_manager.triggers[0]["sentences"] == ["It's party time"]
+
+
+@pytest.mark.parametrize(
+    ("sentence", "error"),
+    [
+        ("hello?", "sentence should not contain punctuation"),
+        ("hello!", "sentence should not contain punctuation"),
+        ("4 a.m.", "sentence should not contain punctuation"),
+        ([], "at least one sentence is required"),
+        ("", "sentence too short"),
+        ("[test)", "invalid sentence"),
+    ],
+)
+@pytest.mark.asyncio
+async def test_sentence_trigger_invalid_logs(pyscript, agent_manager, caplog, sentence, error):
+    """Invalid sentences are rejected and logged."""
+    with caplog.at_level(logging.ERROR):
+        await pyscript.start(f"""
+@sentence_trigger({sentence!r})
+def voice_invalid():
+    pass
+""")
+        await pyscript.wait_exception(TypeError, match=error)
+
+    assert not agent_manager.triggers
+    assert error in caplog.text
+
+
+@pytest.mark.asyncio
+async def test_sentence_trigger_requires_sentence(pyscript, agent_manager):
+    """At least one positional sentence is required."""
+    await pyscript.start("""
+@sentence_trigger()
+def voice_empty():
+    pass
+""")
+    await pyscript.wait_exception(TypeError, match="at least one sentence is required")
+
+    assert not agent_manager.triggers
+
+
+@pytest.mark.asyncio
+async def test_sentence_trigger_old_ha_validation(pyscript, agent_manager, monkeypatch):
+    """Older HA versions use the sentence validators they provide."""
+    monkeypatch.delattr(conversation_trigger, "is_valid_sentence", raising=False)
+
+    await pyscript.start("""
+@sentence_trigger("play something")
+def voice_old_ha():
+    pass
+""")
+
+    assert agent_manager.triggers[0]["sentences"] == ["play something"]
+
+
+@pytest.mark.asyncio
+async def test_sentence_trigger_without_conversation_validation(pyscript, agent_manager, monkeypatch):
+    """Missing conversation dependencies do not prevent pyscript from loading."""
+    monkeypatch.setattr(sentence_decorator, "_import_validators", lambda: None)
+
+    await pyscript.start("""
+@sentence_trigger("hello?")
+def voice_without_conversation():
+    pass
+""")
+
+    assert agent_manager.triggers[0]["sentences"] == ["hello?"]
+
+
+@pytest.mark.asyncio
 async def test_sentence_trigger_device_and_satellite(pyscript, agent_manager):
     """device_id and satellite_id are passed through."""
     await pyscript.start("""
@@ -135,7 +220,9 @@ def voice_hello(device_id, satellite_id):
     pyscript.done = [device_id, satellite_id]
 """)
 
-    user_input = MockConversationInput(text="hello", device_id="dev_abc", satellite_id="assist_satellite.kitchen")
+    user_input = MockConversationInput(
+        text="hello", device_id="dev_abc", satellite_id="assist_satellite.kitchen"
+    )
     result = MockRecognizeResult(entities={})
 
     await agent_manager.triggers[0]["callback"](user_input, result)
@@ -152,16 +239,20 @@ def voice_set(details):
 """)
 
     user_input = MockConversationInput(text="set brightness to 50")
-    result = MockRecognizeResult(entities={
-        "name": MockEntity(text=" brightness ", value="brightness"),
-        "level": MockEntity(text=" 50 ", value=50),
-    })
+    result = MockRecognizeResult(
+        entities={
+            "name": MockEntity(text=" brightness ", value="brightness"),
+            "level": MockEntity(text=" 50 ", value=50),
+        }
+    )
 
     await agent_manager.triggers[0]["callback"](user_input, result)
-    await pyscript.wait_done({
-        "name": {"name": "name", "text": "brightness", "value": "brightness"},
-        "level": {"name": "level", "text": "50", "value": 50},
-    })
+    await pyscript.wait_done(
+        {
+            "name": {"name": "name", "text": "brightness", "value": "brightness"},
+            "level": {"name": "level", "text": "50", "value": 50},
+        }
+    )
 
 
 @pytest.mark.asyncio

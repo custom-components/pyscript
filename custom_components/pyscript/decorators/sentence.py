@@ -3,12 +3,14 @@
 from __future__ import annotations
 
 import asyncio
+from collections.abc import Callable
 import logging
 from typing import TYPE_CHECKING, Any
 
 import voluptuous as vol
 
 from homeassistant.core import CALLBACK_TYPE
+from homeassistant.helpers import config_validation as cv
 
 from ..decorator_abc import CallResultHandlerDecorator, DispatchData, TriggerDecorator
 from .base import AutoKwargsDecorator
@@ -19,6 +21,44 @@ if TYPE_CHECKING:
 _LOGGER = logging.getLogger(__name__)
 
 _SENTENCE_RESULT_FUTURE = "sentence_result_future"
+
+
+Validator = Callable[[list[str]], list[str]]
+
+
+def _import_validators() -> list[Validator] | None:
+    """
+    Import the sentence validators supported by HA.
+
+    Delay imports to avoid breaking installs that haven't added the conversation component yet.
+    """
+    try:
+        from homeassistant.components.conversation import trigger as conversation_trigger
+    except ImportError:
+        return None
+
+    validators = [
+        conversation_trigger.has_one_non_empty_item,
+        conversation_trigger.has_no_punctuation,
+    ]
+
+    # is_valid_setence only available after HA 2026.7
+    if is_valid_sentence := getattr(conversation_trigger, "is_valid_sentence", None):
+        validators.append(is_valid_sentence)
+
+    return validators
+
+
+def _validate_sentences(sentences: list[str]) -> list[str]:
+    """Run HA's sentence validators when the conversation component is available."""
+    if validators := _import_validators():
+        return vol.All(*validators)(sentences)
+    return sentences
+
+
+def _flatten_sentence_args(args: list[Any]) -> list[Any]:
+    """Flatten string and list positional arguments into one sentence list."""
+    return [sentence for arg in args for sentence in cv.ensure_list(arg)]
 
 
 class SentenceTriggerDecorator(TriggerDecorator, AutoKwargsDecorator, CallResultHandlerDecorator):
@@ -32,8 +72,10 @@ class SentenceTriggerDecorator(TriggerDecorator, AutoKwargsDecorator, CallResult
     name = "sentence_trigger"
     args_schema = vol.Schema(
         vol.All(
-            [vol.Any(str, [str])],
-            vol.Length(min=1, max=1, msg="needs one argument (a sentence or list of sentences)"),
+            _flatten_sentence_args,
+            [cv.string],
+            vol.Length(min=1, msg="at least one sentence is required"),
+            _validate_sentences,
         )
     )
     kwargs_schema = vol.Schema(
@@ -49,8 +91,7 @@ class SentenceTriggerDecorator(TriggerDecorator, AutoKwargsDecorator, CallResult
     async def validate(self):
         """Validate the sentence trigger configuration."""
         await super().validate()
-        raw = self.args[0]
-        self.sentences = raw if isinstance(raw, list) else [raw]
+        self.sentences = self.args
         self._unregister = None
 
     async def _trigger_callback(self, user_input: ConversationInput, result: RecognizeResult) -> str | None:
