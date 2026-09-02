@@ -8,4 +8,3 @@ docs/_build
 .*.swp
 .idea
 *.egg-info
-.kiro
