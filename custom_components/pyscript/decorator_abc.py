@@ -85,7 +85,8 @@ class Decorator(ABC):
             # Keep this wording for transition compatibility. Once the legacy
             # subsystem is removed, update the message and related tests.
             if len(err.path) == 1:
-                if "extra keys not allowed" in err.msg:
+                # not a valid option new error message in 2026.09
+                if "extra keys not allowed" in err.msg or "not a valid option" in err.msg:
                     message = f"invalid keyword argument '{err.path[0]}'"
                 else:
                     message = f"keyword '{err.path[0]}' {err}"
@@ -266,6 +267,7 @@ class TriggerHandlerDecorator(Decorator, ABC):
             trig_decorators_reqd = {
                 "event_trigger",
                 "mqtt_trigger",
+                "sentence_trigger",
                 "state_trigger",
                 "time_trigger",
                 "webhook_trigger",

@@ -2,6 +2,7 @@
 
 from .event import EventTriggerDecorator
 from .mqtt import MQTTTriggerDecorator
+from .sentence import SentenceTriggerDecorator
 from .service import ServiceDecorator
 from .state import StateActiveDecorator, StateTriggerDecorator
 from .task import TaskUniqueDecorator
@@ -16,6 +17,7 @@ DECORATORS = [
     TaskUniqueDecorator,
     EventTriggerDecorator,
     MQTTTriggerDecorator,
+    SentenceTriggerDecorator,
     WebhookTriggerDecorator,
     WebhookHandlerDecorator,
     ServiceDecorator,
