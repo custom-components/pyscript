@@ -994,7 +994,7 @@ Arguments:
   One or more sentence template strings or lists of templates. Each template is registered independently with the conversation agent.
 
 ``timeout``
-  Seconds to wait for the function to return before giving up on a spoken response. Defaults to ``10.0``. If the function does not finish in time, no spoken response is provided (the function continues running in the background).
+  Seconds to wait for the function to return before giving up on a spoken response. Defaults to ``10.0``. If the function does not finish in time, the spoken response will be the default "Done" (the function continues running in the background).
 
 ``kwargs``
   Optional dict of additional keyword arguments merged into each call.
@@ -1024,7 +1024,7 @@ When the trigger fires, these keyword arguments are passed to the function:
 The function's return value becomes the spoken response:
 
 - Return a ``str`` to have it spoken back.
-- Return ``None`` (or omit a return statement) for no spoken response.
+- Return ``None`` (or omit a return statement) for default response of "Done".
 
 Examples:
 
