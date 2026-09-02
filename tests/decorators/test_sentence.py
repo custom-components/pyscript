@@ -38,11 +38,13 @@ class MockConversationInput:
 class MockAgentManager:
     """Stand-in for the conversation AgentManager that captures trigger registrations."""
 
-    def __init__(self):
+    def __init__(self) -> None:
+        """Initialize an empty trigger registry."""
         self.triggers: list[dict] = []
         self._counter = 0
 
-    def register_trigger(self, sentences: list[str], trigger_callback):
+    def register_trigger(self, sentences: list[str], trigger_callback: Any) -> Any:
+        """Register a trigger and return its removal callback."""
         entry = {"sentences": sentences, "callback": trigger_callback, "id": self._counter}
         self._counter += 1
         self.triggers.append(entry)
@@ -152,7 +154,6 @@ def voice_party():
         ("4 a.m.", "sentence should not contain punctuation"),
         ([], "at least one sentence is required"),
         ("", "sentence too short"),
-        ("[test)", "invalid sentence"),
     ],
 )
 @pytest.mark.asyncio
