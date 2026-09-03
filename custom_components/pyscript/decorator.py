@@ -275,7 +275,16 @@ class FunctionDecoratorManager(DecoratorManager):
         Function.store_hass_context(data.hass_context)
 
         try:
-            result = await data.call_ast_ctx.call_func(self.eval_func, None, **data.func_args)
+            # Trigger dispatch offers a fixed set of context kwargs (e.g. value, context, topic), but the
+            # decorated function is free to declare only the ones it cares about, so keep only what its
+            # signature can accept.
+            func_args = self.eval_func.func_def.args
+            if func_args.kwarg:
+                call_kwargs = data.func_args
+            else:
+                accepted = {a.arg for a in func_args.posonlyargs + func_args.args + func_args.kwonlyargs}
+                call_kwargs = {k: v for k, v in data.func_args.items() if k in accepted}
+            result = await data.call_ast_ctx.call_func(self.eval_func, None, **call_kwargs)
         except Exception as e:
             for result_handler_dec in result_handlers:
                 await self.safe_await(result_handler_dec.handle_call_exception(data, e))

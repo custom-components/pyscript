@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import ast
 from collections.abc import Awaitable
 import logging
 from typing import Any, ClassVar
@@ -305,6 +306,8 @@ class DummyEvalFunc:
         self.name = name
         self.global_ctx_name = "file.hello"
         self.logger = logging.getLogger(__name__)
+        # a real FunctionDef with **kwargs, so FunctionDecoratorManager._call() passes everything through
+        self.func_def = ast.parse("def _stub(**kwargs): pass").body[0]
 
 
 class DummyEvalFuncVar:
