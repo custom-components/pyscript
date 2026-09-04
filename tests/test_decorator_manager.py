@@ -678,6 +678,25 @@ async def test_function_decorator_manager_success_calls_result_handlers(hass):
 
 
 @pytest.mark.asyncio
+async def test_function_decorator_manager_call_drops_undeclared_kwargs(hass):
+    """A dispatch kwarg the function doesn't declare (and has no **kwargs) is dropped before the call."""
+    DecoratorManager.hass = hass
+    manager = FunctionDecoratorManager(DummyAstCtx(), DummyEvalFuncVar())
+    manager.eval_func.func_def = ast.parse("def _stub(value=None): pass").body[0]
+    call_ast_ctx = DummyCallAstCtx(result="ok")
+
+    with patch.object(Function, "store_hass_context"):
+        await call_function_manager(
+            manager,
+            make_dispatch_data(
+                {"value": 1, "extra": "unused"}, call_ast_ctx=call_ast_ctx, hass_context=Context(id="cid")
+            ),
+        )
+
+    assert call_ast_ctx.calls == [(manager.eval_func, None, {"value": 1})]
+
+
+@pytest.mark.asyncio
 async def test_function_decorator_manager_call_excludes_posonly_args(hass):
     """A positional-only parameter can never be filled by keyword dispatch, so it's excluded from the call."""
     DecoratorManager.hass = hass
@@ -692,6 +711,25 @@ async def test_function_decorator_manager_call_excludes_posonly_args(hass):
         )
 
     assert call_ast_ctx.calls == [(manager.eval_func, None, {})]
+
+
+@pytest.mark.asyncio
+async def test_function_decorator_manager_call_includes_kwonly_args(hass):
+    """A keyword-only parameter can be filled by keyword dispatch, so it's kept in the accepted set."""
+    DecoratorManager.hass = hass
+    manager = FunctionDecoratorManager(DummyAstCtx(), DummyEvalFuncVar())
+    manager.eval_func.func_def = ast.parse("def _stub(*, value=None): pass").body[0]
+    call_ast_ctx = DummyCallAstCtx(result="ok")
+
+    with patch.object(Function, "store_hass_context"):
+        await call_function_manager(
+            manager,
+            make_dispatch_data(
+                {"value": 1, "extra": "unused"}, call_ast_ctx=call_ast_ctx, hass_context=Context(id="cid")
+            ),
+        )
+
+    assert call_ast_ctx.calls == [(manager.eval_func, None, {"value": 1})]
 
 
 @pytest.mark.asyncio
