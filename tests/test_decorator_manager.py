@@ -678,6 +678,23 @@ async def test_function_decorator_manager_success_calls_result_handlers(hass):
 
 
 @pytest.mark.asyncio
+async def test_function_decorator_manager_call_excludes_posonly_args(hass):
+    """A positional-only parameter can never be filled by keyword dispatch, so it's excluded from the call."""
+    DecoratorManager.hass = hass
+    manager = FunctionDecoratorManager(DummyAstCtx(), DummyEvalFuncVar())
+    manager.eval_func.func_def = ast.parse("def _stub(value=None, /): pass").body[0]
+    call_ast_ctx = DummyCallAstCtx(result="ok")
+
+    with patch.object(Function, "store_hass_context"):
+        await call_function_manager(
+            manager,
+            make_dispatch_data({"value": 1}, call_ast_ctx=call_ast_ctx, hass_context=Context(id="cid")),
+        )
+
+    assert call_ast_ctx.calls == [(manager.eval_func, None, {})]
+
+
+@pytest.mark.asyncio
 async def test_function_decorator_manager_logs_call_exception(hass):
     """Failed decorated function calls should be routed through the manager."""
     DecoratorManager.hass = hass
