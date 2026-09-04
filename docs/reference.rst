@@ -571,9 +571,9 @@ with defaults:
        pass
 
 You don't have to list all the default keyword parameters - just the ones your function needs.
-In contrast, if you specify additional keyword parameters via ``kwargs``, you will get an excepton
-if the function doesn't have matching keyword arguments (unless you use the ``**kwargs`` catch-all
-in the function definition).
+Any keyword parameter the function doesn't declare - including any you specify via ``kwargs`` -
+is simply ignored, unless you use the ``**kwargs`` catch-all in the function definition to
+capture everything.
 
 Using ``trigger_type`` is helpful if you have multiple trigger decorators. The function can now tell
 which type of trigger, and which of the two variables changed to cause the trigger. You can also use
