@@ -208,7 +208,7 @@ def func4():
 """,
     )
     assert (
-        "func4 defined in file.hello: needs at least one trigger decorator (ie: event_trigger, mqtt_trigger, state_trigger, time_trigger, webhook_trigger)"
+        "func4 defined in file.hello: needs at least one trigger decorator (ie: event_trigger, mqtt_trigger, sentence_trigger, state_trigger, time_trigger, webhook_trigger)"
         in caplog.text
     )
 

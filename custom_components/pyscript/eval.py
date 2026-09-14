@@ -73,6 +73,8 @@ COMP_DECORATORS = {
 
 TRIGGER_KWARGS = {
     "context",
+    "details",
+    "device_id",
     "event_type",
     "old_value",
     "payload",
@@ -80,6 +82,9 @@ TRIGGER_KWARGS = {
     "qos",
     "request",
     "retain",
+    "satellite_id",
+    "sentence",
+    "slots",
     "topic",
     "trigger_type",
     "trigger_time",
