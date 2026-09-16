@@ -3,12 +3,13 @@
 from ast import literal_eval
 import asyncio
 from datetime import datetime as dt
-from unittest.mock import mock_open, patch
+from unittest.mock import AsyncMock, MagicMock, mock_open, patch
 
 import pytest
 
 from custom_components.pyscript import trigger
 from custom_components.pyscript.const import DOMAIN
+from custom_components.pyscript.decorators.webhook import WebhookTriggerDecorator
 from custom_components.pyscript.function import Function
 from homeassistant.const import EVENT_HOMEASSISTANT_STARTED, EVENT_STATE_CHANGED
 from homeassistant.setup import async_setup_component
@@ -212,7 +213,32 @@ def func4():
         in caplog.text
     )
 
+@pytest.mark.asyncio
+async def test_webhook_request_kwarg(hass):
+    """The aiohttp request is passed to the user function as the `request` kwarg."""
+    notify_q = asyncio.Queue(0)
+    await setup_script(
+        hass,
+        notify_q,
+        [dt(2020, 7, 1, 11, 59, 59, 999999)],
+        """
+@webhook_trigger("test_req_hook")
+def webhook_test(payload, request):
+    pyscript.done = [request.headers["X-My-Sig"], request.method, payload]
+""",
+    )
+    hass.bus.async_fire(EVENT_HOMEASSISTANT_STARTED)
+    await hass.async_block_till_done()
 
+    request = MagicMock()
+    request.headers = {"Content-Type": "application/json", "X-My-Sig": "abc123"}
+    request.method = "POST"
+    request.json = AsyncMock(return_value={"hello": "world"})
+
+    await WebhookTriggerDecorator._handler(hass, "test_req_hook", request)
+
+    assert literal_eval(await wait_until_done(notify_q)) == ["abc123", "POST", {"hello": "world"}]
+    
 @pytest.mark.asyncio
 async def test_trigger_expression_errors(hass, caplog, monkeypatch):
     """Legacy trigger expression errors should not stop trigger loops."""
