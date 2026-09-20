@@ -74,6 +74,11 @@ PYSCRIPT_SCHEMA = vol.Schema(
 CONFIG_SCHEMA = vol.Schema({DOMAIN: PYSCRIPT_SCHEMA}, extra=vol.ALLOW_EXTRA)
 
 
+def _relative_script_path(path: str, root: str) -> str:
+    """Return a slash-separated path relative to the pyscript root."""
+    return os.path.relpath(path, root).replace(os.sep, "/")
+
+
 async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
     """Component setup, run import config flow for each entry in config."""
     await restore_state(hass)
@@ -528,11 +533,7 @@ async def load_scripts(
         for path, match, check_config, autoload in load_paths:
             for this_path in sorted(glob.glob(os.path.join(pyscript_dir, path, match), recursive=True)):
                 rel_import_path = None
-                rel_path = this_path
-                if rel_path.startswith(pyscript_dir):
-                    rel_path = rel_path[len(pyscript_dir) :]
-                if rel_path.startswith("/"):
-                    rel_path = rel_path[1:]
+                rel_path = _relative_script_path(this_path, pyscript_dir)
                 if rel_path[0] == "#" or rel_path.find("/#") >= 0:
                     # skip "commented" files and directories
                     continue
