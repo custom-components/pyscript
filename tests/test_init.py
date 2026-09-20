@@ -3,11 +3,13 @@
 from ast import literal_eval
 import asyncio
 from datetime import datetime as dt
+import ntpath
 import pathlib
 from unittest.mock import mock_open, patch
 
 import pytest
 
+import custom_components.pyscript as pyscript_component
 from custom_components.pyscript import trigger
 from custom_components.pyscript.const import DOMAIN
 from custom_components.pyscript.event import Event
@@ -68,6 +70,19 @@ async def setup_script(hass, notify_q, now, source, script_name="/hello.py"):
 async def wait_until_done(notify_q):
     """Wait for the done handshake."""
     return await asyncio.wait_for(notify_q.get(), timeout=4)
+
+
+def test_relative_script_path_normalizes_windows_paths(monkeypatch):
+    """Script paths should derive portable context names on Windows."""
+    monkeypatch.setattr(pyscript_component.os.path, "relpath", ntpath.relpath)
+    monkeypatch.setattr(pyscript_component.os, "sep", "\\")
+
+    assert (
+        pyscript_component._relative_script_path(  # pylint: disable=protected-access
+            r"C:\config\pyscript\hello.py", r"C:\config\pyscript"
+        )
+        == "hello.py"
+    )
 
 
 @pytest.mark.asyncio
