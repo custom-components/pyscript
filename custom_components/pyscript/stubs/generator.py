@@ -187,7 +187,8 @@ class StubsGenerator:
         def process_fields(fields: dict[str, Any]) -> list[_ServiceField]:
             result: list[_ServiceField] = []
             for field_name, field in (fields.get("fields") or {}).items():
-                if field_name in ("additional_fields", "advanced_fields"):
+                if isinstance(field, dict) and "fields" in field and "selector" not in field:
+                    # a section groups fields in the UI only, service data stays flat
                     result.extend(process_fields(field))
                     continue
                 definition = self._describe_service_field(service_id, field_name, field)
@@ -364,6 +365,14 @@ class StubsGenerator:
     def _selector_annotation(self, selector: dict[str, Any] | None) -> ast.expr | None:
         if not selector:
             return None
+        annotation = self._selector_base_annotation(selector)
+        if annotation is not None and any(
+            isinstance(value, dict) and value.get("multiple") is True for value in selector.values()
+        ):
+            return ast.Subscript(value=self._name("list"), slice=annotation)
+        return annotation
+
+    def _selector_base_annotation(self, selector: dict[str, Any]) -> ast.expr | None:
         for selector_id, selector_value in selector.items():
             if selector_type := SELECTOR_SIMPLE_TYPES.get(selector_id):
                 return self._name(selector_type)
