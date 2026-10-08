@@ -313,3 +313,73 @@ def ready2():
     for child in stubs_dir.iterdir():
         child.unlink()
     stubs_dir.rmdir()
+
+
+@pytest.mark.asyncio
+async def test_stubs_flatten_named_sections_and_multiple(pyscript, monkeypatch):
+    """Sections of any name must be flattened, and "multiple" selectors annotated as lists."""
+
+    hass = pyscript.hass
+
+    async def fake_service_descriptions(_hass: HomeAssistant) -> dict[str, dict[str, dict[str, Any]]]:
+        return {
+            "mailer": {
+                "send": {
+                    "description": "Send a message.",
+                    "fields": {
+                        "recipients": {
+                            "required": True,
+                            "selector": {"text": {"multiple": True}},
+                            "description": "Recipients.",
+                        },
+                        "subject": {
+                            "required": False,
+                            "selector": {"text": None},
+                            "description": "Subject.",
+                        },
+                        "delivery_options": {
+                            "collapsed": True,
+                            "fields": {
+                                "channels": {
+                                    "required": False,
+                                    "selector": {"select": {"options": ["email", "sms"], "multiple": True}},
+                                    "description": "Channels.",
+                                },
+                                "camera": {
+                                    "required": False,
+                                    "selector": {"entity": {"domain": "camera"}},
+                                    "description": "Camera.",
+                                },
+                            },
+                        },
+                    },
+                }
+            }
+        }
+
+    monkeypatch.setattr(
+        "custom_components.pyscript.stubs.generator.async_get_all_descriptions", fake_service_descriptions
+    )
+
+    await pyscript.start()
+
+    stubs_dir = Path(hass.config.path(FOLDER)) / "modules" / "stubs"
+    generated_target = stubs_dir / "pyscript_generated.py"
+    stubs_dir.mkdir(parents=True, exist_ok=True)
+
+    await hass.services.async_call(DOMAIN, SERVICE_GENERATE_STUBS, {}, blocking=True, return_response=True)
+
+    generated_content = generated_target.read_text(encoding="utf-8")
+
+    # The section itself must not show up as a bogus parameter...
+    assert "delivery_options" not in generated_content
+    # ...its fields are flattened into the signature, and "multiple" selectors take a list.
+    assert "recipients: list[str]" in generated_content
+    assert "subject: str | None=None" in generated_content
+    assert "channels: list[Literal['', 'email', 'sms']] | None=None" in generated_content
+    assert "camera: str | None=None" in generated_content
+
+    # Cleanup
+    for child in stubs_dir.iterdir():
+        child.unlink()
+    stubs_dir.rmdir()
