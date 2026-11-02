@@ -91,7 +91,12 @@ async def restore_state(hass: HomeAssistant) -> None:
     """Restores the persisted pyscript state."""
     # this is a hack accessing hass internals; should re-implement using RestoreEntity
     restore_data = hass.data[DATA_RESTORE_STATE]
-    for entity_id, value in restore_data.last_states.items():
+    # Home Assistant 2026.11 split last_states by entity id and by registry id;
+    # pyscript states have no registry entry
+    last_states = getattr(restore_data, "last_states_by_entity_id", None)
+    if last_states is None:
+        last_states = restore_data.last_states
+    for entity_id, value in last_states.items():
         if entity_id.startswith("pyscript."):
             last_state = value.state
             hass.states.async_set(entity_id, last_state.state, last_state.attributes)
