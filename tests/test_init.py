@@ -7,8 +7,9 @@ import pathlib
 from unittest.mock import mock_open, patch
 
 import pytest
+from pytest_homeassistant_custom_component.common import mock_restore_cache
 
-from custom_components.pyscript import trigger
+from custom_components.pyscript import restore_state, trigger
 from custom_components.pyscript.const import DOMAIN
 from custom_components.pyscript.event import Event
 from custom_components.pyscript.function import Function
@@ -16,7 +17,7 @@ from custom_components.pyscript.global_ctx import GlobalContextMgr
 from custom_components.pyscript.state import State
 from homeassistant import loader
 from homeassistant.const import EVENT_STATE_CHANGED
-from homeassistant.core import Context
+from homeassistant.core import Context, State as HassState
 from homeassistant.helpers.service import async_get_all_descriptions
 from homeassistant.setup import async_setup_component
 
@@ -83,6 +84,25 @@ async def test_setup_makedirs_on_no_dir(hass, caplog):
 
     assert res
     assert makedirs_call.called
+
+
+@pytest.mark.asyncio
+async def test_restore_state(hass):
+    """Test persisted pyscript state variables are restored, and others are ignored."""
+    mock_restore_cache(
+        hass,
+        [
+            HassState("pyscript.restored", "123", {"attr1": "abc"}),
+            HassState("sensor.not_pyscript", "456"),
+        ],
+    )
+
+    await restore_state(hass)
+
+    restored = hass.states.get("pyscript.restored")
+    assert restored.state == "123"
+    assert restored.attributes == {"attr1": "abc"}
+    assert hass.states.get("sensor.not_pyscript") is None
 
 
 @pytest.mark.asyncio
