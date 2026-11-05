@@ -1118,18 +1118,6 @@ async def test_global_context_create_decorator_manager_logs_validation_exception
     assert global_ctx.dms_delay_start == set()
 
 
-def test_decorator_registry_init_legacy_mode_skips_new_registry(hass, caplog, monkeypatch):
-    """Legacy-mode env should disable the new decorator registry."""
-    monkeypatch.setenv("NODM", "1")
-
-    with patch.object(Function, "register_ast") as register_ast:
-        DecoratorRegistry.init(hass)
-
-    assert "Using legacy decorators" in caplog.text
-    register_ast.assert_not_called()
-    assert not get_registry_decorators()
-
-
 class ResultTrigger(TriggerDecorator, RequestResponseDecorator):
     """Minimal trigger with RequestResponseDecorator for unit tests."""
 

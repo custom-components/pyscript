@@ -609,11 +609,8 @@ def func_syntax():
 
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize("legacy", [False, True], ids=["decorators", "legacy_decorators"])
-async def test_trigger_expression_whitespace(hass, caplog, monkeypatch, legacy):
+async def test_trigger_expression_whitespace(hass, caplog, monkeypatch):
     """Trigger expressions may start and end with blanks, and run over several lines without brackets."""
-    if legacy:
-        monkeypatch.setenv("NODM", "1")
     mqtt_handlers = {}
 
     async def mqtt_subscribe(_hass, topic, handler, **_kwargs):
@@ -628,7 +625,6 @@ async def test_trigger_expression_whitespace(hass, caplog, monkeypatch, legacy):
     await setup_script(
         hass, notify_q, [dt(2020, 7, 1, 10, 59, 59, 999999)], ISSUE_617_SOURCE + TRIGGER_WHITESPACE_SOURCE
     )
-    assert ("Using legacy decorators" in caplog.text) == legacy
 
     hass.bus.async_fire(EVENT_HOMEASSISTANT_STARTED)
     assert await wait_until_done(notify_q) == "startup"
@@ -807,11 +803,8 @@ def python_runtime_error_frame(name):
 
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize("legacy", [False, True], ids=["decorators", "legacy_decorators"])
-async def test_trigger_expression_error_messages(hass, caplog, monkeypatch, legacy):
+async def test_trigger_expression_error_messages(hass, caplog):
     """An error in a trigger expression shows its line as written, with the marker under the problem."""
-    if legacy:
-        monkeypatch.setenv("NODM", "1")
     source = "".join(
         f"@{dec}{expr!r})\ndef {name}():\n    pass\n\n" for name, (dec, expr) in TRIGGER_EXPR_ERRORS.items()
     )
@@ -869,14 +862,10 @@ def func_wait_last():
 
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize("legacy", [False, True], ids=["decorators", "legacy_decorators"])
-async def test_trigger_expression_comments(hass, caplog, monkeypatch, legacy):
+async def test_trigger_expression_comments(hass, caplog):
     """A # comment ending a trigger expression never swallows what follows it."""
-    if legacy:
-        monkeypatch.setenv("NODM", "1")
     notify_q = asyncio.Queue(0)
     await setup_script(hass, notify_q, [dt(2020, 7, 1, 10, 59, 59, 999999)], TRIGGER_COMMENT_SOURCE)
-    assert ("Using legacy decorators" in caplog.text) == legacy
 
     hass.bus.async_fire(EVENT_HOMEASSISTANT_STARTED)
     assert await wait_until_done(notify_q) == "startup"

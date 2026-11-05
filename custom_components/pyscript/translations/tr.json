@@ -6,8 +6,7 @@
         "description": "Bir girdi oluşturduktan sonra, betik ve fonksiyon oluşturmayı öğrenmek için dokümantasyona bakabilirsiniz.",
         "data": {
           "allow_all_imports": "Tüm içe aktarmalara izin verilsin mi?",
-          "hass_is_global": "hass'a global değişken olarak erişilsin mi?",
-          "legacy_decorators": "Legacy dekoratörler kullanılsın mı?"
+          "hass_is_global": "hass'a global değişken olarak erişilsin mi?"
         }
       }
     },
@@ -23,8 +22,7 @@
         "title": "pyscript yapılandırmasını güncelle",
         "data": {
           "allow_all_imports": "Tüm içe aktarmalara izin verilsin mi?",
-          "hass_is_global": "hass'a global değişken olarak erişilsin mi?",
-          "legacy_decorators": "Legacy dekoratörler kullanılsın mı?"
+          "hass_is_global": "hass'a global değişken olarak erişilsin mi?"
         }
       },
       "no_ui_configuration_allowed": {

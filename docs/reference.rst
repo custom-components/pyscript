@@ -13,17 +13,15 @@ time by selecting "configure" under Pyscript Python scripting on the Settings
 -> Devices & services -> Integrations page. For the new settings to take
 effect, you will need to either select "Reload" from the overflow menu
 (button with three dots) next to pyscript or call the ``pyscript.reload``
-service from Developer tools -> Services, except for ``legacy_decorators``,
-which currently takes effect only after restarting Home Assistant.
+service from Developer tools -> Services.
 
 Alternatively, for yaml configuration, add ``pyscript:`` to ``<config>/configuration.yaml``.
 You can't mix these two methods - your initial choice determines how you should update
 these settings later. If you want to switch configuration methods you will need to
 uninstall and reinstall pyscript.
 
-Pyscript has three optional configuration parameters that allow any Python package to be
-imported, expose the ``hass`` variable as a global, and temporarily switch back to the
-legacy decorator subsystem (all three options default to ``false``).
+Pyscript has two optional configuration parameters that allow any Python package to be
+imported and expose the ``hass`` variable as a global (both options default to ``false``).
 Assuming you didn't use the UI to configure pyscript, these can be set
 in ``<config>/configuration.yaml``:
 
@@ -32,14 +30,10 @@ in ``<config>/configuration.yaml``:
    pyscript:
      allow_all_imports: true
      hass_is_global: true
-     legacy_decorators: true
 
-Starting with version ``2.0.0``, pyscript uses the new decorator subsystem by default.
-If you find a problem in the new implementation, you can temporarily set
-``legacy_decorators: true`` to switch back to the legacy subsystem. This setting takes effect
-only after restarting Home Assistant. If you do, please also file a bug report in the
-`GitHub issue tracker <https://github.com/custom-components/pyscript/issues>`__
-so the problem can be fixed.
+The ``legacy_decorators`` option has been removed together with the legacy decorator
+subsystem. If it is still present in your configuration, it is ignored and an error is
+logged; please remove it.
 
 It is recommended you put your pyscript configuration its own ``yaml`` file in the ``pyscript``
 folder. That way changes to the file will be automatically detected and will trigger a reload,
@@ -95,9 +89,8 @@ all the application configuration below the ``apps`` key. However, in a future r
 for more information.  Note that ``pyscript.app_config`` is not defined in regular scripts, only
 in each application's main file.
 
-Note that if you used the UI flow to configure pyscript, the ``allow_all_imports``,
-``hass_is_global`` and ``legacy_decorators`` configuration settings will be ignored in
-the yaml file. In that case,
+Note that if you used the UI flow to configure pyscript, the ``allow_all_imports``
+and ``hass_is_global`` configuration settings will be ignored in the yaml file. In that case,
 you should omit them from the yaml, and just use yaml for pyscript app configuration.
 
 At startup, pyscript loads the following files. It also automatically unloads and reloads
@@ -1472,13 +1465,10 @@ An app is not under ``file``, so ``custom_components.pyscript.file`` settings do
 ``custom_components.pyscript.apps`` instead. Files in subfolders of ``scripts/`` get dotted names, for
 example ``custom_components.pyscript.scripts.sub.SCRIPTNAME``.
 
-With the default (non-legacy) decorators, the message for a trigger that is ignored because it is not
-active is ``Trigger not active due to ...``. It is logged at ``debug`` through the logger of the script
-(or app or module) that defines the function (for example, ``custom_components.pyscript.file.my_script``),
-not under ``custom_components.pyscript.trigger``. Only ``legacy_decorators: true`` uses the message
-``trigger ... got ... trigger, but not active``, which is logged under
-``custom_components.pyscript.trigger``. Other internal messages from pyscript itself are logged under
-``custom_components.pyscript``.
+The message for a trigger that is ignored because it is not active is ``Trigger not active due to ...``.
+It is logged at ``debug`` through the logger of the script (or app or module) that defines the function
+(for example, ``custom_components.pyscript.file.my_script``). Other internal messages from pyscript itself
+are logged under ``custom_components.pyscript``.
 
 That allows you to set the log level for each Python top-level script or function separately if necessary.
 That setting also applies to any other Python functions that the top-level Python function calls.

@@ -5,7 +5,6 @@ import json
 
 import pytest
 
-from custom_components.pyscript.const import CONF_LEGACY_DECORATORS, DOMAIN
 from custom_components.pyscript.decorators.task import TaskUniqueDecorator
 from homeassistant.components import webhook
 from homeassistant.helpers.json import json_bytes
@@ -28,12 +27,10 @@ def _request(
 
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize("legacy", [False, True])
-async def test_webhook_request_kwarg(pyscript, hass, legacy):
+async def test_webhook_request_kwarg(pyscript, hass):
     """The aiohttp request is passed to the user function as the `request` kwarg."""
     running = []
     hass.bus.async_listen("pyscript_running", running.append)
-    pyscript.config = {DOMAIN: {CONF_LEGACY_DECORATORS: legacy}}
     await pyscript.start("""
 @webhook_trigger("test_req_hook")
 def webhook_test(payload, request):
@@ -454,10 +451,8 @@ def webhook_dup_b(**_):
 
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize("legacy", [False, True])
-async def test_webhook_trigger_expression_over_several_lines(pyscript, hass, legacy):
+async def test_webhook_trigger_expression_over_several_lines(pyscript, hass):
     """A webhook trigger expression can start with blanks and run over several lines without brackets."""
-    pyscript.config = {DOMAIN: {CONF_LEGACY_DECORATORS: legacy}}
     await pyscript.start("""
 @webhook_trigger("lines_hook", '''
     payload.get('a') == 1 and  # first

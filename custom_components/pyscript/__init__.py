@@ -64,13 +64,15 @@ from .webhook import Webhook
 
 _LOGGER = logging.getLogger(LOGGER_PATH)
 
-PYSCRIPT_SCHEMA = vol.Schema(
-    {
-        vol.Optional(CONF_ALLOW_ALL_IMPORTS, default=False): cv.boolean,
-        vol.Optional(CONF_HASS_IS_GLOBAL, default=False): cv.boolean,
-        vol.Optional(CONF_LEGACY_DECORATORS, default=False): cv.boolean,
-    },
-    extra=vol.ALLOW_EXTRA,
+PYSCRIPT_SCHEMA = vol.All(
+    cv.removed(CONF_LEGACY_DECORATORS, raise_if_present=False),
+    vol.Schema(
+        {
+            vol.Optional(CONF_ALLOW_ALL_IMPORTS, default=False): cv.boolean,
+            vol.Optional(CONF_HASS_IS_GLOBAL, default=False): cv.boolean,
+        },
+        extra=vol.ALLOW_EXTRA,
+    ),
 )
 
 CONFIG_SCHEMA = vol.Schema({DOMAIN: PYSCRIPT_SCHEMA}, extra=vol.ALLOW_EXTRA)
@@ -140,15 +142,14 @@ async def update_yaml_config(hass: HomeAssistant, config_entry: ConfigEntry) -> 
     # since they affect all scripts
     #
     config_save = {
-        param: config_entry.data.get(param, False)
-        for param in [CONF_HASS_IS_GLOBAL, CONF_ALLOW_ALL_IMPORTS, CONF_LEGACY_DECORATORS]
+        param: config_entry.data.get(param, False) for param in [CONF_HASS_IS_GLOBAL, CONF_ALLOW_ALL_IMPORTS]
     }
     if DOMAIN not in hass.data:
         hass.data.setdefault(DOMAIN, {})
     if CONFIG_ENTRY_OLD in hass.data[DOMAIN]:
         old_entry = hass.data[DOMAIN][CONFIG_ENTRY_OLD]
         hass.data[DOMAIN][CONFIG_ENTRY_OLD] = config_save
-        for param in [CONF_HASS_IS_GLOBAL, CONF_ALLOW_ALL_IMPORTS, CONF_LEGACY_DECORATORS]:
+        for param in [CONF_HASS_IS_GLOBAL, CONF_ALLOW_ALL_IMPORTS]:
             if old_entry.get(param, False) != config_entry.data.get(param, False):
                 return True
     hass.data[DOMAIN][CONFIG_ENTRY_OLD] = config_save
@@ -284,6 +285,18 @@ async def watchdog_start(
         _LOGGER.debug("watchdog started job and task folder=%s", pyscript_folder)
 
 
+async def async_migrate_entry(hass: HomeAssistant, config_entry: ConfigEntry) -> bool:
+    """Migrate an old config entry."""
+    if config_entry.version > 1:
+        # downgrade from a newer major version
+        return False
+    if config_entry.minor_version < 2:
+        # 1.2: the legacy_decorators option was removed
+        data = {key: val for key, val in config_entry.data.items() if key != CONF_LEGACY_DECORATORS}
+        hass.config_entries.async_update_entry(config_entry, data=data, minor_version=2)
+    return True
+
+
 async def async_setup_entry(hass: HomeAssistant, config_entry: ConfigEntry) -> bool:
     """Initialize the pyscript config entry."""
     global_ctx_only = None
@@ -305,7 +318,7 @@ async def async_setup_entry(hass: HomeAssistant, config_entry: ConfigEntry) -> b
     State.register_functions()
     TaskFunctions.register_functions()
     GlobalContextMgr.init()
-    DecoratorRegistry.init(hass, config_entry)
+    DecoratorRegistry.init(hass)
 
     pyscript_folder = hass.config.path(FOLDER)
     if not await hass.async_add_executor_job(os_path_isdir, pyscript_folder):
