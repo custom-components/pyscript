@@ -5,7 +5,7 @@ from unittest.mock import patch
 
 import pytest
 from pytest import fixture
-from pytest_homeassistant_custom_component.common import MockConfigEntry
+from pytest_homeassistant.common import MockConfigEntry
 
 from custom_components.pyscript.const import (
     ATTR_INSTALLED_VERSION,

@@ -4,7 +4,7 @@ from dataclasses import dataclass
 from types import ModuleType
 
 import pytest
-from pytest_homeassistant_custom_component.common import MockConfigEntry
+from pytest_homeassistant.common import MockConfigEntry
 
 from custom_components.pyscript import DecoratorRegistry
 from custom_components.pyscript.const import CONF_ALLOW_ALL_IMPORTS, CONFIG_ENTRY, DOMAIN

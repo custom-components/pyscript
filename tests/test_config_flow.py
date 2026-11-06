@@ -21,7 +21,7 @@ _LOGGER = logging.getLogger(__name__)
 @pytest.fixture(name="pyscript_bypass_setup")
 def pyscript_bypass_setup_fixture():
     """Mock component setup."""
-    logging.getLogger("pytest_homeassistant_custom_component.common").setLevel(logging.WARNING)
+    logging.getLogger("pytest_homeassistant.common").setLevel(logging.WARNING)
     with patch("custom_components.pyscript.async_setup_entry", return_value=True):
         yield
 
