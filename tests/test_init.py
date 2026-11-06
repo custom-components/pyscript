@@ -7,7 +7,7 @@ import pathlib
 from unittest.mock import mock_open, patch
 
 import pytest
-from pytest_homeassistant_custom_component.common import mock_restore_cache
+from pytest_homeassistant.common import mock_restore_cache
 
 from custom_components.pyscript import restore_state, trigger
 from custom_components.pyscript.const import DOMAIN
