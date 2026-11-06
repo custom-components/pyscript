@@ -19,6 +19,15 @@ python -m pip install -r tests/requirements_test.txt
 pre-commit install
 ```
 
+If you are upgrading an existing virtual environment to Home Assistant 2026.11 or later, you must
+first uninstall the old `pytest-homeassistant-custom-component` package, which has been replaced by
+`pytest-homeassistant`. Its pytest plugin still loads if it is installed, and it fails with
+Home Assistant 2026.11+:
+```bash
+venv/bin/pip uninstall -y pytest-homeassistant-custom-component
+python -m pip install -r tests/requirements_test.txt
+```
+
 To submit PRs you will want to fork the repository, and follow the steps above on your
 forked repository. Once you have pushed your changes to the fork (which should run the
 pre-commit hooks), you can go ahead and submit a PR.
