@@ -25,6 +25,9 @@ async def setup_script(hass, notify_q, now, source):
     with (
         patch("custom_components.pyscript.os.path.isdir", return_value=True),
         patch("custom_components.pyscript.glob.iglob", return_value=scripts),
+        # This fixture deliberately uses a synthetic /hello.py for stable
+        # traceback assertions; emulate the relative name of an in-root file.
+        patch("custom_components.pyscript._relative_script_path", return_value="hello.py"),
         patch("custom_components.pyscript.global_ctx.open", mock_open(read_data=source)),
         patch("custom_components.pyscript.trigger.dt_now", return_value=now),
         patch("homeassistant.config.load_yaml_config_file", return_value={}),
