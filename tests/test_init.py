@@ -6,6 +6,7 @@ from datetime import datetime as dt
 import ntpath
 import os
 import pathlib
+from types import SimpleNamespace
 from unittest.mock import mock_open, patch
 
 import pytest
@@ -21,6 +22,7 @@ from custom_components.pyscript.state import State
 from homeassistant import loader
 from homeassistant.const import EVENT_STATE_CHANGED
 from homeassistant.core import Context, State as HassState
+from homeassistant.helpers.restore_state import DATA_RESTORE_STATE
 from homeassistant.helpers.service import async_get_all_descriptions
 from homeassistant.setup import async_setup_component
 
@@ -156,6 +158,16 @@ async def test_restore_state(hass):
     assert restored.state == "123"
     assert restored.attributes == {"attr1": "abc"}
     assert hass.states.get("sensor.not_pyscript") is None
+
+
+@pytest.mark.asyncio
+async def test_restore_state_unexpected_internals(hass, monkeypatch, caplog):
+    """Test an unexpected restore state layout is logged instead of raising."""
+    monkeypatch.setitem(hass.data, DATA_RESTORE_STATE, SimpleNamespace())
+
+    await restore_state(hass)
+
+    assert "Unable to restore persisted pyscript state variables" in caplog.text
 
 
 @pytest.mark.asyncio

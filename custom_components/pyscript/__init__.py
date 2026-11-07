@@ -101,16 +101,20 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
 async def restore_state(hass: HomeAssistant) -> None:
     """Restores the persisted pyscript state."""
     # this is a hack accessing hass internals; should re-implement using RestoreEntity
-    restore_data = hass.data[DATA_RESTORE_STATE]
-    # Home Assistant 2026.11 split last_states by entity id and by registry id;
-    # pyscript states have no registry entry
-    last_states = getattr(restore_data, "last_states_by_entity_id", None)
-    if last_states is None:
-        last_states = restore_data.last_states
-    for entity_id, value in last_states.items():
-        if entity_id.startswith("pyscript."):
-            last_state = value.state
-            hass.states.async_set(entity_id, last_state.state, last_state.attributes)
+    # if hass internals change, log the error rather than failing pyscript setup
+    try:
+        restore_data = hass.data[DATA_RESTORE_STATE]
+        # Home Assistant 2026.11 split last_states by entity id and by registry id;
+        # pyscript states have no registry entry
+        last_states = getattr(restore_data, "last_states_by_entity_id", None)
+        if last_states is None:
+            last_states = restore_data.last_states
+        for entity_id, value in last_states.items():
+            if entity_id.startswith("pyscript."):
+                last_state = value.state
+                hass.states.async_set(entity_id, last_state.state, last_state.attributes)
+    except Exception as exc:
+        _LOGGER.error("Unable to restore persisted pyscript state variables: %s", exc)
 
 
 async def update_yaml_config(hass: HomeAssistant, config_entry: ConfigEntry) -> bool:
