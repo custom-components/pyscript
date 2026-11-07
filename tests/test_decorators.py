@@ -17,7 +17,7 @@ from homeassistant.setup import async_setup_component
 async def setup_script(hass, notify_q, now, source):
     """Initialize and load the given pyscript."""
     scripts = [
-        "/hello.py",
+        f"{hass.config.path('pyscript')}/hello.py",
     ]
 
     Function.hass = None
