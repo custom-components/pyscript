@@ -86,6 +86,7 @@ def test_relative_script_path_normalizes_windows_paths():
 
 def test_requirements_file_matches_windows_and_posix_paths():
     """Requirements events use path components, not a hard-coded separator."""
+    # pylint: disable=protected-access
     assert pyscript_component._is_requirements_file(r"C:\config\pyscript\requirements.txt", ntpath)
     assert pyscript_component._is_requirements_file("/config/pyscript/requirements.txt")
     assert not pyscript_component._is_requirements_file(r"C:\config\notrequirements.txt", ntpath)
