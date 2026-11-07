@@ -11,6 +11,7 @@ from os.path import isdir as os_path_isdir
 import shutil
 import time
 import traceback
+from types import ModuleType
 from typing import Any
 
 import voluptuous as vol
@@ -74,9 +75,14 @@ PYSCRIPT_SCHEMA = vol.Schema(
 CONFIG_SCHEMA = vol.Schema({DOMAIN: PYSCRIPT_SCHEMA}, extra=vol.ALLOW_EXTRA)
 
 
-def _relative_script_path(path: str, root: str, path_module=os.path) -> str:
+def _relative_script_path(path: str, root: str, path_module: ModuleType = os.path) -> str:
     """Return a slash-separated path relative to the pyscript root."""
     return path_module.relpath(path, root).replace(path_module.sep, "/")
+
+
+def _is_requirements_file(path: str, path_module: ModuleType = os.path) -> bool:
+    """Match a requirements file using the host path rules."""
+    return path_module.basename(path) == REQUIREMENTS_FILE
 
 
 async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
@@ -233,7 +239,7 @@ async def watchdog_start(
             for valid_suffix in [".py", ".yaml"]:
                 if any(path.endswith(valid_suffix) for path in paths):
                     return True
-            if any(os.path.basename(path) == REQUIREMENTS_FILE for path in paths):
+            if any(_is_requirements_file(path) for path in paths):
                 return True
             return do_reload
 
