@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import ast
 from datetime import datetime as dt
 from pathlib import Path
 from typing import Any
@@ -382,6 +383,34 @@ async def test_stubs_flatten_named_sections_and_multiple(pyscript, monkeypatch):
                             "collapsed": True,
                             "fields": {},
                         },
+                        "styled": {
+                            "selector": {"text": None},
+                            "fields": {
+                                "footer": {
+                                    "required": False,
+                                    "selector": {"text": None},
+                                    "description": "Section that also carries a selector.",
+                                },
+                            },
+                        },
+                        "color": {
+                            "required": False,
+                            "default": 0,
+                            "selector": {"color_rgb": None},
+                            "description": "Compound simple type with a matching default.",
+                        },
+                        "mode": {
+                            "required": False,
+                            "default": "fast",
+                            "selector": {"select": {"options": ["fast", "slow"]}},
+                            "description": "Default is one of the options.",
+                        },
+                        "payload": {
+                            "required": False,
+                            "default": "x",
+                            "selector": {"object": None},
+                            "description": "Any already accepts the default.",
+                        },
                     },
                 },
                 "send_to": {
@@ -417,28 +446,52 @@ async def test_stubs_flatten_named_sections_and_multiple(pyscript, monkeypatch):
         # Duplicate field names must not produce duplicate arguments. ast.parse() accepts
         # those, only compile() reports them, so compile the generated module.
         compile(generated_content, str(generated_target), "exec")
+        module = ast.parse(generated_content)
+        send = _service_signature(module, "mailer", "send")
+        send_to = _service_signature(module, "mailer", "send_to")
 
-        # The sections themselves must not show up as bogus parameters...
-        assert "delivery_options" not in generated_content
-        assert "advanced" not in generated_content
-        # ...including an empty section...
-        assert "extras" not in generated_content
+        # The sections themselves must not show up as bogus parameters, including an
+        # empty section and a section that also carries a selector...
+        for section in ("delivery_options", "advanced", "extras", "styled"):
+            assert section not in send
         # ...a field with a non-section "fields" key is kept...
-        assert "legacy=None" in generated_content
+        assert send["legacy"] == (None, "None")
         # ...section fields are flattened, the first definition of a duplicate wins...
-        assert "subject: str | None=None" in generated_content
-        assert "camera: str | None=None" in generated_content
-        assert "camera: bool" not in generated_content
-        # ...and a field named like the implicit target argument is skipped.
-        assert "def send_to(*, entity_id: str):" in generated_content
-        # ...and "multiple" selectors accept a single value or a list.
-        assert "recipients: str | list[str]" in generated_content
-        assert "sender: str | list[str]='admin'" in generated_content
-        assert (
-            "channels: Literal['', 'email', 'sms'] | list[Literal['', 'email', 'sms']] | None=None"
-            in generated_content
+        assert send["subject"] == ("str | None", "None")
+        assert send["camera"] == ("str | None", "None")
+        assert send["footer"] == ("str | None", "None")
+        # ...a field named like the implicit target argument is skipped...
+        assert send_to == {"entity_id": ("str", None)}
+        # ..."multiple" selectors accept a single value or a list...
+        assert send["recipients"] == ("str | list[str]", None)
+        assert send["sender"] == ("str | list[str]", "'admin'")
+        assert send["channels"] == (
+            "Literal['', 'email', 'sms'] | list[Literal['', 'email', 'sms']] | None",
+            "None",
         )
+        # ...and a default the annotation already accepts doesn't widen it.
+        assert send["color"] == ("tuple[int, int, int]", "0")
+        assert send["mode"] == ("Literal['', 'fast', 'slow']", "'fast'")
+        assert send["payload"] == ("Any", "'x'")
     finally:
         for child in stubs_dir.iterdir():
             child.unlink()
         stubs_dir.rmdir()
+
+
+def _service_signature(
+    module: ast.Module, class_name: str, func_name: str
+) -> dict[str, tuple[str | None, str | None]]:
+    """Return {arg: (annotation, default)} for the keyword-only args of a generated service."""
+    for node in module.body:
+        if isinstance(node, ast.ClassDef) and node.name == class_name:
+            for func in node.body:
+                if isinstance(func, ast.FunctionDef) and func.name == func_name:
+                    return {
+                        arg.arg: (
+                            ast.unparse(arg.annotation) if arg.annotation else None,
+                            ast.unparse(default) if default else None,
+                        )
+                        for arg, default in zip(func.args.kwonlyargs, func.args.kw_defaults, strict=True)
+                    }
+    raise AssertionError(f"{class_name}.{func_name} not found in generated stubs")

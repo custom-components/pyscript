@@ -344,8 +344,16 @@ class StubsGenerator:
             # Widen annotation when the default's type conflicts with the selector type.
             if default_expr is not None and annotation is not None:
                 ann_names = {node.id for node in ast.walk(annotation) if isinstance(node, ast.Name)}
+                ann_literals = {
+                    node.value for node in ast.walk(annotation) if isinstance(node, ast.Constant)
+                }
                 default_type = type(default_value).__name__
-                if default_type not in ann_names and default_type in ("int", "float", "str", "bool"):
+                if (
+                    default_type not in ann_names
+                    and default_type in ("int", "float", "str", "bool")
+                    and "Any" not in ann_names
+                    and default_value not in ann_literals
+                ):
                     annotation = ast.BinOp(left=annotation, op=ast.BitOr(), right=self._name(default_type))
 
             if not is_required:
@@ -390,7 +398,8 @@ class StubsGenerator:
 
     def _selector_base_annotation(self, selector_id: str, selector_value: Any) -> ast.expr | None:
         if selector_type := SELECTOR_SIMPLE_TYPES.get(selector_id):
-            return self._name(selector_type)
+            # parse so compound types like tuple[int, int, int] have real Name nodes
+            return ast.parse(selector_type, mode="eval").body
         if selector_id == "number":
             if selector_value == "any":
                 return self._name("float")
@@ -420,7 +429,8 @@ class StubsGenerator:
     @staticmethod
     def _is_section(field: Any) -> bool:
         """Return True if a service field is a UI section grouping other fields."""
-        if not isinstance(field, dict) or "selector" in field:
+        # same rule as HA's _SERVICE_SCHEMA, which tries _SECTION_SCHEMA (fields: dict of dicts) first
+        if not isinstance(field, dict):
             return False
         sub_fields = field.get("fields")
         # an empty section is still a section, it just contributes no fields
