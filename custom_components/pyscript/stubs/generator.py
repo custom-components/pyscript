@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import ast
+import copy
 from dataclasses import dataclass
 from enum import IntEnum, IntFlag, StrEnum
 import keyword
@@ -184,14 +185,21 @@ class StubsGenerator:
             self._get_or_create_class(self._get_entity_class_name(domain_id), _STATE_CLASS)
 
     async def _build_services(self):
-        def process_fields(fields: dict[str, Any]) -> list[_ServiceField]:
+        def process_fields(fields: dict[str, Any], seen: set[str]) -> list[_ServiceField]:
             result: list[_ServiceField] = []
             for field_name, field in (fields.get("fields") or {}).items():
-                if field_name in ("additional_fields", "advanced_fields"):
-                    result.extend(process_fields(field))
+                if self._is_section(field):
+                    # a section groups fields in the UI only, service data stays flat
+                    result.extend(process_fields(field, seen))
+                    continue
+                if field_name in seen:
+                    _LOGGER.debug(
+                        "Skipping duplicate field %s in service %s.%s", field_name, domain_id, service_id
+                    )
                     continue
                 definition = self._describe_service_field(service_id, field_name, field)
                 if definition is not None:
+                    seen.add(field_name)
                     result.append(definition)
             return result
 
@@ -204,8 +212,9 @@ class StubsGenerator:
 
                 _LOGGER.debug("Building service %s.%s payload: %s", domain_id, service_id, payload)
 
+                # services with a target get an implicit entity_id argument
                 field_nodes = sorted(
-                    process_fields(payload),
+                    process_fields(payload, {"entity_id"} if "target" in payload else set()),
                     key=lambda x: not x.required,
                 )
 
@@ -334,9 +343,9 @@ class StubsGenerator:
 
             # Widen annotation when the default's type conflicts with the selector type.
             if default_expr is not None and annotation is not None:
-                ann_str = ast.unparse(annotation)
+                ann_names = {node.id for node in ast.walk(annotation) if isinstance(node, ast.Name)}
                 default_type = type(default_value).__name__
-                if default_type not in ann_str and default_type in ("int", "float", "str", "bool"):
+                if default_type not in ann_names and default_type in ("int", "float", "str", "bool"):
                     annotation = ast.BinOp(left=annotation, op=ast.BitOr(), right=self._name(default_type))
 
             if not is_required:
@@ -365,34 +374,59 @@ class StubsGenerator:
         if not selector:
             return None
         for selector_id, selector_value in selector.items():
-            if selector_type := SELECTOR_SIMPLE_TYPES.get(selector_id):
-                return self._name(selector_type)
-            if selector_id == "number":
-                if selector_value == "any":
-                    return self._name("float")
-                if isinstance(selector_value, dict):
-                    if selector_value.get("mode") == "box":
-                        return self._name("float")
-                    # Use float when step or min/max are fractional.
-                    for key in ("step", "min", "max"):
-                        val = selector_value.get(key)
-                        if isinstance(val, float) and val != int(val):
-                            return self._name("float")
-                return self._name("int")
-            if selector_id == "select":
-                options = []
-                if isinstance(selector_value, dict):
-                    options = selector_value.get("options") or []
-                literals = [ast.Constant(value="")]
-                for option in options:
-                    value = option.get("value") if isinstance(option, dict) else option
-                    literals.append(ast.Constant(value=value))
-                return ast.Subscript(
-                    value=self._name("Literal"),
-                    slice=ast.Tuple(elts=literals),
+            annotation = self._selector_base_annotation(selector_id, selector_value)
+            if annotation is None:
+                continue
+            if isinstance(selector_value, dict) and selector_value.get("multiple") is True:
+                # Home Assistant also accepts a single value for "multiple" selectors (cv.ensure_list)
+                return ast.BinOp(
+                    left=annotation,
+                    op=ast.BitOr(),
+                    right=ast.Subscript(value=self._name("list"), slice=copy.deepcopy(annotation)),
                 )
+            return annotation
         _LOGGER.debug("Selector annotation unknown %s", selector)
         return None
+
+    def _selector_base_annotation(self, selector_id: str, selector_value: Any) -> ast.expr | None:
+        if selector_type := SELECTOR_SIMPLE_TYPES.get(selector_id):
+            return self._name(selector_type)
+        if selector_id == "number":
+            if selector_value == "any":
+                return self._name("float")
+            if isinstance(selector_value, dict):
+                if selector_value.get("mode") == "box":
+                    return self._name("float")
+                # Use float when step or min/max are fractional.
+                for key in ("step", "min", "max"):
+                    val = selector_value.get(key)
+                    if isinstance(val, float) and val != int(val):
+                        return self._name("float")
+            return self._name("int")
+        if selector_id == "select":
+            options = []
+            if isinstance(selector_value, dict):
+                options = selector_value.get("options") or []
+            literals = [ast.Constant(value="")]
+            for option in options:
+                value = option.get("value") if isinstance(option, dict) else option
+                literals.append(ast.Constant(value=value))
+            return ast.Subscript(
+                value=self._name("Literal"),
+                slice=ast.Tuple(elts=literals),
+            )
+        return None
+
+    @staticmethod
+    def _is_section(field: Any) -> bool:
+        """Return True if a service field is a UI section grouping other fields."""
+        if not isinstance(field, dict) or "selector" in field:
+            return False
+        sub_fields = field.get("fields")
+        # an empty section is still a section, it just contributes no fields
+        return isinstance(sub_fields, dict) and all(
+            isinstance(sub_field, dict) for sub_field in sub_fields.values()
+        )
 
     def _is_identifier(self, value: str, fqn: str) -> bool:
         valid = value.isidentifier() and not keyword.iskeyword(value)
