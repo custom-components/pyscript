@@ -3,12 +3,15 @@
 from ast import literal_eval
 import asyncio
 from datetime import datetime as dt
+import ntpath
+import os
 import pathlib
 from unittest.mock import mock_open, patch
 
 import pytest
 from pytest_homeassistant.common import mock_restore_cache
 
+import custom_components.pyscript as pyscript_component
 from custom_components.pyscript import restore_state, trigger
 from custom_components.pyscript.const import DOMAIN
 from custom_components.pyscript.event import Event
@@ -25,7 +28,7 @@ from homeassistant.setup import async_setup_component
 async def setup_script(hass, notify_q, now, source, script_name="/hello.py"):
     """Initialize and load the given pyscript."""
 
-    scripts = [script_name]
+    scripts = [f"{hass.config.path('pyscript')}{script_name}"]
 
     Function.hass = None
 
@@ -69,6 +72,56 @@ async def setup_script(hass, notify_q, now, source, script_name="/hello.py"):
 async def wait_until_done(notify_q):
     """Wait for the done handshake."""
     return await asyncio.wait_for(notify_q.get(), timeout=4)
+
+
+def test_relative_script_path_normalizes_windows_paths():
+    """Script paths should derive portable context names on Windows."""
+    assert (
+        pyscript_component._relative_script_path(  # pylint: disable=protected-access
+            r"C:\config\pyscript\apps\foo\__init__.py", r"C:\config\pyscript", ntpath
+        )
+        == "apps/foo/__init__.py"
+    )
+
+
+def test_requirements_file_matches_windows_and_posix_paths():
+    """Requirements events use path components, not a hard-coded separator."""
+    # pylint: disable=protected-access
+    assert pyscript_component._is_requirements_file(r"C:\config\pyscript\requirements.txt", ntpath)
+    assert pyscript_component._is_requirements_file("/config/pyscript/requirements.txt")
+    assert not pyscript_component._is_requirements_file(r"C:\config\notrequirements.txt", ntpath)
+
+
+@pytest.mark.asyncio
+async def test_windows_paths_create_portable_context_names(pyscript, monkeypatch, caplog):
+    """Exercise the loader with Windows-style relative names without patching os.path."""
+    original = pyscript_component._relative_script_path  # pylint: disable=protected-access
+
+    def windows_relative(path, root):
+        if path.endswith("cross_drive.py"):
+            raise ValueError("paths on different drives")
+        relative = os.path.relpath(path, root).replace(os.sep, "\\")
+        return original(ntpath.join(r"C:\config\pyscript", relative), r"C:\config\pyscript", ntpath)
+
+    monkeypatch.setattr(pyscript_component, "_relative_script_path", windows_relative)
+    pyscript.yaml_config = {DOMAIN: {"apps": {"foo": {}}}}
+    pyscript.config = pyscript.yaml_config
+    pyscript.add_files(
+        {
+            "hello.py": "x = 1",
+            "apps/foo/__init__.py": "x = 1",
+            "scripts/nested/task.py": "x = 1",
+            "scripts/#disabled/skip.py": "x = 1",
+            "scripts/cross_drive.py": "x = 1",
+        }
+    )
+    await pyscript.start()
+
+    names = {name for name, _ in GlobalContextMgr.items()}
+    assert {"file.hello", "apps.foo", "scripts.nested.task"} <= names
+    assert not any("#disabled" in name for name in names)
+    assert "scripts.cross_drive" not in names
+    assert "paths on different drives" in caplog.text
 
 
 @pytest.mark.asyncio
@@ -149,7 +202,7 @@ def func1()
 """,
     )
     assert "SyntaxError: expected ':'" in caplog.text
-    assert 'File "/hello.py", line 3' in caplog.text
+    assert f'File "{hass.config.path("pyscript")}/hello.py", line 3' in caplog.text
 
 
 @pytest.mark.asyncio
@@ -165,7 +218,7 @@ xyz def 123
 """,
     )
     assert "SyntaxError: invalid syntax" in caplog.text
-    assert 'File "/hello.py", line 2' in caplog.text
+    assert f'File "{hass.config.path("pyscript")}/hello.py", line 2' in caplog.text
 
 
 @pytest.mark.asyncio
@@ -479,7 +532,7 @@ def func5(var_name=None, value=None):
         # now reload the other source file
         #
         scripts = [
-            "/hello.py",
+            f"{hass.config.path('pyscript')}/hello.py",
         ]
 
         with (
