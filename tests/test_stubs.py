@@ -313,3 +313,132 @@ def ready2():
     for child in stubs_dir.iterdir():
         child.unlink()
     stubs_dir.rmdir()
+
+
+@pytest.mark.asyncio
+async def test_stubs_flatten_named_sections_and_multiple(pyscript, monkeypatch):
+    """Sections of any name must be flattened, and "multiple" selectors accept a value or a list."""
+
+    hass = pyscript.hass
+
+    async def fake_service_descriptions(_hass: HomeAssistant) -> dict[str, dict[str, dict[str, Any]]]:
+        return {
+            "mailer": {
+                "send": {
+                    "description": "Send a message.",
+                    "fields": {
+                        "recipients": {
+                            "required": True,
+                            "selector": {"text": {"multiple": True}},
+                            "description": "Recipients.",
+                        },
+                        "sender": {
+                            "required": False,
+                            "default": "admin",
+                            "selector": {"text": {"multiple": True}},
+                            "description": "Sender.",
+                        },
+                        "subject": {
+                            "required": False,
+                            "selector": {"text": None},
+                            "description": "Subject.",
+                        },
+                        "legacy": {
+                            "required": False,
+                            "fields": "not a section",
+                            "description": "Legacy field with a fields key.",
+                        },
+                        "delivery_options": {
+                            "collapsed": True,
+                            "fields": {
+                                "channels": {
+                                    "required": False,
+                                    "selector": {"select": {"options": ["email", "sms"], "multiple": True}},
+                                    "description": "Channels.",
+                                },
+                                "camera": {
+                                    "required": False,
+                                    "selector": {"entity": {"domain": "camera"}},
+                                    "description": "Camera.",
+                                },
+                                "subject": {
+                                    "required": False,
+                                    "selector": {"number": None},
+                                    "description": "Duplicate of a top-level field.",
+                                },
+                            },
+                        },
+                        "advanced": {
+                            "collapsed": True,
+                            "fields": {
+                                "camera": {
+                                    "required": False,
+                                    "selector": {"boolean": None},
+                                    "description": "Duplicate of a field in another section.",
+                                },
+                            },
+                        },
+                        "extras": {
+                            "collapsed": True,
+                            "fields": {},
+                        },
+                    },
+                },
+                "send_to": {
+                    "description": "Send a message to a target.",
+                    "target": {"entity": {"domain": "notify"}},
+                    "fields": {
+                        "entity_id": {
+                            "required": False,
+                            "selector": {"number": None},
+                            "description": "Duplicate of the implicit target argument.",
+                        },
+                    },
+                },
+            }
+        }
+
+    monkeypatch.setattr(
+        "custom_components.pyscript.stubs.generator.async_get_all_descriptions", fake_service_descriptions
+    )
+
+    await pyscript.start()
+
+    stubs_dir = Path(hass.config.path(FOLDER)) / "modules" / "stubs"
+    generated_target = stubs_dir / "pyscript_generated.py"
+    stubs_dir.mkdir(parents=True, exist_ok=True)
+
+    try:
+        await hass.services.async_call(
+            DOMAIN, SERVICE_GENERATE_STUBS, {}, blocking=True, return_response=True
+        )
+
+        generated_content = generated_target.read_text(encoding="utf-8")
+        # Duplicate field names must not produce duplicate arguments. ast.parse() accepts
+        # those, only compile() reports them, so compile the generated module.
+        compile(generated_content, str(generated_target), "exec")
+
+        # The sections themselves must not show up as bogus parameters...
+        assert "delivery_options" not in generated_content
+        assert "advanced" not in generated_content
+        # ...including an empty section...
+        assert "extras" not in generated_content
+        # ...a field with a non-section "fields" key is kept...
+        assert "legacy=None" in generated_content
+        # ...section fields are flattened, the first definition of a duplicate wins...
+        assert "subject: str | None=None" in generated_content
+        assert "camera: str | None=None" in generated_content
+        assert "camera: bool" not in generated_content
+        # ...and a field named like the implicit target argument is skipped.
+        assert "def send_to(*, entity_id: str):" in generated_content
+        # ...and "multiple" selectors accept a single value or a list.
+        assert "recipients: str | list[str]" in generated_content
+        assert "sender: str | list[str]='admin'" in generated_content
+        assert (
+            "channels: Literal['', 'email', 'sms'] | list[Literal['', 'email', 'sms']] | None=None"
+            in generated_content
+        )
+    finally:
+        for child in stubs_dir.iterdir():
+            child.unlink()
+        stubs_dir.rmdir()
