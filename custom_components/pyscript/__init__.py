@@ -74,9 +74,9 @@ PYSCRIPT_SCHEMA = vol.Schema(
 CONFIG_SCHEMA = vol.Schema({DOMAIN: PYSCRIPT_SCHEMA}, extra=vol.ALLOW_EXTRA)
 
 
-def _relative_script_path(path: str, root: str) -> str:
+def _relative_script_path(path: str, root: str, path_module=os.path) -> str:
     """Return a slash-separated path relative to the pyscript root."""
-    return os.path.relpath(path, root).replace(os.sep, "/")
+    return path_module.relpath(path, root).replace(path_module.sep, "/")
 
 
 async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
@@ -230,9 +230,11 @@ async def watchdog_start(
             # also check dest_path: atomic saves (tempfile + os.replace) surface
             # as a moved event whose src_path is an unrelated temp name
             paths = (event.src_path, event.dest_path)
-            for valid_suffix in [".py", ".yaml", "/" + REQUIREMENTS_FILE]:
+            for valid_suffix in [".py", ".yaml"]:
                 if any(path.endswith(valid_suffix) for path in paths):
                     return True
+            if any(os.path.basename(path) == REQUIREMENTS_FILE for path in paths):
+                return True
             return do_reload
 
         while True:
@@ -538,7 +540,11 @@ async def load_scripts(
         for path, match, check_config, autoload in load_paths:
             for this_path in sorted(glob.glob(os.path.join(pyscript_dir, path, match), recursive=True)):
                 rel_import_path = None
-                rel_path = _relative_script_path(this_path, pyscript_dir)
+                try:
+                    rel_path = _relative_script_path(this_path, pyscript_dir)
+                except ValueError as exc:
+                    _LOGGER.error("load_scripts: skipping %s due to exception %s", this_path, exc)
+                    continue
                 if rel_path[0] == "#" or rel_path.find("/#") >= 0:
                     # skip "commented" files and directories
                     continue

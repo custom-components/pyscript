@@ -4,6 +4,7 @@ from ast import literal_eval
 import asyncio
 from datetime import datetime as dt
 import ntpath
+import os
 import pathlib
 from unittest.mock import mock_open, patch
 
@@ -73,17 +74,38 @@ async def wait_until_done(notify_q):
     return await asyncio.wait_for(notify_q.get(), timeout=4)
 
 
-def test_relative_script_path_normalizes_windows_paths(monkeypatch):
+def test_relative_script_path_normalizes_windows_paths():
     """Script paths should derive portable context names on Windows."""
-    monkeypatch.setattr(pyscript_component.os.path, "relpath", ntpath.relpath)
-    monkeypatch.setattr(pyscript_component.os, "sep", "\\")
-
     assert (
         pyscript_component._relative_script_path(  # pylint: disable=protected-access
-            r"C:\config\pyscript\hello.py", r"C:\config\pyscript"
+            r"C:\config\pyscript\apps\foo\__init__.py", r"C:\config\pyscript", ntpath
         )
-        == "hello.py"
+        == "apps/foo/__init__.py"
     )
+
+
+@pytest.mark.asyncio
+async def test_windows_paths_create_portable_context_names(pyscript, monkeypatch):
+    """Exercise the loader with Windows-style relative names without patching os.path."""
+    original = pyscript_component._relative_script_path  # pylint: disable=protected-access
+
+    def windows_relative(path, root):
+        relative = os.path.relpath(path, root).replace(os.sep, "\\")
+        return original(ntpath.join(r"C:\config\pyscript", relative), r"C:\config\pyscript", ntpath)
+
+    monkeypatch.setattr(pyscript_component, "_relative_script_path", windows_relative)
+    pyscript.yaml_config = {DOMAIN: {"apps": {"foo": {}}}}
+    pyscript.add_files({
+        "hello.py": "x = 1",
+        "apps/foo/__init__.py": "x = 1",
+        "scripts/nested/task.py": "x = 1",
+        "scripts/#disabled/skip.py": "x = 1",
+    })
+    await pyscript.start()
+
+    names = {name for name, _ in GlobalContextMgr.items()}
+    assert {"file.hello", "apps.foo", "scripts.nested.task"} <= names
+    assert not any("#disabled" in name for name in names)
 
 
 @pytest.mark.asyncio
