@@ -1,6 +1,9 @@
 """Unit tests for Python interpreter."""
 
+import ast as ast_module
+import contextlib
 from dataclasses import dataclass
+import types
 from types import ModuleType
 
 import pytest
@@ -2181,6 +2184,126 @@ test_suppressed_from_none()
 test_reraise()
     """)
     await ast.eval()
+
+    await Function.waiter_sync()
+    await Function.waiter_stop()
+    await Function.reaper_stop()
+
+
+WITH_SEMANTICS_SOURCE = """
+class Ctx:
+    def __init__(self, msgs, name, fail_enter=False, suppress=False, fail_exit=False):
+        self.msgs = msgs
+        self.name = name
+        self.fail_enter = fail_enter
+        self.suppress = suppress
+        self.fail_exit = fail_exit
+
+    def __enter__(self):
+        self.msgs.append(f"enter {self.name}")
+        if self.fail_enter:
+            raise ValueError(f"enter {self.name}")
+        return self.name
+
+    def __exit__(self, exc_type, exc, tb):
+        self.msgs.append(f"exit {self.name} {exc_type.__name__ if exc_type else None}")
+        if self.fail_exit:
+            raise KeyError(f"exit {self.name}")
+        return self.suppress
+
+class ACtx:
+    def __init__(self, msgs, name, **kwargs):
+        self.ctx = Ctx(msgs, name, **kwargs)
+
+    async def __aenter__(self):
+        return self.ctx.__enter__()
+
+    async def __aexit__(self, exc_type, exc, tb):
+        return self.ctx.__exit__(exc_type, exc, tb)
+
+def make(msgs, name, **kwargs):
+    msgs.append(f"make {name}")
+    return Ctx(msgs, name, **kwargs)
+
+def amake(msgs, name, **kwargs):
+    msgs.append(f"make {name}")
+    return ACtx(msgs, name, **kwargs)
+
+def describe(exc):
+    context = type(exc.__context__).__name__ if exc.__context__ else None
+    return f"raised {type(exc).__name__} {exc} context {context}"
+
+results = []
+cases = [
+    {"b": {"fail_enter": True}},
+    {"body": True, "b": {"suppress": True}},
+    {"body": True, "a": {"suppress": True}},
+    {"body": True, "b": {"fail_exit": True}},
+    {"b": {"fail_exit": True}},
+    {"body": True, "a": {"fail_exit": True}, "b": {"suppress": True}},
+    {},
+]
+for case in cases:
+    msgs = []
+    try:
+        with make(msgs, "a", **case.get("a", {})) as a, make(msgs, "b", **case.get("b", {})) as b:
+            msgs.append(f"body {a} {b}")
+            if case.get("body"):
+                raise ZeroDivisionError("body")
+        msgs.append("no error")
+    except Exception as exc:
+        msgs.append(describe(exc))
+    results.append(msgs)
+
+    msgs = []
+    try:
+        async with amake(msgs, "a", **case.get("a", {})) as a, amake(msgs, "b", **case.get("b", {})) as b:
+            msgs.append(f"body {a} {b}")
+            if case.get("body"):
+                raise ZeroDivisionError("body")
+        msgs.append("no error")
+    except Exception as exc:
+        msgs.append(describe(exc))
+    results.append(msgs)
+
+msgs = []
+try:
+    async with failing_acm():
+        msgs.append("body")
+except Exception as exc:
+    msgs.append(describe(exc))
+results.append(msgs)
+"""
+
+
+@contextlib.asynccontextmanager
+async def failing_acm():
+    """Fail on enter, like a generator based manager whose connection is refused."""
+    raise ConnectionRefusedError("refused")
+    yield  # pylint: disable=unreachable
+
+
+async def test_with_matches_python(hass):
+    """Test that with and async with behave like Python, compared with CPython itself."""
+    hass.data[DOMAIN] = {CONFIG_ENTRY: MockConfigEntry(domain=DOMAIN, data={CONF_ALLOW_ALL_IMPORTS: True})}
+    Function.init(hass)
+    State.init(hass)
+    State.register_functions()
+    TrigTime.init(hass)
+
+    expected_ns = {"failing_acm": failing_acm}
+    code = compile(WITH_SEMANTICS_SOURCE, "test", "exec", flags=ast_module.PyCF_ALLOW_TOP_LEVEL_AWAIT)
+    # code compiled with top level await runs as a coroutine function, like the asyncio REPL
+    await types.FunctionType(code, expected_ns)()
+    expected = expected_ns["results"]
+
+    global_ctx = GlobalContext(
+        "test", global_sym_table={"failing_acm": failing_acm}, manager=GlobalContextMgr
+    )
+    ast = AstEval("test", global_ctx=global_ctx)
+    Function.install_ast_funcs(ast)
+    ast.parse(WITH_SEMANTICS_SOURCE + "results\n")
+    assert await ast.eval() == expected
 
     await Function.waiter_sync()
     await Function.waiter_stop()
