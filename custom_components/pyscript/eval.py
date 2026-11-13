@@ -712,14 +712,17 @@ class EvalFunc:
             args = []
         kwargs = kwargs.copy() if kwargs else {}
         bad_kwargs = []
+        has_var_kwargs = self.func_def.args.kwarg is not None
         for i, func_def_arg in enumerate(self.func_def.args.posonlyargs + self.func_def.args.args):
             var_name = func_def_arg.arg
             val = None
+            # as in Python, a keyword matching a positional-only parameter goes to **kwargs if present
+            by_keyword = var_name in kwargs and not (i < self.num_posonly_arg and has_var_kwargs)
             if i < len(args):
                 val = args[i]
-                if var_name in kwargs:
+                if by_keyword:
                     raise TypeError(f"{self.name}() got multiple values for argument '{var_name}'")
-            elif var_name in kwargs:
+            elif by_keyword:
                 if i < self.num_posonly_arg:
                     bad_kwargs.append(var_name)
                 val = kwargs[var_name]
