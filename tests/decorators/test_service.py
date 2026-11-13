@@ -1,0 +1,192 @@
+"""Test pyscript @service decorator."""
+
+import pathlib
+from unittest.mock import patch
+
+import pytest
+
+from custom_components.pyscript.const import DOMAIN
+from homeassistant import loader
+from homeassistant.core import Context
+from homeassistant.helpers.service import async_get_all_descriptions
+
+
+@pytest.mark.asyncio
+async def test_service_exists(pyscript, hass):
+    """Test discover, compile script and install a service."""
+    await pyscript.start("""
+@service
+def func1():
+    pass
+
+# make sure a double definition still keeps the service registered
+@service
+@service("other.func1_renamed")
+def func1():
+    pass
+
+def func2():
+    pass
+""")
+
+    assert hass.services.has_service("pyscript", "func1")
+    assert hass.services.has_service("other", "func1_renamed")
+    assert hass.services.has_service("pyscript", "reload")
+    assert not hass.services.has_service("pyscript", "func2")
+
+
+@pytest.mark.asyncio
+async def test_service_description(pyscript, hass):
+    """Test service description defined in doc_string."""
+    await pyscript.start("""
+@service
+def func_no_doc_string(param1=None):
+    pass
+
+@service
+def func_simple_doc_string(param2=None, param3=None):
+    \"\"\"This is func2_simple_doc_string.\"\"\"
+    pass
+
+@service
+def func_yaml_doc_string(param2=None, param3=None):
+    \"\"\"yaml
+description: This is func_yaml_doc_string.
+fields:
+  param1:
+    description: first argument
+    example: 12
+  param2:
+    description: second argument
+    example: 34
+\"\"\"
+    pass
+""")
+
+    integration = loader.Integration(
+        hass,
+        "custom_components.pyscript",
+        pathlib.Path("custom_components/pyscript"),
+        {"name": "pyscript", "dependencies": [], "requirements": [], "domain": "automation"},
+    )
+
+    with patch(
+        "homeassistant.loader.async_get_custom_components",
+        return_value={"pyscript": integration},
+    ):
+        descriptions = (await async_get_all_descriptions(hass))[DOMAIN]
+
+    assert descriptions["func_no_doc_string"]["description"] == "pyscript function func_no_doc_string()"
+    assert descriptions["func_no_doc_string"]["fields"] == {"param1": {"description": "argument param1"}}
+
+    assert descriptions["func_simple_doc_string"]["description"] == "This is func2_simple_doc_string."
+    assert descriptions["func_simple_doc_string"]["fields"] == {
+        "param2": {"description": "argument param2"},
+        "param3": {"description": "argument param3"},
+    }
+
+    assert descriptions["func_yaml_doc_string"]["description"] == "This is func_yaml_doc_string."
+    assert descriptions["func_yaml_doc_string"]["fields"] == {
+        "param1": {"description": "first argument", "example": 12},
+        "param2": {"description": "second argument", "example": 34},
+    }
+
+
+@pytest.mark.asyncio
+async def test_service_run(pyscript, hass, caplog):
+    """Test running a service with keyword arguments."""
+    await pyscript.start("""
+
+@service
+def func1(arg1=1, arg2=2, context=None):
+    x = 1
+    x = 2 * x + 3
+    log.info(f"this is func1 x = {x}, arg1 = {arg1}, arg2 = {arg2}")
+    pyscript.done = [x, arg1, arg2, str(context)]
+
+# registering twice will cause it to be called twice
+@service("other.func2")
+@service("other.func2")
+@service
+def func2(**kwargs):
+    x = 1
+    x = 2 * x + 3
+    log.info(f"this is func1 x = {x}, kwargs = {kwargs}")
+    has2 = service.has_service("pyscript", "func2")
+    has3 = service.has_service("pyscript", "func3")
+    del kwargs["context"]
+    pyscript.done = [x, kwargs, has2, has3]
+
+@service
+def call_service(domain=None, name=None, **kwargs):
+    if domain == "pyscript" and name == "func1":
+        task.sleep(0)
+        pyscript.func1(**kwargs)
+    else:
+        service.call(domain, name, **kwargs)
+
+""")
+
+    context = Context(user_id="1234", parent_id="5678", id="8901")
+    await hass.services.async_call("pyscript", "func1", {}, context=context)
+    await pyscript.wait_done([5, 1, 2, str(context)])
+    assert "this is func1 x = 5" in caplog.text
+
+    await hass.services.async_call("pyscript", "func1", {"arg1": 10}, context=context)
+    await pyscript.wait_done([5, 10, 2, str(context)])
+
+    await hass.services.async_call(
+        "pyscript",
+        "call_service",
+        {"domain": "pyscript", "name": "func1", "arg1": "string1"},
+        context=context,
+    )
+    await pyscript.wait_done([5, "string1", 2, str(context)])
+
+    await hass.services.async_call("pyscript", "func1", {"arg1": "string1", "arg2": 123}, context=context)
+    await pyscript.wait_done([5, "string1", 123, str(context)])
+
+    await hass.services.async_call("pyscript", "call_service", {"domain": "pyscript", "name": "func2"})
+    await pyscript.wait_done([5, {"trigger_type": "service"}, 1, 0])
+
+    await hass.services.async_call(
+        "pyscript",
+        "call_service",
+        {"domain": "pyscript", "name": "func2", "arg1": "string1"},
+    )
+    await pyscript.wait_done([5, {"trigger_type": "service", "arg1": "string1"}, 1, 0])
+
+    await hass.services.async_call("pyscript", "func2", {"arg1": "string1", "arg2": 456})
+    await pyscript.wait_done([5, {"trigger_type": "service", "arg1": "string1", "arg2": 456}, 1, 0])
+
+    await hass.services.async_call("other", "func2", {"arg1": "string1", "arg2": 123})
+    await pyscript.wait_done([5, {"trigger_type": "service", "arg1": "string1", "arg2": 123}, 1, 0])
+
+
+@pytest.mark.asyncio
+async def test_service_reload_error(pyscript):
+    """Test using a reserved name generates an error."""
+    await pyscript.start("""
+@service
+def reload():
+    pass
+""")
+
+    await pyscript.wait_exception(
+        SyntaxError, match="function 'reload' defined in file.hello: @service conflicts with builtin service"
+    )
+
+
+@pytest.mark.asyncio
+async def test_service_wrong_arg_type(pyscript):
+    """Test a non-string service name generates an error."""
+    await pyscript.start("""
+@service(1)
+def func5():
+    pass
+""")
+
+    await pyscript.wait_exception(
+        TypeError,
+        match="function 'func5' defined in file.hello: decorator @service argument 1 should be a string",
+    )

@@ -365,26 +365,6 @@ def func11():
 
 
 @pytest.mark.asyncio
-async def test_service_reload_error(hass, caplog):
-    """Test using a reserved name generates an error."""
-
-    await setup_script(
-        hass,
-        None,
-        dt(2020, 7, 1, 11, 59, 59, 999999),
-        """
-@service
-def reload():
-    pass
-""",
-    )
-    assert (
-        "SyntaxError: function 'reload' defined in file.hello: @service conflicts with builtin service"
-        in caplog.text
-    )
-
-
-@pytest.mark.asyncio
 async def test_service_state_active_extra_args(hass, caplog):
     """Test using extra args to state_active generates an error."""
 
@@ -400,26 +380,6 @@ def func4():
     )
     assert (
         "TypeError: function 'func4' defined in file.hello: decorator @state_active got 2 arguments, expected 1"
-        in caplog.text
-    )
-
-
-@pytest.mark.asyncio
-async def test_service_wrong_arg_type(hass, caplog):
-    """Test using too many args with service an error."""
-
-    await setup_script(
-        hass,
-        None,
-        dt(2020, 7, 1, 11, 59, 59, 999999),
-        """
-@service(1)
-def func5():
-    pass
-""",
-    )
-    assert (
-        "TypeError: function 'func5' defined in file.hello: decorator @service argument 1 should be a string"
         in caplog.text
     )
 
