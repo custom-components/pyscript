@@ -284,6 +284,12 @@ class FunctionDecoratorManager(DecoratorManager):
                 accepted = {a.arg for a in func_args.args + func_args.kwonlyargs}
                 call_kwargs = {k: v for k, v in data.func_args.items() if k in accepted}
             result = await data.call_ast_ctx.call_func(self.eval_func, None, **call_kwargs)
+        except asyncio.CancelledError:
+            # the call was killed while running; let result handlers answer their callers
+            self.logger.debug("Call cancelled for %s", self.name)
+            for result_handler_dec in result_handlers:
+                await self.safe_await(result_handler_dec.handle_call_canceled(data))
+            raise
         except Exception as e:
             for result_handler_dec in result_handlers:
                 await self.safe_await(result_handler_dec.handle_call_exception(data, e))
