@@ -328,7 +328,7 @@ class DummyEvalFuncVar:
 class DummyCallAstCtx:
     """Minimal action AstEval stub for manager call tests."""
 
-    def __init__(self, result: object = None, exc: Exception | None = None) -> None:
+    def __init__(self, result: object = None, exc: BaseException | None = None) -> None:
         """Initialize the dummy action context."""
         self.result = result
         self.exc = exc
@@ -777,6 +777,30 @@ async def test_function_decorator_manager_exception_calls_handle_call_exception(
     assert result_handler.canceled_calls == 0
     # exception is still logged via the manager
     assert ast_ctx.logged_exceptions == [exc]
+
+
+@pytest.mark.asyncio
+async def test_function_decorator_manager_task_cancelled(hass):
+    """A call cancelled while running (e.g. by @task_unique) resolves result handlers and stays cancelled."""
+    DecoratorManager.hass = hass
+    ast_ctx = DummyAstCtx()
+    manager = FunctionDecoratorManager(ast_ctx, DummyEvalFuncVar())
+    result_handler = make_full_recording_result_handler()
+    manager.add(result_handler)
+    call_ast_ctx = DummyCallAstCtx(exc=asyncio.CancelledError())
+
+    with pytest.raises(asyncio.CancelledError):
+        await call_function_manager(
+            manager,
+            make_dispatch_data(
+                {"arg1": 1}, call_ast_ctx=call_ast_ctx, hass_context=Context(id="call-parent")
+            ),
+        )
+
+    assert result_handler.canceled_calls == 1
+    assert not result_handler.results
+    assert not result_handler.exceptions
+    assert not ast_ctx.logged_exceptions
 
 
 @pytest.mark.asyncio

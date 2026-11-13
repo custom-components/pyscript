@@ -456,3 +456,31 @@ def webhook_lines_handler(payload, **_):
             hass, "lines_handler", _request(body=body, headers={"Content-Type": "application/json"})
         )
         assert response.status == status
+
+
+@pytest.mark.asyncio
+async def test_webhook_handler_cancelled_by_task_unique(pyscript, hass):
+    """A request whose call is cancelled by a newer @task_unique call gets 503 right away, not a timeout."""
+    await pyscript.start("""
+@webhook_handler("restart_hook", timeout=5)
+@task_unique("restart_hook")
+def handler(payload):
+    pyscript.done = ["started", payload["n"]]
+    if payload["n"] == 1:
+        task.sleep(10)  # still running when the second request cancels it
+    return {"n": payload["n"]}
+""")
+
+    def request(n: int) -> MockRequest:
+        return _request(body=json.dumps({"n": n}).encode(), headers={"Content-Type": "application/json"})
+
+    first = hass.async_create_task(webhook.async_handle_webhook(hass, "restart_hook", request(1)))
+    await pyscript.wait_done(["started", 1])
+
+    second = await webhook.async_handle_webhook(hass, "restart_hook", request(2))
+    await pyscript.wait_done(["started", 2])
+    assert second.status == 200
+    assert json.loads(second.text) == {"n": 2}
+
+    first_response = await asyncio.wait_for(first, timeout=1)
+    assert first_response.status == 503
