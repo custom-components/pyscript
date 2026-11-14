@@ -35,14 +35,26 @@ async def test_service_call(hass):
         await State.get_service_params()
 
         func = State.get("test.entity.test")
-        await func(context=Context(id="test"), blocking=True, limit=1, other_service_data="test")
+        await func(context=Context(id="test"), blocking=True, other_service_data="test")
         assert call.called
         assert call.call_args[0] == (
             "test",
             "test",
             {"other_service_data": "test", "entity_id": "test.entity"},
         )
-        assert call.call_args[1] == {"context": Context(id="test"), "blocking": True, "limit": 1}
+        assert call.call_args[1] == {"context": Context(id="test"), "blocking": True}
+        call.reset_mock()
+
+        # HASS 2023.7 removed the limit parameter, so it's passed as service data
+        func = State.get("test.entity.test")
+        await func(blocking=True, limit=1, other_service_data="test")
+        assert call.called
+        assert call.call_args[0] == (
+            "test",
+            "test",
+            {"limit": 1, "other_service_data": "test", "entity_id": "test.entity"},
+        )
+        assert call.call_args[1] == {"blocking": True}
         call.reset_mock()
 
         func = State.get("test.entity.test")
@@ -54,6 +66,32 @@ async def test_service_call(hass):
             {"other_service_data": "test", "entity_id": "test.entity"},
         )
         assert call.call_args[1] == {"context": Context(id="test"), "blocking": False}
+
+        # Stop all tasks to avoid conflicts with other tests
+        await Function.waiter_stop()
+        await Function.reaper_stop()
+
+
+@pytest.mark.asyncio
+async def test_service_call_limit_is_service_data(hass):
+    """Test that limit reaches the service as data, since HASS no longer accepts it as a call parameter."""
+    calls = []
+
+    async def handler(call):
+        calls.append(dict(call.data))
+
+    hass.services.async_register("test", "test", handler)
+    hass.states.async_set("test.entity", "on")
+    with patch(
+        "custom_components.pyscript.state.async_get_all_descriptions",
+        return_value={"test": {"test": {"description": None, "fields": {"entity_id": {}, "limit": {}}}}},
+    ):
+        State.init(hass)
+        Function.init(hass)
+        await State.get_service_params()
+
+        await State.get("test.entity.test")(blocking=True, limit=5)
+        assert calls == [{"entity_id": "test.entity", "limit": 5}]
 
         # Stop all tasks to avoid conflicts with other tests
         await Function.waiter_stop()
