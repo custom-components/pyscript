@@ -813,6 +813,36 @@ def func2(var_name=None, value=None):
 
 
 @pytest.mark.asyncio
+async def test_state_trigger_positional_only_param(pyscript):
+    """Positional-only trigger params keep their default instead of erroring on keyword dispatch."""
+    await pyscript.start(
+        """
+@state_trigger("pyscript.var1 == '1'")
+def func1(value=None, /):
+    pyscript.done = f"value={value}"
+"""
+    )
+
+    pyscript.hass.states.async_set("pyscript.var1", "1")
+    await pyscript.wait_done("value=None")
+
+
+@pytest.mark.asyncio
+async def test_state_trigger_positional_only_param_with_var_kwargs(pyscript):
+    """With **kwargs, a dispatch kwarg matching a positional-only name lands in **kwargs, as in Python."""
+    await pyscript.start(
+        """
+@state_trigger("pyscript.var1 == '1'")
+def func1(value=None, /, **kwargs):
+    pyscript.done = [value, kwargs.get("value"), kwargs.get("var_name")]
+"""
+    )
+
+    pyscript.hass.states.async_set("pyscript.var1", "1")
+    await pyscript.wait_done([None, "1", "pyscript.var1"])
+
+
+@pytest.mark.asyncio
 async def test_time_active_hold_off_send_last(hass):
     """Test hold_off_send_last runs with the latest suppressed trigger data."""
     notify_q = asyncio.Queue(0)

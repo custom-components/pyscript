@@ -392,6 +392,33 @@ def f(x, /, y = 5):
     ],
     [
         """
+def f(x=None, /, **kw):
+    return [x, kw]
+[f(x=1), f(2, x=3), f(4)]
+""",
+        [[None, {"x": 1}], [2, {"x": 3}], [4, {}]],
+    ],
+    [
+        """
+def f(a, /, b, *, c, **kw):
+    return [a, b, c, kw]
+def g(a=1, b=2, /, c=3, **kw):
+    return [a, b, c, kw]
+[f(1, a=2, b=3, c=4), g(a=10, b=20, c=30)]
+""",
+        [[1, 3, 4, {"a": 2}], [1, 2, 30, {"a": 10, "b": 20}]],
+    ],
+    [
+        """
+class Box:
+    def m(self, x=None, /, **kw):
+        return [x, kw]
+[Box().m(x=1), Box().m(2, x=3)]
+""",
+        [[None, {"x": 1}], [2, {"x": 3}]],
+    ],
+    [
+        """
 def func():
     x = 5
     exec('x = 2 * x')
@@ -1819,6 +1846,14 @@ f(x=4)
             lineno=4,
             end_col_offset=6,
         ),
+    ],
+    [
+        """
+def f(x, /, **kw):
+    return [x, kw]
+f(x=4)
+""",
+        ED(TypeError, "f() missing 1 required positional arguments", lineno=4, end_col_offset=6),
     ],
     [
         "from .xyz import abc",
