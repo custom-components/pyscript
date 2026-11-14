@@ -7,19 +7,22 @@ from collections import OrderedDict
 import io
 import logging
 import typing
+from typing import Any
 
 import voluptuous as vol
 import yaml
 
 from homeassistant.const import SERVICE_RELOAD
-from homeassistant.core import ServiceCall, SupportsResponse
+from homeassistant.core import ServiceCall, ServiceResponse, SupportsResponse
 from homeassistant.helpers.service import async_set_service_schema
 
-from .. import DOMAIN, SERVICE_JUPYTER_KERNEL_START, AstEval, Function, State
+from .. import DOMAIN, SERVICE_JUPYTER_KERNEL_START, Function, State
 from ..decorator import FunctionDecoratorManager
-from ..decorator_abc import Decorator
+from ..decorator_abc import CallResultHandlerDecorator, DispatchData, TriggerDecorator
 
 _LOGGER = logging.getLogger(__name__)
+
+_SERVICE_RESULT_FUTURE = "service_result_future"
 
 
 def service_validator(args: list[str]) -> list[str]:
@@ -37,7 +40,7 @@ def service_validator(args: list[str]) -> list[str]:
     return [domain, name]
 
 
-class ServiceDecorator(Decorator):
+class ServiceDecorator(TriggerDecorator, CallResultHandlerDecorator):
     """Implementation for @service."""
 
     name = "service"
@@ -89,31 +92,35 @@ class ServiceDecorator(Decorator):
                 fields[arg.arg] = OrderedDict(description=f"argument {arg.arg}")
             self.description = {"description": desc, "fields": fields}
 
-    async def _service_callback(self, call: ServiceCall) -> None:
+    async def _service_callback(self, call: ServiceCall) -> ServiceResponse:
         _LOGGER.info("Service callback: %s", call.service)
 
-        # use a new AstEval context so it can run    fully independently
-        # of other instances (except for global_ctx which is common)
-        global_ctx = self.dm.eval_func.global_ctx
-        ast_ctx = AstEval(self.dm.name, global_ctx)
-        Function.install_ast_funcs(ast_ctx)
         func_args = {
             "trigger_type": "service",
             "context": call.context,
         }
         func_args.update(call.data)
 
-        async def do_service_call(func, ast_ctx, data):
-            try:
-                _LOGGER.debug("Service call start: %s", func.name)
-                return await func.call(ast_ctx, **data)
-            except Exception as exc:
-                await self.dm.handle_exception(exc)
-                return None
+        future = self.dm.hass.loop.create_future()
+        await self.dispatch(DispatchData(func_args, trigger_context={_SERVICE_RESULT_FUTURE: future}))
+        result = await future
+        if call.return_response and result is None:
+            # like HA scripts: a call that was skipped or returned nothing gives an empty response
+            return {}
+        return result
 
-        task = Function.create_task(do_service_call(self.dm.eval_func, ast_ctx, func_args))
-        await task
-        return task.result()
+    async def handle_call_result(self, data: DispatchData, result: Any) -> None:
+        """
+        Return the function result as the service response.
+
+        A call that raised or was skipped/cancelled (@state_active, @time_active, @task_unique)
+        gets None via the default handle_call_exception/handle_call_canceled.
+        """
+        if data.trigger is not self:
+            return
+        future = data.trigger_context.get(_SERVICE_RESULT_FUTURE)
+        if future is not None and not future.done():
+            future.set_result(result)
 
     async def start(self) -> None:
         """Register the service."""

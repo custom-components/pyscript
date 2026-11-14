@@ -1183,13 +1183,23 @@ default), ``"only"``, or ``"optional"``, depending on whether the service provid
 provides a response, or sometimes provides a response.  Services responses were added in HASS 2023.7.
 The service response is a dictionary returned by the function.
 
-Other trigger decorators like ``@state_active`` and ``@time_active`` don't affect the service.
-Those still allow state, time or other triggers to be specified in addition.
+A service call is handled like any other trigger, so ``@state_active``, ``@time_active`` and
+``@task_unique`` apply to it, and other triggers like ``@state_trigger`` or ``@time_trigger`` can be
+added to the same function. If ``@state_active`` or ``@time_active`` evaluates to ``False``, or
+``@task_unique(kill_me=True)`` finds the task already running, the function is not called. A call
+that is cancelled by a newer call with the same ``@task_unique`` name doesn't complete either. In
+these cases, and whenever the function returns ``None``, a caller that requested a response gets an
+empty dictionary, as with Home Assistant scripts. Like other triggers, each service call fires a
+``pyscript_running`` event, which is shown in the logbook.
+
+With ``@time_active(hold_off_send_last=True)``, a service call that arrives during the hold-off
+window is answered right away like a skipped call, but the function still runs with its parameters
+when the window ends.
 
 The function is called with keyword parameters set to the service call parameters, plus
-``trigger_type`` is set to ``"service"``. The function definition should specify all the
-expected keyword arguments to match the service call parameters, or use the ``**kwargs``
-argument declaration to capture all the keyword arguments.
+``trigger_type`` is set to ``"service"``. The function receives only the service call parameters
+it declares; others are ignored unless the function uses the ``**kwargs`` argument declaration to
+capture all of them.
 
 The ``doc_string`` (the string immediately after the function declaration) is used as the service
 description that appears is in the Services tab of the Developer Tools page. The function argument

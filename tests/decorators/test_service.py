@@ -1,5 +1,6 @@
 """Test pyscript @service decorator."""
 
+import asyncio
 import pathlib
 from unittest.mock import patch
 
@@ -190,3 +191,109 @@ def func5():
         TypeError,
         match="function 'func5' defined in file.hello: decorator @service argument 1 should be a string",
     )
+
+
+@pytest.mark.asyncio
+async def test_service_state_active_blocks_call(pyscript, hass):
+    """@state_active skips the service call and the caller gets no response."""
+    hass.states.async_set("pyscript.enabled", "off")
+    await pyscript.start("""
+@service(supports_response="optional")
+@state_active("pyscript.enabled == 'on'")
+def guarded(x=None):
+    pyscript.done = ["ran", x]
+    return {"x": x}
+""")
+
+    assert await hass.services.async_call("pyscript", "guarded", {"x": 1}, blocking=True) is None
+    # like HA scripts, a skipped call gives an empty response when one is requested
+    response = await hass.services.async_call(
+        "pyscript", "guarded", {"x": 2}, blocking=True, return_response=True
+    )
+    assert response == {}
+    assert pyscript.done.empty()
+
+    hass.states.async_set("pyscript.enabled", "on")
+    response = await hass.services.async_call(
+        "pyscript", "guarded", {"x": 3}, blocking=True, return_response=True
+    )
+    assert response == {"x": 3}
+    await pyscript.wait_done(["ran", 3])
+
+
+@pytest.mark.asyncio
+async def test_service_time_active_blocks_call(pyscript, hass):
+    """@time_active applies to service calls."""
+    await pyscript.start("""
+@service
+@time_active("range(13:00, 14:00)")
+def inactive():
+    pyscript.done = "inactive ran"
+
+@service
+@time_active("range(11:00, 13:00)")
+def active():
+    pyscript.done = "active ran"
+""")
+
+    await hass.services.async_call("pyscript", "inactive", {}, blocking=True)
+    await hass.services.async_call("pyscript", "active", {}, blocking=True)
+    await pyscript.wait_done("active ran")
+
+
+@pytest.mark.asyncio
+async def test_service_task_unique_kill_me(pyscript, hass):
+    """@task_unique(kill_me=True) skips a service call while the previous one is running."""
+    hass.states.async_set("pyscript.release", "wait")
+    await pyscript.start("""
+@service
+@task_unique("svc_kill_me", kill_me=True)
+def slow(n=None):
+    pyscript.done = ["started", n]
+    task.wait_until(state_trigger="pyscript.release == 'go'")
+    pyscript.done = ["finished", n]
+""")
+
+    await hass.services.async_call("pyscript", "slow", {"n": 1})
+    await pyscript.wait_done(["started", 1])
+    # the second call is skipped and returns right away; the fixture fails on an extra ["started", 2]
+    await asyncio.wait_for(hass.services.async_call("pyscript", "slow", {"n": 2}, blocking=True), timeout=1)
+    hass.states.async_set("pyscript.release", "go")
+    await pyscript.wait_done(["finished", 1])
+
+
+@pytest.mark.asyncio
+async def test_service_task_unique_cancelled_call_returns(pyscript, hass):
+    """A service call cancelled by a newer @task_unique call returns instead of hanging."""
+    await pyscript.start("""
+@service
+@task_unique("svc_restart")
+def restart(n=None):
+    pyscript.done = ["started", n]
+    if n == 1:
+        task.sleep(10)  # still running when the second call cancels it
+    pyscript.done = ["finished", n]
+""")
+
+    first = hass.async_create_task(hass.services.async_call("pyscript", "restart", {"n": 1}, blocking=True))
+    await pyscript.wait_done(["started", 1])
+    await hass.services.async_call("pyscript", "restart", {"n": 2}, blocking=True)
+    await pyscript.wait_done(["started", 2])
+    await pyscript.wait_done(["finished", 2])
+    assert await asyncio.wait_for(first, timeout=1) is None
+
+
+@pytest.mark.asyncio
+async def test_service_no_result_gives_empty_response(pyscript, hass):
+    """A function returning nothing gives an empty response when one is requested, like HA scripts."""
+    await pyscript.start("""
+@service(supports_response="optional")
+def no_result():
+    pass
+""")
+
+    assert await hass.services.async_call("pyscript", "no_result", {}, blocking=True) is None
+    response = await hass.services.async_call(
+        "pyscript", "no_result", {}, blocking=True, return_response=True
+    )
+    assert response == {}
