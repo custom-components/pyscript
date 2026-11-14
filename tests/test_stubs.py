@@ -152,7 +152,9 @@ def ready():
     # Type mismatch between selector (str) and default (int) widens annotation.
     assert "str | int" in generated_content
     # Entity service with single optional arg preserves the default.
-    assert "turn_on(self, activity: str | None=None)" in generated_content
+    assert "turn_on(self, activity: str | None=None, *, blocking: bool=False" in generated_content
+    # Call kwargs are accepted by both the entity method and the static service method.
+    assert "return_response: bool=False" in generated_content
 
     original_builtins = (
         Path(__file__).resolve().parent.parent
@@ -461,7 +463,11 @@ async def test_stubs_flatten_named_sections_and_multiple(pyscript, monkeypatch):
         assert send["camera"] == ("str | None", "None")
         assert send["footer"] == ("str | None", "None")
         # ...a field named like the implicit target argument is skipped...
-        assert send_to == {"entity_id": ("str", None)}
+        assert send_to == {
+            "entity_id": ("str", None),
+            "blocking": ("bool", "False"),
+            "return_response": ("bool", "False"),
+        }
         # ..."multiple" selectors accept a single value or a list...
         assert send["recipients"] == ("str | list[str]", None)
         assert send["sender"] == ("str | list[str]", "'admin'")
