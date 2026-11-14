@@ -74,7 +74,7 @@ class ServiceDecorator(Decorator):
             try:
                 desc = desc[4:].lstrip(" \n\r")
                 file_desc = io.StringIO(desc)
-                self.description = yaml.load(file_desc, Loader=yaml.BaseLoader) or OrderedDict()  # noqa: S506
+                self.description = yaml.safe_load(file_desc) or OrderedDict()
                 file_desc.close()
             except Exception as exc:
                 self.dm.logger.error(
