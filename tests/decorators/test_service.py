@@ -9,6 +9,7 @@ import pytest
 from custom_components.pyscript.const import DOMAIN
 from homeassistant import loader
 from homeassistant.core import Context
+from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers.service import async_get_all_descriptions
 
 
@@ -297,3 +298,18 @@ def no_result():
         "pyscript", "no_result", {}, blocking=True, return_response=True
     )
     assert response == {}
+
+
+@pytest.mark.asyncio
+async def test_service_exception_fails_call(pyscript, hass):
+    """An exception in the function fails the service call and is still logged by pyscript."""
+    await pyscript.start("""
+@service
+def broken():
+    return 1 / 0
+""")
+
+    with pytest.raises(HomeAssistantError, match=r"broken\(\) raised ZeroDivisionError") as excinfo:
+        await hass.services.async_call("pyscript", "broken", {}, blocking=True)
+    assert isinstance(excinfo.value.__cause__, ZeroDivisionError)
+    await pyscript.wait_exception(ZeroDivisionError)

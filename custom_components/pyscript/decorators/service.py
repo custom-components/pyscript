@@ -14,6 +14,7 @@ import yaml
 
 from homeassistant.const import SERVICE_RELOAD
 from homeassistant.core import ServiceCall, ServiceResponse, SupportsResponse
+from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers.service import async_set_service_schema
 
 from .. import DOMAIN, SERVICE_JUPYTER_KERNEL_START, Function, State
@@ -113,14 +114,28 @@ class ServiceDecorator(TriggerDecorator, CallResultHandlerDecorator):
         """
         Return the function result as the service response.
 
-        A call that raised or was skipped/cancelled (@state_active, @time_active, @task_unique)
-        gets None via the default handle_call_exception/handle_call_canceled.
+        A call that was skipped or cancelled (@state_active, @time_active, @task_unique)
+        gets None via the default handle_call_canceled.
         """
         if data.trigger is not self:
             return
         future = data.trigger_context.get(_SERVICE_RESULT_FUTURE)
         if future is not None and not future.done():
             future.set_result(result)
+
+    async def handle_call_exception(self, data: DispatchData, exc: Exception) -> None:
+        """Fail the service call when the function raised; the manager still logs the exception."""
+        if data.trigger is not self:
+            return
+        future = data.trigger_context.get(_SERVICE_RESULT_FUTURE)
+        if future is None or future.done():
+            return
+        if isinstance(exc, HomeAssistantError):
+            future.set_exception(exc)
+            return
+        error = HomeAssistantError(f"{self.dm.name}() raised {type(exc).__name__}: {exc}")
+        error.__cause__ = exc
+        future.set_exception(error)
 
     async def start(self) -> None:
         """Register the service."""

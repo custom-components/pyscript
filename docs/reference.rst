@@ -1189,7 +1189,9 @@ added to the same function. If ``@state_active`` or ``@time_active`` evaluates t
 ``@task_unique(kill_me=True)`` finds the task already running, the function is not called. A call
 that is cancelled by a newer call with the same ``@task_unique`` name doesn't complete either. In
 these cases, and whenever the function returns ``None``, a caller that requested a response gets an
-empty dictionary, as with Home Assistant scripts. Like other triggers, each service call fires a
+empty dictionary, as with Home Assistant scripts. If the function raises an exception, the service
+call fails with a ``HomeAssistantError`` (shown in the UI and stopping a calling automation or
+script), and the exception is also logged by pyscript. Like other triggers, each service call fires a
 ``pyscript_running`` event, which is shown in the logbook.
 
 With ``@time_active(hold_off_send_last=True)``, a service call that arrives during the hold-off
