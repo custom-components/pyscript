@@ -480,7 +480,7 @@ class EvalFunc:
                     try:
                         desc = desc[4:].lstrip(" \n\r")
                         file_desc = io.StringIO(desc)
-                        service_desc = yaml.load(file_desc, Loader=yaml.BaseLoader) or OrderedDict()
+                        service_desc = yaml.safe_load(file_desc) or OrderedDict()
                         file_desc.close()
                     except Exception as exc:
                         self.logger.error(
