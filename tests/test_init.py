@@ -343,8 +343,8 @@ fields:
 
     assert descriptions["func_yaml_doc_string"]["description"] == "This is func_yaml_doc_string."
     assert descriptions["func_yaml_doc_string"]["fields"] == {
-        "param1": {"description": "first argument", "example": "12"},
-        "param2": {"description": "second argument", "example": "34"},
+        "param1": {"description": "first argument", "example": 12},
+        "param2": {"description": "second argument", "example": 34},
     }
 
 
