@@ -21,6 +21,13 @@ _STATE_CLASS_SUFFIX = "_state"
 _STATE_CLASS = "StateVal"
 _DOCSTRING_INDENT = " " * 8
 
+# kwargs that pyscript strips off before the remaining kwargs
+# become service data
+_CALL_KWARGS = {
+    "blocking": "bool",
+    "return_response": "bool",
+}
+
 SELECTOR_SIMPLE_TYPES = {
     "boolean": "bool",
     "color_rgb": "tuple[int, int, int]",
@@ -273,6 +280,15 @@ class StubsGenerator:
             for field in field_nodes:
                 kwonlyargs.append(ast.arg(arg=field.name, annotation=field.annotation))
                 kw_defaults.append(field.default)
+
+        taken = {arg.arg for arg in (*args, *kwonlyargs)}
+        for name, typ in _CALL_KWARGS.items():
+            # a service field of the same name is left in the signature, even though
+            # pyscript intercepts the kwarg at runtime, so that field is unreachable
+            if name in taken:
+                continue
+            kwonlyargs.append(ast.arg(arg=name, annotation=self._name(typ)))
+            kw_defaults.append(ast.Constant(value=Ellipsis))
 
         if "response" in payload:
             returns = ast.Subscript(
