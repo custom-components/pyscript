@@ -285,6 +285,29 @@ def restart(n=None):
 
 
 @pytest.mark.asyncio
+async def test_service_call_cancelled_by_caller_cancels_function(pyscript, hass):
+    """Cancelling a blocking service call (e.g. a restarted script) also cancels the running function."""
+    await pyscript.start("""
+@service
+def slow():
+    pyscript.done = "started"
+    try:
+        task.sleep(10)
+    finally:
+        pyscript.done = "stopped"
+""")
+
+    call = hass.async_create_task(hass.services.async_call("pyscript", "slow", {}, blocking=True))
+    await pyscript.wait_done("started")
+    call.cancel()
+    with pytest.raises(asyncio.CancelledError):
+        await call
+
+    # the function is cancelled inside task.sleep() and reports it from its finally block
+    await pyscript.wait_done("stopped", timeout=1)
+
+
+@pytest.mark.asyncio
 async def test_service_no_result_gives_empty_response(pyscript, hass):
     """A function returning nothing gives an empty response when one is requested, like HA scripts."""
     await pyscript.start("""

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
+import asyncio
 from collections.abc import Awaitable
 from dataclasses import dataclass, field
 from enum import StrEnum
@@ -46,6 +47,8 @@ class DispatchData:
 
     call_ast_ctx: AstEval | None = field(default=None, kw_only=True)
     hass_context: Context | None = field(default=None, kw_only=True)
+    # the task running the function, set by the manager once the call is started
+    call_task: asyncio.Task | None = field(default=None, kw_only=True)
 
 
 class Decorator(ABC):

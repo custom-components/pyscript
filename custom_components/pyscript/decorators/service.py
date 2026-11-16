@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import ast
+import asyncio
 from collections import OrderedDict
 import io
 import logging
@@ -103,8 +104,15 @@ class ServiceDecorator(TriggerDecorator, CallResultHandlerDecorator):
         func_args.update(call.data)
 
         future = self.dm.hass.loop.create_future()
-        await self.dispatch(DispatchData(func_args, trigger_context={_SERVICE_RESULT_FUTURE: future}))
-        result = await future
+        data = DispatchData(func_args, trigger_context={_SERVICE_RESULT_FUTURE: future})
+        await self.dispatch(data)
+        try:
+            result = await future
+        except asyncio.CancelledError:
+            # the caller was cancelled (e.g. a restarted script): stop the function too
+            if data.call_task is not None:
+                data.call_task.cancel()
+            raise
         if call.return_response and result is None:
             # like HA scripts: a call that was skipped or returned nothing gives an empty response
             return {}
