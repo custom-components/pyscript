@@ -1,10 +1,10 @@
 """Unit tests for Python interpreter."""
 
 import ast as ast_module
+import asyncio
 import contextlib
 from dataclasses import dataclass
-import types
-from types import ModuleType
+from types import FunctionType, ModuleType
 
 import pytest
 from pytest_homeassistant.common import MockConfigEntry
@@ -2226,13 +2226,19 @@ test_reraise()
 
 
 WITH_SEMANTICS_SOURCE = """
+import sys
+
 class Ctx:
-    def __init__(self, msgs, name, fail_enter=False, suppress=False, fail_exit=False):
+    def __init__(
+        self, msgs, name, fail_enter=False, suppress=False, fail_exit=False, reraise=False, chain_exit=False
+    ):
         self.msgs = msgs
         self.name = name
         self.fail_enter = fail_enter
         self.suppress = suppress
         self.fail_exit = fail_exit
+        self.reraise = reraise
+        self.chain_exit = chain_exit
 
     def __enter__(self):
         self.msgs.append(f"enter {self.name}")
@@ -2241,9 +2247,20 @@ class Ctx:
         return self.name
 
     def __exit__(self, exc_type, exc, tb):
-        self.msgs.append(f"exit {self.name} {exc_type.__name__ if exc_type else None}")
+        active = sys.exc_info()[1]
+        self.msgs.append(
+            f"exit {self.name} {exc_type.__name__ if exc_type else None}"
+            f" active {type(active).__name__ if active else None} same {active is exc}"
+        )
         if self.fail_exit:
             raise KeyError(f"exit {self.name}")
+        if self.chain_exit:
+            try:
+                raise KeyError(f"exit {self.name}")
+            except KeyError:
+                raise IndexError(f"exit {self.name}")
+        if self.reraise:
+            raise
         return self.suppress
 
 class ACtx:
@@ -2265,8 +2282,12 @@ def amake(msgs, name, **kwargs):
     return ACtx(msgs, name, **kwargs)
 
 def describe(exc):
-    context = type(exc.__context__).__name__ if exc.__context__ else None
-    return f"raised {type(exc).__name__} {exc} context {context}"
+    chain = []
+    context = exc.__context__
+    while context is not None:
+        chain.append(type(context).__name__)
+        context = context.__context__
+    return f"raised {type(exc).__name__} {exc} context {' -> '.join(chain) if chain else None}"
 
 results = []
 cases = [
@@ -2276,6 +2297,11 @@ cases = [
     {"body": True, "b": {"fail_exit": True}},
     {"b": {"fail_exit": True}},
     {"body": True, "a": {"fail_exit": True}, "b": {"suppress": True}},
+    {"body": True, "b": {"reraise": True}},
+    {"body": True, "a": {"reraise": True}, "b": {"fail_exit": True}},
+    {"body": True, "b": {"chain_exit": True}},
+    {"body": True, "a": {"chain_exit": True}, "b": {"fail_exit": True}},
+    {"a": {"chain_exit": True}},
     {},
 ]
 for case in cases:
@@ -2308,6 +2334,27 @@ try:
 except Exception as exc:
     msgs.append(describe(exc))
 results.append(msgs)
+
+def with_return(msgs):
+    with make(msgs, "a") as a, make(msgs, "b") as b:
+        msgs.append("body")
+        return f"returned {a} {b}"
+    msgs.append("not reached")
+
+msgs = []
+msgs.append(with_return(msgs))
+results.append(msgs)
+
+msgs = []
+for i in range(3):
+    with make(msgs, f"loop{i}"), make(msgs, f"inner{i}"):
+        if i == 0:
+            continue
+        if i == 1:
+            break
+    msgs.append(f"after {i}")
+msgs.append("loop done")
+results.append(msgs)
 """
 
 
@@ -2329,7 +2376,7 @@ async def test_with_matches_python(hass):
     expected_ns = {"failing_acm": failing_acm}
     code = compile(WITH_SEMANTICS_SOURCE, "test", "exec", flags=ast_module.PyCF_ALLOW_TOP_LEVEL_AWAIT)
     # code compiled with top level await runs as a coroutine function, like the asyncio REPL
-    await types.FunctionType(code, expected_ns)()
+    await FunctionType(code, expected_ns)()
     expected = expected_ns["results"]
 
     global_ctx = GlobalContext(
@@ -2339,6 +2386,64 @@ async def test_with_matches_python(hass):
     Function.install_ast_funcs(ast)
     ast.parse(WITH_SEMANTICS_SOURCE + "results\n")
     assert await ast.eval() == expected
+
+    await Function.waiter_sync()
+    await Function.waiter_stop()
+    await Function.reaper_stop()
+
+
+WITH_CANCEL_SOURCE = """
+class Suppress:
+    def __enter__(self):
+        msgs.append("enter")
+
+    def __exit__(self, exc_type, exc, tb):
+        msgs.append(f"exit {exc_type.__name__ if exc_type else None}")
+        return True
+
+class ASuppress:
+    async def __aenter__(self):
+        msgs.append("aenter")
+
+    async def __aexit__(self, exc_type, exc, tb):
+        msgs.append(f"aexit {exc_type.__name__ if exc_type else None}")
+        return True
+
+with Suppress():
+    async with ASuppress():
+        msgs.append("body")
+        started.set()
+        await forever.wait()
+    msgs.append("after async with")
+msgs.append("after with")
+"""
+
+
+async def test_with_exit_does_not_swallow_cancel(hass):
+    """Test that an exit returning true still lets a task be cancelled."""
+    hass.data[DOMAIN] = {CONFIG_ENTRY: MockConfigEntry(domain=DOMAIN, data={CONF_ALLOW_ALL_IMPORTS: True})}
+    Function.init(hass)
+    State.init(hass)
+    State.register_functions()
+    TrigTime.init(hass)
+
+    msgs = []
+    started = asyncio.Event()
+    forever = asyncio.Event()
+    global_ctx = GlobalContext(
+        "test",
+        global_sym_table={"msgs": msgs, "started": started, "forever": forever},
+        manager=GlobalContextMgr,
+    )
+    ast = AstEval("test", global_ctx=global_ctx)
+    Function.install_ast_funcs(ast)
+    ast.parse(WITH_CANCEL_SOURCE)
+    task = asyncio.create_task(ast.eval())
+    await started.wait()
+    task.cancel()
+    with pytest.raises(asyncio.CancelledError):
+        await task
+    assert msgs == ["enter", "aenter", "body", "aexit CancelledError", "exit CancelledError"]
 
     await Function.waiter_sync()
     await Function.waiter_stop()

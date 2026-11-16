@@ -1283,50 +1283,38 @@ class AstEval:
         raise  # pylint: disable=misplaced-bare-raise
 
     async def ast_with(self, arg, async_attr=""):
-        """
-        Execute with statement.
+        """Execute with statement; several items behave like nested with statements."""
+        return await self.with_items(arg, arg.items, async_attr)
 
-        Several items behave like nested with statements: each manager is
-        evaluated and entered in turn, only managers that were entered are
-        exited, and they are exited innermost first. An exit that returns true
-        suppresses the error, so the outer exits see no error; an exit that
-        raises replaces the error for the outer exits.
-        """
-        entered = []
-        val = None
-        error = None
-        enter_attr = f"__{async_attr}enter__"
-        exit_attr = f"__{async_attr}exit__"
-        try:
-            for item in arg.items:
-                manager = await self.aeval(item.context_expr)
-                enter_func = getattr(type(manager), enter_attr)
-                exit_func = getattr(type(manager), exit_attr)
-                value = await self.call_func(enter_func, enter_attr, manager)
-                entered.append((manager, exit_func))
-                if item.optional_vars:
-                    await self.recurse_assign(item.optional_vars, value)
+    async def with_items(self, arg, items, async_attr):
+        """Enter the first manager, run the remaining items and the body inside it, then exit it."""
+        if not items:
+            val = None
             for arg1 in arg.body:
                 val = await self.aeval(arg1)
                 if isinstance(val, EvalStopFlow):
                     break
-        except BaseException as exc:  # pylint: disable=broad-exception-caught
-            # also CancelledError, which the exits must see like in Python
-            error = exc
-        for manager, exit_func in reversed(entered):
-            try:
-                if error is None:
-                    await self.call_func(exit_func, exit_attr, manager, None, None, None)
-                elif await self.call_func(
-                    exit_func, exit_attr, manager, type(error), error, error.__traceback__
-                ):
-                    error = None
-            except BaseException as exc:  # pylint: disable=broad-exception-caught
-                if error is not None and exc is not error and exc.__context__ is None:
-                    exc.__context__ = error
-                error = exc
-        if error is not None:
-            raise error
+            return val
+        item = items[0]
+        manager = await self.aeval(item.context_expr)
+        enter_attr = f"__{async_attr}enter__"
+        exit_attr = f"__{async_attr}exit__"
+        enter_func = getattr(type(manager), enter_attr)
+        exit_func = getattr(type(manager), exit_attr)
+        value = await self.call_func(enter_func, enter_attr, manager)
+        try:
+            if item.optional_vars:
+                await self.recurse_assign(item.optional_vars, value)
+            val = await self.with_items(arg, items[1:], async_attr)
+        except (asyncio.CancelledError, KeyboardInterrupt, SystemExit):
+            # unlike Python, the exit can't suppress these, so tasks can always be stopped
+            await self.call_func(exit_func, exit_attr, manager, *sys.exc_info())
+            raise
+        except Exception:  # pylint: disable=broad-exception-caught
+            if not await self.call_func(exit_func, exit_attr, manager, *sys.exc_info()):
+                raise
+            return None
+        await self.call_func(exit_func, exit_attr, manager, None, None, None)
         return val
 
     async def ast_asyncwith(self, arg):
