@@ -1283,43 +1283,38 @@ class AstEval:
         raise  # pylint: disable=misplaced-bare-raise
 
     async def ast_with(self, arg, async_attr=""):
-        """Execute with statement."""
-        hit_except = False
-        ctx_list = []
-        val = None
-        enter_attr = f"__{async_attr}enter__"
-        exit_attr = f"__{async_attr}exit__"
-        try:
-            for item in arg.items:
-                manager = await self.aeval(item.context_expr)
-                ctx_list.append(
-                    {
-                        "manager": manager,
-                        "enter": getattr(type(manager), enter_attr),
-                        "exit": getattr(type(manager), exit_attr),
-                        "target": item.optional_vars,
-                    }
-                )
-            for ctx in ctx_list:
-                value = await self.call_func(ctx["enter"], enter_attr, ctx["manager"])
-                if ctx["target"]:
-                    await self.recurse_assign(ctx["target"], value)
+        """Execute with statement; several items behave like nested with statements."""
+        return await self.with_items(arg, arg.items, async_attr)
+
+    async def with_items(self, arg, items, async_attr):
+        """Enter the first manager, run the remaining items and the body inside it, then exit it."""
+        if not items:
+            val = None
             for arg1 in arg.body:
                 val = await self.aeval(arg1)
                 if isinstance(val, EvalStopFlow):
                     break
-        except Exception:
-            hit_except = True
-            exit_ok = True
-            for ctx in reversed(ctx_list):
-                ret = await self.call_func(ctx["exit"], exit_attr, ctx["manager"], *sys.exc_info())
-                exit_ok = exit_ok and ret
-            if not exit_ok:
+            return val
+        item = items[0]
+        manager = await self.aeval(item.context_expr)
+        enter_attr = f"__{async_attr}enter__"
+        exit_attr = f"__{async_attr}exit__"
+        enter_func = getattr(type(manager), enter_attr)
+        exit_func = getattr(type(manager), exit_attr)
+        value = await self.call_func(enter_func, enter_attr, manager)
+        try:
+            if item.optional_vars:
+                await self.recurse_assign(item.optional_vars, value)
+            val = await self.with_items(arg, items[1:], async_attr)
+        except (asyncio.CancelledError, KeyboardInterrupt, SystemExit):
+            # unlike Python, the exit can't suppress these, so tasks can always be stopped
+            await self.call_func(exit_func, exit_attr, manager, *sys.exc_info())
+            raise
+        except Exception:  # pylint: disable=broad-exception-caught
+            if not await self.call_func(exit_func, exit_attr, manager, *sys.exc_info()):
                 raise
-        finally:
-            if not hit_except:
-                for ctx in reversed(ctx_list):
-                    await self.call_func(ctx["exit"], exit_attr, ctx["manager"], None, None, None)
+            return None
+        await self.call_func(exit_func, exit_attr, manager, None, None, None)
         return val
 
     async def ast_asyncwith(self, arg):
