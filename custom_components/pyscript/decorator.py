@@ -269,7 +269,9 @@ class FunctionDecoratorManager(DecoratorManager):
         ev_name = self.name.replace(".", "_")
         ev_entity_id = f"pyscript.{ev_name}"
 
-        event_data = {"name": ev_name, "entity_id": ev_entity_id, "func_args": data.func_args}
+        # leave out the webhook request, which isn't JSON serializable
+        event_func_args = {key: val for key, val in data.func_args.items() if key != "request"}
+        event_data = {"name": ev_name, "entity_id": ev_entity_id, "func_args": event_func_args}
         self.hass.bus.async_fire("pyscript_running", event_data, context=data.hass_context)
         # Store HASS Context for this Task
         Function.store_hass_context(data.hass_context)

@@ -5,7 +5,9 @@ import json
 
 import pytest
 
+from custom_components.pyscript.const import CONF_LEGACY_DECORATORS, DOMAIN
 from homeassistant.components import webhook
+from homeassistant.helpers.json import json_bytes
 from homeassistant.util.aiohttp import MockRequest
 
 
@@ -25,12 +27,20 @@ def _request(
 
 
 @pytest.mark.asyncio
-async def test_webhook_request_kwarg(pyscript, hass):
+@pytest.mark.parametrize("legacy", [False, True])
+async def test_webhook_request_kwarg(pyscript, hass, legacy):
     """The aiohttp request is passed to the user function as the `request` kwarg."""
+    running = []
+    hass.bus.async_listen("pyscript_running", running.append)
+    pyscript.config = {DOMAIN: {CONF_LEGACY_DECORATORS: legacy}}
     await pyscript.start("""
 @webhook_trigger("test_req_hook")
 def webhook_test(payload, request):
     pyscript.done = [request.headers["X-My-Sig"], request.method, payload]
+
+@webhook_trigger("test_no_req_hook")
+def webhook_no_request(payload):
+    pyscript.done = payload
 """)
 
     request = _request(
@@ -38,8 +48,38 @@ def webhook_test(payload, request):
         headers={"Content-Type": "application/json", "X-My-Sig": "abc123"},
     )
     await webhook.async_handle_webhook(hass, "test_req_hook", request)
-
     await pyscript.wait_done(["abc123", "POST", {"hello": "world"}])
+
+    # functions that don't declare request still work
+    request = _request(body=b'{"a": 1}', headers={"Content-Type": "application/json"})
+    await webhook.async_handle_webhook(hass, "test_no_req_hook", request)
+    await pyscript.wait_done({"a": 1})
+
+    # the request isn't JSON serializable, so it's left out of the pyscript_running event
+    assert len(running) == 2
+    for event in running:
+        assert "request" not in event.data["func_args"]
+        json_bytes(event.data)
+
+
+@pytest.mark.asyncio
+async def test_webhook_handler_running_event(pyscript, hass):
+    """The pyscript_running event for @webhook_handler is JSON serializable."""
+    running = []
+    hass.bus.async_listen("pyscript_running", running.append)
+    await pyscript.start("""
+@webhook_handler("handler_hook")
+def webhook_handler_test(payload, request):
+    return {"method": request.method, "payload": payload}
+""")
+
+    request = _request(body=b'{"b": 2}', headers={"Content-Type": "application/json"})
+    response = await webhook.async_handle_webhook(hass, "handler_hook", request)
+    assert json.loads(response.body) == {"method": "POST", "payload": {"b": 2}}
+
+    assert len(running) == 1
+    assert "request" not in running[0].data["func_args"]
+    json_bytes(running[0].data)
 
 
 @pytest.mark.asyncio
