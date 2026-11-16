@@ -249,10 +249,13 @@ class FunctionDecoratorManager(DecoratorManager):
         self.logger = self.eval_func.logger
 
         def on_func_var_deleted():
-            if self.status is DecoratorManagerStatus.RUNNING:
+            # once HA has closed the loop at shutdown there is nothing left to stop
+            if self.status is DecoratorManagerStatus.RUNNING and not self.hass.loop.is_closed():
                 self.hass.async_create_task(self.safe_await(self.stop()))
 
-        weakref.finalize(eval_func_var, on_func_var_deleted)
+        # not at interpreter exit either, the loop is closed by then
+        self.func_var_finalizer = weakref.finalize(eval_func_var, on_func_var_deleted)
+        self.func_var_finalizer.atexit = False
 
     async def _call(self, data: DispatchData) -> None:
         handlers = self.get_decorators(CallHandlerDecorator)
