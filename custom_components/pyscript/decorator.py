@@ -248,10 +248,17 @@ class FunctionDecoratorManager(DecoratorManager):
 
         self.logger = self.eval_func.logger
 
-        def on_func_var_deleted():
-            # once HA has closed the loop at shutdown there is nothing left to stop
-            if self.status is DecoratorManagerStatus.RUNNING and not self.hass.loop.is_closed():
+        def stop_deleted_func():
+            if self.status is DecoratorManagerStatus.RUNNING:
                 self.hass.async_create_task(self.safe_await(self.stop()))
+
+        def on_func_var_deleted():
+            # garbage collection can run this in any thread, so hand off to the loop
+            try:
+                self.hass.loop.call_soon_threadsafe(stop_deleted_func)
+            except RuntimeError:
+                # once HA has closed the loop at shutdown there is nothing left to stop
+                pass
 
         # not at interpreter exit either, the loop is closed by then
         self.func_var_finalizer = weakref.finalize(eval_func_var, on_func_var_deleted)

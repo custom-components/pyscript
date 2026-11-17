@@ -891,6 +891,25 @@ async def test_function_decorator_manager_finalizer_not_run_at_exit(hass):
 
 
 @pytest.mark.asyncio
+async def test_function_decorator_manager_finalizer_in_worker_thread(hass, caplog):
+    """Deleting the function in a worker thread should stop the manager via the loop."""
+    DecoratorManager.hass = hass
+    holder = [DummyEvalFuncVar()]
+    manager = FunctionDecoratorManager(DummyAstCtx(), holder[0])
+    manager.update_status(DecoratorManagerStatus.RUNNING)
+
+    def drop():
+        holder.clear()
+        gc.collect()
+
+    await hass.async_add_executor_job(drop)
+    await hass.async_block_till_done()
+
+    assert manager.status is DecoratorManagerStatus.STOPPED
+    assert "thread other than the event loop" not in caplog.text
+
+
+@pytest.mark.asyncio
 async def test_call_result_handler_default_handle_call_exception_forwards_none():
     """Default handle_call_exception should forward the call to handle_call_result with None."""
     handler = make_recording_result_handler()
