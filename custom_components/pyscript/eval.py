@@ -1110,7 +1110,7 @@ class AstEval:
                 if meth_func is not None and getattr(meth_func, "deferred_dm_decorators", None):
                     deferred.append((meth_name, meth_val, meth_func.deferred_dm_decorators))
         if deferred:
-            setattr(cls, "__pyscript_method_triggers__", deferred)
+            cls.__pyscript_method_triggers__ = deferred
         sym_table_assign[arg.name].set(cls)
 
     async def ast_functiondef(self, arg, async_func=False):
@@ -1916,8 +1916,7 @@ class AstEval:
         return await self.call_func(func, func_name, *args, **kwargs)
 
     async def register_method_triggers(self, inst):
-        """Register deferred method triggers for a new instance; keep vars on inst so
-        the trigger dies with it (via the DM's weakref.finalize)."""
+        """Register deferred method triggers for a new instance."""
         specs = getattr(type(inst), "__pyscript_method_triggers__", None)
         if not specs:
             return
