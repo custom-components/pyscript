@@ -653,6 +653,7 @@ async def test_function_decorator_manager_success_calls_result_handlers(hass):
     call_ast_ctx = DummyCallAstCtx(result="ok")
     manager.add(result_handler)
     hass_context = Context(id="call-parent")
+    func_args = {"trigger_type": "state", "var_name": "sensor.x", "value": "on", "arg1": object()}
     fired_events = []
 
     def event_listener(event):
@@ -662,17 +663,19 @@ async def test_function_decorator_manager_success_calls_result_handlers(hass):
 
     with patch.object(Function, "store_hass_context") as store_hass_context:
         await call_function_manager(
-            manager, make_dispatch_data({"arg1": 1}, call_ast_ctx=call_ast_ctx, hass_context=hass_context)
+            manager,
+            make_dispatch_data(func_args, call_ast_ctx=call_ast_ctx, hass_context=hass_context),
         )
         await hass.async_block_till_done()
 
-    assert call_ast_ctx.calls == [(manager.eval_func, None, {"arg1": 1})]
+    assert call_ast_ctx.calls == [(manager.eval_func, None, func_args)]
     assert result_handler.results == ["ok"]
     assert len(fired_events) == 1
     assert fired_events[0].data == {
         "name": "file_hello_func",
         "entity_id": "pyscript.file_hello_func",
-        "func_args": {"arg1": 1},
+        # only the func_args the logbook uses are kept
+        "func_args": {"trigger_type": "state", "var_name": "sensor.x", "value": "on"},
     }
     store_hass_context.assert_called_once_with(hass_context)
 

@@ -55,10 +55,11 @@ def webhook_no_request(payload):
     await webhook.async_handle_webhook(hass, "test_no_req_hook", request)
     await pyscript.wait_done({"a": 1})
 
-    # the request isn't JSON serializable, so it's left out of the pyscript_running event
+    # only the func_args the logbook uses are kept in the pyscript_running event
+    await hass.async_block_till_done()
     assert len(running) == 2
     for event in running:
-        assert "request" not in event.data["func_args"]
+        assert event.data["func_args"] == {"trigger_type": "webhook"}
         json_bytes(event.data)
 
 
@@ -77,8 +78,9 @@ def webhook_handler_test(payload, request):
     response = await webhook.async_handle_webhook(hass, "handler_hook", request)
     assert json.loads(response.body) == {"method": "POST", "payload": {"b": 2}}
 
+    await hass.async_block_till_done()
     assert len(running) == 1
-    assert "request" not in running[0].data["func_args"]
+    assert running[0].data["func_args"] == {"trigger_type": "webhook"}
     json_bytes(running[0].data)
 
 

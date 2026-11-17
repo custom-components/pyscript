@@ -25,6 +25,7 @@ from .decorator_abc import (
 )
 from .eval import AstEval, EvalFunc, EvalFuncVar
 from .function import Function
+from .logbook import RUNNING_EVENT_FUNC_ARGS
 from .state import State
 
 _LOGGER = logging.getLogger(__name__)
@@ -269,8 +270,9 @@ class FunctionDecoratorManager(DecoratorManager):
         ev_name = self.name.replace(".", "_")
         ev_entity_id = f"pyscript.{ev_name}"
 
-        # leave out the webhook request, which isn't JSON serializable
-        event_func_args = {key: val for key, val in data.func_args.items() if key != "request"}
+        event_func_args = {
+            key: data.func_args[key] for key in RUNNING_EVENT_FUNC_ARGS if key in data.func_args
+        }
         event_data = {"name": ev_name, "entity_id": ev_entity_id, "func_args": event_func_args}
         self.hass.bus.async_fire("pyscript_running", event_data, context=data.hass_context)
         # Store HASS Context for this Task

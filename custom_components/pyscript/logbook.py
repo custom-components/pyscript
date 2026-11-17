@@ -8,6 +8,10 @@ from .const import DOMAIN
 
 _LOGGER = logging.getLogger(__name__)
 
+# func_args kept in the pyscript_running event, which are what the logbook describes it with;
+# others can be large or not JSON serializable (eg, a webhook request or service call data)
+RUNNING_EVENT_FUNC_ARGS = ("trigger_type", "event_type", "var_name", "value", "trigger_time")
+
 
 @callback
 def async_describe_events(hass, async_describe_event):  # type: ignore
