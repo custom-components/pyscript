@@ -396,6 +396,20 @@ A Python function with decorators is still a normal Python function that can be 
 Python function. The decorators have no effect in the case where you call it directly from another
 function.
 
+Trigger decorators on class methods
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Trigger decorators work on methods that take ``self``. Each instance gets its own trigger, and
+``self`` is available both in the method and in the condition string:
+
+.. code:: python
+
+    @state_trigger("sensor.value == self.target")
+    def on_match(self, var_name=None, value=None):
+        ...
+
+Triggers are cleaned up automatically when the instance is collected.
+
 @state_trigger
 ^^^^^^^^^^^^^^
 
