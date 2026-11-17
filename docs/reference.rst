@@ -408,7 +408,9 @@ Trigger decorators work on methods that take ``self``. Each instance gets its ow
     def on_match(self, var_name=None, value=None):
         ...
 
-Triggers are cleaned up automatically when the instance is collected.
+Triggers are cleaned up automatically when the instance is collected. With inheritance, the
+most-derived definition of the method wins, as when calling it directly: an override without
+trigger decorators removes the inherited trigger.
 
 @state_trigger
 ^^^^^^^^^^^^^^

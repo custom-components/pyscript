@@ -1102,13 +1102,13 @@ class AstEval:
             cls = await cls
         for dec_func in reversed(decorators):
             cls = await self.call_func(dec_func, None, cls)
-        # collect deferred-trigger methods; registered per-instance at construction
-        deferred = []
+        # names of methods whose triggers register per instance; at construction the
+        # most-derived definition of each name wins (see register_method_triggers)
+        deferred = set()
         for meth_name, meth_val in sym_table.items():
-            if isinstance(meth_val, EvalFuncVar):
-                meth_func = meth_val.get_func()
-                if meth_func is not None and getattr(meth_func, "deferred_dm_decorators", None):
-                    deferred.append((meth_name, meth_val, meth_func.deferred_dm_decorators))
+            meth_func = meth_val.get_func() if isinstance(meth_val, EvalFuncVar) else None
+            if meth_func is not None and meth_func.deferred_dm_decorators:
+                deferred.add(meth_name)
         if deferred:
             cls.__pyscript_method_triggers__ = deferred
         sym_table_assign[arg.name].set(cls)
@@ -1917,13 +1917,24 @@ class AstEval:
 
     async def register_method_triggers(self, inst):
         """Register deferred method triggers for a new instance."""
-        specs = getattr(type(inst), "__pyscript_method_triggers__", None)
-        if not specs:
+        cls = type(inst)
+        names: set[str] = set()
+        for klass in cls.__mro__:
+            names.update(klass.__dict__.get("__pyscript_method_triggers__", ()))
+        if not names:
             return
         keep = []
-        for _meth_name, meth_var, dec_exprs in specs:
-            meth_func = meth_var.get_func()
-            ast_ctx = meth_var.get_ast_ctx()
+        for meth_name in names:
+            # the most-derived definition of the name wins, as when calling it directly
+            meth_val = next(
+                (klass.__dict__[meth_name] for klass in cls.__mro__ if meth_name in klass.__dict__),
+                None,
+            )
+            meth_func = meth_val.get_func() if isinstance(meth_val, EvalFuncVar) else None
+            dec_exprs = meth_func.deferred_dm_decorators if meth_func else None
+            if not dec_exprs:
+                continue
+            ast_ctx = meth_val.get_ast_ctx()
             decs = []
             for dec in dec_exprs:
                 known = await ast_ctx.global_ctx.get_decorator_by_expr(ast_ctx, dec)
@@ -1933,9 +1944,8 @@ class AstEval:
                 continue
             func_var = EvalFuncVarClassInst(meth_func, ast_ctx, weakref.ref(inst))
             dm = await ast_ctx.global_ctx.create_decorator_manager(decs, ast_ctx, func_var)
-            if dm is not None:
-                # drop the manager from the global set once the instance dies
-                weakref.finalize(func_var, ast_ctx.global_ctx.dms.discard, dm)
+            # drop the manager from the global set once the instance dies
+            weakref.finalize(func_var, ast_ctx.global_ctx.dms.discard, dm)
             keep.append(func_var)
         if keep:
             inst.__pyscript_method_trigger_vars__ = keep
