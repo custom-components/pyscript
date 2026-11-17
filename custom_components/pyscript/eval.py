@@ -342,6 +342,8 @@ class EvalFunc:
         self.trigger_service = set()
         self.has_closure = False
         self.async_func = async_func
+        # trigger decorators deferred to per-instance registration (see ast_functiondef)
+        self.deferred_dm_decorators: list | None = None
 
     def get_name(self):
         """Return the function name."""
@@ -917,6 +919,7 @@ class AstEval:
         self.sym_table = self.global_sym_table
         self.local_sym_table: SymTable = {}
         self.user_locals: SymTable = {}
+        self.in_class_body = False
         self.curr_func: EvalFunc | None = None
         self.filename = name
         self.code_str: str | None = None
@@ -1078,12 +1081,15 @@ class AstEval:
             sym_table = {}
         self.sym_table_stack.append(self.sym_table)
         self.sym_table = sym_table
+        prev_in_class_body = self.in_class_body
+        self.in_class_body = True
         for arg1 in arg.body:
             val = await self.aeval(arg1)
             if isinstance(val, EvalReturn):
                 raise SyntaxError(f"{val.name()} statement outside function")
             if isinstance(val, EvalStopFlow):
                 raise SyntaxError(f"{val.name()} statement outside loop")
+        self.in_class_body = prev_in_class_body
         self.sym_table = self.sym_table_stack.pop()
 
         decorators = [await self.aeval(dec) for dec in arg.decorator_list]
@@ -1096,6 +1102,15 @@ class AstEval:
             cls = await cls
         for dec_func in reversed(decorators):
             cls = await self.call_func(dec_func, None, cls)
+        # names of methods whose triggers register per instance; at construction the
+        # most-derived definition of each name wins (see register_method_triggers)
+        deferred = set()
+        for meth_name, meth_val in sym_table.items():
+            meth_func = meth_val.get_func() if isinstance(meth_val, EvalFuncVar) else None
+            if meth_func is not None and meth_func.deferred_dm_decorators:
+                deferred.add(meth_name)
+        if deferred:
+            cls.__pyscript_method_triggers__ = deferred
         sym_table_assign[arg.name].set(cls)
 
     async def ast_functiondef(self, arg, async_func=False):
@@ -1175,16 +1190,37 @@ class AstEval:
             func.decorators = dec_trig
             func.dm_decorators = dec_dm
             if self.dec_eval_depth == 0:
-                func.trigger_stop()
-                try:
-                    await func.trigger_init(self.global_ctx, name)
-                except Exception as e:
-                    self.log_exception(e)
                 func_var = EvalFuncVar(func)
                 func_var.set_ast_ctx(self)
+                # a self-taking method's trigger can't bind here (no instance);
+                # defer to per-instance registration in call_func. Self-less
+                # methods keep the old class-level behavior.
+                pos_args = func.get_positional_args()
+                deferred_exprs = []
+                if self.in_class_body and dec_dm and pos_args and pos_args[0] == "self":
+                    deferred_exprs = [
+                        dec
+                        for dec in func.func_def.decorator_list
+                        if (
+                            dec.id
+                            if isinstance(dec, ast.Name)
+                            else dec.func.id
+                            if isinstance(dec, ast.Call) and isinstance(dec.func, ast.Name)
+                            else None
+                        )
+                        in TRIG_DECORATORS
+                    ]
+                if deferred_exprs:
+                    func.deferred_dm_decorators = deferred_exprs
+                else:
+                    func.trigger_stop()
+                    try:
+                        await func.trigger_init(self.global_ctx, name)
+                    except Exception as e:
+                        self.log_exception(e)
 
-                if len(dec_dm) > 0:
-                    await self.get_global_ctx().create_decorator_manager(dec_dm, self, func_var)
+                    if len(dec_dm) > 0:
+                        await self.get_global_ctx().create_decorator_manager(dec_dm, self, func_var)
             else:
                 func_var = EvalFuncVar(func)
                 func_var.set_ast_ctx(self)
@@ -1879,6 +1915,41 @@ class AstEval:
             func = func.get()
         return await self.call_func(func, func_name, *args, **kwargs)
 
+    async def register_method_triggers(self, inst):
+        """Register deferred method triggers for a new instance."""
+        cls = type(inst)
+        names: set[str] = set()
+        for klass in cls.__mro__:
+            names.update(klass.__dict__.get("__pyscript_method_triggers__", ()))
+        if not names:
+            return
+        keep = []
+        for meth_name in names:
+            # the most-derived definition of the name wins, as when calling it directly
+            meth_val = next(
+                (klass.__dict__[meth_name] for klass in cls.__mro__ if meth_name in klass.__dict__),
+                None,
+            )
+            meth_func = meth_val.get_func() if isinstance(meth_val, EvalFuncVar) else None
+            dec_exprs = meth_func.deferred_dm_decorators if meth_func else None
+            if not dec_exprs:
+                continue
+            ast_ctx = meth_val.get_ast_ctx()
+            decs = []
+            for dec in dec_exprs:
+                known = await ast_ctx.global_ctx.get_decorator_by_expr(ast_ctx, dec)
+                if known is not None:
+                    decs.append(known)
+            if not decs:
+                continue
+            func_var = EvalFuncVarClassInst(meth_func, ast_ctx, weakref.ref(inst))
+            dm = await ast_ctx.global_ctx.create_decorator_manager(decs, ast_ctx, func_var)
+            # drop the manager from the global set once the instance dies
+            weakref.finalize(func_var, ast_ctx.global_ctx.dms.discard, dm)
+            keep.append(func_var)
+        if keep:
+            inst.__pyscript_method_trigger_vars__ = keep
+
     async def call_func(self, func, func_name, *args, **kwargs):
         """Call a function with the given arguments."""
         if func_name is None:
@@ -1901,6 +1972,7 @@ class AstEval:
                 # since our __init__ function is async, call the renamed one
                 #
                 await inst.__init__evalfunc_wrap__.call(self, *args, **kwargs)
+            await self.register_method_triggers(inst)
             return inst
         if inspect.iscoroutinefunction(func):
             return await func(*args, **kwargs)

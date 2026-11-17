@@ -73,7 +73,7 @@ class GlobalContext:
 
     async def create_decorator_manager(
         self, decs: list[Decorator], ast_ctx: AstEval, func_var: EvalFuncVar
-    ) -> None:
+    ) -> FunctionDecoratorManager:
         """Create decorator manager from an AST decorator expression."""
         dm = FunctionDecoratorManager(ast_ctx, func_var)
         for dec in decs:
@@ -86,6 +86,7 @@ class GlobalContext:
                 await dm.safe_await(dm.start())
             else:
                 self.dms_delay_start.add(dm)
+        return dm
 
     def trigger_unregister(self, func: EvalFunc) -> None:
         """Unregister a trigger function."""

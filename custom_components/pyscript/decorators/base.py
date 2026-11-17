@@ -64,8 +64,18 @@ class ExpressionDecorator(Decorator, ABC):
         """Evaluate expression and dispatch an exception event via manager on failure."""
         if not self.has_expression():
             raise AttributeError(f"{self} has no expression defined")
+        # per-instance method trigger: make self visible to the condition
+        inst_weak = getattr(self.dm, "instance_weak", None)
+        if inst_weak is not None:
+            inst = inst_weak()
+            if inst is None:
+                return False
+            state_vars = {**state_vars, "self": inst}
         try:
             return await self._ast_expression.eval(state_vars)
         except Exception as exc:
             await self.dm.handle_exception(exc)
             return False
+        finally:
+            # eval() persists state_vars; drop self so it can't keep the instance alive
+            getattr(self._ast_expression, "local_sym_table", {}).pop("self", None)

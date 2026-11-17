@@ -23,7 +23,7 @@ from .decorator_abc import (
     TriggerDecorator,
     TriggerHandlerDecorator,
 )
-from .eval import AstEval, EvalFunc, EvalFuncVar
+from .eval import AstEval, EvalFunc, EvalFuncVar, EvalFuncVarClassInst
 from .function import Function
 from .state import State
 
@@ -248,6 +248,11 @@ class FunctionDecoratorManager(DecoratorManager):
 
         self.logger = self.eval_func.logger
 
+        # set for per-instance method triggers; self is injected on dispatch
+        self.instance_weak: weakref.ReferenceType | None = (
+            eval_func_var.class_inst_weak if isinstance(eval_func_var, EvalFuncVarClassInst) else None
+        )
+
         def on_func_var_deleted():
             if self.status is DecoratorManagerStatus.RUNNING:
                 self.hass.async_create_task(self.safe_await(self.stop()))
@@ -285,7 +290,14 @@ class FunctionDecoratorManager(DecoratorManager):
             else:
                 accepted = {a.arg for a in func_args.args + func_args.kwonlyargs}
                 call_kwargs = {k: v for k, v in data.func_args.items() if k in accepted}
-            result = await data.call_ast_ctx.call_func(self.eval_func, None, **call_kwargs)
+            self_args = ()
+            if self.instance_weak is not None:
+                inst = self.instance_weak()
+                if inst is None:
+                    return
+                call_kwargs.pop("self", None)
+                self_args = (inst,)
+            result = await data.call_ast_ctx.call_func(self.eval_func, None, *self_args, **call_kwargs)
         except Exception as e:
             for result_handler_dec in result_handlers:
                 await self.safe_await(result_handler_dec.handle_call_exception(data, e))
