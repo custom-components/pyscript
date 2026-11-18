@@ -30,7 +30,7 @@ from homeassistant.core import Event as HAEvent, HomeAssistant, ServiceCall, Sup
 from homeassistant.exceptions import HomeAssistantError
 import homeassistant.helpers.config_validation as cv
 from homeassistant.helpers.restore_state import DATA_RESTORE_STATE
-from homeassistant.helpers.typing import ConfigType
+from homeassistant.helpers.typing import ConfigType, NoEventData
 from homeassistant.loader import bind_hass
 
 from .const import (
@@ -197,12 +197,12 @@ async def watchdog_start(
             hass.bus.listen_once(EVENT_HOMEASSISTANT_STOP, self.shutdown)
             _LOGGER.debug("watchdog init path=%s", path)
 
-        def startup(self, event: Event | None) -> None:
+        def startup(self, event: HAEvent[NoEventData] | None) -> None:
             """Start the observer."""
             _LOGGER.debug("watchdog startup")
             self._observer.start()
 
-        def shutdown(self, event: Event | None) -> None:
+        def shutdown(self, event: HAEvent[NoEventData] | None) -> None:
             """Stop the observer."""
             self._observer.stop()
             self._observer.join()
