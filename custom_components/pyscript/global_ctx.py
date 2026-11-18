@@ -15,7 +15,6 @@ from .decorator import DecoratorRegistry, FunctionDecoratorManager
 from .decorator_abc import Decorator, DecoratorManagerStatus
 from .eval import AstEval, EvalFunc, EvalFuncVar, SymTable
 from .function import Function
-from .trigger import TrigInfo
 
 _LOGGER = logging.getLogger(LOGGER_PATH + ".global_ctx")
 
@@ -152,8 +151,11 @@ class GlobalContext:
         """Return the imports."""
         return self.imports
 
-    def get_trig_info(self, name: str, trig_args: dict[str, Any]) -> TrigInfo:
+    def get_trig_info(self, name: str, trig_args: dict[str, Any]) -> Any:
         """Return a new trigger info instance with the given args."""
+        # imported here: trigger.py needs the decorators package, which imports this package
+        from .trigger import TrigInfo  # pylint: disable=import-outside-toplevel
+
         return TrigInfo(name, trig_args, self)
 
     def relative_import_name(self, target: str) -> str:

@@ -21,7 +21,6 @@ from custom_components.pyscript.function import Function
 from custom_components.pyscript.global_ctx import GlobalContext, GlobalContextMgr
 from custom_components.pyscript.state import State
 from custom_components.pyscript.task_functions import TaskFunctions
-from custom_components.pyscript.trigger import TrigTime
 
 evalTests = [
     ["1", 1],
@@ -2115,7 +2114,6 @@ async def test_eval(hass):
     State.init(hass)
     State.register_functions()
     TaskFunctions.register_functions()
-    TrigTime.init(hass)
     DecoratorRegistry.init(hass)
 
     for test_data in evalTests:
@@ -2499,7 +2497,6 @@ async def test_eval_exceptions(hass):
     State.init(hass)
     State.register_functions()
     TaskFunctions.register_functions()
-    TrigTime.init(hass)
 
     for test_data in evalTestsExceptions:
         await run_one_test_exception(test_data)
@@ -2514,7 +2511,6 @@ async def test_eval_exception_formatter(hass):
     Function.init(hass)
     State.init(hass)
     State.register_functions()
-    TrigTime.init(hass)
 
     module_name = "mod_exc"
     mod = ModuleType(module_name)
@@ -2789,7 +2785,6 @@ async def test_with_matches_python(hass):
     Function.init(hass)
     State.init(hass)
     State.register_functions()
-    TrigTime.init(hass)
 
     expected_ns = {"failing_acm": failing_acm}
     code = compile(WITH_SEMANTICS_SOURCE, "test", "exec", flags=ast_module.PyCF_ALLOW_TOP_LEVEL_AWAIT)
@@ -2843,7 +2838,6 @@ async def test_with_exit_does_not_swallow_cancel(hass):
     Function.init(hass)
     State.init(hass)
     State.register_functions()
-    TrigTime.init(hass)
 
     msgs = []
     started = asyncio.Event()
@@ -3808,7 +3802,6 @@ async def test_global_names_match_python(hass):
     Function.init(hass)
     State.init(hass)
     State.register_functions()
-    TrigTime.init(hass)
     DecoratorRegistry.init(hass)
 
     for sources, expect in globalNameTests:
@@ -3825,7 +3818,6 @@ async def test_class_body_exception_keeps_old_class(hass):
     Function.init(hass)
     State.init(hass)
     State.register_functions()
-    TrigTime.init(hass)
 
     source = (
         GLOBAL_BASE_SOURCE
@@ -3907,7 +3899,6 @@ async def test_class_body_raises_matches_python(hass):
     Function.init(hass)
     State.init(hass)
     State.register_functions()
-    TrigTime.init(hass)
 
     expected_ns = {}
     exec(compile(CLASS_BODY_RAISES_SOURCE, "test", "exec"), expected_ns)  # pylint: disable=exec-used
@@ -3932,7 +3923,6 @@ async def test_class_body_error_reaches_caller(hass):
     Function.init(hass)
     State.init(hass)
     State.register_functions()
-    TrigTime.init(hass)
 
     for source in [
         'class Foo:\n    raise ValueError("boom")\n',
@@ -4036,7 +4026,6 @@ async def test_nested_class_attr_matches_python(hass, name):
     Function.init(hass)
     State.init(hass)
     State.register_functions()
-    TrigTime.init(hass)
     DecoratorRegistry.init(hass)
 
     source = NESTED_CLASS_CASES[name]
@@ -4110,7 +4099,6 @@ async def test_nested_class_prepare_without_keys(hass):
     Function.init(hass)
     State.init(hass)
     State.register_functions()
-    TrigTime.init(hass)
     DecoratorRegistry.init(hass)
 
     expected_ns: dict = {"NoKeysMeta": NoKeysMeta}
@@ -4169,7 +4157,6 @@ async def test_nested_class_prepare_dict_subclass(hass):
     Function.init(hass)
     State.init(hass)
     State.register_functions()
-    TrigTime.init(hass)
     DecoratorRegistry.init(hass)
 
     expected_ns: dict = {"CheckNamespaceMeta": CheckNamespaceMeta}
@@ -4297,7 +4284,6 @@ async def test_generator_expressions_match_python(hass):
     Function.init(hass)
     State.init(hass)
     State.register_functions()
-    TrigTime.init(hass)
 
     for source in GENEXP_TESTS:
         expected_ns = {}
@@ -4344,7 +4330,6 @@ async def test_generator_expression_errors(hass):
     State.init(hass)
     State.register_functions()
     TaskFunctions.register_functions()
-    TrigTime.init(hass)
 
     global_ctx = GlobalContext("test", global_sym_table={}, manager=GlobalContextMgr)
     ast = AstEval("test", global_ctx=global_ctx)
@@ -4902,7 +4887,6 @@ async def test_class_init_super_match_python(hass, caplog):
     Function.init(hass)
     State.init(hass)
     State.register_functions()
-    TrigTime.init(hass)
     DecoratorRegistry.init(hass)
 
     # debug logging formats the call arguments, which can include an instance whose __init__ hasn't run
@@ -4983,7 +4967,6 @@ async def test_property_classmethod_match_python(hass):
     Function.init(hass)
     State.init(hass)
     State.register_functions()
-    TrigTime.init(hass)
 
     for source in PROPERTY_CLASSMETHOD_SOURCES:
         expected_ns = {"pyscript_compile": lambda func: func}
@@ -5206,7 +5189,6 @@ async def test_property_deleter_match_python(hass):
     Function.init(hass)
     State.init(hass)
     State.register_functions()
-    TrigTime.init(hass)
 
     for source in PROPERTY_DELETER_SOURCES:
         expected_ns = {"pyscript_compile": lambda func: func}
@@ -5324,7 +5306,6 @@ async def test_classmethod_super_match_python(hass):
     Function.init(hass)
     State.init(hass)
     State.register_functions()
-    TrigTime.init(hass)
 
     for source in CLASSMETHOD_SUPER_SOURCES:
         expected_ns = {}
@@ -5799,7 +5780,6 @@ async def test_super_property_match_python(hass):
     Function.init(hass)
     State.init(hass)
     State.register_functions()
-    TrigTime.init(hass)
 
     for source in SUPER_PROPERTY_SOURCES:
         expected_ns = {"pyscript_compile": lambda func: func}
@@ -6335,7 +6315,6 @@ async def run_tests_compared_with_python(hass, sources):
     Function.init(hass)
     State.init(hass)
     State.register_functions()
-    TrigTime.init(hass)
 
     for source in sources:
         expected_ns = {}
@@ -7693,7 +7672,6 @@ async def test_stop_iteration_matches_python(hass):
     Function.init(hass)
     State.init(hass)
     State.register_functions()
-    TrigTime.init(hass)
     DecoratorRegistry.init(hass)
 
     for source in STOP_ITERATION_TESTS:
@@ -7879,7 +7857,6 @@ async def test_stop_iteration_limits(hass):
     Function.init(hass)
     State.init(hass)
     State.register_functions()
-    TrigTime.init(hass)
     DecoratorRegistry.init(hass)
 
     for source, expected in STOP_ITERATION_LIMITS:
@@ -7935,7 +7912,6 @@ async def test_stop_iteration_uncaught_report(hass, caplog):
     State.init(hass)
     State.register_functions()
     TaskFunctions.register_functions()
-    TrigTime.init(hass)
 
     global_ctx = GlobalContext("test", global_sym_table={}, manager=GlobalContextMgr)
     ast = AstEval("test", global_ctx=global_ctx)

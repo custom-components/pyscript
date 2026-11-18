@@ -7,7 +7,7 @@ from unittest.mock import mock_open, patch
 
 import pytest
 
-from custom_components.pyscript import trigger
+from custom_components.pyscript import decorator_abc
 from custom_components.pyscript.const import DOMAIN
 from custom_components.pyscript.function import Function
 from homeassistant.const import EVENT_HOMEASSISTANT_STARTED, EVENT_STATE_CHANGED
@@ -26,7 +26,7 @@ async def setup_script(hass, notify_q, now, source):
         patch("custom_components.pyscript.os.path.isdir", return_value=True),
         patch("custom_components.pyscript.glob.iglob", return_value=scripts),
         patch("custom_components.pyscript.global_ctx.open", mock_open(read_data=source)),
-        patch("custom_components.pyscript.trigger.dt_now", return_value=now),
+        patch("custom_components.pyscript.decorator_abc.dt_now", return_value=now),
         patch("homeassistant.config.load_yaml_config_file", return_value={}),
         patch("custom_components.pyscript.open", mock_open(read_data=source)),
         patch("custom_components.pyscript.watchdog_start", return_value=None),
@@ -50,7 +50,7 @@ async def setup_script(hass, notify_q, now, source):
             return now[0]
         return now
 
-    trigger.__dict__["dt_now"] = return_next_time
+    decorator_abc.__dict__["dt_now"] = return_next_time
 
     if notify_q:
 

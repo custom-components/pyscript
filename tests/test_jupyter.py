@@ -13,7 +13,7 @@ import uuid
 from mock_open import MockOpen
 import pytest
 
-from custom_components.pyscript import trigger
+from custom_components.pyscript import decorator_abc
 from custom_components.pyscript.const import DOMAIN, FOLDER
 from custom_components.pyscript.function import Function
 from custom_components.pyscript.jupyter_kernel import ZmqSocket
@@ -135,7 +135,7 @@ async def setup_script(hass, now, source, no_connect=False):
         patch("custom_components.pyscript.os.path.isdir", return_value=True),
         patch("custom_components.pyscript.glob.iglob") as mock_glob,
         patch("custom_components.pyscript.global_ctx.open", mock_open),
-        patch("custom_components.pyscript.trigger.dt_now", return_value=now),
+        patch("custom_components.pyscript.decorator_abc.dt_now", return_value=now),
         patch("custom_components.pyscript.open", mock_open),
         patch("homeassistant.config.load_yaml_config_file", return_value={}),
         patch(
@@ -162,7 +162,7 @@ async def setup_script(hass, now, source, no_connect=False):
             return now[0]
         return now
 
-    trigger.__dict__["dt_now"] = return_next_time
+    decorator_abc.__dict__["dt_now"] = return_next_time
 
     kernel_state_var = "pyscript.jupyter_ports_1234"
     kernel_cfg = {

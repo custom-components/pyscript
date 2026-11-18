@@ -59,7 +59,6 @@ from .requirements import install_requirements
 from .state import State, StateVal
 from .stubs.generator import StubsGenerator
 from .task_functions import TaskFunctions
-from .trigger import TrigTime
 from .webhook import Webhook
 
 _LOGGER = logging.getLogger(LOGGER_PATH)
@@ -312,7 +311,6 @@ async def async_setup_entry(hass: HomeAssistant, config_entry: ConfigEntry) -> b
     Function.init(hass)
     Event.init(hass)
     Mqtt.init(hass)
-    TrigTime.init(hass)
     State.init(hass)
     Webhook.init(hass)
     State.register_functions()
