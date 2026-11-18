@@ -96,6 +96,15 @@ WEBHOOK_METHODS = {
 }
 
 
+def dec_name_from_expr(dec: ast.expr) -> str | None:
+    """Return a decorator's name from its AST expression, or None if not a plain name or call."""
+    if isinstance(dec, ast.Name):
+        return dec.id
+    if isinstance(dec, ast.Call) and isinstance(dec.func, ast.Name):
+        return dec.func.id
+    return None
+
+
 def ast_eval_exec_factory(ast_ctx, mode):
     """Generate a function that executes eval() or exec() with given ast_ctx."""
 
@@ -343,7 +352,7 @@ class EvalFunc:
         self.has_closure = False
         self.async_func = async_func
         # trigger decorators deferred to per-instance registration (see ast_functiondef)
-        self.deferred_dm_decorators: list | None = None
+        self.deferred_dm_decorators: list[ast.expr] | None = None
 
     def get_name(self):
         """Return the function name."""
@@ -610,7 +619,7 @@ class EvalFunc:
             Function.service_remove(self.global_ctx_name, domain, name)
         self.trigger_service = set()
 
-    async def eval_decorators(self, ast_ctx):
+    async def eval_decorators(self, ast_ctx, defer_trig=False):
         """Evaluate the function decorators arguments."""
         code_str, code_list = ast_ctx.code_str, ast_ctx.code_list
         ast_ctx.code_str, ast_ctx.code_list = self.code_str, self.code_list
@@ -619,6 +628,10 @@ class EvalFunc:
         dec_trig = []
         dec_dm = []
         for dec in self.func_def.decorator_list:
+            if defer_trig and dec_name_from_expr(dec) in TRIG_DECORATORS:
+                # deferred method trigger; its arguments are evaluated per instance
+                # at instantiation time (they may reference self)
+                continue
             if known_dec := await ast_ctx.global_ctx.get_decorator_by_expr(ast_ctx, dec):
                 dec_dm.append(known_dec)
             elif (
@@ -1173,7 +1186,22 @@ class AstEval:
         await func.eval_defaults(self)
         await func.resolve_nonlocals(self)
         name = func.get_name()
-        dec_trig, dec_other, dec_dm = await func.eval_decorators(self)
+        # a self-taking method's trigger can't bind at definition time (no instance yet);
+        # skip eager evaluation of its trigger decorators and defer registration to
+        # register_method_triggers. Self-less methods keep class-level behavior.
+        # With legacy decorators the registry is empty, so triggers stay on the old path.
+        pos_args = func.get_positional_args()
+        deferred_dec_exprs = [
+            dec for dec in arg.decorator_list if dec_name_from_expr(dec) in TRIG_DECORATORS
+        ]
+        defer_trig = (
+            self.in_class_body
+            and bool(pos_args)
+            and pos_args[0] == "self"
+            and bool(deferred_dec_exprs)
+            and bool(self.global_ctx.get_decorator_names().intersection(TRIG_DECORATORS))
+        )
+        dec_trig, dec_other, dec_dm = await func.eval_decorators(self, defer_trig)
         self.dec_eval_depth += 1
         for dec_func in dec_other:
             func = await self.call_func(dec_func, None, func)
@@ -1189,41 +1217,19 @@ class AstEval:
         if isinstance(func, EvalFunc):
             func.decorators = dec_trig
             func.dm_decorators = dec_dm
-            if self.dec_eval_depth == 0:
-                func_var = EvalFuncVar(func)
-                func_var.set_ast_ctx(self)
-                # a self-taking method's trigger can't bind here (no instance);
-                # defer to per-instance registration in call_func. Self-less
-                # methods keep the old class-level behavior.
-                pos_args = func.get_positional_args()
-                deferred_exprs = []
-                if self.in_class_body and dec_dm and pos_args and pos_args[0] == "self":
-                    deferred_exprs = [
-                        dec
-                        for dec in func.func_def.decorator_list
-                        if (
-                            dec.id
-                            if isinstance(dec, ast.Name)
-                            else dec.func.id
-                            if isinstance(dec, ast.Call) and isinstance(dec.func, ast.Name)
-                            else None
-                        )
-                        in TRIG_DECORATORS
-                    ]
-                if deferred_exprs:
-                    func.deferred_dm_decorators = deferred_exprs
-                else:
-                    func.trigger_stop()
-                    try:
-                        await func.trigger_init(self.global_ctx, name)
-                    except Exception as e:
-                        self.log_exception(e)
+            func_var = EvalFuncVar(func)
+            func_var.set_ast_ctx(self)
+            if defer_trig:
+                func.deferred_dm_decorators = deferred_dec_exprs
+            elif self.dec_eval_depth == 0:
+                func.trigger_stop()
+                try:
+                    await func.trigger_init(self.global_ctx, name)
+                except Exception as e:
+                    self.log_exception(e)
 
-                    if len(dec_dm) > 0:
-                        await self.get_global_ctx().create_decorator_manager(dec_dm, self, func_var)
-            else:
-                func_var = EvalFuncVar(func)
-                func_var.set_ast_ctx(self)
+                if len(dec_dm) > 0:
+                    await self.get_global_ctx().create_decorator_manager(dec_dm, self, func_var)
         else:
             func_var = func
 
@@ -1935,9 +1941,14 @@ class AstEval:
             if not dec_exprs:
                 continue
             ast_ctx = meth_val.get_ast_ctx()
+            # evaluate decorator arguments now, with self visible, so they can
+            # reference instance attributes (eg: the entity to watch)
+            arg_ctx = AstEval(f"{ast_ctx.name}.{meth_name}", ast_ctx.global_ctx)
+            Function.install_ast_funcs(arg_ctx)
+            arg_ctx.local_sym_table = {"self": inst}
             decs = []
             for dec in dec_exprs:
-                known = await ast_ctx.global_ctx.get_decorator_by_expr(ast_ctx, dec)
+                known = await ast_ctx.global_ctx.get_decorator_by_expr(arg_ctx, dec)
                 if known is not None:
                     decs.append(known)
             if not decs:

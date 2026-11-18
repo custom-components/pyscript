@@ -306,3 +306,70 @@ s = Sub("sub-instance")
 
     hass.states.async_set("pyscript.hvar1", "1")
     assert await wait_until_done(notify_q) == "inherited"
+
+
+@pytest.mark.asyncio
+async def test_method_trigger_dynamic_entity(hass):
+    """Decorator arguments can use self, so each instance watches its own entity."""
+    notify_q = asyncio.Queue(0)
+    await setup_script(
+        hass,
+        notify_q,
+        dt(2020, 7, 1, 11, 59, 59, 999999),
+        """
+class LightSwitch:
+    def __init__(self, entity):
+        self.entity = entity
+
+    @state_trigger(f"{self.entity} == 'on'")
+    def on_turn_on(self, var_name=None, value=None):
+        pyscript.done = self.entity
+
+sw1 = LightSwitch("pyscript.ivar1")
+sw2 = LightSwitch("pyscript.ivar2")
+""",
+    )
+
+    hass.bus.async_fire(EVENT_HOMEASSISTANT_STARTED)
+    await hass.async_block_till_done()
+
+    hass.states.async_set("pyscript.ivar2", "on")
+    assert await wait_until_done(notify_q) == "pyscript.ivar2"
+
+    hass.states.async_set("pyscript.ivar1", "off")
+    hass.states.async_set("pyscript.ivar1", "on")
+    assert await wait_until_done(notify_q) == "pyscript.ivar1"
+
+
+@pytest.mark.asyncio
+async def test_method_trigger_self_in_all_dec_args(hass):
+    """A deferred decorator's arguments can use self, eg: a per-instance task_unique name."""
+    notify_q = asyncio.Queue(0)
+    await setup_script(
+        hass,
+        notify_q,
+        dt(2020, 7, 1, 11, 59, 59, 999999),
+        """
+class T:
+    def __init__(self, entity, tag):
+        self.entity = entity
+        self.tag = tag
+
+    @task_unique(f"tu-{self.tag}")
+    @state_trigger(f"{self.entity} == '1'")
+    def go(self, var_name=None, value=None):
+        pyscript.done = self.tag
+
+a = T("pyscript.jvar1", "a")
+b = T("pyscript.jvar2", "b")
+""",
+    )
+
+    hass.bus.async_fire(EVENT_HOMEASSISTANT_STARTED)
+    await hass.async_block_till_done()
+
+    hass.states.async_set("pyscript.jvar1", "1")
+    assert await wait_until_done(notify_q) == "a"
+
+    hass.states.async_set("pyscript.jvar2", "1")
+    assert await wait_until_done(notify_q) == "b"

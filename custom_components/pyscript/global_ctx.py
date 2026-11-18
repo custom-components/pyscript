@@ -71,6 +71,10 @@ class GlobalContext:
         """Return decorator instance from an AST decorator expression."""
         return await DecoratorRegistry.get_decorator_by_expr(ast_ctx, dec)
 
+    def get_decorator_names(self) -> set[str]:
+        """Return the names of all registered decorator types."""
+        return DecoratorRegistry.registered_names()
+
     async def create_decorator_manager(
         self, decs: list[Decorator], ast_ctx: AstEval, func_var: EvalFuncVar
     ) -> FunctionDecoratorManager:

@@ -92,6 +92,11 @@ class DecoratorRegistry:
         cls._decorators[dec_type.name] = dec_type
 
     @classmethod
+    def registered_names(cls) -> set[str]:
+        """Return the names of all registered decorator types."""
+        return set(cls._decorators)
+
+    @classmethod
     async def get_decorator_by_expr(cls, ast_ctx: AstEval, dec_expr: ast.expr) -> Decorator | None:
         """Return decorator instance from an AST decorator expression."""
         dec_name = None

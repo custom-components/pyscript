@@ -400,13 +400,22 @@ Trigger decorators on class methods
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 Trigger decorators work on methods that take ``self``. Each instance gets its own trigger, and
-``self`` is available both in the method and in the condition string:
+``self`` is available in the method, in the condition string, and in the decorator arguments.
+Decorator arguments are evaluated when each instance is created, so instances can watch
+different entities:
 
 .. code:: python
 
-    @state_trigger("sensor.value == self.target")
-    def on_match(self, var_name=None, value=None):
-        ...
+    class LightSwitch:
+        def __init__(self, entity_id):
+            self.entity_id = entity_id
+
+        @state_trigger(f"{self.entity_id} == 'on'")
+        def on_turn_on(self, var_name=None, value=None):
+            ...
+
+The trigger string is fixed when the instance is created; changing the attribute later does not
+move the trigger -- create a new instance instead.
 
 Triggers are cleaned up automatically when the instance is collected. With inheritance, the
 most-derived definition of the method wins, as when calling it directly: an override without
