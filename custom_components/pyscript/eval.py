@@ -1539,7 +1539,13 @@ class AstEval:
             if arg.id in self.global_sym_table:
                 if self.curr_func and arg.id in self.curr_func.local_names:
                     raise UnboundLocalError(f"local variable '{arg.id}' referenced before assignment")
-                return self.global_sym_table[arg.id]
+                #
+                # a class defined at module level is stored as an EvalLocalVar, so unwrap
+                # it here too (eg, when it's used inside another class's body); while the
+                # class body is still running it isn't defined yet, so leave it wrapped
+                #
+                val = self.global_sym_table[arg.id]
+                return val.get() if isinstance(val, EvalLocalVar) and val.is_defined() else val
             if arg.id in BUILTIN_AST_FUNCS_FACTORY:
                 return BUILTIN_AST_FUNCS_FACTORY[arg.id](self)
             if hasattr(builtins, arg.id) and arg.id not in BUILTIN_EXCLUDE and arg.id[0] != "_":
