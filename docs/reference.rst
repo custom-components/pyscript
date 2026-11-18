@@ -1684,6 +1684,11 @@ lower case means actual fixed names):
   ``pyscript/scripts/DIR1/DIR2/FILE.py``  ``scripts.DIR1.DIR2.FILE``
   ======================================= ===========================
 
+These are internal names for each global context, used in logging paths, reloads and the global
+context functions below; they are not import paths. For example, a module in
+``pyscript/modules/MODULE.py`` is imported with ``import MODULE``, not ``import modules.MODULE``
+(see `Importing`_).
+
 Note that if the package form of an app or module (``pyscript/apps/APP/__init__.py`` or
 ``pyscript/modules/MODULE/__init__.py``) exists, the module form (``pyscript/apps/APP.py``
 or ``pyscript/modules/MODULE.py``) is ignored.
