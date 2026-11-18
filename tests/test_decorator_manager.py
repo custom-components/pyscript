@@ -3,10 +3,13 @@
 from __future__ import annotations
 
 import ast
+import asyncio
 from collections.abc import Awaitable
+import gc
 import logging
+from types import SimpleNamespace
 from typing import Any, ClassVar
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 
 import pytest
 import voluptuous as vol
@@ -845,6 +848,68 @@ async def test_function_decorator_manager_result_handler_failure_does_not_block_
 
     assert sibling.results == ["ok"]
     assert ast_ctx.logged_exceptions == [handler_bug]
+
+
+@pytest.mark.asyncio
+async def test_function_decorator_manager_stops_when_function_is_deleted(hass):
+    """Deleting the function of a running manager should stop the manager."""
+    DecoratorManager.hass = hass
+    func_var = DummyEvalFuncVar()
+    manager = FunctionDecoratorManager(DummyAstCtx(), func_var)
+    manager.update_status(DecoratorManagerStatus.RUNNING)
+
+    del func_var
+    gc.collect()
+    await hass.async_block_till_done()
+
+    assert manager.status is DecoratorManagerStatus.STOPPED
+
+
+def test_function_decorator_manager_finalizer_skips_closed_loop():
+    """A running manager whose function goes away after HA closed the loop must not schedule stop()."""
+    closed_loop = asyncio.new_event_loop()
+    closed_loop.close()
+    create_task = Mock()
+    DecoratorManager.hass = SimpleNamespace(loop=closed_loop, async_create_task=create_task)
+    func_var = DummyEvalFuncVar()
+    manager = FunctionDecoratorManager(DummyAstCtx(), func_var)
+    manager.update_status(DecoratorManagerStatus.RUNNING)
+
+    del func_var
+    gc.collect()
+
+    create_task.assert_not_called()
+    assert manager.status is DecoratorManagerStatus.RUNNING
+
+
+@pytest.mark.asyncio
+async def test_function_decorator_manager_finalizer_not_run_at_exit(hass):
+    """The finalizer should not run from atexit, after HA has closed the loop."""
+    DecoratorManager.hass = hass
+    func_var = DummyEvalFuncVar()
+    manager = FunctionDecoratorManager(DummyAstCtx(), func_var)
+
+    assert manager.func_var_finalizer.alive
+    assert manager.func_var_finalizer.atexit is False
+
+
+@pytest.mark.asyncio
+async def test_function_decorator_manager_finalizer_in_worker_thread(hass, caplog):
+    """Deleting the function in a worker thread should stop the manager via the loop."""
+    DecoratorManager.hass = hass
+    holder = [DummyEvalFuncVar()]
+    manager = FunctionDecoratorManager(DummyAstCtx(), holder[0])
+    manager.update_status(DecoratorManagerStatus.RUNNING)
+
+    def drop():
+        holder.clear()
+        gc.collect()
+
+    await hass.async_add_executor_job(drop)
+    await hass.async_block_till_done()
+
+    assert manager.status is DecoratorManagerStatus.STOPPED
+    assert "thread other than the event loop" not in caplog.text
 
 
 @pytest.mark.asyncio
