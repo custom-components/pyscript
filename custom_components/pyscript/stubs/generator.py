@@ -260,7 +260,8 @@ class StubsGenerator:
                 field_nodes = [
                     _ServiceField(
                         name="entity_id",
-                        annotation=self._name("str"),
+                        # a service target takes one entity id or a list of them
+                        annotation=ast.parse("str | list[str]", mode="eval").body,
                         required=True,
                         default=None,
                         description="Entity ID",

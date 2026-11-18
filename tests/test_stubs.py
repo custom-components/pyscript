@@ -140,7 +140,7 @@ def ready():
     assert "class _light_state(StateVal)" in generated_content
     assert "lamp: _light_state" in generated_content
     assert "def blink(self, *, brightness: int, speed" in generated_content
-    assert "def blink(*, entity_id: str, brightness: int, speed:" in generated_content
+    assert "def blink(*, entity_id: str | list[str], brightness: int, speed:" in generated_content
     assert "Blink the light once." in generated_content
     assert "Literal" in generated_content
     assert "'slow'" in generated_content
@@ -464,7 +464,7 @@ async def test_stubs_flatten_named_sections_and_multiple(pyscript, monkeypatch):
         assert send["footer"] == ("str | None", "None")
         # ...a field named like the implicit target argument is skipped...
         assert send_to == {
-            "entity_id": ("str", None),
+            "entity_id": ("str | list[str]", None),
             "blocking": ("bool", "..."),
             "return_response": ("bool", "..."),
         }
