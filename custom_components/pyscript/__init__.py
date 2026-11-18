@@ -50,16 +50,13 @@ from .const import (
 )
 from .decorator import DecoratorRegistry
 from .eval import AstEval
-from .event import Event
 from .function import Function
 from .global_ctx import GlobalContext, GlobalContextMgr
 from .jupyter_kernel import Kernel
-from .mqtt import Mqtt
 from .requirements import install_requirements
 from .state import State, StateVal
 from .stubs.generator import StubsGenerator
 from .task_functions import TaskFunctions
-from .webhook import Webhook
 
 _LOGGER = logging.getLogger(LOGGER_PATH)
 
@@ -309,10 +306,7 @@ async def async_setup_entry(hass: HomeAssistant, config_entry: ConfigEntry) -> b
             global_ctx_only = "*"
 
     Function.init(hass)
-    Event.init(hass)
-    Mqtt.init(hass)
     State.init(hass)
-    Webhook.init(hass)
     State.register_functions()
     TaskFunctions.register_functions()
     GlobalContextMgr.init()

@@ -15,7 +15,6 @@ import custom_components.pyscript as pyscript_component
 from custom_components.pyscript import decorator_abc, restore_state
 from custom_components.pyscript.const import DOMAIN
 from custom_components.pyscript.decorators.timing import TrigTime
-from custom_components.pyscript.event import Event
 from custom_components.pyscript.function import Function
 from custom_components.pyscript.global_ctx import GlobalContextMgr
 from custom_components.pyscript.state import State
@@ -409,12 +408,9 @@ async def test_misc_errors(hass, caplog):
     Function()
     GlobalContextMgr()
     State()
-    Event()
-    Event.notify_del("not_in_notify_list", None)
     TrigTime()
 
     assert "Function class is not meant to be instantiated" in caplog.text
     assert "GlobalContextMgr class is not meant to be instantiated" in caplog.text
     assert "State class is not meant to be instantiated" in caplog.text
-    assert "Event class is not meant to be instantiated" in caplog.text
     assert "TrigTime class is not meant to be instantiated" in caplog.text
