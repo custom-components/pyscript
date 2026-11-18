@@ -1,5 +1,6 @@
 """Test pyscripts test module."""
 
+import asyncio
 from datetime import UTC, datetime
 from unittest.mock import patch
 
@@ -96,6 +97,27 @@ async def test_service_call_limit_is_service_data(hass):
         # Stop all tasks to avoid conflicts with other tests
         await Function.waiter_stop()
         await Function.reaper_stop()
+
+
+class SortedSet(set):
+    """Set that iterates in sorted order, so the test does not depend on string hashing."""
+
+    def __iter__(self):
+        """Iterate over the items in sorted order."""
+        return iter(sorted(set.__iter__(self)))
+
+
+@pytest.mark.asyncio
+async def test_notify_del_removes_every_watch():
+    """Test notify_del removes the queue even after a watch it already removed."""
+    queue = asyncio.Queue()
+    var_names = SortedSet(["sensor.example", "sensor.example.flag", "sensor.other"])
+
+    await State.notify_add(var_names, queue)
+    State.notify_del(var_names, queue)
+
+    assert queue not in State.notify.get("sensor.example", {})
+    assert queue not in State.notify.get("sensor.other", {})
 
 
 def test_state_val_conversions():
