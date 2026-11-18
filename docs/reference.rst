@@ -1372,6 +1372,11 @@ will log all messages at ``info`` or higher (i.e., ``log.info()``, ``log.warning
 ``log.error()``), and inside ``my_function`` defined in the script file ``my_script.py`` (and any
 other functions it calls) will log all messages at ``debug`` or higher.
 
+Note that debug logging also includes pyscript's own internal messages, which can show the full
+arguments passed to your functions, such as webhook payloads, service call data and event data.
+These can contain tokens or other sensitive information, so review debug logs before sharing them
+(e.g., in a GitHub issue), and turn debug logging off when you no longer need it.
+
 Note that in Jupyter, all the ``log`` functions will display output in your session, independent of
 the ``logger`` configuration settings.
 
