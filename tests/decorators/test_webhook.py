@@ -159,7 +159,7 @@ def func_unset_b():
 
 
 @pytest.mark.asyncio
-async def test_webhook_handler_responses(pyscript, hass):
+async def test_webhook_handler_responses(pyscript, hass, caplog):
     """Exercise the @webhook_handler return-value mapping and error paths end-to-end."""
     await pyscript.start("""
 @webhook_handler("empty")
@@ -270,6 +270,8 @@ def webhook_req(payload, request, **_):
     )
     assert response.status == 400
     assert pyscript.done.empty()
+    # the webhook id can be secret, so the warning names the function instead
+    assert "webhook_handler file.hello.webhook_parse received an unparsable request body" in caplog.text
 
     # payload / request forwarded; return value becomes the response
     response = await webhook.async_handle_webhook(
@@ -332,7 +334,7 @@ def webhook_concurrent(payload, **_):
 
 @pytest.mark.parametrize("expected_lingering_tasks", [True])
 @pytest.mark.asyncio
-async def test_webhook_handler_timeout(pyscript, hass):
+async def test_webhook_handler_timeout(pyscript, hass, caplog):
     """
     A function that doesn't finish in time -> 504 Gateway Timeout.
 
@@ -348,6 +350,8 @@ def webhook_slow(**_):
 """)
     response = await webhook.async_handle_webhook(hass, "slow", _request())
     assert response.status == 504
+    # the webhook id can be secret, so the warning names the function instead
+    assert "webhook_handler file.hello.webhook_slow timed out after 0.05s" in caplog.text
 
 
 @pytest.mark.asyncio

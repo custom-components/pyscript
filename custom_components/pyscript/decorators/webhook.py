@@ -196,7 +196,8 @@ class WebhookHandlerDecorator(_WebhookDecoratorBase, CallResultHandlerDecorator)
         except ValueError:
             # Body could not be parsed (e.g. malformed JSON). Tell the caller their
             # request was bad rather than silently returning 200 like webhook_trigger.
-            _LOGGER.warning("webhook %s received an unparsable request body", webhook_id)
+            # the webhook id can be secret, so name the function instead
+            _LOGGER.warning("webhook_handler %s received an unparsable request body", self.dm.name)
             return Response(status=HTTPStatus.BAD_REQUEST)
 
         if self.has_expression() and not await self.check_expression_vars(func_args):
@@ -210,9 +211,8 @@ class WebhookHandlerDecorator(_WebhookDecoratorBase, CallResultHandlerDecorator)
             result = await asyncio.wait_for(future, timeout=self.timeout)
         except TimeoutError:
             _LOGGER.warning(
-                "webhook_handler %s on %s timed out after %ss",
+                "webhook_handler %s timed out after %ss",
                 self.dm.name,
-                webhook_id,
                 self.timeout,
             )
             return Response(status=HTTPStatus.GATEWAY_TIMEOUT)
