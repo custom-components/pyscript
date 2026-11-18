@@ -211,6 +211,10 @@ class State:
             if state_var_name not in cls.notify or queue not in cls.notify[state_var_name]:
                 continue
             del cls.notify[state_var_name][queue]
+            if not cls.notify[state_var_name]:
+                # notify_var_last is only kept current for watched entities, so drop it too
+                del cls.notify[state_var_name]
+                cls.notify_var_last.pop(state_var_name, None)
 
     @classmethod
     async def update(cls, new_vars: dict[str, Any], func_args: dict[str, Any]) -> None:

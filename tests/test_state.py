@@ -120,6 +120,42 @@ async def test_notify_del_removes_every_watch():
     assert queue not in State.notify.get("sensor.other", {})
 
 
+@pytest.mark.asyncio
+async def test_notify_del_removes_unwatched_entities():
+    """Test notify_del drops an entity from notify once its last queue is removed."""
+    queue1 = asyncio.Queue()
+    queue2 = asyncio.Queue()
+    var_names1 = {"sensor.unwatch_shared", "sensor.unwatch_only1.attr"}
+    var_names2 = {"sensor.unwatch_shared.attr"}
+
+    await State.notify_add(var_names1, queue1)
+    await State.notify_add(var_names2, queue2)
+
+    State.notify_del(var_names1, queue1)
+    assert "sensor.unwatch_only1" not in State.notify
+    assert State.notify["sensor.unwatch_shared"] == {queue2: var_names2}
+
+    State.notify_del(var_names2, queue2)
+    assert "sensor.unwatch_shared" not in State.notify
+
+
+@pytest.mark.asyncio
+async def test_notify_del_forgets_last_value(hass):
+    """Test an entity's cached value is dropped once unwatched, so it can't go stale."""
+    State.init(hass)
+    queue = asyncio.Queue()
+    var_names = {"sensor.unwatch_last"}
+
+    await State.notify_add(var_names, queue)
+    await State.update({"sensor.unwatch_last": "15"}, {})
+    assert State.notify_var_get(var_names, {}) == {"sensor.unwatch_last": "15"}
+
+    # once unwatched, later changes aren't cached, so the old value must not be returned
+    State.notify_del(var_names, queue)
+    await State.update({"sensor.unwatch_last": "6"}, {})
+    assert "sensor.unwatch_last" not in State.notify_var_last
+
+
 def test_state_val_conversions():
     """Test helper conversion methods exposed on StateVal."""
     float_state = StateVal(HassState("test.float", "123.45"))
