@@ -605,3 +605,32 @@ from .missing import x
     assert warnings[1].startswith("apps.myapp.lib.m: the relative import .lib.p was found only")
     assert warnings[1].endswith("so write it as .p")
     assert "ModuleNotFoundError: import from missing not allowed" in caplog.text
+
+
+@pytest.mark.asyncio
+async def test_decorator_from_module_keeps_script_logger(pyscript, caplog):
+    """A function wrapped by a decorator from a module logs under the script that defines it."""
+    pyscript.add_files(
+        {
+            "modules/wrappers.py": """
+def passthrough(func):
+    def wrapper(*args, **kwargs):
+        return func(*args, **kwargs)
+    return wrapper
+""",
+            "hello.py": """
+from wrappers import passthrough
+
+@time_trigger("startup")
+@passthrough
+def decorated(**kwargs):
+    log.info("decorated ran")
+    pyscript.done = "ran"
+""",
+        }
+    )
+    await pyscript.start()
+    await pyscript.wait_done("ran")
+
+    loggers = [rec.name for rec in caplog.records if rec.getMessage() == "decorated ran"]
+    assert loggers == ["custom_components.pyscript.file.hello.decorated"]

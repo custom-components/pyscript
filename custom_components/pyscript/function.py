@@ -112,8 +112,9 @@ class Function:
         )
 
         #
-        # start a task which is a reaper for canceled tasks, since some # functions
-        # like TrigInfo.stop() can't be async (it's called from a __del__ method)
+        # start a task which is a reaper for canceled tasks, since some callers
+        # can't await the task they cancel, eg: task.cancel() and task.unique()
+        # can cancel the task they run in
         #
         async def task_reaper(reaper_q):
             while True:

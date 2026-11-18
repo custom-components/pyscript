@@ -74,7 +74,6 @@ ignore = [
 "event.py" = ["RUF012"]
 "jupyter_kernel.py" = ["RUF006", "S104"]
 "mqtt.py" = ["RUF012"]
-"trigger.py" = ["RUF012", "UP041"]
 "webhook.py" = ["RUF012"]
 
 [dependency-groups]
