@@ -209,7 +209,7 @@ class State:
                 continue
             state_var_name = f"{parts[0]}.{parts[1]}"
             if state_var_name not in cls.notify or queue not in cls.notify[state_var_name]:
-                return
+                continue
             del cls.notify[state_var_name][queue]
 
     @classmethod
