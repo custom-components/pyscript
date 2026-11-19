@@ -224,3 +224,51 @@ def func6(value):
         hass.states.async_set("pyscript.var1", 6 + 2 * i)
         seq_num += 1
         assert literal_eval(await wait_until_done(notify_q)) == [seq_num, 6 + 2 * i]
+
+
+@pytest.mark.asyncio
+async def test_ignored_kwargs_warning(hass, pyscript, caplog):
+    """Unexpected kwargs named in TRIGGER_KWARGS are still ignored, with a deprecation warning once per function."""
+    await pyscript.start("""
+def once(func):
+    def wrapper(*args, **kwargs):
+        return func(*args, **kwargs)
+    return wrapper
+
+@state_trigger("pyscript.door")
+@once
+def door_changed():
+    # redefined on every call, but warns only once
+    @once
+    def door_log():
+        pass
+    door_log(value=pyscript.door)
+    pyscript.done = f"door {pyscript.door}"
+
+def notify(message, title="pyscript"):
+    return f"{title}: {message}"
+
+# a plain call at load time, no trigger involved
+assert notify("door open", topic="alerts") == "pyscript: door open"
+
+@service
+def plain_service():
+    pyscript.done = "plain_service ran"
+""")
+    for state in ("open", "closed"):
+        hass.states.async_set("pyscript.door", state)
+        await pyscript.wait_done(f"door {state}")
+    await hass.services.async_call("pyscript", "plain_service", {}, blocking=True)
+    await pyscript.wait_done("plain_service ran")
+
+    warnings = sorted(rec.getMessage() for rec in caplog.records if "doesn't declare" in rec.getMessage())
+    hint = (
+        "they are ignored for now, but this will raise TypeError in a future release; declare them or "
+        "add **kwargs (see https://github.com/custom-components/pyscript/issues/905)"
+    )
+    assert warnings == [
+        "door_changed() was called with keyword arguments it doesn't declare: context, old_value, "
+        f"trigger_type, value, var_name; {hint}",
+        f"door_log() was called with keyword arguments it doesn't declare: value; {hint}",
+        f"notify() was called with keyword arguments it doesn't declare: topic; {hint}",
+    ]

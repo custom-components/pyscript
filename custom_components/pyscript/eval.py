@@ -661,12 +661,25 @@ class EvalFunc:
             sym_table[var_name] = val
         if self.func_def.args.kwarg:
             sym_table[self.func_def.args.kwarg.arg] = kwargs
-        elif not set(kwargs.keys()).issubset(TRIGGER_KWARGS):
-            # don't raise an exception for extra trigger keyword parameters;
-            # it's difficult to apply this exception to just trigger functions
-            # since they could have non-trigger decorators too
-            unexpected = ", ".join(sorted(set(kwargs.keys()) - TRIGGER_KWARGS))
-            raise TypeError(f"{self.name}() called with unexpected keyword arguments: {unexpected}")
+        elif kwargs:
+            if unexpected := set(kwargs) - TRIGGER_KWARGS:
+                unexpected_str = ", ".join(sorted(unexpected))
+                raise TypeError(f"{self.name}() called with unexpected keyword arguments: {unexpected_str}")
+            # Unexpected keyword arguments named in TRIGGER_KWARGS are still ignored in any call;
+            # decorator wrappers rely on it to pass trigger kwargs on via **kwargs.
+            # Deprecated: this will become a TypeError, as in Python. See
+            # https://github.com/custom-components/pyscript/issues/905
+            # The flag is kept on the AST node, so a function redefined on every call of its
+            # enclosing function warns once per source definition, not once per call.
+            if not getattr(self.func_def, "pyscript_ignored_kwargs_warned", False):
+                self.func_def.pyscript_ignored_kwargs_warned = True
+                self.logger.warning(
+                    "%s() was called with keyword arguments it doesn't declare: %s; they are ignored "
+                    "for now, but this will raise TypeError in a future release; declare them or add **kwargs "
+                    "(see https://github.com/custom-components/pyscript/issues/905)",
+                    self.name,
+                    ", ".join(sorted(kwargs)),
+                )
         num_posn = self.num_posonly_arg + len(self.func_def.args.args)
         if self.func_def.args.vararg:
             if len(args) > num_posn:
