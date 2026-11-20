@@ -44,11 +44,10 @@ Tools page to call the service ``pyscript.hello_world`` with parameters
 
 .. code:: yaml
 
-action: pyscript.hello_world
-data:
-  action: hello
-  id: world
-
+   action: pyscript.hello_world
+   data:
+     action: hello
+     id: world
 
 The function decorator ``@service`` means ``pyscript.hello_world`` is
 registered as a service. The expected service parameters are keyword
