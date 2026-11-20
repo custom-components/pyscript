@@ -4,6 +4,7 @@ import ast as ast_module
 import asyncio
 import contextlib
 from dataclasses import dataclass
+import sys
 from types import FunctionType, ModuleType
 
 import pytest
@@ -2501,6 +2502,830 @@ async def test_with_exit_does_not_swallow_cancel(hass):
     with pytest.raises(asyncio.CancelledError):
         await task
     assert msgs == ["enter", "aenter", "body", "aexit CancelledError", "exit CancelledError"]
+
+    await Function.waiter_sync()
+    await Function.waiter_stop()
+    await Function.reaper_stop()
+
+
+GLOBAL_MOD_NAME = "mod_global"
+
+GLOBAL_MOD_SOURCE = """
+class Foo:
+    x = 1
+
+def modread():
+    return Foo
+
+def drop():
+    global Foo
+    del Foo
+"""
+
+GLOBAL_BASE_SOURCE = """
+class Foo:
+    x = 1
+
+class Other:
+    x = 9
+
+def read():
+    return Foo
+
+def try_call(func):
+    try:
+        func()
+        return "no error"
+    except NameError:
+        return "NameError"
+"""
+
+#
+# each entry is a list of scripts and the value of "result" in the last one, which
+# is what CPython gives; the scripts share one fresh copy of the GLOBAL_MOD_SOURCE module
+#
+globalNameTests = [
+    [
+        [
+            GLOBAL_BASE_SOURCE
+            + """
+def f():
+    global Foo
+    return [Foo | None, Foo is type(Foo())]
+union, same = f()
+result = [union == (Foo | None), same]
+"""
+        ],
+        [True, True],
+    ],
+    [
+        [
+            GLOBAL_BASE_SOURCE
+            + """
+def f():
+    global Foo
+    Foo.x = 3
+    return [Foo.x, read().x]
+result = [f(), Foo.x]
+"""
+        ],
+        [[3, 3], 3],
+    ],
+    [
+        [
+            GLOBAL_BASE_SOURCE
+            + """
+def rebind():
+    global Foo
+    Foo = Other
+rebind()
+result = [read() is Other, Foo is Other]
+"""
+        ],
+        [True, True],
+    ],
+    [
+        [
+            GLOBAL_BASE_SOURCE
+            + """
+def drop():
+    global Foo
+    del Foo
+def read_global_attr():
+    global Foo
+    return Foo.x
+drop()
+result = [try_call(read), try_call(read_global_attr), try_call(drop)]
+"""
+        ],
+        ["NameError", "NameError", "NameError"],
+    ],
+    [
+        [
+            GLOBAL_BASE_SOURCE
+            + """
+def drop():
+    global Foo
+    del Foo
+drop()
+class Foo:
+    x = 5
+result = [read().x, read() is Foo]
+"""
+        ],
+        [5, True],
+    ],
+    [
+        [
+            GLOBAL_BASE_SOURCE
+            + """
+def drop():
+    global Foo
+    del Foo
+def make():
+    global Foo
+    class Foo:
+        x = 7
+drop()
+make()
+result = [read().x, read() is Foo, Foo.x]
+"""
+        ],
+        [7, True, 7],
+    ],
+    [
+        [
+            """
+def make():
+    global Node
+    class Node:
+        nxt: Node = None
+make()
+result = [Node.nxt, list(Node.__annotations__)]
+"""
+        ],
+        [None, ["nxt"]],
+    ],
+    [
+        [
+            GLOBAL_BASE_SOURCE
+            + """
+class Foo:
+    x = Foo.x + 4
+result = [read().x, read() is Foo]
+"""
+        ],
+        [5, True],
+    ],
+    [
+        [
+            GLOBAL_BASE_SOURCE
+            + """
+del Foo
+class Foo:
+    x = 5
+result = [read().x, read() is Foo]
+"""
+        ],
+        [5, True],
+    ],
+    [
+        [
+            GLOBAL_BASE_SOURCE
+            + """
+def outer():
+    def inner():
+        global Foo
+        Foo = Other
+    inner()
+    return Foo
+def outer_union():
+    def inner():
+        global Foo
+        return Foo | None
+    return inner()
+result = [outer_union() == (Foo | None), outer() is Other, read() is Other]
+"""
+        ],
+        [True, True, True],
+    ],
+    [
+        [
+            GLOBAL_BASE_SOURCE
+            + """
+def outer():
+    def inner():
+        return Foo
+    return inner
+inner = outer()
+def rebind():
+    global Foo
+    Foo = Other
+rebind()
+result = [inner() is Other, read() is Other]
+"""
+        ],
+        [True, True],
+    ],
+    [
+        [
+            GLOBAL_BASE_SOURCE
+            + """
+from mod_global import Foo, modread
+def rebind():
+    global Foo
+    Foo = Other
+rebind()
+result = [Foo is Other, modread().x, modread() is Other]
+"""
+        ],
+        [True, 1, False],
+    ],
+    [
+        [
+            GLOBAL_BASE_SOURCE
+            + """
+from mod_global import Foo, modread
+same = [Foo is modread(), read() is modread()]
+def drop():
+    global Foo
+    del Foo
+drop()
+result = [same, try_call(read), modread().x]
+"""
+        ],
+        [[True, True], "NameError", 1],
+    ],
+    [
+        [
+            GLOBAL_BASE_SOURCE
+            + """
+from mod_global import Foo, modread
+Foo = Other
+result = [Foo is Other, modread().x, modread() is Other]
+"""
+        ],
+        [True, 1, False],
+    ],
+    [
+        [
+            GLOBAL_BASE_SOURCE
+            + """
+from mod_global import Foo, modread
+del Foo
+result = [try_call(read), modread().x]
+"""
+        ],
+        ["NameError", 1],
+    ],
+    [
+        [
+            GLOBAL_BASE_SOURCE
+            + """
+from mod_global import *
+def rebind():
+    global Foo
+    Foo = Other
+rebind()
+result = [Foo is Other, modread().x, modread() is Other]
+"""
+        ],
+        [True, 1, False],
+    ],
+    [
+        [
+            GLOBAL_BASE_SOURCE
+            + """
+from mod_global import *
+del Foo
+result = [try_call(read), modread().x]
+"""
+        ],
+        ["NameError", 1],
+    ],
+    [
+        [
+            GLOBAL_BASE_SOURCE
+            + """
+from mod_global import Foo
+def rebind():
+    global Foo
+    Foo = Other
+rebind()
+""",
+            GLOBAL_BASE_SOURCE
+            + """
+from mod_global import *
+def drop():
+    global Foo
+    del Foo
+drop()
+""",
+            GLOBAL_BASE_SOURCE
+            + """
+from mod_global import Foo
+Foo = Other
+""",
+            """
+from mod_global import Foo, modread
+result = [Foo.x, modread().x, Foo is modread()]
+""",
+        ],
+        [1, 1, True],
+    ],
+    [
+        [
+            """
+import mod_global
+Foo = mod_global.Foo
+class Other:
+    x = 9
+def rebind():
+    global Foo
+    Foo = Other
+rebind()
+result = [Foo.x, Foo is Other, mod_global.modread().x]
+"""
+        ],
+        [9, True, 1],
+    ],
+    [
+        [
+            """
+import mod_global
+Foo = mod_global.Foo
+same = Foo is mod_global.modread()
+def read_foo():
+    return Foo.x
+def drop_alias():
+    global Foo
+    del Foo
+drop_alias()
+try:
+    read_foo()
+    gone = False
+except NameError:
+    gone = True
+result = [same, gone, mod_global.modread().x]
+"""
+        ],
+        [True, True, 1],
+    ],
+    [
+        [
+            """
+import mod_global
+Foo = mod_global.Foo
+class Foo:
+    x = 9
+result = [Foo.x, mod_global.modread().x]
+"""
+        ],
+        [9, 1],
+    ],
+    [
+        [
+            """
+import mod_global
+Foo = mod_global.Foo
+class Other:
+    x = 9
+def rebind():
+    global Foo
+    Foo = Other
+rebind()
+""",
+            """
+import mod_global
+Foo = mod_global.Foo
+same = Foo is mod_global.modread()
+def read_foo():
+    return Foo.x
+def drop_alias():
+    global Foo
+    del Foo
+drop_alias()
+try:
+    read_foo()
+    gone = False
+except NameError:
+    gone = True
+""",
+            """
+import mod_global
+Foo = mod_global.Foo
+class Foo:
+    x = 9
+""",
+            """
+from mod_global import Foo, modread
+result = [Foo.x, modread().x, Foo is modread()]
+""",
+        ],
+        [1, 1, True],
+    ],
+    [
+        [
+            """
+class Original:
+    x = 1
+Foo = globals()["Original"]
+class Other:
+    x = 9
+def rebind():
+    global Foo
+    Foo = Other
+rebind()
+result = [Original.x, Foo.x, Foo is Other]
+"""
+        ],
+        [1, 9, True],
+    ],
+    [
+        [
+            """
+def outer():
+    from mod_global import Foo
+    def inner():
+        return Foo.x
+    return inner()
+def outer_as():
+    from mod_global import Foo as Local
+    def inner():
+        return Local.x
+    return inner
+def outer_import():
+    import mod_global as mod
+    def inner():
+        return mod.modread().x
+    return inner()
+result = [outer(), outer_as()(), outer_import()]
+"""
+        ],
+        [1, 1, 1],
+    ],
+    [
+        [
+            """
+def outer():
+    from mod_global import Foo, modread
+    def read():
+        return Foo
+    def change():
+        nonlocal Foo
+        Foo = 20
+    change()
+    return [Foo, read(), modread().x]
+result = outer()
+"""
+        ],
+        [20, 20, 1],
+    ],
+    [
+        [
+            """
+from mod_global import modread
+def load():
+    global Foo, mod_global
+    from mod_global import Foo
+    import mod_global
+load()
+result = [Foo.x, Foo is modread(), mod_global.modread() is Foo]
+"""
+        ],
+        [1, True, True],
+    ],
+    [
+        [
+            """
+import mod_global
+mod_global.drop()
+try:
+    from mod_global import Foo
+    msg = None
+except ImportError as exc:
+    msg = str(exc)
+from mod_global import *
+def read_foo():
+    return Foo.x
+try:
+    read_foo()
+    gone = False
+except NameError:
+    gone = True
+result = [msg, gone]
+"""
+        ],
+        ["cannot import name 'Foo' from 'mod_global' (unknown location)", True],
+    ],
+    [
+        [
+            """
+class Foo:
+    x = 1
+def make():
+    global Foo
+    class C:
+        from math import pi as Foo
+    class D:
+        import math as Foo
+    class E:
+        Foo = 3
+    return [C, D, E]
+C, D, E = make()
+result = [isinstance(C.Foo, float), D.Foo.__name__, E.Foo, Foo.x]
+"""
+        ],
+        [True, "math", 3, 1],
+    ],
+    [
+        [
+            """
+class Foo:
+    x = 1
+def make():
+    global Foo
+    class C:
+        Foo = 3
+        y = Foo
+        del Foo
+    class D:
+        def Foo(self):
+            return 2
+    class E:
+        class Foo:
+            x = 4
+    return [C, D, E]
+C, D, E = make()
+result = [C.y, hasattr(C, "Foo"), D().Foo(), E.Foo.x, Foo.x]
+"""
+        ],
+        [3, False, 2, 4, 1],
+    ],
+    [
+        [
+            """
+class Foo:
+    x = 1
+class C:
+    class Foo:
+        x = 2
+    from math import pi as Foo
+    def read(self):
+        return Foo.x
+class D:
+    class Foo:
+        x = 2
+    Foo = 5
+    def read(self):
+        return Foo.x
+result = [C().read(), isinstance(C.Foo, float), D().read(), D.Foo]
+"""
+        ],
+        [1, True, 1, 5],
+    ],
+    [
+        [
+            """
+import mod_global
+globals()["Foo"] = mod_global.Foo
+class Other:
+    x = 9
+def rebind():
+    global Foo
+    Foo = Other
+rebind()
+result = [Foo.x, mod_global.modread().x]
+"""
+        ],
+        [9, 1],
+    ],
+    [
+        [
+            """
+import mod_global
+globals().update({"Foo": mod_global.Foo})
+class Foo:
+    x = 9
+result = [Foo.x, mod_global.modread().x]
+"""
+        ],
+        [9, 1],
+    ],
+    [
+        [
+            """
+import mod_global
+Foo = mod_global.modread()
+result = [
+    (mod_global.Foo | None) == (Foo | None),
+    mod_global.Foo is Foo,
+    isinstance(Foo(), mod_global.Foo),
+    type(mod_global.Foo()) is mod_global.Foo,
+]
+"""
+        ],
+        [True, True, True, True],
+    ],
+    [
+        [
+            """
+import mod_global
+from mod_global import Foo as Snap
+class Other:
+    x = 9
+mod_global.Foo = Other
+result = [mod_global.Foo is Other, mod_global.modread() is Other, Snap.x]
+"""
+        ],
+        [True, True, 1],
+    ],
+    [
+        [
+            """
+import math
+def f():
+    def inner():
+        return math.sqrt(4)
+    try:
+        before = math.sqrt(4)
+    except UnboundLocalError:
+        before = "unbound"
+    import math
+    return [before, inner()]
+def g():
+    def inner():
+        return x
+    x = 1
+    del x
+    try:
+        x
+        return "no error"
+    except UnboundLocalError:
+        return "unbound"
+result = [f(), g()]
+"""
+        ],
+        [["unbound", 2.0], "unbound"],
+    ],
+    [
+        [
+            GLOBAL_BASE_SOURCE
+            + """
+x = 1
+def make():
+    class C:
+        global x, Foo
+        x = 2
+        from mod_global import Foo
+    return C
+C = make()
+import mod_global
+result = [x, hasattr(C, "x"), hasattr(C, "Foo"), read() is mod_global.Foo]
+"""
+        ],
+        [2, False, False, True],
+    ],
+    [
+        [
+            GLOBAL_BASE_SOURCE
+            + """
+x = 1
+class C:
+    global x, Foo
+    x = 2
+    from math import pi as Foo
+    y = x + 1
+result = [x, hasattr(C, "x"), C.y, hasattr(C, "Foo"), isinstance(read(), float)]
+"""
+        ],
+        [2, False, 3, False, True],
+    ],
+    [
+        [
+            """
+x = 1
+def f():
+    class C:
+        global x
+        x = 2
+    x = 5
+    return x
+def g():
+    global x
+    class C:
+        x = 3
+    return C.x
+result = [f(), x, g(), x]
+"""
+        ],
+        [5, 2, 3, 2],
+    ],
+    [
+        [
+            """
+def pyscript_compile(func):
+    return func
+@pyscript_compile
+def make_meta():
+    class Namespace:
+        def __init__(self):
+            self.values = {}
+        def __getitem__(self, name):
+            return self.values[name]
+        def __setitem__(self, name, value):
+            self.values[name] = value
+        def __contains__(self, name):
+            return name in self.values
+    class Meta(type):
+        @classmethod
+        def __prepare__(mcs, name, bases):
+            return Namespace()
+        def __new__(mcs, name, bases, namespace):
+            return type.__new__(mcs, name, bases, dict(namespace.values))
+    return Meta
+class C(metaclass=make_meta()):
+    class D:
+        x = 3
+    y = D.x
+result = [C.D.x, C.y]
+"""
+        ],
+        [3, 3],
+    ],
+]
+
+
+def run_global_name_test_python(sources):
+    """Run the scripts in CPython and return the last one's result."""
+    mod = ModuleType(GLOBAL_MOD_NAME)
+    FunctionType(compile(GLOBAL_MOD_SOURCE, GLOBAL_MOD_NAME, "exec"), mod.__dict__)()
+    sys.modules[GLOBAL_MOD_NAME] = mod
+    try:
+        for source in sources:
+            namespace = {}
+            FunctionType(compile(source, "test", "exec"), namespace)()
+        return namespace["result"]
+    finally:
+        del sys.modules[GLOBAL_MOD_NAME]
+
+
+async def run_global_name_test(sources):
+    """Run the scripts in pyscript and return the last one's result."""
+    mod = ModuleType(GLOBAL_MOD_NAME)
+    module_ctx = GlobalContext(GLOBAL_MOD_NAME, global_sym_table=mod.__dict__, manager=GlobalContextMgr)
+    module_ctx.module = mod
+    module_ctx.file_path = f"modules/{GLOBAL_MOD_NAME}.py"
+    module_ast = AstEval(GLOBAL_MOD_NAME, global_ctx=module_ctx)
+    Function.install_ast_funcs(module_ast)
+    module_ast.parse(GLOBAL_MOD_SOURCE)
+    await module_ast.eval()
+    GlobalContextMgr.set(f"modules.{GLOBAL_MOD_NAME}", module_ctx)
+    try:
+        for source in sources:
+            global_ctx = GlobalContext("test", global_sym_table={}, manager=GlobalContextMgr)
+            ast = AstEval("test", global_ctx=global_ctx)
+            Function.install_ast_funcs(ast)
+            ast.parse(source)
+            await ast.eval()
+        return global_ctx.global_sym_table["result"]
+    finally:
+        GlobalContextMgr.delete(f"modules.{GLOBAL_MOD_NAME}")
+
+
+async def test_global_names_match_python(hass):
+    """Test module-level names used through global and from-imports, compared with CPython."""
+    hass.data[DOMAIN] = {CONFIG_ENTRY: MockConfigEntry(domain=DOMAIN, data={CONF_ALLOW_ALL_IMPORTS: True})}
+    Function.init(hass)
+    State.init(hass)
+    State.register_functions()
+    TrigTime.init(hass)
+    DecoratorRegistry.init(hass)
+
+    for sources, expect in globalNameTests:
+        assert run_global_name_test_python(sources) == expect, sources[-1]
+        assert await run_global_name_test(sources) == expect, sources[-1]
+    await Function.waiter_sync()
+    await Function.waiter_stop()
+    await Function.reaper_stop()
+
+
+async def test_class_body_exception_keeps_old_class(hass):
+    """Test that a class redefinition whose body raises keeps the old class, as in CPython."""
+    hass.data[DOMAIN] = {CONFIG_ENTRY: MockConfigEntry(domain=DOMAIN, data={CONF_ALLOW_ALL_IMPORTS: True})}
+    Function.init(hass)
+    State.init(hass)
+    State.register_functions()
+    TrigTime.init(hass)
+
+    source = (
+        GLOBAL_BASE_SOURCE
+        + """
+class Foo:
+    x = 5
+    raise ValueError("bad class body")
+"""
+    )
+    check = "result = [Foo.x, read().x, read() is Foo]"
+    expect = [1, 1, True]
+
+    namespace = {}
+    with pytest.raises(ValueError, match="bad class body"):
+        FunctionType(compile(source, "test", "exec"), namespace)()
+    FunctionType(compile(check, "test", "exec"), namespace)()
+    assert namespace["result"] == expect
+
+    global_ctx = GlobalContext("test", global_sym_table={}, manager=GlobalContextMgr)
+    ast = AstEval("test", global_ctx=global_ctx)
+    Function.install_ast_funcs(ast)
+    ast.parse(source)
+    with pytest.raises(ValueError, match="bad class body"):
+        await ast.eval()
+    ast = AstEval("test", global_ctx=global_ctx)
+    Function.install_ast_funcs(ast)
+    ast.parse(check)
+    await ast.eval()
+    assert global_ctx.global_sym_table["result"] == expect
 
     await Function.waiter_sync()
     await Function.waiter_stop()
