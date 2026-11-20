@@ -1078,13 +1078,15 @@ class AstEval:
             sym_table = {}
         self.sym_table_stack.append(self.sym_table)
         self.sym_table = sym_table
-        for arg1 in arg.body:
-            val = await self.aeval(arg1)
-            if isinstance(val, EvalReturn):
-                raise SyntaxError(f"{val.name()} statement outside function")
-            if isinstance(val, EvalStopFlow):
-                raise SyntaxError(f"{val.name()} statement outside loop")
-        self.sym_table = self.sym_table_stack.pop()
+        try:
+            for arg1 in arg.body:
+                val = await self.aeval(arg1)
+                if isinstance(val, EvalReturn):
+                    raise SyntaxError(f"{val.name()} statement outside function")
+                if isinstance(val, EvalStopFlow):
+                    raise SyntaxError(f"{val.name()} statement outside loop")
+        finally:
+            self.sym_table = self.sym_table_stack.pop()
 
         decorators = [await self.aeval(dec) for dec in arg.decorator_list]
         sym_table["__init__evalfunc_wrap__"] = None
