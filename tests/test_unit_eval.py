@@ -3501,3 +3501,221 @@ async def test_class_body_error_reaches_caller(hass):
     await Function.waiter_sync()
     await Function.waiter_stop()
     await Function.reaper_stop()
+
+
+NESTED_CLASS_CASES = {
+    "union_module_level": (
+        "class Outer:\n    class Inner:\n        pass\nres = (Outer.Inner | None) == (Outer.Inner | None)\n"
+    ),
+    "union_other_class_annotation": (
+        "class Outer:\n    class Inner:\n        pass\n"
+        "class Bar:\n    y: Outer.Inner | None = None\n"
+        "res = [Bar.y, Bar.__annotations__['y'] == (Outer.Inner | None)]\n"
+    ),
+    "identity": (
+        "class Outer:\n    class Inner:\n        pass\n"
+        "res = [type(Outer.Inner()) is Outer.Inner, isinstance(Outer.Inner(), Outer.Inner)]\n"
+    ),
+    "dataclass": (
+        "from dataclasses import dataclass\n"
+        "@dataclass\nclass Outer:\n    @dataclass\n    class Inner:\n        a: int = 1\n"
+        "    x: Inner | None = None\n"
+        "res = [Outer().x, Outer(Outer.Inner()).x.a, type(Outer.Inner()) is Outer.Inner]\n"
+    ),
+    "two_levels": (
+        "class Outer:\n    class Mid:\n        class Inner:\n            v = 7\n"
+        "res = [Outer.Mid.Inner.v, type(Outer.Mid.Inner()) is Outer.Mid.Inner,"
+        " (Outer.Mid.Inner | None) == (Outer.Mid.Inner | None)]\n"
+    ),
+}
+
+
+@pytest.mark.parametrize("name", list(NESTED_CLASS_CASES))
+async def test_nested_class_attr_matches_python(hass, name):
+    """Test that a class defined in a class body is the class itself, compared with CPython."""
+    hass.data[DOMAIN] = {CONFIG_ENTRY: MockConfigEntry(domain=DOMAIN, data={CONF_ALLOW_ALL_IMPORTS: True})}
+    Function.init(hass)
+    State.init(hass)
+    State.register_functions()
+    TrigTime.init(hass)
+    DecoratorRegistry.init(hass)
+
+    source = NESTED_CLASS_CASES[name]
+    expected_ns: dict = {}
+    exec(source, expected_ns)  # pylint: disable=exec-used
+    expected = expected_ns["res"]
+
+    global_ctx = GlobalContext("test", global_sym_table={}, manager=GlobalContextMgr)
+    ast = AstEval("test", global_ctx=global_ctx)
+    Function.install_ast_funcs(ast)
+    ast.parse(source)
+    try:
+        await ast.eval()
+        assert global_ctx.global_sym_table["res"] == expected
+    finally:
+        await Function.waiter_sync()
+        await Function.waiter_stop()
+        await Function.reaper_stop()
+
+
+async def test_nested_class_bare_name_in_method(hass):
+    """
+    Test that a method can use a nested class by its bare name.
+
+    This pins current pyscript behavior that differs from Python, where a method
+    can't see a nested class by its bare name and raises NameError (a known
+    limit listed in #902), so it is not the intended behavior.
+    """
+    hass.data[DOMAIN] = {CONFIG_ENTRY: MockConfigEntry(domain=DOMAIN, data={CONF_ALLOW_ALL_IMPORTS: True})}
+    Function.init(hass)
+    State.init(hass)
+    State.register_functions()
+    TrigTime.init(hass)
+    DecoratorRegistry.init(hass)
+
+    # pyscript only: CPython raises NameError here, so this can't be compared with CPython
+    global_ctx = GlobalContext("test", global_sym_table={}, manager=GlobalContextMgr)
+    ast = AstEval("test", global_ctx=global_ctx)
+    Function.install_ast_funcs(ast)
+    ast.parse(
+        "class Outer:\n    class Inner:\n        v = 4\n    def make(self):\n        return Inner.v\n"
+        "res = [Outer().make(), Outer.Inner.v]\n"
+    )
+    await ast.eval()
+    assert global_ctx.global_sym_table["res"] == [4, 4]
+
+    await Function.waiter_sync()
+    await Function.waiter_stop()
+    await Function.reaper_stop()
+
+
+class NoKeysNamespace:
+    """Class namespace that supports item access but has no keys() or items()."""
+
+    def __init__(self):
+        """Initialize the namespace."""
+        self.d = {}
+
+    def __setitem__(self, key, value):
+        """Set an item."""
+        self.d[key] = value
+
+    def __getitem__(self, key):
+        """Get an item."""
+        return self.d[key]
+
+    def __contains__(self, key):
+        """Check for an item."""
+        return key in self.d
+
+    def __delitem__(self, key):
+        """Delete an item."""
+        del self.d[key]
+
+
+class NoKeysMeta(type):
+    """Metaclass whose __prepare__ returns a namespace without keys()."""
+
+    @classmethod
+    def __prepare__(mcs, name, bases, **kwargs):
+        """Return the custom namespace."""
+        return NoKeysNamespace()
+
+    def __new__(mcs, name, bases, ns, **kwargs):
+        """Build the class from the custom namespace."""
+        return super().__new__(mcs, name, bases, dict(ns.d))
+
+
+NESTED_PREPARE_SOURCE = """
+class Outer(metaclass=NoKeysMeta):
+    class Inner:
+        pass
+    v = 3
+
+res = [Outer.v, Outer.Inner is not None]
+"""
+
+
+async def test_nested_class_prepare_without_keys(hass):
+    """Test that a class namespace from __prepare__ that can't be iterated still builds the class."""
+    hass.data[DOMAIN] = {CONFIG_ENTRY: MockConfigEntry(domain=DOMAIN, data={CONF_ALLOW_ALL_IMPORTS: True})}
+    Function.init(hass)
+    State.init(hass)
+    State.register_functions()
+    TrigTime.init(hass)
+    DecoratorRegistry.init(hass)
+
+    expected_ns: dict = {"NoKeysMeta": NoKeysMeta}
+    exec(NESTED_PREPARE_SOURCE, expected_ns)  # pylint: disable=exec-used
+    global_ctx = GlobalContext("test", global_sym_table={"NoKeysMeta": NoKeysMeta}, manager=GlobalContextMgr)
+    ast = AstEval("test", global_ctx=global_ctx)
+    Function.install_ast_funcs(ast)
+    ast.parse(NESTED_PREPARE_SOURCE)
+    await ast.eval()
+    assert global_ctx.global_sym_table["res"] == expected_ns["res"] == [3, True]
+
+    await Function.waiter_sync()
+    await Function.waiter_stop()
+    await Function.reaper_stop()
+
+
+class RejectSecondRewrite(dict):
+    """Class namespace that refuses to rebind "Second"."""
+
+    def __setitem__(self, key, value):
+        """Set an item, but only allow "Second" to be bound once."""
+        if key == "Second" and key in self:
+            raise TypeError("Second may only be bound once")
+        super().__setitem__(key, value)
+
+
+class CheckNamespaceMeta(type):
+    """Metaclass that requires its two nested classes to arrive in the same form."""
+
+    @classmethod
+    def __prepare__(mcs, name, bases, **kwargs):
+        """Return the custom namespace."""
+        return RejectSecondRewrite()
+
+    def __new__(mcs, name, bases, ns, **kwargs):
+        """Build the class, checking the namespace is consistent."""
+        if type(ns["First"]) is not type(ns["Second"]):
+            raise ValueError("mixed namespace representations")
+        return super().__new__(mcs, name, bases, dict(ns))
+
+
+NESTED_REJECT_SOURCE = """
+class Outer(metaclass=CheckNamespaceMeta):
+    class First:
+        pass
+    class Second:
+        pass
+
+res = Outer.__name__
+"""
+
+
+async def test_nested_class_prepare_dict_subclass(hass):
+    """Test that a custom __prepare__ namespace is left as it is and the class still builds."""
+    hass.data[DOMAIN] = {CONFIG_ENTRY: MockConfigEntry(domain=DOMAIN, data={CONF_ALLOW_ALL_IMPORTS: True})}
+    Function.init(hass)
+    State.init(hass)
+    State.register_functions()
+    TrigTime.init(hass)
+    DecoratorRegistry.init(hass)
+
+    expected_ns: dict = {"CheckNamespaceMeta": CheckNamespaceMeta}
+    exec(NESTED_REJECT_SOURCE, expected_ns)  # pylint: disable=exec-used
+    global_ctx = GlobalContext(
+        "test", global_sym_table={"CheckNamespaceMeta": CheckNamespaceMeta}, manager=GlobalContextMgr
+    )
+    ast = AstEval("test", global_ctx=global_ctx)
+    Function.install_ast_funcs(ast)
+    ast.parse(NESTED_REJECT_SOURCE)
+    try:
+        await ast.eval()
+        assert global_ctx.global_sym_table["res"] == expected_ns["res"] == "Outer"
+    finally:
+        await Function.waiter_sync()
+        await Function.waiter_stop()
+        await Function.reaper_stop()

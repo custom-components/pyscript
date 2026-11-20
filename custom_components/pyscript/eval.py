@@ -1120,6 +1120,11 @@ class AstEval:
         if "__init__" in sym_table:
             sym_table["__init__evalfunc_wrap__"] = sym_table["__init__"]
             del sym_table["__init__"]
+        # store nested classes themselves on the class; the EvalLocalVar objects stay valid for methods
+        if type(sym_table) is dict:  # pylint: disable=unidiomatic-typecheck
+            for name, val in sym_table.items():
+                if isinstance(val, EvalLocalVar) and val.is_defined():
+                    sym_table[name] = val.get()
         cls = metaclass(arg.name, tuple(bases), sym_table, **keywords)
         if inspect.iscoroutine(cls):
             cls = await cls
