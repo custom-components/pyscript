@@ -563,10 +563,23 @@ run, in cases where the trigger condition involves multiple variables. These are
        "old_value": old_value
    }
 
-The ``value`` and ``old_value`` represent the current and old values of the state variable
-``var_name`` whose change caused the trigger. Those variables include the state attributes too.
-If the trigger occurs when the state variable is newly created, ``old_value`` will be ``None``,
-and if the trigger occurs when a state variable is deleted, ``value`` will be ``None``.
+``var_name`` is always the state variable (entity) whose change caused the trigger, even when the
+trigger is on one of its attributes. ``value`` and ``old_value`` are the current and old values of
+that state variable, and they include its attributes too: the new value of an attribute is
+``value.attr`` and its old value is ``old_value.attr``. If the trigger occurs when the state
+variable is newly created, ``old_value`` will be ``None``, and if the trigger occurs when a state
+variable is deleted, ``value`` will be ``None``. An attribute that the state variable doesn't have
+raises ``AttributeError``. So code that has to cope with those cases can use ``getattr`` with a
+default:
+
+.. code:: python
+
+   @state_trigger("light.kitchen.brightness")
+   def brightness_changed(var_name=None, value=None, old_value=None):
+       # var_name is "light.kitchen"; value and old_value are its state, e.g. "on"
+       new_brightness = getattr(value, "brightness", None)
+       old_brightness = getattr(old_value, "brightness", None)
+       log.info(f"{var_name} brightness changed from {old_brightness} to {new_brightness}")
 
 Additional keyword parameters can be passed to the trigger function by setting the optional
 ``kwargs`` parameter to a ``dict`` with the keyword/value pairs.
