@@ -1543,6 +1543,43 @@ x
     ],
     [
         """
+class Temp:
+    def __init__(self):
+        self.v = 4
+
+    def name(self):
+        return type(self).__name__
+
+    def value(self):
+        return self.v
+
+method = Temp().value
+[Temp().name(), Temp().value(), method()]
+""",
+        ["Temp", 4, 4],
+    ],
+    [
+        """
+x = []
+class Temp:
+    def method(self):
+        return 1
+
+    @pyscript_compile
+    def __del__(self):
+        x.append(-1)
+
+Temp().method()
+r1 = list(x)
+method = Temp().method
+r2 = list(x)
+del method
+[r1, r2, x]
+""",
+        [[-1], [-1], [-1, -1]],
+    ],
+    [
+        """
 def func1(m):
     def func2():
         m[0] += 1
