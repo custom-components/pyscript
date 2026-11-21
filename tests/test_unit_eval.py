@@ -4,6 +4,7 @@ import ast as ast_module
 import asyncio
 import contextlib
 from dataclasses import dataclass
+import logging
 import sys
 from types import FunctionType, ModuleType
 
@@ -4330,6 +4331,499 @@ async def test_generator_expression_errors(hass):
     ast.parse("task.executor(list, (x for x in range(3)))")
     with pytest.raises(RuntimeError, match="can only be iterated in the event loop"):
         await ast.eval()
+
+    await Function.waiter_sync()
+    await Function.waiter_stop()
+    await Function.reaper_stop()
+
+
+#
+# each source sets result; pyscript_compile is a no-op decorator when run in CPython
+#
+CLASS_INIT_SUPER_SOURCES = [
+    # zero-argument and two-argument super() in methods and __init__
+    """
+class B:
+    def __init__(self, x):
+        self.x = x
+    def f(self):
+        return "B"
+class C(B):
+    def __init__(self, x, y):
+        super().__init__(x)
+        self.y = y
+    def f(self):
+        return "C" + super().f()
+class D(B):
+    def __init__(self, x, y):
+        super(D, self).__init__(x)
+        self.y = y
+    def f(self):
+        return "D" + super(D, self).f()
+c, d = C(1, 2), D(3, 4)
+result = [c.x, c.y, c.f(), d.x, d.y, d.f()]
+""",
+    # Base.__init__(self, ...), and calling __init__ again on an instance
+    """
+class B:
+    def __init__(self, x, k=0):
+        self.x = x
+        self.k = k
+class C(B):
+    def __init__(self, x):
+        B.__init__(self, x, k=5)
+c = C(1)
+c.__init__(7)
+result = [c.x, c.k]
+""",
+    # a subclass without __init__ uses the first one along its parents
+    """
+class A:
+    def __init__(self, *args, k=1, **kwargs):
+        self.args, self.k, self.kwargs = args, k, kwargs
+class B(A):
+    pass
+class C(B):
+    pass
+c = C(1, 2, k=3, z=4)
+result = [c.args, c.k, c.kwargs, type(c).__name__, isinstance(c, A)]
+""",
+    """
+class A:
+    def __init__(self):
+        self.a = 1
+class B(A):
+    def __init__(self):
+        super().__init__()
+        self.b = 2
+class C(B):
+    pass
+c = C()
+result = [c.a, c.b]
+""",
+    # a native base, with and without an __init__ of our own
+    """
+class D(dict):
+    pass
+class E(dict):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.extra = 1
+e = E([("a", 1)], b=2)
+result = [D(a=1), dict(e), e.extra]
+""",
+    # custom exceptions keep their message and args
+    """
+class E1(Exception):
+    pass
+class E2(Exception):
+    def __init__(self, msg, code):
+        super().__init__(msg)
+        self.code = code
+class E3(E2):
+    pass
+class E4(Exception):
+    def __init__(self, msg):
+        self.msg = msg
+class E5(Exception):
+    def __init__(self):
+        super().__init__("default")
+result = []
+for cls, args in [[E1, ["boom", 1]], [E2, ["bad", 3]], [E3, ["worse", 4]], [E4, ["hi"]]]:
+    try:
+        raise cls(*args)
+    except Exception as exc:
+        result.append([type(exc).__name__, str(exc), exc.args, getattr(exc, "code", None)])
+try:
+    raise E5
+except E5 as exc:
+    result.append([str(exc), exc.args])
+""",
+    # logging.Handler subclasses
+    """
+import logging
+class H1(logging.Handler):
+    def __init__(self, tag):
+        super().__init__()
+        self.tag = tag
+class H2(logging.Handler):
+    def __init__(self, tag):
+        logging.Handler.__init__(self, level=5)
+        self.tag = tag
+class H3(logging.Handler):
+    pass
+h1, h2, h3 = H1("t1"), H2("t2"), H3(10)
+result = [h1.tag, h1.level, h2.tag, h2.level, h3.level, hasattr(h1, "lock"), hasattr(h3, "filters")]
+""",
+    # threading.Thread subclasses
+    """
+import threading
+class T1(threading.Thread):
+    def __init__(self, n):
+        super().__init__(name=n, daemon=True)
+        self.n = n
+class T2(threading.Thread):
+    pass
+t1, t2 = T1("x"), T2(name="y", daemon=True)
+result = [t1.name, t1.daemon, t1.n, t2.name, t2.daemon, t1.is_alive()]
+""",
+    # str and namedtuple bases, which need the arguments in __new__
+    """
+from collections import namedtuple
+class S1(str):
+    def shout(self):
+        return self.upper()
+class S2(str):
+    def __init__(self, v):
+        self.extra = len(v)
+class P1(namedtuple("P", "a b")):
+    def s(self):
+        return self.a + self.b
+class P2(P1):
+    pass
+class P3(namedtuple("P", "a b")):
+    def __init__(self, a, b):
+        self.total = a + b
+s2, p3 = S2("hi"), P3(1, 2)
+result = [S1("hi").shout(), s2, s2.extra, P1(1, 2).s(), P2(3, b=4).s(), tuple(p3), p3.total]
+""",
+    # diamond inheritance and mixins follow the mro
+    """
+log = []
+class A:
+    def __init__(self):
+        log.append("A")
+class B(A):
+    def __init__(self):
+        log.append("B")
+        super().__init__()
+class C(A):
+    def __init__(self):
+        log.append("C")
+        super().__init__()
+class D(B, C):
+    def __init__(self):
+        log.append("D")
+        super().__init__()
+class E(B, C):
+    pass
+class F(B, C):
+    def __init__(self):
+        log.append("F")
+        super(B, self).__init__()
+D()
+E()
+F()
+result = [log, [k.__name__ for k in D.__mro__]]
+""",
+    """
+class Hello:
+    def hello(self):
+        return "hi " + self.name
+class Named:
+    def __init__(self, name, **kwargs):
+        super().__init__(**kwargs)
+        self.name = name
+class N(Hello, Named, dict):
+    pass
+n = N("bob", a=1)
+result = [n.hello(), dict(n)]
+""",
+    # metaclasses: one without __call__, with a pyscript __new__ or __init__, and with a compiled __call__
+    """
+class Meta1(type):
+    pass
+class Reg(type):
+    names = []
+    def __init__(cls, name, bases, ns):
+        super().__init__(name, bases, ns)
+        Reg.names.append(name)
+class Meta2(type):
+    def __new__(mcs, name, bases, ns):
+        cls = super().__new__(mcs, name, bases, ns)
+        cls.tag = name.lower()
+        return cls
+class Meta3(type):
+    @pyscript_compile
+    def __call__(cls, *args, **kwargs):
+        inst = type.__call__(cls, *args, **kwargs)
+        inst.called = True
+        return inst
+class A(metaclass=Meta1):
+    def __init__(self, v):
+        self.v = v
+class B(metaclass=Meta2):
+    def __init__(self, v):
+        self.v = v
+class C(metaclass=Meta3):
+    def __init__(self, v):
+        self.v = v
+class D(metaclass=Meta3):
+    pass
+class E(metaclass=Reg):
+    pass
+class F(E):
+    pass
+c = C(3)
+result = [A(1).v, B(2).v, B.tag, c.v, c.called, D().called, Reg.names, type(Reg("G", (), {})).__name__, Reg.names]
+""",
+    """
+from abc import ABC
+class B(ABC):
+    def __init__(self, v):
+        self.v = v
+class C(B):
+    def f(self):
+        return self.v
+result = [C(4).f(), isinstance(C(5), B)]
+""",
+    # a pyscript __new__ alone, with __init__, and returning another type
+    """
+class A:
+    def __new__(cls, *args):
+        inst = super().__new__(cls)
+        inst.made = args
+        return inst
+class B:
+    def __new__(cls, v):
+        inst = super().__new__(cls)
+        inst.order = ["new"]
+        return inst
+    def __init__(self, v):
+        self.order.append("init")
+        self.v = v
+class C(B):
+    pass
+class D:
+    def __new__(cls, v):
+        return v
+    def __init__(self, v):
+        raise ValueError("not called")
+class S(str):
+    def __new__(cls, v):
+        return super().__new__(cls, v.upper())
+class T:
+    @staticmethod
+    def __new__(cls, v):
+        inst = super().__new__(cls)
+        inst.v = v
+        return inst
+b, c = B(1), C(2)
+result = [A(1, 2).made, b.order, b.v, c.order, c.v, type(c).__name__, D(5), S("hi"), T(6).v]
+""",
+    # compiled __init__s, also inherited and called through super()
+    """
+class A:
+    @pyscript_compile
+    def __init__(self, v):
+        self.v = v
+class B(A):
+    pass
+class C(A):
+    def __init__(self, v):
+        super().__init__(v + 1)
+        A.__init__(self, self.v + 1)
+result = [A(1).v, B(2).v, C(3).v]
+""",
+    # a static __init__, and an __init__ set on the instance
+    """
+log = []
+class A:
+    @staticmethod
+    def __init__(x):
+        log.append(x)
+class B(A):
+    pass
+class C:
+    def __init__(self):
+        self.x = 1
+A(3)
+B(4)
+A.__init__(5)
+c = C()
+def reset():
+    c.x = 2
+c.__init__ = reset
+c.__init__()
+result = [log, c.x, type(C()).__name__]
+""",
+    # __init__ must return None
+    """
+class A:
+    def __init__(self):
+        return 3
+try:
+    A()
+    result = "no error"
+except TypeError as exc:
+    result = str(exc)
+""",
+    # super() in a function defined in a method, in a method with a closure, and in a decorated class
+    """
+class B:
+    def f(self):
+        return "B"
+class C(B):
+    def f(self):
+        def inner(me):
+            return super().f()
+        return "C" + inner(self)
+    def g(self):
+        def get():
+            return self
+        return super().f() + type(get()).__name__
+def deco(cls):
+    class Wrapped(cls):
+        pass
+    return Wrapped
+@deco
+class D(B):
+    def f(self):
+        return "D" + super().f()
+result = [C().f(), C().g(), D().f(), type(D()).__name__]
+""",
+    # classes defined inside a function
+    """
+def make(base_v):
+    class B:
+        def __init__(self, v):
+            self.v = v + base_v
+    class C(B):
+        def __init__(self, v):
+            super().__init__(v)
+            self.w = self.v * 2
+    class D(C):
+        pass
+    return D
+D = make(10)
+d = D(1)
+result = [d.v, d.w]
+""",
+    # dataclasses keep their generated __init__
+    """
+from dataclasses import dataclass, field
+@dataclass
+class P:
+    x: int
+    y: int = 2
+    z: list = field(default_factory=list)
+@dataclass
+class Q:
+    x: int
+    @pyscript_compile
+    def __post_init__(self):
+        self.double = self.x * 2
+class R(P):
+    def total(self):
+        return self.x + self.y
+result = [repr(P(1)), Q(3).double, R(3, 4).total()]
+""",
+    # errors from a zero-argument super(), as in Python
+    """
+def f(x):
+    return super()
+class A:
+    def f():
+        return super()
+    def g(self):
+        del self
+        return super()
+    def h(self):
+        return super()
+    try:
+        h(1)
+    except RuntimeError as exc:
+        empty = str(exc)
+result = [A.empty]
+for func, args in [[f, [1]], [A.f, []], [A.g, [A()]]]:
+    try:
+        func(*args)
+    except RuntimeError as exc:
+        result.append(str(exc))
+""",
+    # zero-argument super() in a generator expression's element uses the generator's iterator, as in Python
+    """
+class B:
+    def f(self):
+        return self.n
+class C(B):
+    def __init__(self, n):
+        self.n = n
+        self.done = False
+    @pyscript_compile
+    def __iter__(self):
+        return self
+    @pyscript_compile
+    def __next__(self):
+        if self.done:
+            raise StopIteration
+        self.done = True
+        return 0
+    def values(self, other):
+        return (super().f() for _ in other)
+    def nested(self, other):
+        # the inner generator's iterator is a list iterator, but super() is in the outer element
+        return list(list(super().f() for _ in other) for _ in other)
+    def outermost(self, other):
+        # only the outermost iterable is evaluated in the method, so super() there is the method's
+        return list(0 for _ in [super().f()] if _ == 10 for _ in other)
+    def cond(self, other):
+        return list(1 for _ in other if super().f() == 20)
+    def plain(self):
+        return list(super().f() for _ in range(2))
+    def explicit(self):
+        return list(super(C, self).f() for _ in range(2))
+result = [list(C(10).values(C(20))), list(C(10).cond(C(20))), C(10).outermost(C(1))]
+c = C(10)
+for func, args in [[c.plain, []], [c.explicit, []], [c.nested, [C(1)]]]:
+    try:
+        result.append(func(*args))
+    except (TypeError, RuntimeError) as exc:
+        result.append(str(exc))
+""",
+    """
+ONE = [1]  # a name, since Python makes a tuple of a literal list
+def g():
+    return (super().f() for _ in ONE)
+class B:
+    def f(self):
+        return 1
+class C(B):
+    def values(self):
+        return (super().f() for _ in ONE)
+    def values2(self):
+        return (list(y for y in [super().f()]) for _ in ONE)
+result = []
+for func in [g, C().values, C().values2]:
+    try:
+        result.append(list(func()))
+    except (TypeError, RuntimeError) as exc:
+        result.append(str(exc))
+""",
+]
+
+
+async def test_class_init_super_match_python(hass, caplog):
+    """Test inherited __init__, Base.__init__ and super() in classes, compared with CPython."""
+    hass.data[DOMAIN] = {CONFIG_ENTRY: MockConfigEntry(domain=DOMAIN, data={CONF_ALLOW_ALL_IMPORTS: True})}
+    Function.init(hass)
+    State.init(hass)
+    State.register_functions()
+    TrigTime.init(hass)
+    DecoratorRegistry.init(hass)
+
+    # debug logging formats the call arguments, which can include an instance whose __init__ hasn't run
+    for level in [logging.INFO, logging.DEBUG]:
+        caplog.set_level(level, logger="custom_components.pyscript.eval")
+        for source in CLASS_INIT_SUPER_SOURCES:
+            expected_ns = {"pyscript_compile": lambda func: func}
+            exec(compile(source, "test", "exec"), expected_ns)  # pylint: disable=exec-used
+
+            global_ctx = GlobalContext("test", global_sym_table={}, manager=GlobalContextMgr)
+            ast = AstEval("test", global_ctx=global_ctx)
+            Function.install_ast_funcs(ast)
+            ast.parse(source + "result\n")
+            assert await ast.eval() == expected_ns["result"], source
 
     await Function.waiter_sync()
     await Function.waiter_stop()
