@@ -3881,3 +3881,182 @@ async def test_nested_class_prepare_dict_subclass(hass):
         await Function.waiter_sync()
         await Function.waiter_stop()
         await Function.reaper_stop()
+
+
+GENEXP_TESTS = [
+    "result = sum(x * x for x in range(5))",
+    """
+seen = []
+def check(x):
+    seen.append(x)
+    return x > 1
+result = [any(check(x) for x in range(10)), all(check(x) for x in range(10)), seen]
+""",
+    "result = [min(x % 4 for x in range(1, 9)), max((x for x in range(5)), key=lambda v: -v), sorted(x % 3 for x in range(6))]",
+    "result = [list(zip((x for x in 'abc'), (y * 2 for y in range(3)))), list(enumerate(x for x in 'ab'))]",
+    "result = [dict((k, k * 2) for k in range(3)), set(x % 2 for x in range(5)), tuple(x for x in 'ab')]",
+    "result = ','.join(str(x) for x in range(3)) + '-'.join(f'{x}{y}' for x in 'ab' for y in '12')",
+    "result = [next((x for x in [1, 2, 3] if x > 5), None), next(x for x in [1, 2, 3] if x > 1)]",
+    "import itertools\nresult = next(x for x in itertools.count() if x > 100)",
+    "result = list((x, y) for x in range(4) if x if x != 2 for y in range(x) if y != 1)",
+    "result = list(a + sum(b) for a, *b in [(1, 2, 3), (4,)])",
+    "x = 'outer'\ng = list(x for x in range(3))\nresult = [x, g]",
+    "def f(x):\n    return [list(x for x in range(3)), x]\nresult = f('arg')",
+    "def make():\n    n = 10\n    return (i + n for i in range(3))\nresult = list(make())",
+    "def f(x):\n    return x * k\nk = 1\ng = (f(x) for x in [1, 2])\nk = 5\nresult = list(g)",
+    "lst = [1, 2]\ng = (x for x in lst)\nlst = [9]\nresult = list(g)",
+    """
+def outer():
+    k = 3
+    def inner():
+        return (x * k for x in range(3))
+    g = inner()
+    k = 10
+    return [list(g), sum(x * k for x in range(3))]
+result = outer()
+""",
+    "r = []\nfor v in (x + 1 for x in range(3)):\n    r.append(v)\nresult = [r, [v * 2 for v in (x for x in range(3) if x != 1)]]",
+    "result = [sum(y for y in (x * 2 for x in range(4))), sum(sum(y for y in range(x)) for x in range(5))]",
+    "g = (x for x in range(2))\nresult = [list(g), list(g)]",
+    "g = (x * 10 for x in range(3))\na = next(g)\nx = 'other'\nb = next(g)\nresult = [a, b, x, list(g)]",
+    """
+x = 'keep'
+g = (1 / x for x in [1, 0, 2])
+result = [next(g)]
+try:
+    next(g)
+except ZeroDivisionError as exc:
+    result.append(str(exc))
+result += [list(g), x]
+""",
+    """
+it = iter([])
+try:
+    list(next(it) for x in range(3))
+except RuntimeError:
+    result = "RuntimeError"
+""",
+    """
+def gen_self():
+    global g
+    g = (next(g) for _ in range(2))
+    return g
+try:
+    list(gen_self())
+except ValueError as exc:
+    result = str(exc)
+""",
+    "try:\n    (x for x in 5)\nexcept TypeError as exc:\n    result = str(exc)",
+    """
+g = (x for x in range(4))
+result = [type(g).__name__, repr(g).startswith("<generator object <genexpr> at"), iter(g) is g]
+result += [next(g), g.send(None)]
+g.close()
+result.append(list(g))
+""",
+    """
+class Foo:
+    def __init__(self, vals):
+        self.vals = vals
+    def total(self):
+        return sum(v for v in self.vals)
+result = [Foo([1, 2, 3]).total(), max(foo.total() for foo in [Foo([1]), Foo([4, 5])])]
+""",
+    """
+class Foo:
+    vals = [1, 2, 3]
+    total = sum(v for v in vals)
+result = [Foo.total, hasattr(Foo, "v")]
+""",
+    """
+found = any((y := x) > 2 for x in range(10))
+def func():
+    found = any((z := x) > 3 for x in range(10))
+    return [found, z]
+result = [found, y, func()]
+""",
+    """
+data = {"a": [1, 2], "b": [3]}
+def func(*args):
+    return args
+result = [dict((k, sum(v for v in vs)) for k, vs in data.items()), func(*(x * 2 for x in range(3)))]
+""",
+    "result = eval('sum(x for x in range(4))')",
+]
+
+
+async def test_generator_expressions_match_python(hass):
+    """Test that generator expressions are lazy and give the same results as CPython."""
+    hass.data[DOMAIN] = {CONFIG_ENTRY: MockConfigEntry(domain=DOMAIN, data={CONF_ALLOW_ALL_IMPORTS: True})}
+    Function.init(hass)
+    State.init(hass)
+    State.register_functions()
+    TrigTime.init(hass)
+
+    for source in GENEXP_TESTS:
+        expected_ns = {}
+        exec(compile(source, "test", "exec"), expected_ns)  # pylint: disable=exec-used
+        global_ctx = GlobalContext("test", global_sym_table={}, manager=GlobalContextMgr)
+        ast = AstEval("test", global_ctx=global_ctx)
+        Function.install_ast_funcs(ast)
+        ast.parse(source)
+        await ast.eval()
+        assert global_ctx.global_sym_table["result"] == expected_ns["result"], source
+        assert ast.sym_table is ast.global_sym_table and not ast.sym_table_stack, source
+
+    await Function.waiter_sync()
+    await Function.waiter_stop()
+    await Function.reaper_stop()
+
+
+GENEXP_WAIT_TESTS = [
+    "result = sum(task.sleep(0) or x for x in range(3))",
+    "def slow(x):\n    task.sleep(0.01)\n    return x\nresult = list(slow(x) for x in range(3))",
+    """
+import asyncio
+async def slow(x):
+    await asyncio.sleep(0)
+    return x
+result = any(slow(x) for x in range(3))
+""",
+    """
+def slow(x):
+    try:
+        task.sleep(0.01)
+    finally:
+        task.sleep(0)
+    return x
+result = list(slow(x) for x in range(3))
+""",
+]
+
+
+async def test_generator_expression_errors(hass):
+    """Test the errors for a generator expression element that waits, or iteration in another thread."""
+    hass.data[DOMAIN] = {CONFIG_ENTRY: MockConfigEntry(domain=DOMAIN, data={CONF_ALLOW_ALL_IMPORTS: True})}
+    Function.init(hass)
+    State.init(hass)
+    State.register_functions()
+    TrigTime.init(hass)
+
+    global_ctx = GlobalContext("test", global_sym_table={}, manager=GlobalContextMgr)
+    ast = AstEval("test", global_ctx=global_ctx)
+    Function.install_ast_funcs(ast)
+    for source in GENEXP_WAIT_TESTS:
+        ast.parse("x = 'keep'\n" + source)
+        with pytest.raises(RuntimeError, match="generator expression element can't wait"):
+            await ast.eval()
+        assert "result" not in global_ctx.global_sym_table, source
+        assert ast.sym_table is ast.global_sym_table and not ast.sym_table_stack, source
+        # the generator's loop variable doesn't replace the module's, and later code runs normally
+        ast.parse("result = [x, sum(x for x in range(4))]")
+        await ast.eval()
+        assert global_ctx.global_sym_table.pop("result") == ["keep", 6], source
+
+    ast.parse("task.executor(list, (x for x in range(3)))")
+    with pytest.raises(RuntimeError, match="can only be iterated in the event loop"):
+        await ast.eval()
+
+    await Function.waiter_sync()
+    await Function.waiter_stop()
+    await Function.reaper_stop()

@@ -2399,11 +2399,25 @@ it doesn't faithfully mimic Python.  Here are some areas where pyscript differs 
 - A context manager's ``__exit__`` (or ``__aexit__``) is called when a task is cancelled, but returning
   a true value doesn't suppress ``CancelledError``, ``KeyboardInterrupt`` or ``SystemExit`` the way it
   does in Python. This ensures pyscript tasks can always be stopped.
+- Generator expressions (e.g., ``any(x > 3 for x in values)``) work and are lazy, as in Python: each
+  element is evaluated only when it's asked for, so ``any()`` stops at the first match. Since functions
+  like ``sum()`` or ``any()`` ask for each element without waiting, an element can't wait for anything
+  (e.g., call ``task.sleep()`` or a ``@pyscript_executor`` function) or make a service call with
+  ``blocking=True``; that raises a ``RuntimeError``. The workaround is to use a list
+  comprehension instead (e.g., ``any([x > 3 for x in values])``), which evaluates every element before
+  the function is called. A generator expression can only be iterated in the main event loop (e.g.,
+  not by a function run with ``task.executor()``). Its loop variables don't quite have their own scope:
+  a pyscript function called from an element that reads a module-level variable with the same name as
+  a loop variable sees the loop variable instead, and in a function that declares ``global x``,
+  ``(x for x in ...)`` overwrites the global ``x``; both also apply to list comprehensions. Also, a
+  generator expression created inside another one's element can't see the outer one's loop variables
+  if it's used after the outer one has moved on to its next element.
 - Avoid using ``exit()`` calls in your scripts, as they can `crash <https://github.com/custom-components/pyscript/issues/811>`__ the whole Home Assistant.
 
 A handful of language features are not supported:
 
-- generators and the ``yield`` statement; these are difficult to implement in an interpreter.
+- generator functions and the ``yield`` statement; these are difficult to implement in an interpreter.
+  Generator expressions are supported (see above).
 - the ``match-case`` statement is not supported.
 - built-in functions that do I/O, such as ``open``, ``read``, and ``write`` are not supported to avoid
   I/O in the main event loop, and also to avoid security issues if people share pyscripts. The ``print``
@@ -2416,7 +2430,7 @@ A handful of language features are not supported:
 
 The typical work-around for places where pyscript falls short is to move that code into a native Python module,
 and then import that module into pyscript.  Pyscript can call Python modules and packages, so you could
-write your own native Python code (e.g., if you need a generator or other unsupported feature) that can be
+write your own native Python code (e.g., if you need a generator function or other unsupported feature) that can be
 called by pyscript (see `Importing <#importing>`__ for how to create and import native Python modules in pyscript).
 You can also include native Python functions in your pyscript code by using the ``@pyscript_compile``
 decorator.
