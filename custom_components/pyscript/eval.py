@@ -15,7 +15,6 @@ import time
 import traceback
 from types import ModuleType, TracebackType
 from typing import TYPE_CHECKING, Any
-import weakref
 
 import yaml
 
@@ -879,10 +878,10 @@ class EvalFuncVar:
         """Support descriptor protocol so class attributes bind to instances."""
         if obj is None:
             return self
-        # we use weak references when we bind the method calls to the instance inst;
-        # otherwise these self references cause the object to not be deleted until
-        # it is later garbage collected
-        return EvalFuncVarClassInst(self.func, self.ast_ctx, weakref.ref(obj))
+        # like a Python bound method, hold a strong reference to the instance, so a method
+        # of a temporary instance (eg, Foo().method()) still has it when called; this
+        # doesn't create a cycle, since a new bound method is made on each attribute access
+        return EvalFuncVarClassInst(self.func, self.ast_ctx, obj)
 
     def __del__(self):
         """On deletion, stop any triggers for this function."""
@@ -897,19 +896,19 @@ class EvalFuncVar:
 class EvalFuncVarClassInst(EvalFuncVar):
     """Class for a callable pyscript class instance function."""
 
-    def __init__(self, func: EvalFunc, ast_ctx: "AstEval", class_inst_weak: weakref.ReferenceType) -> None:
+    def __init__(self, func: EvalFunc, ast_ctx: "AstEval", class_inst: Any) -> None:
         """Initialize instance with given EvalFunc function."""
         super().__init__(func)
         self.ast_ctx = ast_ctx
-        self.class_inst_weak = class_inst_weak
+        self.class_inst = class_inst
 
     async def call(self, ast_ctx, *args, **kwargs):
         """Call the EvalFunc function."""
-        return await self.func.call(ast_ctx, self.class_inst_weak(), *args, **kwargs)
+        return await self.func.call(ast_ctx, self.class_inst, *args, **kwargs)
 
     async def __call__(self, *args, **kwargs):
         """Call the function using our saved ast ctx and class instance."""
-        return await self.func.call(self.ast_ctx, self.class_inst_weak(), *args, **kwargs)
+        return await self.func.call(self.ast_ctx, self.class_inst, *args, **kwargs)
 
 
 class AstEval:
