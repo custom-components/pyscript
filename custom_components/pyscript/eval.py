@@ -1103,15 +1103,18 @@ class AstEval:
         self.sym_table = sym_table
         prev_class_sym_table, self.class_sym_table = self.class_sym_table, sym_table
         prev_class_global_names, self.class_global_names = self.class_global_names, set()
-        for arg1 in arg.body:
-            val = await self.aeval(arg1)
-            if isinstance(val, EvalReturn):
-                raise SyntaxError(f"{val.name()} statement outside function")
-            if isinstance(val, EvalStopFlow):
-                raise SyntaxError(f"{val.name()} statement outside loop")
-        self.class_sym_table = prev_class_sym_table
-        self.class_global_names = prev_class_global_names
-        self.sym_table = self.sym_table_stack.pop()
+        try:
+            for arg1 in arg.body:
+                val = await self.aeval(arg1)
+                if isinstance(val, EvalReturn):
+                    raise SyntaxError(f"{val.name()} statement outside function")
+                if isinstance(val, EvalStopFlow):
+                    raise SyntaxError(f"{val.name()} statement outside loop")
+        finally:
+            # restore the enclosing scope even if the class body raises and the exception is caught
+            self.class_sym_table = prev_class_sym_table
+            self.class_global_names = prev_class_global_names
+            self.sym_table = self.sym_table_stack.pop()
 
         decorators = [await self.aeval(dec) for dec in arg.decorator_list]
         sym_table["__init__evalfunc_wrap__"] = None

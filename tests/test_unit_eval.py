@@ -344,6 +344,37 @@ class Node:
     ],
     [
         """
+try:
+    class A:
+        x = 1
+        raise ValueError
+except ValueError:
+    pass
+y = 2
+class B:
+    pass
+['y' in globals(), 'B' in globals(), B.__name__]
+""",
+        [True, True, "B"],
+    ],
+    [
+        """
+g = 0
+def f():
+    global g
+    try:
+        class A:
+            raise ValueError
+    except ValueError:
+        pass
+    g = 5
+f()
+g
+""",
+        5,
+    ],
+    [
+        """
 class Foo:
     value = 1
 
