@@ -2,6 +2,7 @@
 
 from ast import literal_eval
 import asyncio
+from contextlib import ExitStack
 import re
 from unittest.mock import patch
 
@@ -9,6 +10,7 @@ from mock_open import MockOpen
 import pytest
 
 from custom_components.pyscript.const import DOMAIN, FOLDER
+from custom_components.pyscript.global_ctx import GlobalContextMgr
 from homeassistant.const import EVENT_STATE_CHANGED
 from homeassistant.setup import async_setup_component
 
@@ -213,3 +215,117 @@ def func15():
     assert "ModuleNotFoundError: import of no_such_package not allowed" in caplog.text
     assert "SyntaxError: expected ':'" in caplog.text
     assert 'modules/bad_module.py", line 2' in caplog.text
+
+
+@pytest.mark.asyncio
+async def test_app_subfolder_relative_imports(hass, caplog):
+    """Test relative imports between modules in an app's subfolders, from #726."""
+
+    conf_dir = hass.config.path(FOLDER)
+
+    file_contents = {
+        f"{conf_dir}/apps/myapp/__init__.py": """
+from .subfolder.a import foo
+from .subfolder.b import bar, baz
+from .subfolder.deep.c import qux
+
+@service(supports_response="only")
+def myapp_func():
+    return {"done": [foo(), bar(), baz(), qux()]}
+""",
+        f"{conf_dir}/apps/myapp/subfolder/a.py": """
+def foo():
+    return "foo"
+""",
+        #
+        # a plain module in a subfolder importing its sibling
+        #
+        f"{conf_dir}/apps/myapp/subfolder/b.py": """
+from .a import foo
+
+def bar():
+    return "bar" + foo()
+
+def baz():
+    return __name__
+""",
+        #
+        # a deeper subfolder importing from the parent subfolder
+        #
+        f"{conf_dir}/apps/myapp/subfolder/deep/c.py": """
+from ..a import foo
+from .. import b
+
+def qux():
+    return foo() + b.bar()
+""",
+    }
+
+    mock_open = MockOpen()
+    for key, value in file_contents.items():
+        mock_open[key].read_data = value
+
+    def isfile_side_effect(arg):
+        return arg in file_contents
+
+    def glob_side_effect(path, recursive=None, root_dir=None, dir_fd=None, include_hidden=False):
+        result = []
+        path_re = path.replace("*", "[^/]*").replace(".", "\\.")
+        path_re = path_re.replace("[^/]*[^/]*/", ".*")
+        for this_path in file_contents:
+            if re.match(path_re, this_path):
+                result.append(this_path)
+        return result
+
+    conf = {"apps": {"myapp": {}}}
+
+    def file_patches(mtime):
+        stack = ExitStack()
+        for this_patch in (
+            patch("custom_components.pyscript.os.path.isdir", return_value=True),
+            patch("custom_components.pyscript.glob.iglob", side_effect=glob_side_effect),
+            patch("custom_components.pyscript.global_ctx.open", mock_open),
+            patch("custom_components.pyscript.open", mock_open),
+            patch("homeassistant.config.load_yaml_config_file", return_value={"pyscript": conf}),
+            patch("custom_components.pyscript.watchdog_start", return_value=None),
+            patch("custom_components.pyscript.os.path.getmtime", return_value=mtime),
+            patch("custom_components.pyscript.global_ctx.os.path.getmtime", return_value=mtime),
+            patch("custom_components.pyscript.global_ctx.os_path_isfile", side_effect=isfile_side_effect),
+        ):
+            stack.enter_context(this_patch)
+        return stack
+
+    with file_patches(1000):
+        assert await async_setup_component(hass, "pyscript", {DOMAIN: conf})
+
+    await hass.async_start()
+    await hass.async_block_till_done()
+
+    expected = {"done": ["foo", "barfoo", "myapp.subfolder.b", "foobarfoo"]}
+
+    def ctx_names():
+        return sorted(name for name, _ in GlobalContextMgr.items())
+
+    assert hass.services.has_service("pyscript", "myapp_func")
+    ret = await hass.services.async_call("pyscript", "myapp_func", {}, return_response=True, blocking=True)
+    assert ret == expected
+
+    #
+    # no phantom contexts like apps.myapp.subfolder.b.a, so a reload keeps everything
+    #
+    names = ctx_names()
+    assert names == [
+        "apps.myapp",
+        "apps.myapp.subfolder.a",
+        "apps.myapp.subfolder.b",
+        "apps.myapp.subfolder.deep.c",
+    ]
+
+    with file_patches(2000):
+        await hass.services.async_call("pyscript", "reload", {}, blocking=True)
+    await hass.async_block_till_done()
+
+    assert ctx_names() == names
+    assert hass.services.has_service("pyscript", "myapp_func")
+    ret = await hass.services.async_call("pyscript", "myapp_func", {}, return_response=True, blocking=True)
+    assert ret == expected

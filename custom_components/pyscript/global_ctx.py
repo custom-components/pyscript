@@ -178,6 +178,9 @@ class GlobalContext:
             if path.endswith("/__init__"):
                 path = os.path.dirname(path)
             ctx_name = self.name
+            if os.path.basename(self.file_path or "") != "__init__.py" and "." in ctx_name:
+                # a plain module is relative to its parent package, so drop its own name
+                ctx_name = ctx_name[0 : ctx_name.rfind(".")]
             for _ in range(import_level - 1):
                 path = os.path.dirname(path)
                 idx = ctx_name.rfind(".")
@@ -185,7 +188,7 @@ class GlobalContext:
                     raise ImportError("attempted relative import above parent package")
                 ctx_name = ctx_name[0:idx]
             ctx_name += f".{module_name}"
-            module_info = [ctx_name, f"{path}/{module_path}.py", path]
+            module_info = [ctx_name, f"{path}/{module_path}.py", os.path.dirname(f"{path}/{module_path}.py")]
             path += f"/{module_path}"
             file_paths.append([ctx_name, f"{path}/__init__.py", path])
             file_paths.append(module_info)
