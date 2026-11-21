@@ -1370,9 +1370,16 @@ Jupyter session                             ``custom_components.pyscript.jupyter
 =========================================== =====================================================
 
 An app is not under ``file``, so ``custom_components.pyscript.file`` settings don't apply to it; use
-``custom_components.pyscript.apps`` instead. Pyscript's own internal messages (for example, a
-trigger that is ignored because it is not active) are logged under ``custom_components.pyscript``
-itself (for example, ``custom_components.pyscript.trigger``), not under the script or app.
+``custom_components.pyscript.apps`` instead. Files in subfolders of ``scripts/`` get dotted names, for
+example ``custom_components.pyscript.scripts.sub.SCRIPTNAME``.
+
+With the default (non-legacy) decorators, the message for a trigger that is ignored because it is not
+active is ``Trigger not active due to ...``. It is logged at ``debug`` through the logger of the script
+(or app or module) that defines the function (for example, ``custom_components.pyscript.file.my_script``),
+not under ``custom_components.pyscript.trigger``. Only ``legacy_decorators: true`` uses the message
+``trigger ... got ... trigger, but not active``, which is logged under
+``custom_components.pyscript.trigger``. Other internal messages from pyscript itself are logged under
+``custom_components.pyscript``.
 
 That allows you to set the log level for each Python top-level script or function separately if necessary.
 That setting also applies to any other Python functions that the top-level Python function calls.
@@ -1402,8 +1409,9 @@ and the script ``my_script.py`` at ``debug``:
        custom_components.pyscript.apps.my_app: info
        custom_components.pyscript.file.my_script: debug
 
-Setting ``custom_components.pyscript`` to ``debug`` also shows the internal trigger messages (such as
-``trigger ... got ... trigger, but not active``), which can be very noisy.
+Setting a script to ``debug`` shows the ``Trigger not active due to ...`` messages for its functions.
+Setting ``custom_components.pyscript`` to ``debug`` also shows pyscript's other internal messages, which can
+be very noisy.
 
 Note that debug logging also includes pyscript's own internal messages, which can show the full
 arguments passed to your functions, such as webhook payloads, service call data and event data.
