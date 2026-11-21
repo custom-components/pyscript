@@ -45,6 +45,8 @@ class GlobalContext:
         self.auto_start: bool = False
         self.module: ModuleType | None = None
         self.rel_import_path: str = rel_import_path
+        # the base the old rules used for relative imports, kept as a fallback for now
+        self.legacy_rel_import_path: str | None = rel_import_path
         self.source: str = source
         self.file_path: str | None = None
         self.mtime: float = mtime
@@ -154,12 +156,24 @@ class GlobalContext:
         """Return a new trigger info instance with the given args."""
         return TrigInfo(name, trig_args, self)
 
+    def relative_import_name(self, target: str) -> str:
+        """Return the relative import name of a pyscript folder path, from this file's folder."""
+        base = self.rel_import_path.removesuffix("/__init__").split("/")
+        parts = target.split("/")
+        common = len(os.path.commonprefix([base, parts]))
+        if common == len(parts):
+            # the target is our own folder or one above it, so name it from its parent
+            common -= 1
+        return "." * (len(base) - common + 1) + ".".join(parts[common:])
+
     async def module_import(self, module_name: str, import_level: int) -> ModuleType | None:
         """Import a pyscript module from the pyscript/modules or apps folder."""
 
         pyscript_dir = Function.hass.config.path(FOLDER)
         module_path = module_name.replace(".", "/")
         file_paths = []
+        legacy_file_paths = []
+        import_name = "." * import_level + module_name
 
         def find_first_file(file_paths: list[list[str]]) -> list[str] | None:
             for ctx_name, path, rel_path in file_paths:
@@ -174,22 +188,32 @@ class GlobalContext:
         if import_level > 0:
             if self.rel_import_path is None:
                 raise ImportError("attempted relative import with no known parent package")
-            path = self.rel_import_path
-            if path.endswith("/__init__"):
-                path = os.path.dirname(path)
-            ctx_name = self.name
-            for _ in range(import_level - 1):
-                path = os.path.dirname(path)
-                idx = ctx_name.rfind(".")
-                if path.find("/") < 0 or idx < 0:
-                    raise ImportError("attempted relative import above parent package")
-                ctx_name = ctx_name[0:idx]
-            ctx_name += f".{module_name}"
-            module_info = [ctx_name, f"{path}/{module_path}.py", path]
-            path += f"/{module_path}"
-            file_paths.append([ctx_name, f"{path}/__init__.py", path])
-            file_paths.append(module_info)
-            module_name = ctx_name[ctx_name.find(".") + 1 :]
+
+            def base_path(path: str) -> str:
+                path = path.removesuffix("/__init__")
+                for _ in range(import_level - 1):
+                    path = os.path.dirname(path)
+                    if path.find("/") < 0:
+                        raise ImportError("attempted relative import above parent package")
+                return path
+
+            def candidates(path: str) -> list[list[str]]:
+                # the context name follows the file's location, so each file has one context,
+                # and a module's relative imports start from its own folder
+                ctx_name = f"{path}/{module_path}".replace("/", ".")
+                return [
+                    [ctx_name, f"{path}/{module_path}/__init__.py", f"{path}/{module_path}"],
+                    [ctx_name, f"{path}/{module_path}.py", os.path.dirname(f"{path}/{module_path}.py")],
+                ]
+
+            path = base_path(self.rel_import_path)
+            file_paths = candidates(path)
+            try:
+                legacy_path = base_path(self.legacy_rel_import_path or self.rel_import_path)
+            except ImportError:
+                legacy_path = path
+            if legacy_path != path:
+                legacy_file_paths = candidates(legacy_path)
 
         else:
             if self.rel_import_path is not None and self.rel_import_path.startswith("apps/"):
@@ -201,28 +225,57 @@ class GlobalContext:
             file_paths.append([ctx_name, f"modules/{module_path}/__init__.py", f"modules/{module_path}"])
             file_paths.append([ctx_name, f"modules/{module_path}.py", None])
 
+        def find_loaded(file_paths: list[list[str]]) -> ModuleType | None:
+            for ctx_name, _, _ in file_paths:
+                mod_ctx = self.manager.get(ctx_name)
+                if mod_ctx and mod_ctx.module:
+                    self.imports.add(mod_ctx.get_name())
+                    return mod_ctx.module
+            return None
+
         #
         # now see if we have loaded it already
         #
-        for ctx_name, _, _ in file_paths:
-            mod_ctx = self.manager.get(ctx_name)
-            if mod_ctx and mod_ctx.module:
-                self.imports.add(mod_ctx.get_name())
-                return mod_ctx.module
+        if mod := find_loaded(file_paths):
+            return mod
 
         #
         # not loaded already, so try to find and import it
         #
         file_info = await Function.hass.async_add_executor_job(find_first_file, file_paths)
+        if not file_info and legacy_file_paths:
+            #
+            # fall back to the old rules, where a plain module's relative imports started from
+            # the folder its importer's import started from, not from the module's own folder
+            #
+            path = legacy_path  # this import starts here with the old rules
+            mod = find_loaded(legacy_file_paths)
+            if not mod:
+                file_info = await Function.hass.async_add_executor_job(find_first_file, legacy_file_paths)
+            if mod or file_info:
+                _LOGGER.warning(
+                    "%s: the relative import %s was found only with the old rules, which are deprecated "
+                    "and will be removed in a future release; relative imports now start from the "
+                    "importing file's own folder, as in Python, so write it as %s",
+                    self.name,
+                    import_name,
+                    self.relative_import_name(f"{path}/{module_path}"),
+                )
+            if mod:
+                return mod
         if not file_info:
             return None
 
         [ctx_name, file_path, rel_import_path] = file_info
+        module_name = ctx_name[ctx_name.find(".") + 1 :]
 
         mod = ModuleType(module_name)
         global_ctx = GlobalContext(
             ctx_name, global_sym_table=mod.__dict__, manager=self.manager, rel_import_path=rel_import_path
         )
+        if import_level > 0 and not file_path.endswith("/__init__.py"):
+            # with the old rules, a plain module's relative imports started where this one did
+            global_ctx.legacy_rel_import_path = path
         global_ctx.set_auto_start(self.auto_start)
         try:
             await self.manager.load_file(global_ctx, file_path)

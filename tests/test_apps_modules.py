@@ -2,6 +2,7 @@
 
 from ast import literal_eval
 import asyncio
+from contextlib import ExitStack
 import re
 from unittest.mock import patch
 
@@ -9,6 +10,7 @@ from mock_open import MockOpen
 import pytest
 
 from custom_components.pyscript.const import DOMAIN, FOLDER
+from custom_components.pyscript.global_ctx import GlobalContextMgr
 from homeassistant.const import EVENT_STATE_CHANGED
 from homeassistant.setup import async_setup_component
 
@@ -213,3 +215,393 @@ def func15():
     assert "ModuleNotFoundError: import of no_such_package not allowed" in caplog.text
     assert "SyntaxError: expected ':'" in caplog.text
     assert 'modules/bad_module.py", line 2' in caplog.text
+
+
+@pytest.mark.asyncio
+async def test_app_subfolder_relative_imports(hass, caplog):
+    """Test relative imports between modules in an app's subfolders, from #726."""
+
+    conf_dir = hass.config.path(FOLDER)
+
+    file_contents = {
+        f"{conf_dir}/apps/myapp/__init__.py": """
+from .subfolder.a import foo
+from .subfolder.b import bar, baz
+from .subfolder.deep.c import qux
+
+@service(supports_response="only")
+def myapp_func():
+    return {"done": [foo(), bar(), baz(), qux()]}
+""",
+        f"{conf_dir}/apps/myapp/subfolder/a.py": """
+def foo():
+    return "foo"
+""",
+        #
+        # a plain module in a subfolder importing its sibling
+        #
+        f"{conf_dir}/apps/myapp/subfolder/b.py": """
+from .a import foo
+
+def bar():
+    return "bar" + foo()
+
+def baz():
+    return __name__
+""",
+        #
+        # a deeper subfolder importing from the parent subfolder
+        #
+        f"{conf_dir}/apps/myapp/subfolder/deep/c.py": """
+from ..a import foo
+from .. import b
+
+def qux():
+    return foo() + b.bar()
+""",
+    }
+
+    mock_open = MockOpen()
+    for key, value in file_contents.items():
+        mock_open[key].read_data = value
+
+    def isfile_side_effect(arg):
+        return arg in file_contents
+
+    def glob_side_effect(path, recursive=None, root_dir=None, dir_fd=None, include_hidden=False):
+        result = []
+        path_re = path.replace("*", "[^/]*").replace(".", "\\.")
+        path_re = path_re.replace("[^/]*[^/]*/", ".*")
+        for this_path in file_contents:
+            if re.match(path_re, this_path):
+                result.append(this_path)
+        return result
+
+    conf = {"apps": {"myapp": {}}}
+
+    def file_patches(mtime):
+        stack = ExitStack()
+        for this_patch in (
+            patch("custom_components.pyscript.os.path.isdir", return_value=True),
+            patch("custom_components.pyscript.glob.iglob", side_effect=glob_side_effect),
+            patch("custom_components.pyscript.global_ctx.open", mock_open),
+            patch("custom_components.pyscript.open", mock_open),
+            patch("homeassistant.config.load_yaml_config_file", return_value={"pyscript": conf}),
+            patch("custom_components.pyscript.watchdog_start", return_value=None),
+            patch("custom_components.pyscript.os.path.getmtime", return_value=mtime),
+            patch("custom_components.pyscript.global_ctx.os.path.getmtime", return_value=mtime),
+            patch("custom_components.pyscript.global_ctx.os_path_isfile", side_effect=isfile_side_effect),
+        ):
+            stack.enter_context(this_patch)
+        return stack
+
+    with file_patches(1000):
+        assert await async_setup_component(hass, "pyscript", {DOMAIN: conf})
+
+    await hass.async_start()
+    await hass.async_block_till_done()
+
+    expected = {"done": ["foo", "barfoo", "myapp.subfolder.b", "foobarfoo"]}
+
+    def ctx_names():
+        return sorted(name for name, _ in GlobalContextMgr.items())
+
+    assert hass.services.has_service("pyscript", "myapp_func")
+    ret = await hass.services.async_call("pyscript", "myapp_func", {}, return_response=True, blocking=True)
+    assert ret == expected
+
+    #
+    # no phantom contexts like apps.myapp.subfolder.b.a, so a reload keeps everything
+    #
+    names = ctx_names()
+    assert names == [
+        "apps.myapp",
+        "apps.myapp.subfolder.a",
+        "apps.myapp.subfolder.b",
+        "apps.myapp.subfolder.deep.c",
+    ]
+
+    with file_patches(2000):
+        await hass.services.async_call("pyscript", "reload", {}, blocking=True)
+    await hass.async_block_till_done()
+
+    assert ctx_names() == names
+    assert hass.services.has_service("pyscript", "myapp_func")
+    ret = await hass.services.async_call("pyscript", "myapp_func", {}, return_response=True, blocking=True)
+    assert ret == expected
+
+
+@pytest.mark.asyncio
+async def test_app_subfolder_legacy_relative_imports(hass, caplog):
+    """Test that the old form of relative imports in an app's subfolders still works, with a warning."""
+
+    conf_dir = hass.config.path(FOLDER)
+
+    file_contents = {
+        f"{conf_dir}/apps/myapp/__init__.py": """
+from .subfolder.a import foo
+from .subfolder.b import bar, baz
+from .subfolder.deep.c import qux
+
+@service(supports_response="only")
+def myapp_func():
+    return {"done": [foo(), bar(), baz(), qux()]}
+""",
+        f"{conf_dir}/apps/myapp/subfolder/a.py": """
+def foo():
+    return "foo"
+""",
+        #
+        # a plain module in a subfolder importing its sibling the old way, relative to
+        # the folder of the package that imported it
+        #
+        f"{conf_dir}/apps/myapp/subfolder/b.py": """
+from .subfolder.a import foo
+
+def bar():
+    return "bar" + foo()
+
+def baz():
+    return __name__
+""",
+        #
+        # a deeper subfolder importing from the parent subfolder
+        #
+        f"{conf_dir}/apps/myapp/subfolder/deep/c.py": """
+from ..a import foo
+from .. import b
+
+def qux():
+    return foo() + b.bar()
+""",
+    }
+
+    mock_open = MockOpen()
+    for key, value in file_contents.items():
+        mock_open[key].read_data = value
+
+    def isfile_side_effect(arg):
+        return arg in file_contents
+
+    def glob_side_effect(path, recursive=None, root_dir=None, dir_fd=None, include_hidden=False):
+        result = []
+        path_re = path.replace("*", "[^/]*").replace(".", "\\.")
+        path_re = path_re.replace("[^/]*[^/]*/", ".*")
+        for this_path in file_contents:
+            if re.match(path_re, this_path):
+                result.append(this_path)
+        return result
+
+    conf = {"apps": {"myapp": {}}}
+
+    def file_patches(mtime):
+        stack = ExitStack()
+        for this_patch in (
+            patch("custom_components.pyscript.os.path.isdir", return_value=True),
+            patch("custom_components.pyscript.glob.iglob", side_effect=glob_side_effect),
+            patch("custom_components.pyscript.global_ctx.open", mock_open),
+            patch("custom_components.pyscript.open", mock_open),
+            patch("homeassistant.config.load_yaml_config_file", return_value={"pyscript": conf}),
+            patch("custom_components.pyscript.watchdog_start", return_value=None),
+            patch("custom_components.pyscript.os.path.getmtime", return_value=mtime),
+            patch("custom_components.pyscript.global_ctx.os.path.getmtime", return_value=mtime),
+            patch("custom_components.pyscript.global_ctx.os_path_isfile", side_effect=isfile_side_effect),
+        ):
+            stack.enter_context(this_patch)
+        return stack
+
+    def old_rules_warnings():
+        return [rec.getMessage() for rec in caplog.records if "only with the old rules" in rec.getMessage()]
+
+    warning = (
+        "apps.myapp.subfolder.b: the relative import .subfolder.a was found only with the old rules, "
+        "which are deprecated and will be removed in a future release; relative imports now start "
+        "from the importing file's own folder, as in Python, so write it as .a"
+    )
+
+    with file_patches(1000):
+        assert await async_setup_component(hass, "pyscript", {DOMAIN: conf})
+
+    await hass.async_start()
+    await hass.async_block_till_done()
+
+    expected = {"done": ["foo", "barfoo", "myapp.subfolder.b", "foobarfoo"]}
+
+    def ctx_names():
+        return sorted(name for name, _ in GlobalContextMgr.items())
+
+    assert hass.services.has_service("pyscript", "myapp_func")
+    ret = await hass.services.async_call("pyscript", "myapp_func", {}, return_response=True, blocking=True)
+    assert ret == expected
+
+    #
+    # only the old-form import is warned about, and both forms load the same contexts,
+    # so there are no phantom contexts like apps.myapp.subfolder.b.subfolder.a
+    #
+    assert old_rules_warnings() == [warning]
+    names = ctx_names()
+    assert names == [
+        "apps.myapp",
+        "apps.myapp.subfolder.a",
+        "apps.myapp.subfolder.b",
+        "apps.myapp.subfolder.deep.c",
+    ]
+
+    caplog.clear()
+    with file_patches(2000):
+        await hass.services.async_call("pyscript", "reload", {}, blocking=True)
+    await hass.async_block_till_done()
+
+    assert ctx_names() == names
+    assert old_rules_warnings() == [warning]
+    assert hass.services.has_service("pyscript", "myapp_func")
+    ret = await hass.services.async_call("pyscript", "myapp_func", {}, return_response=True, blocking=True)
+    assert ret == expected
+
+
+@pytest.mark.asyncio
+async def test_relative_import_context_names(hass, caplog):
+    """Test that relative imports name each module's context after its file, with either rules."""
+
+    conf_dir = hass.config.path(FOLDER)
+
+    file_contents = {
+        f"{conf_dir}/apps/myapp/__init__.py": """
+from . import a
+from .sub import sub_names
+from .lib.m import m_names
+import other
+
+@service(supports_response="only")
+def myapp_func():
+    return {"done": [__name__, a.name(), sub_names(), m_names(), other.names()]}
+""",
+        f"{conf_dir}/apps/myapp/a.py": """
+def name():
+    return __name__
+""",
+        #
+        # a subpackage, importing from its own folder and the folder above it; it
+        # loads lib/m.py first, with the old rules relative to apps/myapp
+        #
+        f"{conf_dir}/apps/myapp/sub/__init__.py": """
+from .s import name as s_name
+from ..a import name as a_name
+from ..lib.m import m_names
+
+def sub_names():
+    return [__name__, s_name(), a_name()]
+""",
+        f"{conf_dir}/apps/myapp/sub/s.py": """
+def name():
+    return __name__
+""",
+        #
+        # imports the old way; lib/p.py is found only with the old rules, and itself
+        # imports the new way
+        #
+        f"{conf_dir}/apps/myapp/lib/m.py": """
+from .lib.n import name as n_name
+from .lib.p import p_names
+
+def m_names():
+    return [__name__, n_name(), p_names()]
+""",
+        f"{conf_dir}/apps/myapp/lib/n.py": """
+def name():
+    return __name__
+""",
+        f"{conf_dir}/apps/myapp/lib/p.py": """
+from .n import name as n_name
+
+def p_names():
+    return [__name__, n_name()]
+""",
+        #
+        # a plain module in the apps folder, imported by name, imports from apps/other/
+        #
+        f"{conf_dir}/apps/other.py": """
+from .y import name as y_name
+
+def names():
+    return [__name__, y_name()]
+""",
+        f"{conf_dir}/apps/other/y.py": """
+def name():
+    return __name__
+""",
+        #
+        # an import that neither rule finds fails as before, without a warning
+        #
+        f"{conf_dir}/apps/badapp/__init__.py": """
+from .sub.b import x
+""",
+        f"{conf_dir}/apps/badapp/sub/b.py": """
+from .missing import x
+""",
+    }
+
+    mock_open = MockOpen()
+    for key, value in file_contents.items():
+        mock_open[key].read_data = value
+
+    def isfile_side_effect(arg):
+        return arg in file_contents
+
+    def glob_side_effect(path, recursive=None, root_dir=None, dir_fd=None, include_hidden=False):
+        result = []
+        path_re = path.replace("*", "[^/]*").replace(".", "\\.")
+        path_re = path_re.replace("[^/]*[^/]*/", ".*")
+        for this_path in file_contents:
+            if re.match(path_re, this_path):
+                result.append(this_path)
+        return result
+
+    conf = {"apps": {"myapp": {}, "badapp": {}}}
+
+    with (
+        patch("custom_components.pyscript.os.path.isdir", return_value=True),
+        patch("custom_components.pyscript.glob.iglob", side_effect=glob_side_effect),
+        patch("custom_components.pyscript.global_ctx.open", mock_open),
+        patch("custom_components.pyscript.open", mock_open),
+        patch("homeassistant.config.load_yaml_config_file", return_value={"pyscript": conf}),
+        patch("custom_components.pyscript.watchdog_start", return_value=None),
+        patch("custom_components.pyscript.os.path.getmtime", return_value=1000),
+        patch("custom_components.pyscript.global_ctx.os.path.getmtime", return_value=1000),
+        patch("custom_components.pyscript.global_ctx.os_path_isfile", side_effect=isfile_side_effect),
+    ):
+        assert await async_setup_component(hass, "pyscript", {DOMAIN: conf})
+
+    await hass.async_start()
+    await hass.async_block_till_done()
+
+    assert hass.services.has_service("pyscript", "myapp_func")
+    ret = await hass.services.async_call("pyscript", "myapp_func", {}, return_response=True, blocking=True)
+    assert ret == {
+        "done": [
+            "myapp",
+            "myapp.a",
+            ["myapp.sub", "myapp.sub.s", "myapp.a"],
+            ["myapp.lib.m", "myapp.lib.n", ["myapp.lib.p", "myapp.lib.n"]],
+            ["other", "other.y"],
+        ]
+    }
+    assert sorted(name for name, _ in GlobalContextMgr.items()) == [
+        "apps.myapp",
+        "apps.myapp.a",
+        "apps.myapp.lib.m",
+        "apps.myapp.lib.n",
+        "apps.myapp.lib.p",
+        "apps.myapp.sub",
+        "apps.myapp.sub.s",
+        "apps.other",
+        "apps.other.y",
+    ]
+
+    warnings = [rec.getMessage() for rec in caplog.records if "only with the old rules" in rec.getMessage()]
+    assert len(warnings) == 2
+    assert warnings[0].startswith("apps.myapp.lib.m: the relative import .lib.n was found only")
+    assert warnings[0].endswith("so write it as .n")
+    assert warnings[1].startswith("apps.myapp.lib.m: the relative import .lib.p was found only")
+    assert warnings[1].endswith("so write it as .p")
+    assert "ModuleNotFoundError: import from missing not allowed" in caplog.text
