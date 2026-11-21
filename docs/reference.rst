@@ -478,7 +478,7 @@ Optional arguments are:
   Note that "change" means the value actually changes: a state update that repeats the same value
   (e.g., a sensor with ``force_update: true`` that reports the same reading again) doesn't evaluate
   the expression or cause a trigger, even if the variable is in ``watch`` or is a plain state variable
-  name argument. To trigger on every update, watch the ``last_updated`` attribute, which changes
+  name argument. To trigger on every forced update, watch the ``last_updated`` attribute, which changes
   each time, for example:
 
   .. code:: python
