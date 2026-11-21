@@ -13,7 +13,7 @@ import logging
 import sys
 import time
 import traceback
-from types import TracebackType
+from types import ModuleType, TracebackType
 from typing import TYPE_CHECKING, Any
 import weakref
 
@@ -279,6 +279,11 @@ class EvalLocalVar:
         return f"EvalLocalVar @{hex(id(self))} = {self.value if self.defined else 'undefined'}"
 
 
+def unwrap_defined(value):
+    """Return the value held by a defined EvalLocalVar, otherwise value unchanged."""
+    return value.get() if isinstance(value, EvalLocalVar) and value.is_defined() else value
+
+
 class EvalName:
     """Identifier that hasn't yet been resolved."""
 
@@ -301,11 +306,15 @@ class EvalAttrSet:
 
     def setattr(self, value):
         """Set the attribute value."""
-        setattr(self.obj, self.attr, value)
+        # update a pyscript module's EvalLocalVar in place, so its own functions see the change
+        if isinstance(self.obj, ModuleType) and isinstance(vars(self.obj).get(self.attr), EvalLocalVar):
+            vars(self.obj)[self.attr].set(unwrap_defined(value))
+        else:
+            setattr(self.obj, self.attr, value)
 
     def getattr(self):
         """Get the attribute value."""
-        return getattr(self.obj, self.attr)
+        return unwrap_defined(getattr(self.obj, self.attr))
 
 
 class EvalFunc:
@@ -926,6 +935,8 @@ class AstEval:
         self.set_logger_name(logger_name if logger_name is not None else self.name)
         self.config_entry = Function.hass.data.get(DOMAIN, {}).get(CONFIG_ENTRY, {})
         self.dec_eval_depth = 0
+        self.class_sym_table: SymTable | None = None
+        self.class_global_names: set[str] = set()
 
     async def ast_not_implemented(self, arg, *args):
         """Raise NotImplementedError exception for unimplemented AST types."""
@@ -966,7 +977,7 @@ class AstEval:
                     mod = await Function.hass.async_add_executor_job(importlib.import_module, imp.name)
                 else:
                     mod = sys.modules[imp.name]
-            self.sym_table[imp.name if imp.asname is None else imp.asname] = mod
+            self.assign_name(imp.name if imp.asname is None else imp.asname, mod)
 
     async def ast_importfrom(self, arg):
         """Execute from X import Y."""
@@ -976,7 +987,7 @@ class AstEval:
                 mod = await self.global_ctx.module_import(imp.name, arg.level)
                 if not mod:
                     raise ModuleNotFoundError(f"module '{imp.name}' not found")
-                self.sym_table[imp.name if imp.asname is None else imp.asname] = mod
+                self.assign_name(imp.name if imp.asname is None else imp.asname, mod)
             return
         if arg.module == "stubs" or arg.module.startswith("stubs."):
             for imp in arg.names:
@@ -1000,10 +1011,17 @@ class AstEval:
         for imp in arg.names:
             if imp.name == "*":
                 for name, value in mod.__dict__.items():
-                    if name[0] != "_":
-                        self.sym_table[name] = value
+                    # skip a module-level EvalLocalVar whose name was deleted
+                    if name[0] != "_" and not (isinstance(value, EvalLocalVar) and not value.is_defined()):
+                        self.assign_name(name, value)
             else:
-                self.sym_table[imp.name if imp.asname is None else imp.asname] = getattr(mod, imp.name)
+                value = getattr(mod, imp.name)
+                if isinstance(value, EvalLocalVar) and not value.is_defined():
+                    raise ImportError(
+                        f"cannot import name '{imp.name}' from '{mod.__name__}' (unknown location)"
+                    )
+                # assign_name takes the value out of the module's EvalLocalVar
+                self.assign_name(imp.name if imp.asname is None else imp.asname, value)
 
     async def ast_if(self, arg):
         """Execute if statement."""
@@ -1067,23 +1085,32 @@ class AstEval:
         keywords = {kw.arg: await self.aeval(kw.value) for kw in arg.keywords}
         metaclass = keywords.pop("metaclass", type(bases[0]) if bases else type)
 
-        if self.curr_func and arg.name in self.curr_func.global_names:
+        if self.binds_global(arg.name):
             sym_table_assign = self.global_sym_table
         else:
             sym_table_assign = self.sym_table
-        sym_table_assign[arg.name] = EvalLocalVar(arg.name)
+        #
+        # reuse an existing EvalLocalVar, so functions defined earlier see the new class;
+        # it keeps the old class until the new one is set below, as in Python
+        #
+        if not (arg.name in sym_table_assign and isinstance(sym_table_assign[arg.name], EvalLocalVar)):
+            sym_table_assign[arg.name] = EvalLocalVar(arg.name)
         if hasattr(metaclass, "__prepare__"):
             sym_table = metaclass.__prepare__(arg.name, tuple(bases), **keywords)
         else:
             sym_table = {}
         self.sym_table_stack.append(self.sym_table)
         self.sym_table = sym_table
+        prev_class_sym_table, self.class_sym_table = self.class_sym_table, sym_table
+        prev_class_global_names, self.class_global_names = self.class_global_names, set()
         for arg1 in arg.body:
             val = await self.aeval(arg1)
             if isinstance(val, EvalReturn):
                 raise SyntaxError(f"{val.name()} statement outside function")
             if isinstance(val, EvalStopFlow):
                 raise SyntaxError(f"{val.name()} statement outside loop")
+        self.class_sym_table = prev_class_sym_table
+        self.class_global_names = prev_class_global_names
         self.sym_table = self.sym_table_stack.pop()
 
         decorators = [await self.aeval(dec) for dec in arg.decorator_list]
@@ -1191,7 +1218,7 @@ class AstEval:
         else:
             func_var = func
 
-        if self.curr_func and name in self.curr_func.global_names:
+        if self.binds_global(name):
             sym_table = self.global_sym_table
         else:
             sym_table = self.sym_table
@@ -1346,6 +1373,10 @@ class AstEval:
 
     async def ast_global(self, arg):
         """Execute global statement."""
+        if self.sym_table is self.class_sym_table:
+            # a class body's global declarations apply to the class body only
+            self.class_global_names.update(arg.names)
+            return
         if not self.curr_func:
             raise SyntaxError("global statement outside function")
         for var_name in arg.names:
@@ -1412,13 +1443,37 @@ class AstEval:
                 raise NameError(
                     f"invalid name '{var_name}' (should be 'domain.entity' or 'domain.entity.attr')"
                 )
-            if self.curr_func and var_name in self.curr_func.global_names:
-                self.global_sym_table[var_name] = val
-                return
-            if var_name in self.sym_table and isinstance(self.sym_table[var_name], EvalLocalVar):
-                self.sym_table[var_name].set(val)
+            self.assign_name(var_name, val)
+
+    def binds_global(self, var_name):
+        """Return whether var_name is bound in the global symbol table by a global declaration."""
+        if self.sym_table is self.class_sym_table:
+            # a class body binds in its own namespace, whatever an enclosing function declares
+            return var_name in self.class_global_names
+        return bool(self.curr_func and var_name in self.curr_func.global_names)
+
+    def assign_name(self, var_name, val):
+        """Bind a plain variable name to val, updating an existing EvalLocalVar in place."""
+        #
+        # store the value rather than another binding's EvalLocalVar (eg, from mod.Foo),
+        # so a later update of this name doesn't change that other binding
+        #
+        val = unwrap_defined(val)
+        if self.binds_global(var_name):
+            # update a module-level EvalLocalVar in place, so functions defined earlier see it
+            if isinstance(self.global_sym_table.get(var_name), EvalLocalVar):
+                self.global_sym_table[var_name].set(val)
             else:
-                self.sym_table[var_name] = val
+                self.global_sym_table[var_name] = val
+            return
+        if self.sym_table is self.class_sym_table:
+            # a class body binds plainly in the class namespace (see binds_global)
+            self.sym_table[var_name] = val
+            return
+        if var_name in self.sym_table and isinstance(self.sym_table[var_name], EvalLocalVar):
+            self.sym_table[var_name].set(val)
+        else:
+            self.sym_table[var_name] = val
 
     async def ast_assign(self, arg):
         """Execute assignment statement."""
@@ -1456,8 +1511,14 @@ class AstEval:
                 var = await self.aeval(arg1.value)
                 del var[await self.aeval(arg1.slice)]
             elif isinstance(arg1, ast.Name):
-                if self.curr_func and arg1.id in self.curr_func.global_names:
-                    if arg1.id in self.global_sym_table:
+                if self.binds_global(arg1.id):
+                    # as with assignment, mark a module-level EvalLocalVar undefined in place
+                    if isinstance(self.global_sym_table.get(arg1.id), EvalLocalVar):
+                        if self.global_sym_table[arg1.id].is_defined():
+                            self.global_sym_table[arg1.id].set_undefined()
+                        else:
+                            raise NameError(f"name '{arg1.id}' is not defined")
+                    elif arg1.id in self.global_sym_table:
                         del self.global_sym_table[arg1.id]
                 elif arg1.id in self.sym_table:
                     if isinstance(self.sym_table[arg1.id], EvalLocalVar):
@@ -1515,6 +1576,12 @@ class AstEval:
         val = await self.aeval(arg.value)
         if isinstance(arg.ctx, ast.Store):
             return EvalAttrSet(val, arg.attr)
+        if isinstance(val, ModuleType):
+            # a pyscript module keeps module-level classes in EvalLocalVars, so unwrap them
+            value = getattr(val, arg.attr)
+            if isinstance(value, EvalLocalVar) and not value.is_defined():
+                raise AttributeError(f"module '{val.__name__}' has no attribute '{arg.attr}'")
+            return unwrap_defined(value)
         return getattr(val, arg.attr)
 
     async def ast_name(self, arg):
@@ -1523,15 +1590,28 @@ class AstEval:
             #
             # check other scopes if required by global declarations
             #
-            if self.curr_func and arg.id in self.curr_func.global_names:
+            in_class = self.sym_table is self.class_sym_table
+            if (in_class and arg.id in self.class_global_names) or (
+                self.curr_func and arg.id in self.curr_func.global_names
+            ):
+                if in_class and arg.id not in self.class_global_names and arg.id in self.sym_table:
+                    # a class body finds its own names first, unless it declares them global
+                    val = self.sym_table[arg.id]
+                    return val.get() if isinstance(val, EvalLocalVar) else val
                 if arg.id in self.global_sym_table:
-                    return self.global_sym_table[arg.id]
+                    return unwrap_defined(self.global_sym_table[arg.id])
                 raise NameError(f"global name '{arg.id}' is not defined")
             #
             # now check in our current symbol table, and then some other places
             #
             if arg.id in self.sym_table:
                 if isinstance(self.sym_table[arg.id], EvalLocalVar):
+                    if (
+                        self.curr_func
+                        and arg.id in self.curr_func.local_names
+                        and not self.sym_table[arg.id].is_defined()
+                    ):
+                        raise UnboundLocalError(f"local variable '{arg.id}' referenced before assignment")
                     return self.sym_table[arg.id].get()
                 return self.sym_table[arg.id]
             if arg.id in self.local_sym_table:
@@ -1539,7 +1619,12 @@ class AstEval:
             if arg.id in self.global_sym_table:
                 if self.curr_func and arg.id in self.curr_func.local_names:
                     raise UnboundLocalError(f"local variable '{arg.id}' referenced before assignment")
-                return self.global_sym_table[arg.id]
+                #
+                # a class defined at module level is stored as an EvalLocalVar, so unwrap
+                # it here too (eg, when it's used inside another class's body); while the
+                # class body is still running it isn't defined yet, so leave it wrapped
+                #
+                return unwrap_defined(self.global_sym_table[arg.id])
             if arg.id in BUILTIN_AST_FUNCS_FACTORY:
                 return BUILTIN_AST_FUNCS_FACTORY[arg.id](self)
             if hasattr(builtins, arg.id) and arg.id not in BUILTIN_EXCLUDE and arg.id[0] != "_":
@@ -2019,6 +2104,13 @@ class AstEval:
                 target_vars, _ = await self.loopvar_scope_save(arg.generators)
                 for name in target_vars:
                     local_names.add(name)
+            elif cls_name in {"Import", "ImportFrom"}:
+                # imported names are local too, so nested functions can share their binding
+                for alias in arg.names:
+                    name = alias.name if alias.asname is None else alias.asname
+                    if name != "*" and "." not in name:
+                        local_names.add(name)
+                        names.add(name)
             elif cls_name == "Try":
                 for handler in arg.handlers:
                     if handler.name is not None:
