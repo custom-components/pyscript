@@ -475,6 +475,16 @@ Optional arguments are:
   rendering those other variables as only conditions in the trigger expression that won't cause
   a trigger themselves, since the expression won't be evaluated when they change.
 
+  Note that "change" means the value actually changes: a state update that repeats the same value
+  (e.g., a sensor with ``force_update: true`` that reports the same reading again) doesn't evaluate
+  the expression or cause a trigger, even if the variable is in ``watch`` or is a plain state variable
+  name argument. To trigger on every forced update, watch the ``last_updated`` attribute, which changes
+  each time, for example:
+
+  .. code:: python
+
+     @state_trigger("True", watch=["sensor.my_sensor.last_updated"])
+
 Here's a summary of the trigger behavior with these parameter settings:
 
 =================== ==================== ================= ========================
