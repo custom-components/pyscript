@@ -914,6 +914,8 @@ class EvalFuncVarClassInst(EvalFuncVar):
     """Class for a callable pyscript class instance function."""
 
     __slots__ = ("class_inst",)
+    # our class doc string would otherwise hide the __doc__ property, which returns the method's
+    __doc__ = EvalFuncVar.__doc__
 
     def __init__(self, func: EvalFunc, ast_ctx: "AstEval", class_inst: Any) -> None:
         """Initialize instance with given EvalFunc function."""

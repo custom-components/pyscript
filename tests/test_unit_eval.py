@@ -1363,6 +1363,41 @@ counter = Counter()
     ],
     [
         """
+from functools import wraps
+
+def trace(func):
+    @wraps(func)
+    def wrapper(*args, **kwargs):
+        return func(*args, **kwargs)
+    return wrapper
+
+class Counter:
+    def incr(self):
+        '''Add one.'''
+        return 1
+
+    @trace
+    def decr(self):
+        '''Take one away.'''
+        return -1
+
+    def reset(self):
+        return 0
+
+counter = Counter()
+[
+    counter.incr.__doc__,
+    counter.decr.__doc__,
+    counter.decr.__name__,
+    counter.reset.__doc__,
+    Counter.incr.__doc__,
+    Counter.decr.__doc__,
+]
+""",
+        ["Add one.", "Take one away.", "decr", None, "Add one.", "Take one away."],
+    ],
+    [
+        """
 def f1(value):
     i = 1
     def f2(value):
