@@ -36,7 +36,7 @@ to states and functions to services. Pyscript supports imports, although
 by default the valid import list is restricted for security reasons
 (there is a configuration option ``allow_all_imports`` to allow all
 imports). Pyscript supports almost all Python language features except
-generators, ``yield``, and defining special class methods.
+generator functions, ``yield``, and defining special class methods.
 (see `language limitations <reference.html#language-limitations>`__).
 Pyscript provides a handful of additional built-in functions that connect
 to HASS features, like logging, accessing state variables as strings
