@@ -3361,3 +3361,106 @@ class Foo:
     await Function.waiter_sync()
     await Function.waiter_stop()
     await Function.reaper_stop()
+
+
+CLASS_BODY_RAISES_SOURCE = """
+results = {}
+
+try:
+    class Foo:
+        a = 1
+        raise ValueError("boom")
+except ValueError:
+    pass
+x = 5
+results["module"] = [x, "x" in globals()]
+
+def func():
+    try:
+        class Bar:
+            b = 2
+            raise ValueError("boom")
+    except ValueError:
+        pass
+    y = 7
+    z = [y, "y" in locals()]
+    return z
+
+results["func"] = func()
+results["func_global"] = "y" in globals()
+
+class Outer:
+    c = 3
+    try:
+        class Inner:
+            d = 4
+            raise ValueError("boom")
+    except ValueError:
+        pass
+    e = 5
+
+results["nested"] = [Outer.c, Outer.e, hasattr(Outer, "d")]
+"""
+
+
+async def test_class_body_raises_matches_python(hass):
+    """Test that a class body that raises leaves the scope like Python, compared with CPython itself."""
+    hass.data[DOMAIN] = {CONFIG_ENTRY: MockConfigEntry(domain=DOMAIN, data={CONF_ALLOW_ALL_IMPORTS: True})}
+    Function.init(hass)
+    State.init(hass)
+    State.register_functions()
+    TrigTime.init(hass)
+
+    expected_ns = {}
+    exec(compile(CLASS_BODY_RAISES_SOURCE, "test", "exec"), expected_ns)  # pylint: disable=exec-used
+    expected = expected_ns["results"]
+
+    global_ctx = GlobalContext("test", global_sym_table={}, manager=GlobalContextMgr)
+    ast = AstEval("test", global_ctx=global_ctx)
+    Function.install_ast_funcs(ast)
+    ast.parse(CLASS_BODY_RAISES_SOURCE + "results\n")
+    assert await ast.eval() == expected
+    assert "x" in global_ctx.global_sym_table
+    assert not ast.sym_table_stack
+
+    await Function.waiter_sync()
+    await Function.waiter_stop()
+    await Function.reaper_stop()
+
+
+async def test_class_body_error_reaches_caller(hass):
+    """Test that an uncaught class body error reaches the caller and later runs are unaffected."""
+    hass.data[DOMAIN] = {CONFIG_ENTRY: MockConfigEntry(domain=DOMAIN, data={CONF_ALLOW_ALL_IMPORTS: True})}
+    Function.init(hass)
+    State.init(hass)
+    State.register_functions()
+    TrigTime.init(hass)
+
+    for source in [
+        'class Foo:\n    raise ValueError("boom")\n',
+        "class Foo:\n    return 1\n",
+        "class Foo:\n    break\n",
+    ]:
+        with pytest.raises((ValueError, SyntaxError)):
+            exec(compile(source, "test", "exec"), {})  # pylint: disable=exec-used
+
+    global_ctx = GlobalContext("test", global_sym_table={}, manager=GlobalContextMgr)
+    ast = AstEval("test", global_ctx=global_ctx)
+    Function.install_ast_funcs(ast)
+    for source, exc_type in [
+        ('class Foo:\n    raise ValueError("boom")\n', ValueError),
+        ("class Foo:\n    for i in range(2):\n        pass\n    raise KeyError(1)\n", KeyError),
+    ]:
+        ast.parse(source)
+        with pytest.raises(exc_type):
+            await ast.eval()
+        assert ast.sym_table is ast.global_sym_table
+        assert not ast.sym_table_stack
+
+        ast.parse("x = 5\nx\n")
+        assert await ast.eval() == 5
+        assert global_ctx.global_sym_table["x"] == 5
+
+    await Function.waiter_sync()
+    await Function.waiter_stop()
+    await Function.reaper_stop()
