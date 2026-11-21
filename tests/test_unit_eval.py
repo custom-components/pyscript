@@ -399,6 +399,74 @@ Foo = type("Replacement", (), {"value": 2})
         [[100, 11, 12, 102, 103]],
     ],
     [
+        """
+class A:
+    pass
+
+a = A()
+a.x = 1
+a.y = 2
+del a.x
+[hasattr(a, "x"), a.y, vars(a)]
+""",
+        [False, 2, {"y": 2}],
+    ],
+    [
+        """
+class Cache:
+    def __init__(self):
+        self.value = 5
+
+    def clear(self):
+        del self.value
+
+    def has_value(self):
+        return hasattr(self, "value")
+
+cache = Cache()
+before = cache.has_value()
+cache.clear()
+[before, cache.has_value()]
+""",
+        [True, False],
+    ],
+    [
+        """
+class A:
+    pass
+
+a = A()
+results = []
+try:
+    del a.missing
+    results.append("no error")
+except AttributeError as exc:
+    results.append("AttributeError")
+a.items = [A()]
+a.items[0].z = 3
+del a.items[0].z
+results.append(hasattr(a.items[0], "z"))
+results
+""",
+        ["AttributeError", False],
+    ],
+    [
+        """
+import types
+
+class A:
+    x = 1
+    y = 2
+
+mod = types.ModuleType("mod")
+mod.value = 10
+del A.x
+del mod.value
+[hasattr(A, "x"), A.y, hasattr(mod, "value")]
+""",
+        [False, 2, False],
+    ],
+    [
         "pyscript.var1 = 1; pyscript.var2 = 2; set(state.names('pyscript'))",
         {"pyscript.var1", "pyscript.var2"},
     ],
@@ -3187,6 +3255,31 @@ result = [mod_global.Foo is Other, mod_global.modread() is Other, Snap.x]
 """
         ],
         [True, True, 1],
+    ],
+    [
+        [
+            """
+import mod_global
+del mod_global.Foo
+try:
+    mod_global.modread()
+    called = "no error"
+except NameError:
+    called = "NameError"
+try:
+    mod_global.Foo
+    read = "no error"
+except AttributeError:
+    read = "AttributeError"
+try:
+    del mod_global.Foo
+    again = "no error"
+except AttributeError:
+    again = "AttributeError"
+result = [called, read, again]
+"""
+        ],
+        ["NameError", "AttributeError", "AttributeError"],
     ],
     [
         [
