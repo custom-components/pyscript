@@ -391,6 +391,16 @@ Foo = type("Replacement", (), {"value": 2})
 """,
         [2, 2],
     ],
+    [
+        """
+class Node:
+    nxt: Node | None = None
+    val: int = 0
+    later: Later = None
+[Node.nxt, Node.__annotations__ == {"nxt": Node | None, "val": int, "later": "Later"}]
+""",
+        [None, True],
+    ],
     ["Foo = [type('Foo', (), {'x': 100})]; Foo[0].x = 10; Foo[0].x", 10],
     ["Foo = [type('Foo', (), {'x': [100, 101]})]; Foo[0].x[1] = 10; Foo[0].x", [100, 10]],
     ["Foo = [type('Foo', (), {'x': [0, [[100, 101]]]})]; Foo[0].x[1][0][1] = 10; Foo[0].x[1]", [[100, 10]]],
@@ -823,12 +833,13 @@ def foo(arg=6):
     bar += arg
     bar2 = 1001
     del bar3
+    bar3 = arg
     return bar
     bar += arg
     return 1000
-[foo(), foo(5), bar, bar2]
+[foo(), foo(5), bar, bar2, bar3]
 """,
-        [106, 111, 111, 1001],
+        [106, 111, 111, 1001, 5],
     ],
     [
         """
@@ -3301,6 +3312,130 @@ result = [C.D.x, C.y]
         ],
         [3, 3],
     ],
+    [
+        [
+            """
+import mod_global
+class Other:
+    x = 9
+result = [
+    mod_global.Foo is mod_global.modread(),
+    (mod_global.Foo | None) == (mod_global.modread() | None),
+    getattr(mod_global, "Foo") is mod_global.modread(),
+    vars(mod_global)["Foo"] is mod_global.modread(),
+]
+mod_global.Foo = Other
+result.append(mod_global.modread() is Other)
+"""
+        ],
+        [True, True, True, True, True],
+    ],
+    [
+        [
+            """
+class Local:
+    x = 2
+import mod_global
+get_local = lambda: Local
+get_mod = lambda: mod_global.Foo
+result = [
+    globals()["Local"] is Local,
+    (get_local() | None) == (Local | None),
+    get_mod() is mod_global.modread(),
+]
+"""
+        ],
+        [True, True, True],
+    ],
+    [
+        [
+            """
+def pyscript_compile(func):
+    return func
+from mod_global import Foo
+class Local:
+    pass
+@pyscript_compile
+def native():
+    return [Local | None, Foo | None, globals()["Local"]]
+union_local, union_foo, local = native()
+result = [union_local == (Local | None), union_foo == (Foo | None), local is Local]
+"""
+        ],
+        [True, True, True],
+    ],
+    [
+        [
+            """
+try:
+    class A:
+        y = 1
+        raise ValueError
+except ValueError:
+    pass
+def make():
+    try:
+        class B:
+            raise ValueError
+    except ValueError:
+        pass
+    return "B" in locals()
+result = ["A" in globals(), make()]
+"""
+        ],
+        [False, False],
+    ],
+    [
+        [
+            """
+from dataclasses import dataclass, field
+@dataclass
+class Node:
+    val: int = 0
+    nxt: Node | None = None
+    kids: list[Node] = field(default_factory=list)
+def make_local():
+    class Item:
+        def copy(self):
+            return Item()
+    def get():
+        return Item
+    first = get()
+    class Item:
+        pass
+    return [type(first().copy()) is first, get() is Item]
+try:
+    class Bad:
+        def m(self, x=Bad):
+            return x
+    default = "ok"
+except NameError:
+    default = "NameError"
+n = Node(1, Node(2))
+result = [n.nxt.val, len(n.kids), make_local(), default]
+"""
+        ],
+        [2, 0, [False, True], "NameError"],
+    ],
+    [
+        [
+            """
+import typing
+from dataclasses import dataclass, InitVar, fields
+@dataclass
+class Node:
+    val: int = 0
+    nxt: Node | None = None
+    parent: InitVar[Node] = None
+result = [
+    [f.name for f in fields(Node)],
+    typing.get_type_hints(Node)["nxt"] == (Node | None),
+    type(Node.__annotations__["parent"]) is InitVar,
+]
+"""
+        ],
+        [["val", "nxt"], True, True],
+    ],
 ]
 
 
@@ -3501,3 +3636,228 @@ async def test_class_body_error_reaches_caller(hass):
     await Function.waiter_sync()
     await Function.waiter_stop()
     await Function.reaper_stop()
+
+
+NESTED_CLASS_CASES = {
+    "union_module_level": """
+class Outer:
+    class Inner:
+        pass
+res = (Outer.Inner | None) == (Outer.Inner | None)
+""",
+    "union_other_class_annotation": """
+class Outer:
+    class Inner:
+        pass
+class Bar:
+    y: Outer.Inner | None = None
+res = [Bar.y, Bar.__annotations__['y'] == (Outer.Inner | None)]
+""",
+    "identity": """
+class Outer:
+    class Inner:
+        pass
+res = [type(Outer.Inner()) is Outer.Inner, isinstance(Outer.Inner(), Outer.Inner)]
+""",
+    "dataclass": """
+from dataclasses import dataclass
+@dataclass
+class Outer:
+    @dataclass
+    class Inner:
+        a: int = 1
+    x: Inner | None = None
+res = [Outer().x, Outer(Outer.Inner()).x.a, type(Outer.Inner()) is Outer.Inner]
+""",
+    "in_function": """
+def make():
+    class Outer:
+        class Inner:
+            pass
+    return Outer
+O = make()
+res = [type(O.__dict__['Inner']) is type, (O.Inner | None) == (O.Inner | None)]
+""",
+    "bare_name_in_method": """
+class Outer:
+    class Inner:
+        v = 4
+    def make(self):
+        return Inner.v
+try:
+    res = [Outer().make()]
+except NameError:
+    res = ['NameError', Outer.Inner.v]
+""",
+    "two_levels": """
+class Outer:
+    class Mid:
+        class Inner:
+            v = 7
+res = [
+    Outer.Mid.Inner.v,
+    type(Outer.Mid.Inner()) is Outer.Mid.Inner,
+    (Outer.Mid.Inner | None) == (Outer.Mid.Inner | None),
+]
+""",
+}
+
+
+@pytest.mark.parametrize("name", list(NESTED_CLASS_CASES))
+async def test_nested_class_attr_matches_python(hass, name):
+    """Test that a class defined in a class body is the class itself, compared with CPython."""
+    hass.data[DOMAIN] = {CONFIG_ENTRY: MockConfigEntry(domain=DOMAIN, data={CONF_ALLOW_ALL_IMPORTS: True})}
+    Function.init(hass)
+    State.init(hass)
+    State.register_functions()
+    TrigTime.init(hass)
+    DecoratorRegistry.init(hass)
+
+    source = NESTED_CLASS_CASES[name]
+    expected_ns: dict = {}
+    exec(source, expected_ns)  # pylint: disable=exec-used
+    expected = expected_ns["res"]
+
+    global_ctx = GlobalContext("test", global_sym_table={}, manager=GlobalContextMgr)
+    ast = AstEval("test", global_ctx=global_ctx)
+    Function.install_ast_funcs(ast)
+    ast.parse(source)
+    try:
+        await ast.eval()
+        assert global_ctx.global_sym_table["res"] == expected
+    finally:
+        await Function.waiter_sync()
+        await Function.waiter_stop()
+        await Function.reaper_stop()
+
+
+class NoKeysNamespace:
+    """Class namespace that supports item access but has no keys() or items()."""
+
+    def __init__(self):
+        """Initialize the namespace."""
+        self.d = {}
+
+    def __setitem__(self, key, value):
+        """Set an item."""
+        self.d[key] = value
+
+    def __getitem__(self, key):
+        """Get an item."""
+        return self.d[key]
+
+    def __contains__(self, key):
+        """Check for an item."""
+        return key in self.d
+
+    def __delitem__(self, key):
+        """Delete an item."""
+        del self.d[key]
+
+
+class NoKeysMeta(type):
+    """Metaclass whose __prepare__ returns a namespace without keys()."""
+
+    @classmethod
+    def __prepare__(mcs, name, bases, **kwargs):
+        """Return the custom namespace."""
+        return NoKeysNamespace()
+
+    def __new__(mcs, name, bases, ns, **kwargs):
+        """Build the class from the custom namespace."""
+        return super().__new__(mcs, name, bases, dict(ns.d))
+
+
+NESTED_PREPARE_SOURCE = """
+class Outer(metaclass=NoKeysMeta):
+    class Inner:
+        pass
+    v = 3
+
+res = [Outer.v, Outer.Inner is not None]
+"""
+
+
+async def test_nested_class_prepare_without_keys(hass):
+    """Test that a class namespace from __prepare__ that can't be iterated still builds the class."""
+    hass.data[DOMAIN] = {CONFIG_ENTRY: MockConfigEntry(domain=DOMAIN, data={CONF_ALLOW_ALL_IMPORTS: True})}
+    Function.init(hass)
+    State.init(hass)
+    State.register_functions()
+    TrigTime.init(hass)
+    DecoratorRegistry.init(hass)
+
+    expected_ns: dict = {"NoKeysMeta": NoKeysMeta}
+    exec(NESTED_PREPARE_SOURCE, expected_ns)  # pylint: disable=exec-used
+    global_ctx = GlobalContext("test", global_sym_table={"NoKeysMeta": NoKeysMeta}, manager=GlobalContextMgr)
+    ast = AstEval("test", global_ctx=global_ctx)
+    Function.install_ast_funcs(ast)
+    ast.parse(NESTED_PREPARE_SOURCE)
+    await ast.eval()
+    assert global_ctx.global_sym_table["res"] == expected_ns["res"] == [3, True]
+
+    await Function.waiter_sync()
+    await Function.waiter_stop()
+    await Function.reaper_stop()
+
+
+class RejectSecondRewrite(dict):
+    """Class namespace that refuses to rebind "Second"."""
+
+    def __setitem__(self, key, value):
+        """Set an item, but only allow "Second" to be bound once."""
+        if key == "Second" and key in self:
+            raise TypeError("Second may only be bound once")
+        super().__setitem__(key, value)
+
+
+class CheckNamespaceMeta(type):
+    """Metaclass that requires its two nested classes to arrive in the same form."""
+
+    @classmethod
+    def __prepare__(mcs, name, bases, **kwargs):
+        """Return the custom namespace."""
+        return RejectSecondRewrite()
+
+    def __new__(mcs, name, bases, ns, **kwargs):
+        """Build the class, checking the namespace is consistent."""
+        if type(ns["First"]) is not type(ns["Second"]):
+            raise ValueError("mixed namespace representations")
+        return super().__new__(mcs, name, bases, dict(ns))
+
+
+NESTED_REJECT_SOURCE = """
+class Outer(metaclass=CheckNamespaceMeta):
+    class First:
+        pass
+    class Second:
+        pass
+
+res = Outer.__name__
+"""
+
+
+async def test_nested_class_prepare_dict_subclass(hass):
+    """Test that a custom __prepare__ namespace is left as it is and the class still builds."""
+    hass.data[DOMAIN] = {CONFIG_ENTRY: MockConfigEntry(domain=DOMAIN, data={CONF_ALLOW_ALL_IMPORTS: True})}
+    Function.init(hass)
+    State.init(hass)
+    State.register_functions()
+    TrigTime.init(hass)
+    DecoratorRegistry.init(hass)
+
+    expected_ns: dict = {"CheckNamespaceMeta": CheckNamespaceMeta}
+    exec(NESTED_REJECT_SOURCE, expected_ns)  # pylint: disable=exec-used
+    global_ctx = GlobalContext(
+        "test", global_sym_table={"CheckNamespaceMeta": CheckNamespaceMeta}, manager=GlobalContextMgr
+    )
+    ast = AstEval("test", global_ctx=global_ctx)
+    Function.install_ast_funcs(ast)
+    ast.parse(NESTED_REJECT_SOURCE)
+    try:
+        await ast.eval()
+        assert global_ctx.global_sym_table["res"] == expected_ns["res"] == "Outer"
+    finally:
+        await Function.waiter_sync()
+        await Function.waiter_stop()
+        await Function.reaper_stop()
