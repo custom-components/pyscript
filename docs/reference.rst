@@ -1356,6 +1356,31 @@ where ``FUNCNAME`` is the name of the top-level Python function (e.g., the one c
 or service), defined in the script file ``SCRIPTNAME.py``. See the `Global Context <#global-context>`__
 section for the logging paths for other cases.
 
+The path starts with the global context name, so it depends on where the file lives. Replace
+``file.SCRIPTNAME`` in the path above with:
+
+=========================================== =====================================================
+Location                                    Logging path
+=========================================== =====================================================
+``pyscript/SCRIPTNAME.py``                  ``custom_components.pyscript.file.SCRIPTNAME``
+``pyscript/scripts/SCRIPTNAME.py``          ``custom_components.pyscript.scripts.SCRIPTNAME``
+``pyscript/apps/APP.py`` or ``APP/``        ``custom_components.pyscript.apps.APP``
+``pyscript/modules/MODULE.py``              ``custom_components.pyscript.modules.MODULE``
+Jupyter session                             ``custom_components.pyscript.jupyter_NNN``
+=========================================== =====================================================
+
+An app is not under ``file``, so ``custom_components.pyscript.file`` settings don't apply to it; use
+``custom_components.pyscript.apps`` instead. Files in subfolders of ``scripts/`` get dotted names, for
+example ``custom_components.pyscript.scripts.sub.SCRIPTNAME``.
+
+With the default (non-legacy) decorators, the message for a trigger that is ignored because it is not
+active is ``Trigger not active due to ...``. It is logged at ``debug`` through the logger of the script
+(or app or module) that defines the function (for example, ``custom_components.pyscript.file.my_script``),
+not under ``custom_components.pyscript.trigger``. Only ``legacy_decorators: true`` uses the message
+``trigger ... got ... trigger, but not active``, which is logged under
+``custom_components.pyscript.trigger``. Other internal messages from pyscript itself are logged under
+``custom_components.pyscript``.
+
 That allows you to set the log level for each Python top-level script or function separately if necessary.
 That setting also applies to any other Python functions that the top-level Python function calls.
 For example, these settings:
@@ -1372,13 +1397,31 @@ will log all messages at ``info`` or higher (i.e., ``log.info()``, ``log.warning
 ``log.error()``), and inside ``my_function`` defined in the script file ``my_script.py`` (and any
 other functions it calls) will log all messages at ``debug`` or higher.
 
+Here is a fuller example: quiet by default, pyscript's own messages and the app ``my_app`` at ``info``,
+and the script ``my_script.py`` at ``debug``:
+
+.. code:: yaml
+
+   logger:
+     default: warning
+     logs:
+       custom_components.pyscript: info
+       custom_components.pyscript.apps.my_app: info
+       custom_components.pyscript.file.my_script: debug
+
+Setting a script to ``debug`` shows the ``Trigger not active due to ...`` messages for its functions.
+Setting ``custom_components.pyscript`` to ``debug`` also shows pyscript's other internal messages, which can
+be very noisy.
+
 Note that debug logging also includes pyscript's own internal messages, which can show the full
 arguments passed to your functions, such as webhook payloads, service call data and event data.
 These can contain tokens or other sensitive information, so review debug logs before sharing them
 (e.g., in a GitHub issue), and turn debug logging off when you no longer need it.
 
-Note that in Jupyter, all the ``log`` functions will display output in your session, independent of
-the ``logger`` configuration settings.
+Note that in Jupyter, the ``log`` functions display their output in your session, but only for messages
+that pass the ``logger`` configuration settings for your session's path
+(``custom_components.pyscript.jupyter_NNN``, which falls under ``custom_components.pyscript``). If you
+see no output, enable that path (for example, ``custom_components.pyscript: info``).
 
 Changing the log level via the main configuration yaml file will typically require a restart of HASS.
 To avoid that, you can set the log level for any specific logging path by calling the ``logger.set_level``
