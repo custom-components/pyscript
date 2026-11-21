@@ -10,6 +10,7 @@ import time
 import voluptuous as vol
 
 from homeassistant.helpers import config_validation as cv
+from homeassistant.util import dt as dt_util
 
 from .. import trigger
 from ..decorator import WaitUntilDecoratorManager
@@ -23,6 +24,11 @@ def dt_now():
     """Return current time."""
     # Keep this wrapper so tests can patch it during the transition.
     return trigger.dt_now()
+
+
+def dt_utcnow():
+    """Return current UTC time."""
+    return dt_util.utcnow()
 
 
 class TimeActiveDecorator(TriggerHandlerDecorator, AutoKwargsDecorator):
@@ -172,12 +178,15 @@ class TimeTriggerDecorator(TriggerDecorator):
 
                 # replace with homeassistant.helpers.event.async_track_point_in_utc_time?
                 timeout = (time_next_adj - now).total_seconds()
+                # Check the wait against UTC, not naive local time: time_next_adj already
+                # accounts for a DST change, and local time repeats an hour when the
+                # clocks go back, which would make us wait that hour again.
+                deadline = dt_utcnow() + dt.timedelta(seconds=timeout)
                 _LOGGER.debug("%s sleeping for %s seconds", self, timeout)
                 await asyncio.sleep(timeout)
                 _LOGGER.debug("%s finish sleeping for %s seconds", self, timeout)
                 while True:
-                    now = dt_now()
-                    timeout = (time_next_adj - now).total_seconds()
+                    timeout = (deadline - dt_utcnow()).total_seconds()
                     if timeout <= 1e-6:
                         break
                     _LOGGER.debug("%s additional sleep for %s seconds", self, timeout)
