@@ -1228,6 +1228,152 @@ def func(incr):
     ],
     [
         """
+from functools import wraps
+
+errors = []
+
+def catch_all(func):
+    @wraps(func)
+    def wrapper(*args, **kwargs):
+        try:
+            return func(*args, **kwargs)
+        except Exception as exc:
+            errors.append(str(exc))
+            return "caught"
+    return wrapper
+
+@catch_all
+def fails(value):
+    raise ValueError(f"bad value {value}")
+
+[fails(1), fails(value=2), errors]
+""",
+        ["caught", "caught", ["bad value 1", "bad value 2"]],
+    ],
+    [
+        """
+from functools import wraps
+
+calls = []
+
+def trace(func):
+    @wraps(func)
+    def wrapper(*args, **kwargs):
+        calls.append([args, kwargs])
+        return func(*args, **kwargs) * 10
+    return wrapper
+
+@trace
+def add(a, b=2, *, c=3):
+    return a + b + c
+
+[add(1), add(1, 5, c=7), add(a=4, b=0, c=0), calls]
+""",
+        [60, 130, 40, [[(1,), {}], [(1, 5), {"c": 7}], [(), {"a": 4, "b": 0, "c": 0}]]],
+    ],
+    [
+        """
+from functools import wraps
+
+calls = []
+
+def trace(func):
+    @wraps(func)
+    def wrapper(*args, **kwargs):
+        calls.append(f"trace {func.__name__}")
+        return func(*args, **kwargs)
+    return wrapper
+
+def double(func):
+    def double_wrapper(*args, **kwargs):
+        calls.append("double")
+        return 2 * func(*args, **kwargs)
+    return double_wrapper
+
+@double
+@trace
+def inc1(x):
+    return x + 1
+
+@trace
+@trace
+def inc2(x):
+    return x + 2
+
+[inc1(1), inc2(1), calls]
+""",
+        [4, 3, ["double", "trace inc1", "trace inc2", "trace inc2"]],
+    ],
+    [
+        """
+registry = []
+
+def register(func):
+    registry.append(func)
+    return func
+
+@register
+@register
+def inc(x):
+    return x + 1
+
+[inc(1), registry[0](2), registry[0] is inc, registry[1] is inc]
+""",
+        [2, 3, True, True],
+    ],
+    [
+        """
+from functools import wraps
+
+def trace(func):
+    @wraps(func)
+    def wrapper(*args, **kwargs):
+        return func(*args, **kwargs)
+    return wrapper
+
+@trace
+def inc(x):
+    '''Add one to x.'''
+    return x + 1
+
+[inc.__name__, inc.__doc__, inc.__wrapped__(1), inc.__wrapped__.__name__, "__wrapped__" in vars(inc)]
+""",
+        ["inc", "Add one to x.", 2, "inc", True],
+    ],
+    [
+        """
+from functools import wraps
+
+errors = []
+
+def catch_all(func):
+    @wraps(func)
+    def wrapper(*args, **kwargs):
+        try:
+            return func(*args, **kwargs)
+        except Exception as exc:
+            errors.append(str(exc))
+            return -1
+    return wrapper
+
+class Counter:
+    def __init__(self):
+        self.count = 0
+
+    @catch_all
+    def incr(self, step):
+        if step < 0:
+            raise ValueError(f"bad step {step}")
+        self.count += step
+        return self.count
+
+counter = Counter()
+[counter.incr(2), counter.incr(-1), counter.incr(3), errors, Counter.incr.__name__]
+""",
+        [2, -1, 5, ["bad step -1"], "incr"],
+    ],
+    [
+        """
 def f1(value):
     i = 1
     def f2(value):
