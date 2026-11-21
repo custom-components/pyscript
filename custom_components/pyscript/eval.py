@@ -321,6 +321,10 @@ class EvalAttrSet:
         """Get the attribute value."""
         return getattr(self.obj, self.attr)
 
+    def delattr(self):
+        """Delete the attribute."""
+        delattr(self.obj, self.attr)
+
 
 class EvalFunc:
     """Class for a callable pyscript function."""
@@ -1544,10 +1548,12 @@ class AstEval:
                 else:
                     raise NameError(f"name '{arg1.id}' is not defined")
             elif isinstance(arg1, ast.Attribute):
-                var_name = await self.ast_attribute_collapse(arg1, check_undef=False)
-                if not isinstance(var_name, str):
-                    raise NameError("state name should be 'domain.entity' or 'domain.entity.attr'")
-                State.delete(var_name)
+                # as with assignment, a dotted name is a state only if its first part isn't defined
+                var_name = await self.ast_attribute_collapse(arg1)
+                if var_name is not None:
+                    State.delete(var_name)
+                else:
+                    EvalAttrSet(await self.aeval(arg1.value), arg1.attr).delattr()
             else:
                 raise NotImplementedError(f"unknown target type {arg1} in del")
 
