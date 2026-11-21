@@ -1530,3 +1530,52 @@ def service1():
     assert literal_eval(await wait_until_done(notify_q)) == [3, "4"]
     assert literal_eval(await wait_until_done(notify_q)) == [4, "5"]
     assert literal_eval(await wait_until_done(notify_q)) == [5]
+
+
+async def test_generator_expressions_in_triggers_and_services(pyscript):
+    """Test generator expressions in a trigger expression, trigger and service functions."""
+    await pyscript.start(
+        """
+@state_trigger("pyscript.var2 is not None and any(float(v) > 5 for v in [pyscript.var1, pyscript.var2])")
+def func_trig(var_name=None):
+    pyscript.done = [var_name, sum(float(state.get(name)) for name in ["pyscript.var1", "pyscript.var2"])]
+
+@service
+def func_service(values=None):
+    pyscript.done = [sum(v * v for v in values), next((v for v in values if v > 2), None), ",".join(str(v) for v in values)]
+
+@service
+def slow_service():
+    task.sleep(0.01)
+    pyscript.done2 = "slow_service done"
+
+@service
+def func_waits():
+    try:
+        list(pyscript.slow_service(blocking=True) for _ in range(2))
+    except RuntimeError as exc:
+        pyscript.done = str(exc)
+
+@state_trigger("pyscript.var3 == '1'")
+def func_trig_waits():
+    pyscript.done = sum(task.sleep(0) or x for x in range(3))
+"""
+    )
+    pyscript.hass.states.async_set("pyscript.var1", "1")
+    pyscript.hass.states.async_set("pyscript.var2", "7")
+    await pyscript.wait_done(["pyscript.var2", 8.0])
+
+    await pyscript.hass.services.async_call(
+        "pyscript", "func_service", {"values": [1, 2, 3, 4]}, blocking=True
+    )
+    await pyscript.wait_done([30, 3, "1,2,3,4"])
+
+    # an element that waits raises an error, and the service it called still finishes by itself
+    await pyscript.hass.services.async_call("pyscript", "func_waits", {}, blocking=True)
+    await pyscript.wait_done(
+        "a generator expression element can't wait (eg, for task.sleep()); use a list comprehension instead"
+    )
+    await pyscript.wait_done2("slow_service done")
+
+    pyscript.hass.states.async_set("pyscript.var3", "1")
+    await pyscript.wait_exception(RuntimeError, match="generator expression element can't wait")

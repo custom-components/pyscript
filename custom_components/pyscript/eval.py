@@ -94,6 +94,21 @@ WEBHOOK_METHODS = {
     "PUT",
 }
 
+#
+# AstEval attributes that hold the scope a generator expression's elements are evaluated in
+#
+GENEXP_SCOPE_ATTRS = (
+    "global_ctx",
+    "global_sym_table",
+    "sym_table",
+    "sym_table_stack",
+    "curr_func",
+    "code_str",
+    "code_list",
+    "class_sym_table",
+    "class_global_names",
+)
+
 
 def ast_eval_exec_factory(ast_ctx, mode):
     """Generate a function that executes eval() or exec() with given ast_ctx."""
@@ -1909,6 +1924,89 @@ class AstEval:
         result = await self.setcomp_loop(arg.generators, arg.elt)
         await self.loopvar_scope_restore(target_vars, save_values)
         return result
+
+    async def genexp_next(self, arg, iters):
+        """Evaluate the next element of a generator expression, returning it in a tuple, or () at the end."""
+        generators = arg.generators
+        while iters:
+            level = len(iters) - 1
+            try:
+                loop_var = next(iters[level])
+            except StopIteration:
+                iters.pop()
+                continue
+            gen = generators[level]
+            await self.recurse_assign(gen.target, loop_var)
+            for cond in gen.ifs:
+                if not await self.aeval(cond):
+                    break
+            else:
+                if level + 1 == len(generators):
+                    return (await self.aeval(arg.elt),)
+                iters.append(iter(await self.aeval(generators[level + 1].iter)))
+        return ()
+
+    def genexp_loop(self, arg, iters, loop_vars, scope, loop):
+        """Yield the elements of a generator expression, evaluating each one only when it's asked for."""
+        #
+        # native code (eg, sum(), any() or "".join()) iterates synchronously, so each element is
+        # evaluated by running our async code to completion without returning to the event loop,
+        # in the scope where the generator expression was created
+        #
+        gen_vars = {}
+        while True:
+            try:
+                running_loop = asyncio.get_running_loop()
+            except RuntimeError:
+                running_loop = None
+            if running_loop is not loop:
+                # pyscript code isn't thread safe, so it can't run in another thread (eg, task.executor)
+                raise RuntimeError("a generator expression can only be iterated in the event loop")
+            save_scope = {attr: getattr(self, attr) for attr in scope}
+            for attr, value in scope.items():
+                setattr(self, attr, value)
+            self.sym_table_stack = scope["sym_table_stack"].copy()
+            sym_table = self.sym_table
+            # the loop variables are in their own scope, so hide any with the same names in this one
+            outer_vars = {var: sym_table.pop(var) for var in loop_vars if var in sym_table}
+            sym_table.update(gen_vars)
+            coro = self.genexp_next(arg, iters)
+            try:
+                coro.send(None)  # pylint: disable=no-member
+            except StopIteration as exc:
+                elt = exc.value
+            else:
+                #
+                # the element has to wait, which can't be done here, so stop it; whatever
+                # it was waiting for (eg, a task or a service call) carries on by itself
+                #
+                try:
+                    coro.close()  # pylint: disable=no-member
+                finally:
+                    # raise this even if the element's cleanup (eg, a finally block) tries to wait too
+                    raise RuntimeError(
+                        "a generator expression element can't wait (eg, for task.sleep());"
+                        " use a list comprehension instead"
+                    )
+            finally:
+                gen_vars = {var: sym_table.pop(var) for var in loop_vars if var in sym_table}
+                sym_table.update(outer_vars)
+                for attr, value in save_scope.items():
+                    setattr(self, attr, value)
+            if not elt:
+                return
+            yield elt[0]
+
+    async def ast_generatorexp(self, arg):
+        """Evaluate generator expression, returning a generator that evaluates each element lazily."""
+        # as in Python, the outermost iterable is evaluated right away
+        iters = [iter(await self.aeval(arg.generators[0].iter))]
+        loop_vars, _ = await self.loopvar_scope_save(arg.generators)
+        scope = {attr: getattr(self, attr) for attr in GENEXP_SCOPE_ATTRS}
+        scope["sym_table_stack"] = self.sym_table_stack.copy()
+        gen = self.genexp_loop(arg, iters, loop_vars, scope, asyncio.get_running_loop())
+        gen.__name__ = gen.__qualname__ = "<genexpr>"
+        return gen
 
     async def ast_subscript(self, arg):
         """Evaluate subscript."""
