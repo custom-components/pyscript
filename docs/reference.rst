@@ -2440,8 +2440,19 @@ A handful of language features are not supported:
   an output file handle.
 - The built-in function decorators (e.g., ``state_trigger``) aren't functions that can be called and used
   in-line like real Python decorators. However, you can define your own function decorators that
-  could include those decorators on the inner functions they define. Currently none of Python's
-  built-in decorators are supported.
+  could include those decorators on the inner functions they define.
+- Of Python's built-in decorators, ``@property`` (with ``@x.setter`` and ``@x.deleter``, or
+  ``property(fget, fset, fdel)``), ``@classmethod`` and ``@staticmethod`` work on the methods of a class
+  defined in pyscript: ``obj.prop``, ``obj.prop = value`` and ``del obj.prop`` call the property's getter,
+  setter and deleter. The built-in functions ``getattr()``, ``setattr()`` and ``delattr()`` don't, since a
+  pyscript getter, setter or deleter is an async function that only pyscript can call:
+  ``getattr(obj, "prop")`` returns a coroutine instead of the value (so ``hasattr(obj, "prop")`` is
+  ``True``), and ``setattr()`` and ``delattr()`` return ``None`` without running the setter or deleter
+  (Python then warns that a coroutine was never awaited). So in pyscript, use ``obj.prop``,
+  ``obj.prop = value`` and ``del obj.prop``. Several things still don't work: ``functools.cached_property``,
+  ``super().prop``, a pyscript getter, setter or deleter on a subclass of ``property``, and a pyscript
+  getter, setter or deleter in a class that overrides ``__getattribute__``, ``__setattr__`` or
+  ``__delattr__`` respectively.
 
 The typical work-around for places where pyscript falls short is to move that code into a native Python module,
 and then import that module into pyscript.  Pyscript can call Python modules and packages, so you could

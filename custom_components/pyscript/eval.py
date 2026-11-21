@@ -13,7 +13,7 @@ import logging
 import sys
 import time
 import traceback
-from types import TracebackType
+from types import MethodType, TracebackType
 from typing import TYPE_CHECKING, Any
 
 import yaml
@@ -294,6 +294,33 @@ class EvalLocalVar:
         return f"EvalLocalVar @{hex(id(self))} = {self.value if self.defined else 'undefined'}"
 
 
+def is_pyscript_func(func):
+    """Return True if func is a pyscript (async) function."""
+    return isinstance(func, (EvalFunc, EvalFuncVar))
+
+
+def pyscript_property(obj, attr, hook):
+    """
+    Return the property for obj.attr if Python would use one, otherwise None.
+
+    Python calls a property's getter, setter and deleter itself, which doesn't work for
+    pyscript functions since they are async, so pyscript calls them instead. A subclass of
+    property is left to Python, since it can override __get__, __set__ and __delete__. hook
+    is the name of the attribute method (__getattribute__, __setattr__ or __delattr__) that
+    Python would call first; if the class overrides it, the property isn't used here, so
+    that the override still runs.
+    """
+    for klass in type(obj).__mro__:
+        if attr in klass.__dict__:
+            value = klass.__dict__[attr]
+            if type(value) is not property:  # pylint: disable=unidiomatic-typecheck
+                return None
+            if getattr(type(obj), hook) not in (getattr(object, hook), getattr(type, hook)):
+                return None
+            return value
+    return None
+
+
 class EvalName:
     """Identifier that hasn't yet been resolved."""
 
@@ -314,6 +341,14 @@ class EvalAttrSet:
         self.obj = obj
         self.attr = attr
 
+    async def setattr_async(self, ast_ctx, value):
+        """Set the attribute value, calling a pyscript property setter ourselves."""
+        prop = pyscript_property(self.obj, self.attr, "__setattr__")
+        if prop is not None and is_pyscript_func(prop.fset):
+            await prop.fset.call(ast_ctx, self.obj, value)
+        else:
+            self.setattr(value)
+
     def setattr(self, value):
         """Set the attribute value."""
         setattr(self.obj, self.attr, value)
@@ -321,6 +356,14 @@ class EvalAttrSet:
     def getattr(self):
         """Get the attribute value."""
         return getattr(self.obj, self.attr)
+
+    async def delattr_async(self, ast_ctx):
+        """Delete the attribute, calling a pyscript property deleter ourselves."""
+        prop = pyscript_property(self.obj, self.attr, "__delattr__")
+        if prop is not None and is_pyscript_func(prop.fdel):
+            await prop.fdel.call(ast_ctx, self.obj)
+        else:
+            self.delattr()
 
     def delattr(self):
         """Delete the attribute."""
@@ -1508,7 +1551,7 @@ class AstEval:
         else:
             var_name = await self.aeval(lhs)
             if isinstance(var_name, EvalAttrSet):
-                var_name.setattr(val)
+                await var_name.setattr_async(self, val)
                 return
             if not isinstance(var_name, str):
                 raise NotImplementedError(f"unknown lhs type {lhs} (got {var_name}) in assign")
@@ -1609,7 +1652,7 @@ class AstEval:
                 if var_name is not None:
                     State.delete(var_name)
                 else:
-                    EvalAttrSet(await self.aeval(arg1.value), arg1.attr).delattr()
+                    await EvalAttrSet(await self.aeval(arg1.value), arg1.attr).delattr_async(self)
             else:
                 raise NotImplementedError(f"unknown target type {arg1} in del")
 
@@ -1653,6 +1696,18 @@ class AstEval:
             return EvalAttrSet(val, arg.attr)
         if arg.attr == "__init__" and (init_func := self.init_attr(val)) is not None:
             return init_func
+        prop = pyscript_property(val, arg.attr, "__getattribute__")
+        if prop is not None and is_pyscript_func(prop.fget):
+            try:
+                return await prop.fget.call(self, val)
+            except AttributeError:
+                # as in Python, an AttributeError from the getter falls back to __getattr__
+                getattr_func = inspect.getattr_static(type(val), "__getattr__", None)
+                if getattr_func is None:
+                    raise
+                if hasattr(getattr_func, "__get__"):
+                    getattr_func = getattr_func.__get__(val, type(val))  # pylint: disable=unnecessary-dunder-call
+                return await self.call_func(getattr_func, "__getattr__", arg.attr)
         return getattr(val, arg.attr)
 
     async def ast_name(self, arg):
@@ -2195,6 +2250,9 @@ class AstEval:
             _LOGGER.debug("%s: calling %s(%s, %s)", self.name, func_name, arg_str, kwargs_str)
         if isinstance(func, (EvalFunc, EvalFuncVar)):
             return await func.call(self, *args, **kwargs)
+        if isinstance(func, MethodType) and is_pyscript_func(func.__func__):
+            # eg, a pyscript function wrapped by classmethod(), bound to the class
+            return await func.__func__.call(self, func.__self__, *args, **kwargs)
         if func is super and not args and not kwargs:
             return super(*self.super_args())
         if inspect.isclass(func):
