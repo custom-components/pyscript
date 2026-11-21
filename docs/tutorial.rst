@@ -63,9 +63,9 @@ hey, this is just an example.)
 
 .. note::
 
-   You'll need to look at the log messages to see the output (unless you are using Jupyter, in which
-   case all log messages will be displayed, independent of the log setting). The log message won't
-   be visible unless the ``Logger`` is enabled at least for level ``info``, for example:
+   You'll need to look at the log messages to see the output (in Jupyter, they are displayed in your
+   session). The log message won't be visible, including in Jupyter, unless the ``Logger`` is enabled
+   at least for level ``info``, for example:
 
    .. code:: yaml
 
