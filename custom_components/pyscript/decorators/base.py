@@ -9,6 +9,7 @@ import voluptuous as vol
 from ..decorator import FunctionDecoratorManager
 from ..decorator_abc import Decorator
 from ..eval import AstEval, Function
+from ..trigger import strip_trigger_expr
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -54,7 +55,7 @@ class ExpressionDecorator(Decorator, ABC):
             self.dm.name + " " + dec_name, self.dm.ast_ctx.global_ctx, self.dm.name
         )
         Function.install_ast_funcs(self._ast_expression)
-        self._ast_expression.parse(expression, mode="eval")
+        self._ast_expression.parse(strip_trigger_expr(expression), mode="eval")
 
     def has_expression(self) -> bool:
         """Return True if expression was created."""

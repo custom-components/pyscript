@@ -1,12 +1,13 @@
 """Unit tests for time trigger functions."""
 
+import ast as ast_module
 from datetime import datetime as dt, timedelta
 from unittest.mock import patch
 
 import pytest
 
 from custom_components.pyscript.function import Function
-from custom_components.pyscript.trigger import TrigTime
+from custom_components.pyscript.trigger import TrigTime, strip_trigger_expr
 
 parseDateTimeTests = [
     ["2019/9/12 13:45", 0, dt(2019, 9, 12, 13, 45, 0, 0)],
@@ -717,3 +718,38 @@ async def test_timer_trigger_dst_next(hass):
     await Function.waiter_sync()
     await Function.waiter_stop()
     await Function.reaper_stop()
+
+
+TRIGGER_EXPR_STRIP_TESTS = [
+    ("x == 1", "x == 1"),
+    (" x == 1", "x == 1"),
+    ("x == 1 ", "x == 1"),
+    ("\nx == 1\n", "x == 1"),
+    ("\t x == 1 \t\r\n", "x == 1"),
+    ("\n  (x == 1 and\n   y == 2)\n", "(x == 1 and\n   y == 2)"),
+    ("", ""),
+    ("  \n ", ""),
+]
+
+
+@pytest.mark.parametrize("expr, expected", TRIGGER_EXPR_STRIP_TESTS)
+def test_strip_trigger_expr(expr, expected):
+    """Surrounding blanks go; the inside of the expression is untouched."""
+    assert strip_trigger_expr(expr) == expected
+
+
+def test_strip_trigger_expr_not_str():
+    """Values that aren't strings are left for the argument validation."""
+    assert strip_trigger_expr(None) is None
+    assert strip_trigger_expr(3) == 3
+
+
+@pytest.mark.parametrize("expr, expected", TRIGGER_EXPR_STRIP_TESTS[1:6])
+def test_strip_trigger_expr_matches_cpython(expr, expected):
+    """Python rejects the unstripped text; the stripped text parses the same as the plain expression."""
+    if expr[0] in " \t":
+        with pytest.raises(IndentationError):
+            ast_module.parse(expr, mode="eval")
+    assert ast_module.dump(ast_module.parse(strip_trigger_expr(expr), mode="eval")) == ast_module.dump(
+        ast_module.parse(expected, mode="eval")
+    )

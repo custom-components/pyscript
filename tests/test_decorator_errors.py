@@ -522,3 +522,236 @@ def func7():
         "TypeError: function 'func7' defined in file.hello: decorator @state_trigger keyword 'watch' should be type list or set"
         in caplog.text
     )
+
+
+TRIGGER_WHITESPACE_SOURCE = r"""
+seq_num = 0
+
+@time_trigger("startup")
+def func_startup():
+    pyscript.done = "startup"
+
+@state_trigger(" pyscript.a == '1'")
+def func_space(value=None):
+    pyscript.done = "space"
+
+@state_trigger("\npyscript.b == '1'\n")
+def func_newline(value=None):
+    pyscript.done = "newline"
+
+@state_trigger("\t pyscript.c == '1'\t")
+def func_tab(value=None):
+    pyscript.done = "tab"
+
+@state_trigger('''
+    (pyscript.d == '1' and
+     pyscript.e == '1')
+''')
+def func_multiline(value=None):
+    pyscript.done = "multiline"
+
+@state_trigger("  pyscript.f  ", "\n pyscript.g == '1'")
+def func_any(var_name=None):
+    pyscript.done = var_name
+
+@state_trigger(" pyscript.h == '1'")
+@state_active("\n pyscript.active == '1'\n")
+def func_active():
+    pyscript.done = "active"
+
+@event_trigger("test_event", "\n arg1 == 1 \n")
+def func_event(arg1=None):
+    pyscript.done = "event"
+
+@state_trigger("pyscript.w1 == '1'")
+def func_wait():
+    task.wait_until(state_trigger=" pyscript.w2 == 'go'\n", state_check_now=False)
+    pyscript.done = "waited state"
+
+@state_trigger("pyscript.w3 == '1'")
+def func_wait_event():
+    task.wait_until(event_trigger=["test_wait", "\t arg1 == 2 "])
+    pyscript.done = "waited event"
+
+@state_trigger("pyscript.s == '1'")
+def func_syntax():
+    try:
+        task.wait_until(state_trigger="\n  a b \n")
+    except SyntaxError as exc:
+        pyscript.done = f"syntax: {exc.msg} {exc.text} {exc.offset}"
+"""
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("legacy", [False, True], ids=["decorators", "legacy_decorators"])
+async def test_trigger_expression_whitespace(hass, caplog, monkeypatch, legacy):
+    """Trigger expressions may start and end with spaces, tabs and new lines."""
+    if legacy:
+        monkeypatch.setenv("NODM", "1")
+    notify_q = asyncio.Queue(0)
+    await setup_script(hass, notify_q, [dt(2020, 7, 1, 10, 59, 59, 999999)], TRIGGER_WHITESPACE_SOURCE)
+    assert ("Using legacy decorators" in caplog.text) == legacy
+
+    hass.bus.async_fire(EVENT_HOMEASSISTANT_STARTED)
+    assert await wait_until_done(notify_q) == "startup"
+
+    async def check(expected):
+        assert await wait_until_done(notify_q) == expected
+
+    hass.states.async_set("pyscript.a", "1")
+    await check("space")
+    hass.states.async_set("pyscript.b", "1")
+    await check("newline")
+    hass.states.async_set("pyscript.c", "1")
+    await check("tab")
+    hass.states.async_set("pyscript.d", "1")
+    hass.states.async_set("pyscript.e", "1")
+    await check("multiline")
+
+    # the entity name is trimmed too, so it still means "any change" and the name is exact
+    hass.states.async_set("pyscript.f", "x")
+    await check("pyscript.f")
+    hass.states.async_set("pyscript.g", "1")
+    await check("pyscript.g")
+
+    hass.states.async_set("pyscript.h", "1")
+    await hass.async_block_till_done()
+    assert notify_q.empty()
+    hass.states.async_set("pyscript.active", "1")
+    hass.states.async_set("pyscript.h", "0")
+    hass.states.async_set("pyscript.h", "1")
+    await check("active")
+
+    hass.bus.async_fire("test_event", {"arg1": 0})
+    await hass.async_block_till_done()
+    assert notify_q.empty()
+    hass.bus.async_fire("test_event", {"arg1": 1})
+    await check("event")
+
+    # task.wait_until: keep poking the state until the function is waiting
+    hass.states.async_set("pyscript.w1", "1")
+    for i in range(100):
+        if not notify_q.empty():
+            break
+        hass.states.async_set("pyscript.w2", f"stop{i}")
+        hass.states.async_set("pyscript.w2", "go")
+        await asyncio.sleep(0.02)
+    await check("waited state")
+
+    hass.states.async_set("pyscript.w3", "1")
+    for _ in range(100):
+        if not notify_q.empty():
+            break
+        hass.bus.async_fire("test_wait", {"arg1": 1})
+        hass.bus.async_fire("test_wait", {"arg1": 2})
+        await asyncio.sleep(0.02)
+    await check("waited event")
+
+    # a real syntax error reports the stripped expression, caret under the right place
+    hass.states.async_set("pyscript.s", "1")
+    # same message, text and offset as CPython gives for the stripped expression
+    with pytest.raises(SyntaxError) as exc_info:
+        compile("a b", "<expr>", "eval")
+    exc = exc_info.value
+    await check(f"syntax: {exc.msg} {exc.text} {exc.offset}")
+
+    assert "IndentationError" not in caplog.text
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("legacy", [False, True], ids=["decorators", "legacy_decorators"])
+async def test_trigger_expression_whitespace_syntax_error(hass, caplog, monkeypatch, legacy):
+    """A broken trigger expression is shown stripped, with the marker under the problem."""
+    if legacy:
+        monkeypatch.setenv("NODM", "1")
+    await setup_script(
+        hass,
+        None,
+        [dt(2020, 7, 1, 10, 59, 59, 999999)],
+        r"""
+@state_trigger("\n   \t(1 +\n  * 2) \n")
+def func1():
+    pass
+
+@event_trigger("some_event", "  \n a b ")
+def func2():
+    pass
+""",
+    )
+    assert (
+        """File "/hello.py", line 2, in file.hello.func1 @state_trigger()
+    * 2)
+    ^
+SyntaxError: invalid syntax"""
+        in caplog.text
+    )
+    assert (
+        """File "/hello.py", line 1, in file.hello.func2 @event_trigger()
+    a b
+      ^
+SyntaxError: invalid syntax"""
+        in caplog.text
+    )
+    assert "IndentationError" not in caplog.text
+
+
+TRIGGER_COMMENT_SOURCE = r"""
+@time_trigger("startup")
+def func_startup():
+    pyscript.done = "startup"
+
+@state_trigger("pyscript.c1 == '1' # first condition\n", "pyscript.c2 == '1'\t# last condition")
+def func_comments(var_name=None):
+    pyscript.done = var_name
+
+@state_trigger("  pyscript.c3 == '1'  # only condition\n")
+def func_single_comment():
+    pyscript.done = "single"
+
+@state_trigger("pyscript.w1 == '1'")
+def func_wait_first():
+    task.wait_until(state_trigger=["pyscript.w2 == 'go' # first\n", "pyscript.w3 == 'go' # last"], state_check_now=False)
+    pyscript.done = "waited first"
+
+@state_trigger("pyscript.w4 == '1'")
+def func_wait_last():
+    task.wait_until(state_trigger=["pyscript.w2 == 'go' # first\n", "pyscript.w3 == 'go' # last"], state_check_now=False)
+    pyscript.done = "waited last"
+"""
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("legacy", [False, True], ids=["decorators", "legacy_decorators"])
+async def test_trigger_expression_comments(hass, caplog, monkeypatch, legacy):
+    """A # comment ending a trigger expression never swallows what follows it."""
+    if legacy:
+        monkeypatch.setenv("NODM", "1")
+    notify_q = asyncio.Queue(0)
+    await setup_script(hass, notify_q, [dt(2020, 7, 1, 10, 59, 59, 999999)], TRIGGER_COMMENT_SOURCE)
+    assert ("Using legacy decorators" in caplog.text) == legacy
+
+    hass.bus.async_fire(EVENT_HOMEASSISTANT_STARTED)
+    assert await wait_until_done(notify_q) == "startup"
+
+    hass.states.async_set("pyscript.c1", "1")
+    assert await wait_until_done(notify_q) == "pyscript.c1"
+    hass.states.async_set("pyscript.c2", "1")
+    assert await wait_until_done(notify_q) == "pyscript.c2"
+    hass.states.async_set("pyscript.c3", "1")
+    assert await wait_until_done(notify_q) == "single"
+
+    # task.wait_until with a list: the first entry ends in a comment, the last entry is a comment
+    for trig, entity, expected in (
+        ("pyscript.w1", "pyscript.w2", "waited first"),
+        ("pyscript.w4", "pyscript.w3", "waited last"),
+    ):
+        hass.states.async_set(trig, "1")
+        for i in range(100):
+            if not notify_q.empty():
+                break
+            hass.states.async_set(entity, f"stop{i}")
+            hass.states.async_set(entity, "go")
+            await asyncio.sleep(0.02)
+        assert await wait_until_done(notify_q) == expected
+
+    assert "SyntaxError" not in caplog.text
