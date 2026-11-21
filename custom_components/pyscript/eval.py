@@ -13,7 +13,7 @@ import logging
 import sys
 import time
 import traceback
-from types import MethodType, TracebackType
+from types import CellType, CodeType, FunctionType, MethodType, TracebackType
 from typing import TYPE_CHECKING, Any
 
 import yaml
@@ -108,6 +108,7 @@ GENEXP_SCOPE_ATTRS = (
     "code_list",
     "class_sym_table",
     "class_global_names",
+    "loop_scopes",
 )
 
 
@@ -249,22 +250,90 @@ class EvalContinue(EvalStopFlow):
     _name = "continue"
 
 
+class LoopScope:
+    """The bindings a comprehension's loop variables replaced in a function's symbol table."""
+
+    MISSING = object()
+
+    def __init__(self, sym_table, var_names):
+        """Save the current bindings of var_names in sym_table."""
+        self.sym_table = sym_table
+        self.var_names = var_names
+        # the replaced bindings; a name that isn't here wasn't bound
+        self.saved = {name: sym_table[name] for name in var_names if name in sym_table}
+
+    def bindings(self):
+        """Return the current bindings of our names."""
+        return {name: self.sym_table.get(name, self.MISSING) for name in self.var_names}
+
+    def set_bindings(self, bindings):
+        """Bind each of our names to its entry in bindings, or remove it if it has none."""
+        for name in self.var_names:
+            entry = bindings.get(name, self.MISSING)
+            if entry is self.MISSING:
+                self.sym_table.pop(name, None)
+            else:
+                self.sym_table[name] = entry
+
+    def restore(self):
+        """Put back the saved bindings, returning the ones they replaced."""
+        current = self.bindings()
+        self.set_bindings(self.saved)
+        return current
+
+    def keep_writes(self):
+        """Save the current bindings that changed since restore(), eg by an assignment."""
+        for name, entry in self.bindings().items():
+            if entry is not self.saved.get(name, self.MISSING):
+                if entry is self.MISSING:
+                    del self.saved[name]
+                else:
+                    self.saved[name] = entry
+
+
+def lambda_param_names(lambda_ast):
+    """Return the parameter names of a lambda."""
+    args = lambda_ast.args
+    params = [arg.arg for arg in args.posonlyargs + args.args + args.kwonlyargs]
+    for arg in (args.vararg, args.kwarg):
+        if arg is not None:
+            params.append(arg.arg)
+    return set(params)
+
+
+def lambda_body_names(lambda_ast):
+    """Return the names used anywhere in a lambda's body, a superset of the ones it reads from outside."""
+    return {node.id for node in ast.walk(lambda_ast.body) if isinstance(node, ast.Name)}
+
+
+def strip_qualname_prefix(code, prefix):
+    """Return code, and the code nested in it (eg, an inner lambda), without prefix on their qualified names."""
+    consts = tuple(
+        strip_qualname_prefix(const, prefix) if isinstance(const, CodeType) else const
+        for const in code.co_consts
+    )
+    return code.replace(co_qualname=code.co_qualname.removeprefix(prefix), co_consts=consts)
+
+
 class EvalLocalVar:
     """Wrapper for local variable symtable entry."""
 
     def __init__(self, name, **kwargs):
         """Initialize value of local symbol."""
         self.name = name
-        self.defined = False
-        if "value" in kwargs:
-            self.value = kwargs["value"]
-            self.defined = True
+        # the value is kept in a Python cell, so a lambda compiled to native code can share it
+        self.cell = CellType(kwargs["value"]) if "value" in kwargs else CellType()
 
     def get(self):
         """Get value of local symbol."""
-        if not self.defined:
-            raise NameError(f"name '{self.name}' is not defined")
-        return self.value
+        try:
+            return self.cell.cell_contents
+        except ValueError:
+            raise NameError(f"name '{self.name}' is not defined") from None
+
+    def get_cell(self):
+        """Get the Python cell that holds the value of local symbol."""
+        return self.cell
 
     def get_name(self):
         """Get name of local symbol."""
@@ -272,26 +341,31 @@ class EvalLocalVar:
 
     def set(self, value):
         """Set value of local symbol."""
-        self.value = value
-        self.defined = True
+        self.cell.cell_contents = value
 
     def is_defined(self):
         """Return whether value is defined."""
-        return self.defined
+        try:
+            _ = self.cell.cell_contents
+        except ValueError:
+            return False
+        return True
 
     def set_undefined(self):
         """Set local symbol to undefined."""
-        self.defined = False
+        if self.is_defined():
+            del self.cell.cell_contents
 
     def __getattr__(self, attr):
         """Get attribute of local variable."""
-        if not self.defined:
-            raise NameError(f"name '{self.name}' is not defined")
-        return getattr(self.value, attr)
+        if attr == "cell":
+            # not set yet (eg, while copying an instance), so don't recurse
+            raise AttributeError(attr)
+        return getattr(self.get(), attr)
 
     def __repr__(self):
         """Generate string with address and value."""
-        return f"EvalLocalVar @{hex(id(self))} = {self.value if self.defined else 'undefined'}"
+        return f"EvalLocalVar @{hex(id(self))} = {self.get() if self.is_defined() else 'undefined'}"
 
 
 def is_pyscript_func(func):
@@ -924,8 +998,11 @@ class EvalFunc:
                 ast_ctx.sym_table = ast_ctx.sym_table_stack.pop()
 
     async def check_for_closure(self, arg):
-        """Recursively check ast tree arg and return True if there is an inner function or class."""
+        """Recursively check ast tree arg and return True if there is an inner function, class or lambda."""
         if isinstance(arg, (ast.FunctionDef, ast.ClassDef, ast.AsyncFunctionDef)):
+            return True
+        if isinstance(arg, ast.Lambda) and lambda_body_names(arg) - lambda_param_names(arg):
+            # the lambda might read our variables, so they need to be shared with it
             return True
         for child in ast.iter_child_nodes(arg):
             if await self.check_for_closure(child):
@@ -1056,6 +1133,7 @@ class AstEval:
         self.class_sym_table: SymTable | None = None
         self.class_cell: list[type | None] | None = None
         self.class_global_names: set[str] = set()
+        self.loop_scopes: tuple[LoopScope, ...] = ()
         self.class_pending_annotations: list[tuple[str, ast.expr]] = []
 
     async def ast_not_implemented(self, arg, *args):
@@ -1386,21 +1464,92 @@ class AstEval:
             sym_table[name] = func_var
 
     async def ast_lambda(self, arg):
-        """Evaluate lambda definition by compiling a regular function."""
-        name = "__lambda_defn_temp__"
-        await self.aeval(
-            ast.FunctionDef(
-                args=arg.args,
-                body=[ast.Return(value=arg.body, lineno=arg.body.lineno, col_offset=arg.body.col_offset)],
-                name=name,
-                decorator_list=[ast.Name(id="pyscript_compile", ctx=ast.Load())],
-                lineno=arg.lineno,
-                col_offset=arg.col_offset,
+        """Evaluate lambda definition by compiling it to a native Python function."""
+        lambda_args = arg.args
+        # as in Python, the defaults are evaluated now, in this scope
+        defaults = [await self.aeval(default) for default in lambda_args.defaults]
+        kw_defaults = {}
+        for kwonlyarg, default in zip(lambda_args.kwonlyargs, lambda_args.kw_defaults, strict=True):
+            if default is not None:
+                kw_defaults[kwonlyarg.arg] = await self.aeval(default)
+        #
+        # In a function, the lambda can read the function's variables (and the ones it shares
+        # with enclosing functions). Compile the lambda inside a native function that has those
+        # names as its parameters, so Python's compiler works out which of them the lambda reads,
+        # exactly as Python would; they become the lambda's free variables, which we bind to the
+        # cells of our EvalLocalVar variables, so the lambda reads their current values.
+        #
+        enclosing_names = []
+        if self.in_local_scope():
+            enclosing_names = sorted(
+                name
+                for name in lambda_body_names(arg) - lambda_param_names(arg)
+                if isinstance(self.sym_table.get(name), EvalLocalVar)
             )
-        )
-        func = self.sym_table[name]
-        del self.sym_table[name]
+        lambda_code = self.cached_lambda_code(arg, enclosing_names)
+        closure = tuple(self.sym_table[name].get_cell() for name in lambda_code.co_freevars)
+        # as in Python, a lambda without defaults has __defaults__ None
+        func = FunctionType(lambda_code, self.global_sym_table, None, tuple(defaults) or None, closure)
+        if kw_defaults:
+            func.__kwdefaults__ = kw_defaults
         return func
+
+    def lambda_free_names(self, arg):
+        """Return the names a lambda reads from the scope it's in, exactly as Python works them out."""
+        candidates = sorted(lambda_body_names(arg))
+        try:
+            return set(self.cached_lambda_code(arg, candidates).co_freevars)
+        except SyntaxError:
+            # its body isn't native Python, so it fails when it's evaluated; until then, assume any name
+            return set(candidates) - lambda_param_names(arg)
+
+    def cached_lambda_code(self, arg, enclosing_names):
+        """Return the compiled code of a lambda that can read enclosing_names, compiling it once."""
+        # the compiled code depends only on the lambda and the names it might read from here
+        cache_key = (tuple(enclosing_names), self.filename)
+        code_cache = arg.__dict__.setdefault("pyscript_lambda_code", {})
+        lambda_code = code_cache.get(cache_key)
+        if lambda_code is None:
+            lambda_code = code_cache[cache_key] = self.compile_lambda(arg, enclosing_names)
+        return lambda_code
+
+    def compile_lambda(self, arg, enclosing_names):
+        """Compile a lambda to native code, inside a function whose parameters are enclosing_names."""
+        lambda_args = arg.args
+        native_lambda = ast.Lambda(
+            args=ast.arguments(
+                posonlyargs=lambda_args.posonlyargs,
+                args=lambda_args.args,
+                vararg=lambda_args.vararg,
+                kwonlyargs=lambda_args.kwonlyargs,
+                kw_defaults=[None] * len(lambda_args.kwonlyargs),
+                kwarg=lambda_args.kwarg,
+                defaults=[],
+            ),
+            body=arg.body,
+        )
+        scope_func = ast.FunctionDef(
+            name="__lambda_scope__",
+            args=ast.arguments(
+                posonlyargs=[],
+                args=[ast.arg(arg=name) for name in enclosing_names],
+                kwonlyargs=[],
+                kw_defaults=[],
+                defaults=[],
+            ),
+            body=[ast.Return(value=native_lambda)],
+            decorator_list=[],
+        )
+        for node in (native_lambda, native_lambda.args, scope_func, scope_func.args, *scope_func.args.args):
+            ast.copy_location(node, arg)
+        ast.fix_missing_locations(scope_func)
+        module_code = compile(
+            ast.Module(body=[scope_func], type_ignores=[]), filename=self.filename, mode="exec"
+        )
+        scope_code = next(const for const in module_code.co_consts if isinstance(const, CodeType))
+        lambda_code = next(const for const in scope_code.co_consts if isinstance(const, CodeType))
+        lambda_code = strip_qualname_prefix(lambda_code, f"{scope_func.name}.<locals>.")
+        return lambda_code
 
     async def ast_asyncfunctiondef(self, arg):
         """Evaluate async function definition."""
@@ -1441,7 +1590,11 @@ class AstEval:
                                 return val
                     finally:
                         if handler.name is not None:
-                            del self.sym_table[handler.name]
+                            if isinstance(self.sym_table.get(handler.name), EvalLocalVar):
+                                # like del, so a lambda or inner function sharing it sees it's unbound
+                                self.sym_table[handler.name].set_undefined()
+                            else:
+                                self.sym_table.pop(handler.name, None)
                     break
             else:
                 raise err
@@ -1605,6 +1758,10 @@ class AstEval:
                     f"invalid name '{var_name}' (should be 'domain.entity' or 'domain.entity.attr')"
                 )
             self.assign_name(var_name, val)
+
+    def in_local_scope(self):
+        """Return whether names are bound in a function's local scope, not at module level or in a class body."""
+        return self.sym_table is not self.global_sym_table and self.sym_table is not self.class_sym_table
 
     def binds_global(self, var_name):
         """Return whether var_name is bound in the global symbol table by a global declaration."""
@@ -1980,24 +2137,46 @@ class AstEval:
             )
         return lvars, {var: self.sym_table[var] for var in lvars if var in self.sym_table}
 
-    async def loopvar_scope_restore(self, var_names, save_vars):
-        """Restore current scope variables that match looping target vars."""
-        for var_name in var_names:
-            if var_name in save_vars:
-                self.sym_table[var_name] = save_vars[var_name]
-            else:
-                try:
-                    del self.sym_table[var_name]
-                except KeyError:
-                    # If the iterator was empty, the loop variables were never
-                    # assigned to, so deleting them will fail.
-                    pass
+    def shares_locals(self):
+        """Return whether we're in a function that shares its variables with inner functions or lambdas."""
+        return self.in_local_scope() and self.curr_func is not None and self.curr_func.has_closure
 
-    async def listcomp_loop(self, generators, elt):
+    def new_loop_vars(self, var_names):
+        """Return new local variables for a comprehension's loop vars, which a lambda in it can share."""
+        if not self.shares_locals():
+            return {}
+        # loop variables bound by a global declaration stay global
+        return {
+            var_name: EvalLocalVar(var_name)
+            for var_name in var_names
+            if var_name.isidentifier() and not self.binds_global(var_name)
+        }
+
+    async def loopvar_scope_enter(self, generators):
+        """Save current scope variables that match looping target vars, and give the loop vars their own."""
+        var_names, _ = await self.loopvar_scope_save(generators)
+        loop_scope = LoopScope(self.sym_table, var_names)
+        prev_loop_scopes = self.loop_scopes
+        if self.shares_locals():
+            #
+            # in a function that shares its variables, the loop variables are new locals, so the
+            # function's own variables with these names aren't changed; a generator expression
+            # made before this comprehension sees the bindings they replace (see genexp_loop)
+            #
+            self.loop_scopes = (*prev_loop_scopes, loop_scope)
+            self.sym_table.update(self.new_loop_vars(var_names))
+        return loop_scope, prev_loop_scopes
+
+    async def loopvar_scope_exit(self, loop_scope, prev_loop_scopes):
+        """Restore current scope variables that match looping target vars."""
+        loop_scope.restore()
+        self.loop_scopes = prev_loop_scopes
+
+    async def listcomp_loop(self, generators, elt, loop_iter):
         """Recursive list comprehension."""
         out = []
         gen = generators[0]
-        for loop_var in await self.aeval(gen.iter):
+        for loop_var in loop_iter:
             await self.recurse_assign(gen.target, loop_var)
             for cond in gen.ifs:
                 if not await self.aeval(cond):
@@ -2006,15 +2185,20 @@ class AstEval:
                 if len(generators) == 1:
                     out.append(await self.aeval(elt))
                 else:
-                    out += await self.listcomp_loop(generators[1:], elt)
+                    out += await self.listcomp_loop(
+                        generators[1:], elt, await self.aeval(generators[1].iter)
+                    )
         return out
 
     async def ast_listcomp(self, arg):
         """Evaluate list comprehension."""
-        target_vars, save_values = await self.loopvar_scope_save(arg.generators)
-        result = await self.listcomp_loop(arg.generators, arg.elt)
-        await self.loopvar_scope_restore(target_vars, save_values)
-        return result
+        # as in Python, the outermost iterable is evaluated in the enclosing scope
+        loop_iter = await self.aeval(arg.generators[0].iter)
+        loop_scope, prev_loop_scopes = await self.loopvar_scope_enter(arg.generators)
+        try:
+            return await self.listcomp_loop(arg.generators, arg.elt, loop_iter)
+        finally:
+            await self.loopvar_scope_exit(loop_scope, prev_loop_scopes)
 
     async def ast_tuple(self, arg):
         """Evaluate Tuple."""
@@ -2031,11 +2215,11 @@ class AstEval:
                 val[await self.aeval(key_ast)] = this_val
         return val
 
-    async def dictcomp_loop(self, generators, key, value):
+    async def dictcomp_loop(self, generators, key, value, loop_iter):
         """Recursive dict comprehension."""
         out = {}
         gen = generators[0]
-        for loop_var in await self.aeval(gen.iter):
+        for loop_var in loop_iter:
             await self.recurse_assign(gen.target, loop_var)
             for cond in gen.ifs:
                 if not await self.aeval(cond):
@@ -2048,15 +2232,21 @@ class AstEval:
                     key_val = await self.aeval(key)
                     out[key_val] = await self.aeval(value)
                 else:
-                    out.update(await self.dictcomp_loop(generators[1:], key, value))
+                    out.update(
+                        await self.dictcomp_loop(
+                            generators[1:], key, value, await self.aeval(generators[1].iter)
+                        )
+                    )
         return out
 
     async def ast_dictcomp(self, arg):
         """Evaluate dict comprehension."""
-        target_vars, save_values = await self.loopvar_scope_save(arg.generators)
-        result = await self.dictcomp_loop(arg.generators, arg.key, arg.value)
-        await self.loopvar_scope_restore(target_vars, save_values)
-        return result
+        loop_iter = await self.aeval(arg.generators[0].iter)
+        loop_scope, prev_loop_scopes = await self.loopvar_scope_enter(arg.generators)
+        try:
+            return await self.dictcomp_loop(arg.generators, arg.key, arg.value, loop_iter)
+        finally:
+            await self.loopvar_scope_exit(loop_scope, prev_loop_scopes)
 
     async def ast_set(self, arg):
         """Evaluate set."""
@@ -2065,11 +2255,11 @@ class AstEval:
             ret.add(elt)
         return ret
 
-    async def setcomp_loop(self, generators, elt):
+    async def setcomp_loop(self, generators, elt, loop_iter):
         """Recursive list comprehension."""
         out = set()
         gen = generators[0]
-        for loop_var in await self.aeval(gen.iter):
+        for loop_var in loop_iter:
             await self.recurse_assign(gen.target, loop_var)
             for cond in gen.ifs:
                 if not await self.aeval(cond):
@@ -2078,15 +2268,19 @@ class AstEval:
                 if len(generators) == 1:
                     out.add(await self.aeval(elt))
                 else:
-                    out.update(await self.setcomp_loop(generators[1:], elt))
+                    out.update(
+                        await self.setcomp_loop(generators[1:], elt, await self.aeval(generators[1].iter))
+                    )
         return out
 
     async def ast_setcomp(self, arg):
         """Evaluate set comprehension."""
-        target_vars, save_values = await self.loopvar_scope_save(arg.generators)
-        result = await self.setcomp_loop(arg.generators, arg.elt)
-        await self.loopvar_scope_restore(target_vars, save_values)
-        return result
+        loop_iter = await self.aeval(arg.generators[0].iter)
+        loop_scope, prev_loop_scopes = await self.loopvar_scope_enter(arg.generators)
+        try:
+            return await self.setcomp_loop(arg.generators, arg.elt, loop_iter)
+        finally:
+            await self.loopvar_scope_exit(loop_scope, prev_loop_scopes)
 
     async def genexp_next(self, arg, iters):
         """Evaluate the next element of a generator expression, returning it in a tuple, or () at the end."""
@@ -2109,14 +2303,14 @@ class AstEval:
                 iters.append(iter(await self.aeval(generators[level + 1].iter)))
         return ()
 
-    def genexp_loop(self, arg, iters, loop_vars, scope, loop):
+    def genexp_loop(self, arg, iters, loop_vars, gen_vars, gen_scope, scope, loop):
         """Yield the elements of a generator expression, evaluating each one only when it's asked for."""
         #
         # native code (eg, sum(), any() or "".join()) iterates synchronously, so each element is
         # evaluated by running our async code to completion without returning to the event loop,
         # in the scope where the generator expression was created
         #
-        gen_vars = {}
+        gen_loop_scopes = (*scope["loop_scopes"], gen_scope)
         while True:
             try:
                 running_loop = asyncio.get_running_loop()
@@ -2130,9 +2324,24 @@ class AstEval:
                 setattr(self, attr, value)
             self.sym_table_stack = scope["sym_table_stack"].copy()
             sym_table = self.sym_table
+            #
+            # a comprehension started after we were made (eg, the one iterating over us) has
+            # its own loop variables in this scope; put back the bindings it replaced, newest first
+            #
+            hidden = []
+            if save_scope["loop_scopes"] is not scope["loop_scopes"]:
+                hidden = [
+                    (loop_scope, loop_scope.restore())
+                    for loop_scope in reversed(save_scope["loop_scopes"])
+                    if loop_scope.sym_table is sym_table and loop_scope not in scope["loop_scopes"]
+                ]
             # the loop variables are in their own scope, so hide any with the same names in this one
             outer_vars = {var: sym_table.pop(var) for var in loop_vars if var in sym_table}
             sym_table.update(gen_vars)
+            if gen_scope is not None:
+                # they replace bindings too, for any generator expression an element uses
+                gen_scope.saved = outer_vars
+                self.loop_scopes = gen_loop_scopes
             coro = self.genexp_next(arg, iters)
             try:
                 coro.send(None)  # pylint: disable=no-member
@@ -2154,6 +2363,11 @@ class AstEval:
             finally:
                 gen_vars = {var: sym_table.pop(var) for var in loop_vars if var in sym_table}
                 sym_table.update(outer_vars)
+                if hidden:
+                    for loop_scope, bindings in reversed(hidden):
+                        # keep what the element assigned (eg, with :=) to the bindings we put back
+                        loop_scope.keep_writes()
+                        loop_scope.set_bindings(bindings)
                 for attr, value in save_scope.items():
                     setattr(self, attr, value)
             if not elt:
@@ -2165,10 +2379,12 @@ class AstEval:
         # as in Python, the outermost iterable is evaluated right away
         iters = [iter(await self.aeval(arg.generators[0].iter))]
         loop_vars, _ = await self.loopvar_scope_save(arg.generators)
+        gen_vars = self.new_loop_vars(loop_vars)
+        gen_scope = LoopScope(self.sym_table, loop_vars) if self.shares_locals() else None
         scope = {attr: getattr(self, attr) for attr in GENEXP_SCOPE_ATTRS}
         scope["sym_table_stack"] = self.sym_table_stack.copy()
         scope["genexp_iter"] = iters[0]  # what Python passes to the generator as its first argument
-        gen = self.genexp_loop(arg, iters, loop_vars, scope, asyncio.get_running_loop())
+        gen = self.genexp_loop(arg, iters, loop_vars, gen_vars, gen_scope, scope, asyncio.get_running_loop())
         gen.__name__ = gen.__qualname__ = "<genexpr>"
         return gen
 
@@ -2438,7 +2654,7 @@ class AstEval:
                     for name in await self.get_target_names(target):
                         local_names.add(name)
                         names.add(name)
-            elif cls_name in {"AugAssign", "For", "AsyncFor", "NamedExpr"}:
+            elif cls_name in {"AnnAssign", "AugAssign", "For", "AsyncFor", "NamedExpr"}:
                 for name in await self.get_target_names(arg.target):
                     local_names.add(name)
                     names.add(name)
@@ -2485,6 +2701,12 @@ class AstEval:
                 for name in inner_names:
                     if name not in inner_local and name not in inner_global:
                         names.add(name)
+                return
+            elif cls_name == "Lambda":
+                # the defaults are in this scope; nothing in the body binds a name here
+                for default in arg.args.defaults + [kwd for kwd in arg.args.kw_defaults if kwd is not None]:
+                    await self.get_names_set(default, names, nonlocal_names, global_names, local_names)
+                names.update(self.lambda_free_names(arg))
                 return
             elif cls_name == "Delete":
                 for arg1 in arg.targets:
