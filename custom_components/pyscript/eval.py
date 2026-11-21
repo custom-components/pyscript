@@ -1119,7 +1119,8 @@ class AstEval:
         if not isinstance(annotations, dict):
             return
         self.sym_table_stack.append(self.sym_table)
-        self.sym_table = {cls_name: cls}
+        # as in Python, an annotation sees the class's own names first, eg a type alias
+        self.sym_table = {cls_name: cls, **cls.__dict__}
         try:
             for name, annotation in pending:
                 try:

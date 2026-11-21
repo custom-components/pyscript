@@ -3436,6 +3436,26 @@ result = [
         ],
         [["val", "nxt"], True, True],
     ],
+    [
+        [
+            """
+class A:
+    Alias = int
+    x: A | Alias = None
+    y: A | Later = None
+    Later = str
+class B:
+    z: B | B = None
+    B = float
+result = [
+    A.__annotations__["x"] == (A | int),
+    A.__annotations__["y"] == (A | str),
+    B.__annotations__["z"] == float,
+]
+"""
+        ],
+        [True, True, True],
+    ],
 ]
 
 
