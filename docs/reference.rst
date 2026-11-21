@@ -2358,8 +2358,13 @@ A handful of language features are not supported:
   an output file handle.
 - The built-in function decorators (e.g., ``state_trigger``) aren't functions that can be called and used
   in-line like real Python decorators. However, you can define your own function decorators that
-  could include those decorators on the inner functions they define. Currently none of Python's
-  built-in decorators are supported.
+  could include those decorators on the inner functions they define.
+- Of Python's built-in decorators, ``@property`` (with ``@x.setter``, or ``property(fget, fset)``),
+  ``@classmethod`` and ``@staticmethod`` work on the methods of a class defined in pyscript. Several things
+  still don't work: ``getattr()`` and ``hasattr()`` on a pyscript property from native Python code
+  (they raise an error, since the getter is an async function that only pyscript can call),
+  ``functools.cached_property``, ``super().prop``, a property deleter (``del obj.prop``), and a pyscript
+  property in a class that overrides ``__getattribute__`` or ``__setattr__``.
 
 The typical work-around for places where pyscript falls short is to move that code into a native Python module,
 and then import that module into pyscript.  Pyscript can call Python modules and packages, so you could

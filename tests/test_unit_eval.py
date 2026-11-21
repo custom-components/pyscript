@@ -3501,3 +3501,61 @@ async def test_class_body_error_reaches_caller(hass):
     await Function.waiter_sync()
     await Function.waiter_stop()
     await Function.reaper_stop()
+
+
+PROPERTY_CLASSMETHOD_SOURCES = [
+    "class A:\n    def __init__(self): self._x = 3\n    @property\n    def x(self): return self._x * 2\nresult = A().x",
+    "class A:\n    def __init__(self): self._x = 3\n    @property\n    def x(self): return self._x\n    @x.setter\n    def x(self, v): self._x = v + 1\na = A(); a.x = 10\nresult = a.x",
+    "class A:\n    n = 5\n    @classmethod\n    def make(cls, k): return cls.n + k\nresult = (A.make(1), A().make(2))",
+    "class A:\n    def __init__(self, v): self.v = v\n    @classmethod\n    def build(cls): return cls(7)\nresult = A.build().v",
+    "class A:\n    @staticmethod\n    def f(a, b): return a + b\nresult = (A.f(1, 2), A().f(3, 4))",
+    "class B:\n    @property\n    def x(self): return 1\nclass C(B): pass\nresult = C().x",
+    "class A:\n    def __init__(self): self._x = 1\n    @property\n    def x(self): return self._x\n    @x.setter\n    def x(self, v): self._x = v * 10\na = A(); a.x += 1\nresult = a._x",
+    "class A:\n    @property\n    def x(self): return 1\ntry:\n    A().x = 3\n    result = 'set'\nexcept AttributeError as e:\n    result = 'AttributeError'",
+    "class A:\n    @property\n    def x(self): return 1\nresult = type(A.x).__name__",
+    "class A:\n    def _get(self): return 4\n    x = property(_get)\nresult = A().x",
+    "class B:\n    @property\n    def x(self): return 1\nclass C(B):\n    @property\n    def x(self): return 2\nresult = (B().x, C().x)",
+    "class A:\n    @property\n    def x(self): return 'prop'\na = A()\na.__dict__['x'] = 'dict'\nresult = a.x",
+    "class A:\n    def __init__(self): self.v = 2\n    def dbl(self): return self.v * 2\n    @property\n    def x(self): return self.dbl() + 1\nresult = A().x",
+    "class A:\n    @property\n    def x(self): raise AttributeError('nope')\ntry:\n    A().x\n    result = 'ok'\nexcept AttributeError:\n    result = 'AttributeError'",
+    "class B:\n    @classmethod\n    def name(cls): return cls.__name__\nclass C(B): pass\nresult = (B.name(), C.name(), C().name())",
+    "class B:\n    @classmethod\n    def f(cls, a, *, k=0): return (cls.__name__, a, k)\nresult = B.f(1, k=2)",
+    "class A:\n    @pyscript_compile\n    def _g(self): return 5\n    x = property(_g)\nresult = A().x",
+    "class B:\n    def __init__(self): self._v = 0\n    @property\n    def v(self): return self._v\n    @v.setter\n    def v(self, x): self._v = x * 2\nclass A:\n    def __init__(self): self.b = B()\na = A(); a.b.v = 5; a.b.v += 1\nresult = (a.b.v, a.b._v)",
+    "class B:\n    @property\n    def v(self): return 7\nclass A:\n    @property\n    def b(self): return B()\nresult = A().b.v",
+    "class B:\n    def __init__(self): self._v = 0\n    @property\n    def v(self): return self._v\n    @v.setter\n    def v(self, x): self._v = x + 1\nclass C(B): pass\nc = C(); c.v, y = 3, 4\nresult = (c.v, y)",
+    "class M(type):\n    @property\n    def p(cls): return cls.__name__\nclass A(metaclass=M): pass\nresult = A.p",
+    "class A:\n    @pyscript_compile\n    def __getattribute__(self, key):\n        if key == 'x': return 42\n        return object.__getattribute__(self, key)\n    @property\n    def x(self): return 1\nresult = A().x",
+    "class A:\n    def __init__(self): object.__setattr__(self, 'log', [])\n    @pyscript_compile\n    def __setattr__(self, key, val):\n        self.log.append((key, val))\n    @property\n    def x(self): return 1\n    @x.setter\n    def x(self, v): raise ValueError('setter used')\na = A(); a.x = 7\nresult = a.log",
+    "class A:\n    @pyscript_compile\n    def __getattr__(self, key): return 42\n    @property\n    def x(self): raise AttributeError('missing')\nresult = A().x",
+    "class A:\n    @property\n    def x(self): raise AttributeError('missing')\ntry:\n    A().x\n    result = 'ok'\nexcept AttributeError as e:\n    result = str(e)",
+    "class P(property):\n    @pyscript_compile\n    def __get__(self, instance, owner=None): return 42\nclass A:\n    @P\n    def x(self): return 1\nresult = A().x",
+    "class P(property):\n    @pyscript_compile\n    def __set__(self, instance, value): instance.log = ('set', value)\nclass A:\n    @P\n    def x(self): return 1\n    @x.setter\n    def x(self, v): raise ValueError('setter used')\na = A(); a.x = 7\nresult = a.log",
+    "class A:\n    @staticmethod\n    def __getattr__(key): return 'static ' + key\n    @property\n    def x(self): raise AttributeError('missing')\nresult = A().x",
+    "class A:\n    @classmethod\n    def __getattr__(cls, key): return cls.__name__ + key\n    @property\n    def x(self): raise AttributeError('missing')\nresult = A().x",
+    "class A:\n    def __getattr__(self, key): return type(self).__name__ + key\n    @property\n    def x(self): raise AttributeError('missing')\nresult = A().x",
+    "class A:\n    @classmethod\n    def f(cls): return 1\n    def g(self): return self.f() + A.f() + type(self).f()\nresult = A().g()",
+]
+
+
+async def test_property_classmethod_match_python(hass):
+    """Test @property and @classmethod on pyscript functions, compared with CPython."""
+    hass.data[DOMAIN] = {CONFIG_ENTRY: MockConfigEntry(domain=DOMAIN, data={CONF_ALLOW_ALL_IMPORTS: True})}
+    DecoratorRegistry.init(hass)
+    Function.init(hass)
+    State.init(hass)
+    State.register_functions()
+    TrigTime.init(hass)
+
+    for source in PROPERTY_CLASSMETHOD_SOURCES:
+        expected_ns = {"pyscript_compile": lambda func: func}
+        exec(compile(source, "test", "exec"), expected_ns)  # pylint: disable=exec-used
+        global_ctx = GlobalContext("test", global_sym_table={}, manager=GlobalContextMgr)
+        ast = AstEval("test", global_ctx=global_ctx)
+        Function.install_ast_funcs(ast)
+        ast.parse(source + "\nresult\n")
+        assert await ast.eval() == expected_ns["result"], source
+
+    await Function.waiter_sync()
+    await Function.waiter_stop()
+    await Function.reaper_stop()
