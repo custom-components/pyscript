@@ -4800,6 +4800,67 @@ for func in [g, C().values, C().values2]:
     except (TypeError, RuntimeError) as exc:
         result.append(str(exc))
 """,
+    # a method that uses super() and is called from a generator expression's element, condition or nested generator
+    """
+class B:
+    def f(self):
+        return "B" + str(self.n)
+    def inherited(self):
+        return list(self.g() for _ in range(2))
+class C(B):
+    def __init__(self, n):
+        self.n = n
+    def g(self):
+        return super().f()
+    def g2(self):
+        return super(C, self).f()
+    def element(self):
+        return list(self.g() for _ in range(2))
+    def element2(self):
+        return list(self.g2() for _ in range(2))
+    def cond(self):
+        return list(i for i in range(3) if self.g() == "B1" and i != 1)
+    def nested(self):
+        return list(list(self.g() for _ in range(2)) for _ in range(2))
+    def both(self):
+        return list((self.g(), self.g2()) for _ in range(2))
+c = C(1)
+result = [c.element(), c.element2(), c.cond(), c.nested(), c.both(), c.inherited()]
+""",
+    # __new__ returning an instance of another class: __init__ runs once, only if it is an instance of the class
+    """
+calls = []
+class Other:
+    def __init__(self, *args):
+        calls.append(["Other", args])
+class OtherInherit(Other):
+    pass
+def make(*args):
+    return args
+class Sub:
+    def __new__(cls, *args):
+        return object.__new__(Sub2)
+    def __init__(self, *args):
+        calls.append(["Sub", args])
+class Sub2(Sub):
+    def __init__(self, *args):
+        calls.append(["Sub2", args])
+class A:
+    kind = Other
+    def __new__(cls, *args):
+        return cls.kind(*args)
+    def __init__(self, *args):
+        calls.append(["A", args])
+result = []
+for kind in [Other, OtherInherit, make]:
+    A.kind = kind
+    calls.clear()
+    obj = A(1, 2)
+    result.append([type(obj).__name__, obj if kind is make else None, calls[:]])
+calls.clear()
+obj = Sub(3)
+result.append([type(obj).__name__, None, calls[:]])
+""",
 ]
 
 
