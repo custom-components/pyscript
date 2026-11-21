@@ -849,20 +849,37 @@ class EvalFunc:
 class EvalFuncVar:
     """Class for a callable pyscript function."""
 
+    # keep our own fields out of __dict__, so functools.wraps() can't copy them onto a wrapper
+    __slots__ = ("__dict__", "__weakref__", "ast_ctx", "func")
+
     def __init__(self, func: EvalFunc) -> None:
         """Initialize instance with given EvalFunc function."""
         self.func = func
         self.ast_ctx: AstEval | None = None
 
+    @property
+    def __name__(self):
+        """Return the function name, like a Python function."""
+        return self.func.get_name()
+
+    @__name__.setter
+    def __name__(self, name):
+        """Set the function name, eg by functools.wraps()."""
+        self.func.set_name(name)
+
+    @property
+    def __doc__(self):
+        """Return the function doc string, like a Python function."""
+        return self.func.get_doc_string()
+
+    @__doc__.setter
+    def __doc__(self, doc_string):
+        """Set the function doc string, eg by functools.wraps()."""
+        self.func.doc_string = doc_string
+
     def get_func(self) -> EvalFunc:
         """Return the EvalFunc function."""
         return self.func
-
-    def remove_func(self):
-        """Remove and return the EvalFunc function."""
-        func = self.func
-        self.func = None
-        return func
 
     async def call(self, ast_ctx, *args, **kwargs):
         """Call the EvalFunc function."""
@@ -905,6 +922,10 @@ class EvalFuncVar:
 
 class EvalFuncVarClassInst(EvalFuncVar):
     """Class for a callable pyscript class instance function."""
+
+    __slots__ = ("class_inst",)
+    # our class doc string would otherwise hide the __doc__ property, which returns the method's
+    __doc__ = EvalFuncVar.__doc__
 
     def __init__(self, func: EvalFunc, ast_ctx: "AstEval", class_inst: Any) -> None:
         """Initialize instance with given EvalFunc function."""
@@ -1212,17 +1233,30 @@ class AstEval:
         dec_trig, dec_other, dec_dm = await func.eval_decorators(self)
         self.dec_eval_depth += 1
         for dec_func in dec_other:
-            func = await self.call_func(dec_func, None, func)
+            if isinstance(func, EvalFunc):
+                # pass decorators an EvalFuncVar, like a Python function object; functools.wraps()
+                # then only updates its __dict__, not the fields of the wrapper's EvalFunc
+                func = EvalFuncVar(func)
+                func.set_ast_ctx(self)
+            func_arg = func
+            func = await self.call_func(dec_func, None, func_arg)
             if isinstance(func, EvalFuncVar):
                 # set the function name back to its original instead of the decorator function we just called
                 func.set_name(name)
-                func = func.remove_func()
-                dec_trig += func.decorators
-                dec_dm += func.dm_decorators
+                if func is not func_arg:
+                    dec_trig += func.get_func().decorators
+                    dec_dm += func.get_func().dm_decorators
             elif isinstance(func, EvalFunc):
                 func.set_name(name)
         self.dec_eval_depth -= 1
         if isinstance(func, EvalFunc):
+            func = EvalFuncVar(func)
+        if isinstance(func, EvalFuncVar):
+            # keep the EvalFuncVar a decorator returned, since the decorator may hold
+            # references to it and may have set attributes like __wrapped__ on it
+            func_var = func
+            func_var.set_ast_ctx(self)
+            func = func_var.get_func()
             func.decorators = dec_trig
             func.dm_decorators = dec_dm
             if self.dec_eval_depth == 0:
@@ -1231,14 +1265,9 @@ class AstEval:
                     await func.trigger_init(self.global_ctx, name)
                 except Exception as e:
                     self.log_exception(e)
-                func_var = EvalFuncVar(func)
-                func_var.set_ast_ctx(self)
 
                 if len(dec_dm) > 0:
                     await self.get_global_ctx().create_decorator_manager(dec_dm, self, func_var)
-            else:
-                func_var = EvalFuncVar(func)
-                func_var.set_ast_ctx(self)
         else:
             func_var = func
 
