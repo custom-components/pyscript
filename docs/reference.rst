@@ -2402,8 +2402,8 @@ it doesn't faithfully mimic Python.  Here are some areas where pyscript differs 
 - Generator expressions (e.g., ``any(x > 3 for x in values)``) work and are lazy, as in Python: each
   element is evaluated only when it's asked for, so ``any()`` stops at the first match. Since functions
   like ``sum()`` or ``any()`` ask for each element without waiting, an element can't wait for anything
-  (e.g., call ``task.sleep()``, a ``@pyscript_executor`` function, or a service with ``blocking=True``
-  whose handler has to wait); that raises a ``RuntimeError``. The workaround is to use a list
+  (e.g., call ``task.sleep()`` or a ``@pyscript_executor`` function) or make a service call with
+  ``blocking=True``; that raises a ``RuntimeError``. The workaround is to use a list
   comprehension instead (e.g., ``any([x > 3 for x in values])``), which evaluates every element before
   the function is called. A generator expression can only be iterated in the main event loop (e.g.,
   not by a function run with ``task.executor()``). Its loop variables don't quite have their own scope:
