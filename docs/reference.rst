@@ -2045,6 +2045,39 @@ A ``dict`` could be used instead of a list, with a key that combines the unique 
 of the trigger. That way a new trigger with the same parameters will replace an old one
 when the ``dict`` entry is set, if that's the behavior you want.
 
+A class is a convenient way to create triggers for several similar devices, each with its own
+entities. Trigger decorators can't be used directly on a method, since, as in Python, a decorator
+is evaluated once when the class is defined, before any instance (and ``self``) exists. Instead,
+create the trigger in a method called from ``__init__``, and keep a reference to it in an attribute:
+
+.. code:: python
+
+    class Light:
+        def __init__(self, entity):
+            self.entity = entity
+            self.trigger = self.make_trigger()
+
+        def make_trigger(self):
+            @state_trigger(f"{self.entity} == 'on'")
+            def on_change(value=None):
+                self.handle(value)
+
+            return on_change
+
+        def handle(self, value):
+            log.info(f"{self.entity} is {value}")
+
+        def stop(self):
+            self.trigger = None
+
+    kitchen = Light("input_boolean.kitchen")
+    hall = Light("input_boolean.hall")
+
+Each instance's trigger uses that instance's entity, and calls that instance's methods through
+``self``. The trigger runs as long as the attribute refers to it, so calling ``hall.stop()``
+stops the hall trigger. Deleting the instance alone isn't enough, since the trigger function
+refers to the instance through ``self``.
+
 Accessing YAML Configuration
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
