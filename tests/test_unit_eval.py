@@ -6333,3 +6333,163 @@ async def test_comprehension_scopes_match_python(hass):
         for source in COMPREHENSION_SCOPE_TESTS + SHARED_COMPREHENSION_SCOPE_TESTS
     ]
     await run_tests_compared_with_python(hass, sources)
+
+
+#
+# a := in a generator expression's element, run by a later comprehension whose loop variable has
+# the same name, in a function that shares its variables with an inner function or lambda
+#
+GENEXP_WALRUS_SCOPE_TESTS = [
+    # the name has no value yet, or is deleted and assigned again
+    "def f():\n    g = ((x := i) for i in range(3))\n    r = [x for x in g]\n    return r, x\nresult = f()",
+    """
+def f():
+    x = 0
+    del x
+    g = ((x := i * 2) for i in range(3))
+    r = [x for x in g]
+    return r, x
+result = f()
+""",
+    """
+def f():
+    x = 0
+    g = ((x := x + 1) for _ in range(2))
+    r1 = [x for x in g]
+    del x
+    h = ((x := 10 + i) for i in range(2))
+    r2 = [x for x in h]
+    return r1, r2, x
+result = f()
+""",
+    # a lambda reading the name, a lambda made in the element, and a := in a lambda's default
+    """
+def f():
+    x = 0
+    read = lambda: x
+    g = ((x := x + 1) for _ in range(3))
+    r = [(x, read()) for x in g]
+    return r, x, read()
+result = f()
+""",
+    """
+def f():
+    x = 0
+    g = ((x := x + 1, lambda: x)[1] for _ in range(3))
+    fs = [x for x in g]
+    return [h() for h in fs], x
+result = f()
+""",
+    """
+def f():
+    x = 0
+    g = ((lambda v=(x := x + 1): v)() for _ in range(3))
+    r = [x for x in g]
+    return r, x
+result = f()
+""",
+    # nested comprehensions and generator expressions that reuse the name
+    """
+def f():
+    x = 0
+    g = ((x := x + 1) + sum([x for x in range(2)]) for _ in range(3))
+    h = ((x := x + 1) * 10 + sum(x for x in range(2)) for _ in range(3))
+    return [x for x in g], [x for x in h], x
+result = f()
+""",
+    """
+def f():
+    x = 0
+    g = ([(x := x + 1) for _ in range(2)] for _ in range(2))
+    h = (list((x := x + 1) for _ in range(2)) for _ in range(2))
+    return [x for x in g], [x for x in h], x
+result = f()
+""",
+    """
+def f():
+    x = 0
+    g = ((x := x + 1) for _ in range(3))
+    r = [[x for x in g] for x in range(1)]
+    return r, x
+result = f()
+""",
+    # several elements: two loops, two generator expressions, and next() in a comprehension
+    """
+def f():
+    x = 0
+    g = ((x := x + i) for i in range(3) for j in range(2))
+    r = [x for x in g]
+    return r, x
+result = f()
+""",
+    """
+def f():
+    x = 0
+    a = ((x := x + 1) for _ in range(3))
+    b = ((x := x * 10) for _ in range(3))
+    r = [x for x in zip(a, b)]
+    return r, x
+result = f()
+""",
+    """
+def f():
+    x = 0
+    g = ((x := x + 1) for _ in range(3))
+    r = [next(g) + x for x in range(10, 12)]
+    return r, x
+result = f()
+""",
+    # an element that raises, after or before its :=
+    """
+def f():
+    x = 0
+    g = ((x := x + 1) / (2 - x) for _ in range(5))
+    try:
+        r = [x for x in g]
+    except ZeroDivisionError:
+        r = "raised"
+    h = ((1 / (4 - x)) + (x := x + 1) for _ in range(5))
+    try:
+        s = [x for x in h]
+    except ZeroDivisionError:
+        s = "raised"
+    return r, s, x
+result = f()
+""",
+    # an inner function that assigns or deletes the name with nonlocal, and a global name
+    """
+def f():
+    x = 0
+    def bump():
+        nonlocal x
+        x += 1
+        return x
+    r = [x for x in (bump() for _ in range(3))]
+    def drop():
+        nonlocal x
+        del x
+        return 0
+    s = [x for x in (drop() for _ in range(1))]
+    try:
+        return r, s, x
+    except NameError:
+        return r, s, "unbound"
+result = f()
+""",
+    """
+x = 100
+def f():
+    global x
+    g = ((x := x + 1) for _ in range(3))
+    r = [x for x in g]
+    return r, x
+result = f()
+""",
+]
+
+
+async def test_genexp_walrus_scopes_match_python(hass):
+    """Test := in a generator expression run by a comprehension reusing the name, compared with CPython."""
+    await run_tests_compared_with_python(
+        hass, [with_inner_function(source) for source in GENEXP_WALRUS_SCOPE_TESTS]
+    )

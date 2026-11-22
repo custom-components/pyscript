@@ -281,15 +281,6 @@ class LoopScope:
         self.set_bindings(self.saved)
         return current
 
-    def keep_writes(self):
-        """Save the current bindings that changed since restore(), eg by an assignment."""
-        for name, entry in self.bindings().items():
-            if entry is not self.saved.get(name, self.MISSING):
-                if entry is self.MISSING:
-                    del self.saved[name]
-                else:
-                    self.saved[name] = entry
-
 
 def lambda_param_names(lambda_ast):
     """Return the parameter names of a lambda."""
@@ -2363,11 +2354,10 @@ class AstEval:
             finally:
                 gen_vars = {var: sym_table.pop(var) for var in loop_vars if var in sym_table}
                 sym_table.update(outer_vars)
-                if hidden:
-                    for loop_scope, bindings in reversed(hidden):
-                        # keep what the element assigned (eg, with :=) to the bindings we put back
-                        loop_scope.keep_writes()
-                        loop_scope.set_bindings(bindings)
+                # an assignment in the element (eg, with :=) sets the value of a binding we put back
+                # but doesn't replace the binding, so swapping the bindings again keeps the value
+                for loop_scope, bindings in reversed(hidden):
+                    loop_scope.set_bindings(bindings)
                 for attr, value in save_scope.items():
                     setattr(self, attr, value)
             if not elt:
