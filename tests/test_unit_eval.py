@@ -5290,3 +5290,485 @@ async def test_classmethod_super_match_python(hass):
     await Function.waiter_sync()
     await Function.waiter_stop()
     await Function.reaper_stop()
+
+
+SUPER_PROPERTY_SOURCES = [
+    # super().prop and super(C, self).prop in a method and in an overriding getter
+    """
+class B:
+    def __init__(self):
+        self._v = 3
+    @property
+    def x(self):
+        return self._v * 2
+class C(B):
+    @property
+    def x(self):
+        return super().x + 1
+    def f(self):
+        return (super().x, super(C, self).x)
+    @property
+    def y(self):
+        return super(C, self).x * 10
+c = C()
+result = (c.x, c.f(), c.y)
+""",
+    # a chain of three classes, each extending its parent's property
+    """
+class A:
+    @property
+    def label(self):
+        return ["A", type(self).__name__]
+class B(A):
+    @property
+    def label(self):
+        return super().label + ["B"]
+class C(B):
+    @property
+    def label(self):
+        return super().label + ["C"]
+result = (A().label, B().label, C().label)
+""",
+    # a property defined in a mixin, in a diamond-shaped hierarchy
+    """
+class Base:
+    @property
+    def name(self):
+        return ["Base"]
+class Mixin(Base):
+    @property
+    def name(self):
+        return ["Mixin"] + super().name
+class Left(Base):
+    @property
+    def name(self):
+        return ["Left"] + super().name
+class D(Left, Mixin):
+    @property
+    def name(self):
+        return ["D"] + super().name
+result = ([k.__name__ for k in D.__mro__], D().name, super(Left, D()).name)
+""",
+    # a getter that raises AttributeError: no __getattr__ fallback through super()
+    """
+class B:
+    @property
+    def x(self):
+        raise AttributeError("missing x")
+class C(B):
+    def __getattr__(self, key):
+        return "fallback " + key
+    def f(self):
+        try:
+            return super().x
+        except AttributeError as exc:
+            return "AttributeError: " + str(exc)
+result = (C().f(), C().x)
+""",
+    # a compiled getter, reached through super()
+    """
+class B:
+    def __init__(self):
+        self.v = 4
+    @pyscript_compile
+    def _get(self):
+        return self.v + 1
+    x = property(_get)
+class C(B):
+    @property
+    def x(self):
+        return super().x * 2
+result = C().x
+""",
+    # a native property, from a class defined in Python
+    """
+import fractions
+class F(fractions.Fraction):
+    @property
+    def numerator(self):
+        return super().numerator * 10
+f = F(3, 4)
+result = (f.numerator, f.denominator, super(F, f).numerator)
+""",
+    # super(C, cls).prop on a class gives the property itself, as in Python
+    """
+class B:
+    @property
+    def x(self):
+        return 1
+class C(B):
+    @classmethod
+    def f(cls):
+        return (super().x is B.__dict__["x"], super(C, cls).x is B.__dict__["x"])
+result = (C.f(), C().f(), type(super(C, C).x).__name__)
+""",
+    # a class with its own __getattribute__: super() doesn't use it
+    """
+class B:
+    @property
+    def x(self):
+        return "B.x"
+class C(B):
+    @pyscript_compile
+    def __getattribute__(self, key):
+        if key == "x":
+            return "C.__getattribute__"
+        return object.__getattribute__(self, key)
+    def f(self):
+        return super().x
+result = (C().x, C().f())
+""",
+    # super(C, self).prop in a generator expression and a comprehension
+    """
+class B:
+    @property
+    def x(self):
+        return 10
+class C(B):
+    def f(self):
+        gen = list(super(C, self).x + i for i in range(3))
+        comp = [super(C, self).x + i for i in range(3)]
+        zero = [super().x + i for i in range(3)]
+        return (gen, comp, zero)
+result = C().f()
+""",
+    # zero-argument super() in a generator expression gives Python's own TypeError
+    """
+class B:
+    @property
+    def x(self):
+        return 10
+class C(B):
+    def f(self):
+        try:
+            return list(super().x for i in range(3))
+        except TypeError as exc:
+            return str(exc)
+result = C().f()
+""",
+    # a metaclass property read through super(Meta, cls) and super()
+    """
+class M(type):
+    @property
+    def p(cls):
+        return "M:" + cls.__name__
+class N(M):
+    @property
+    def p(cls):
+        return "N+" + super().p
+    @property
+    def q(cls):
+        return super(N, cls).p
+class A(metaclass=N):
+    pass
+result = (A.p, A.q)
+""",
+    # a property named __class__ on a parent: super().__class__ is still super
+    """
+class B:
+    @property
+    def __class__(self):
+        return int
+class C(B):
+    def f(self):
+        return super().__class__
+result = C().f().__name__
+""",
+    # a subclass of super with its own __getattribute__ is left to it
+    """
+class S(super):
+    @pyscript_compile
+    def __getattribute__(self, key):
+        if key == "x":
+            return "S.x"
+        return super.__getattribute__(self, key)
+class B:
+    @property
+    def x(self):
+        return "B.x"
+class C(B):
+    def f(self):
+        return S(C, self).x
+result = C().f()
+""",
+    # a nearer plain attribute or method hides a farther property
+    """
+class A:
+    @property
+    def x(self):
+        return "A.x"
+    @property
+    def y(self):
+        return "A.y"
+class B(A):
+    x = "B.x"
+    def y(self):
+        return "B.y()"
+class C(B):
+    @property
+    def x(self):
+        return super().x
+    @property
+    def y(self):
+        return super().y()
+result = (C().x, C().y)
+""",
+    # a property with no getter raises Python's own AttributeError
+    """
+class B:
+    def _set(self, v):
+        pass
+    x = property(None, _set)
+class C(B):
+    def f(self):
+        try:
+            return super().x
+        except AttributeError as exc:
+            return str(exc)
+result = C().f()
+""",
+    # a property on a subclass of property is left to Python
+    """
+class P(property):
+    @pyscript_compile
+    def __get__(self, instance, owner=None):
+        return 42
+class B:
+    @P
+    def x(self):
+        return 1
+class C(B):
+    def f(self):
+        return super().x
+result = C().f()
+""",
+    # an unbound super(C) has no property
+    """
+class B:
+    @property
+    def x(self):
+        return 1
+class C(B):
+    pass
+try:
+    super(C).x
+    result = "found"
+except AttributeError as exc:
+    result = str(exc)
+""",
+    # super() after the class's bases change uses the new mro
+    """
+class A:
+    @property
+    def x(self):
+        return "A"
+class B:
+    @property
+    def x(self):
+        return "B"
+class C(A):
+    def f(self):
+        return super().x
+c = C()
+first = c.f()
+C.__bases__ = (B,)
+result = (first, c.f())
+""",
+    # a super object whose __thisclass__ is no longer in the mro keeps Python's error
+    """
+class A:
+    @property
+    def x(self):
+        return "A"
+class B(A):
+    pass
+class C(B):
+    pass
+c = C()
+s = super(B, c)
+C.__bases__ = (A,)
+try:
+    s.x
+    result = "found"
+except AttributeError as exc:
+    result = str(exc)
+""",
+    # setting or deleting through super() raises the same AttributeError as Python
+    """
+class B:
+    def __init__(self):
+        self._x = 1
+    @property
+    def x(self):
+        return self._x
+    @x.setter
+    def x(self, v):
+        self._x = v
+    @x.deleter
+    def x(self):
+        self._x = None
+class C(B):
+    def f(self):
+        result = []
+        try:
+            super().x = 5
+        except AttributeError as exc:
+            result.append(str(exc))
+        try:
+            del super().x
+        except AttributeError as exc:
+            result.append(str(exc))
+        return result + [self._x]
+result = C().f()
+""",
+    # a parent's setter called directly through super(C, type(self))
+    """
+class B:
+    def __init__(self):
+        self._x = 1
+    @property
+    def x(self):
+        return self._x
+    @x.setter
+    def x(self, v):
+        self._x = v * 2
+class C(B):
+    @property
+    def x(self):
+        return super().x + 100
+    @x.setter
+    def x(self, v):
+        super(C, type(self)).x.fset(self, v + 1)
+c = C()
+c.x = 4
+result = (c._x, c.x)
+""",
+    # a parent's attribute named __self_class__ doesn't change what super() searches
+    """
+class B:
+    __self_class__ = "shadowed"
+    x = 42
+class C(B):
+    pass
+result = super(C, C()).x
+""",
+    # a parent's compiled property named __self__ isn't run by super()
+    """
+class B:
+    @pyscript_compile
+    def _get(self):
+        raise ValueError("__self__ property ran")
+    __self__ = property(_get)
+    x = 42
+class C(B):
+    pass
+result = super(C, C()).x
+""",
+    # a parent's compiled property named __thisclass__ isn't run by super()
+    """
+class B:
+    @pyscript_compile
+    def _get(self):
+        raise ValueError("__thisclass__ property ran")
+    __thisclass__ = property(_get)
+    x = 42
+class C(B):
+    pass
+result = super(C, C()).x
+""",
+    # a parent's attribute named __self__ doesn't change the instance the getter gets
+    """
+class B:
+    __self__ = 123
+    @property
+    def name(self):
+        return type(self).__name__
+class C(B):
+    def f(self):
+        return super().name
+result = C().f()
+""",
+    # a metaclass __getattribute__ that blocks __mro__ or __dict__ isn't used by super()
+    """
+@pyscript_compile
+def make(blocked):
+    class M(type):
+        def __getattribute__(cls, key):
+            if key == blocked:
+                raise RuntimeError("metaclass read " + key)
+            return type.__getattribute__(cls, key)
+    class B(metaclass=M):
+        x = 42
+        def f(self):
+            return 43
+    class C(B):
+        pass
+    return super(C, C())
+s = make("__mro__")
+result = [s.x, s.f()]
+s = make("__dict__")
+result.append(s.x)
+""",
+    # a metaclass data descriptor for __mro__ or __dict__ isn't used by super()
+    """
+@pyscript_compile
+def make(blocked):
+    def fail(cls):
+        raise RuntimeError("metaclass descriptor read " + blocked)
+    M = type("M", (type,), {blocked: property(fail)})
+    class B(metaclass=M):
+        x = 42
+    class C(B):
+        pass
+    return super(C, C())
+result = (make("__mro__").x, make("__dict__").x)
+""",
+    # a native getter whose __class__ is hooked: super() doesn't read it
+    """
+@pyscript_compile
+def make():
+    class Getter:
+        def __call__(self, obj):
+            return 42
+        def __getattribute__(self, name):
+            if name == "__class__":
+                raise RuntimeError("getter __class__ hook called")
+            return object.__getattribute__(self, name)
+    class B:
+        x = property(Getter())
+    class C(B):
+        pass
+    return super(C, C())
+result = make().x
+""",
+]
+
+
+async def test_super_property_match_python(hass):
+    """Test reading a pyscript property through super(), compared with CPython."""
+    hass.data[DOMAIN] = {CONFIG_ENTRY: MockConfigEntry(domain=DOMAIN, data={CONF_ALLOW_ALL_IMPORTS: True})}
+    DecoratorRegistry.init(hass)
+    Function.init(hass)
+    State.init(hass)
+    State.register_functions()
+    TrigTime.init(hass)
+
+    for source in SUPER_PROPERTY_SOURCES:
+        expected_ns = {"pyscript_compile": lambda func: func}
+        exec(compile(source, "test", "exec"), expected_ns)  # pylint: disable=exec-used
+        global_ctx = GlobalContext("test", global_sym_table={}, manager=GlobalContextMgr)
+        ast = AstEval("test", global_ctx=global_ctx)
+        Function.install_ast_funcs(ast)
+        ast.parse(source + "result\n")
+        # a getter that Python called itself would leave a coroutine that's never awaited
+        with warnings.catch_warnings(record=True) as caught:
+            warnings.simplefilter("always")
+            assert await ast.eval() == expected_ns["result"], source
+            gc.collect()
+        if "def __class__" not in source:
+            # isinstance() reads a pyscript __class__ getter as a normal function, which pyscript can't stop
+            assert not [w for w in caught if "never awaited" in str(w.message)], source
+
+    await Function.waiter_sync()
+    await Function.waiter_stop()
+    await Function.reaper_stop()
