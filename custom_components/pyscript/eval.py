@@ -95,6 +95,11 @@ WEBHOOK_METHODS = {
 }
 
 #
+# the message of the RuntimeError that Python raises when a StopIteration leaves a coroutine
+#
+STOP_ITERATION_REPLACED = "coroutine raised StopIteration"
+
+#
 # AstEval attributes that hold the scope a generator expression's elements are evaluated in
 #
 GENEXP_SCOPE_ATTRS = (
@@ -393,6 +398,9 @@ SUPER_SELF_CLASS = super.__dict__["__self_class__"].__get__
 SUPER_THISCLASS = super.__dict__["__thisclass__"].__get__
 TYPE_MRO = type.__dict__["__mro__"].__get__
 TYPE_DICT = type.__dict__["__dict__"].__get__
+# an exception subclass can override these, which Python doesn't use when it raises or converts one
+EXC_TRACEBACK = BaseException.__dict__["__traceback__"].__get__
+EXC_WITH_TRACEBACK = BaseException.with_traceback
 
 
 def super_property(sup, attr):
@@ -422,6 +430,15 @@ def super_property(sup, attr):
             value = klass_dict[attr]
             return value if type(value) is property else None  # pylint: disable=unidiomatic-typecheck
     return None
+
+
+def unwrap_stop_iteration(exc):
+    """Return the StopIteration that Python replaced when it left one of our coroutines, else exc."""
+    # pylint: disable=unidiomatic-typecheck
+    if type(exc) is RuntimeError and issubclass(type(exc.__cause__), StopIteration) and len(exc.args) == 1:
+        if type(exc.args[0]) is str and exc.args[0] == STOP_ITERATION_REPLACED:
+            return exc.__cause__
+    return exc
 
 
 class EvalName:
@@ -1554,6 +1571,8 @@ class AstEval:
                 if isinstance(val, EvalStopFlow):
                     return val
         except Exception as err:
+            # match and bind the StopIteration Python replaced; if nothing matches, raise err unchanged
+            visible_err = unwrap_stop_iteration(err)
             for handler in arg.handlers:
                 match = False
                 if handler.type:
@@ -1561,7 +1580,7 @@ class AstEval:
                     if not isinstance(exc_list, tuple):
                         exc_list = [exc_list]
                     for exc in exc_list:
-                        if isinstance(err, exc):
+                        if isinstance(visible_err, exc):
                             match = True
                             break
                 else:
@@ -1571,9 +1590,9 @@ class AstEval:
                         if handler.name in self.sym_table and isinstance(
                             self.sym_table[handler.name], EvalLocalVar
                         ):
-                            self.sym_table[handler.name].set(err)
+                            self.sym_table[handler.name].set(visible_err)
                         else:
-                            self.sym_table[handler.name] = err
+                            self.sym_table[handler.name] = visible_err
                     try:
                         for arg1 in handler.body:
                             val = await self.aeval(arg1)
@@ -1642,8 +1661,10 @@ class AstEval:
             # unlike Python, the exit can't suppress these, so tasks can always be stopped
             await self.call_func(exit_func, exit_attr, manager, *sys.exc_info())
             raise
-        except Exception:  # pylint: disable=broad-exception-caught
-            if not await self.call_func(exit_func, exit_attr, manager, *sys.exc_info()):
+        except Exception as err:  # pylint: disable=broad-exception-caught
+            # pass __exit__ the StopIteration Python replaced; if it isn't suppressed, raise err unchanged
+            exc = unwrap_stop_iteration(err)
+            if not await self.call_func(exit_func, exit_attr, manager, type(exc), exc, EXC_TRACEBACK(exc)):
                 raise
             return None
         await self.call_func(exit_func, exit_attr, manager, None, None, None)
@@ -2334,10 +2355,23 @@ class AstEval:
                 gen_scope.saved = outer_vars
                 self.loop_scopes = gen_loop_scopes
             coro = self.genexp_next(arg, iters)
+            stop = None
             try:
                 coro.send(None)  # pylint: disable=no-member
             except StopIteration as exc:
                 elt = exc.value
+            except RuntimeError as exc:
+                # an element, a condition or an inner iterable raised StopIteration
+                stop = unwrap_stop_iteration(exc)
+                if stop is exc:
+                    raise
+                # keep the script frames, which are on the RuntimeError's traceback, before its own
+                stop_tb, frames, tb = EXC_TRACEBACK(stop), [], exc.__traceback__
+                while tb:
+                    frames.append(tb)
+                    tb = tb.tb_next
+                for tb in reversed(frames):
+                    stop_tb = TracebackType(stop_tb, tb.tb_frame, tb.tb_lasti, tb.tb_lineno)
             else:
                 #
                 # the element has to wait, which can't be done here, so stop it; whatever
@@ -2360,6 +2394,9 @@ class AstEval:
                     loop_scope.set_bindings(bindings)
                 for attr, value in save_scope.items():
                     setattr(self, attr, value)
+            if stop is not None:
+                # raised outside the handler, so Python gives RuntimeError("generator raised StopIteration")
+                raise EXC_WITH_TRACEBACK(stop, stop_tb)
             if not elt:
                 return
             yield elt[0]
@@ -2843,9 +2880,10 @@ class AstEval:
 class EvalExceptionFormatter:
     """Format exceptions using pyscript-aware traceback frames."""
 
-    def __init__(self, exc: BaseException) -> None:
+    def __init__(self, exc: BaseException, seen: set[int] | None = None) -> None:
         """Initialize exception formatter state."""
-        self.exc = exc
+        # show the StopIteration Python replaced, with the script frames from the replacement's traceback
+        self.exc = unwrap_stop_iteration(exc)
 
         self.current_func: str | None = None
         self.current_code_list: list[str] | None = None
@@ -2856,15 +2894,29 @@ class EvalExceptionFormatter:
         self.end_col_offset: int = 0
 
         self.stack = traceback.StackSummary()
-        self._build_stack()
+        self._build_stack(exc.__traceback__)
+        if self.exc is not exc:
+            self._build_stack(self.exc.__traceback__)
         self.chained_msg: str | None = None
         self.chained_exc: EvalExceptionFormatter | None = None
-        if exc.__cause__ is not None:
-            self.chained_msg = traceback._cause_message
-            self.chained_exc = EvalExceptionFormatter(exc.__cause__)
-        elif exc.__context__ is not None and not exc.__suppress_context__:
-            self.chained_msg = traceback._context_message
-            self.chained_exc = EvalExceptionFormatter(exc.__context__)
+        # stop if the chain loops back, eg, after "raise exc" in "except StopIteration as exc"
+        seen = set() if seen is None else seen
+        seen.update((id(exc), id(self.exc)))
+        chained, chained_msg = self.exc.__cause__, traceback._cause_message
+        if chained is None and not self.exc.__suppress_context__:
+            chained, chained_msg = self.exc.__context__, traceback._context_message
+        elif chained is not None:
+            # eg, "raise ValueError() from exc": the script frames are on what replaced exc, in the context
+            context, walked = self.exc.__context__, set()
+            while context is not None and id(context) not in walked:
+                if unwrap_stop_iteration(context) is chained:
+                    chained = context
+                    break
+                walked.add(id(context))
+                context = context.__context__
+        if chained is not None and not seen.intersection((id(chained), id(unwrap_stop_iteration(chained)))):
+            self.chained_msg = chained_msg
+            self.chained_exc = EvalExceptionFormatter(chained, seen)
 
     def format(self) -> list[str]:
         """Return formatted traceback lines for this exception."""
@@ -2883,10 +2935,8 @@ class EvalExceptionFormatter:
 
         return result
 
-    def _build_stack(self) -> None:
+    def _build_stack(self, current_tb: TracebackType | None) -> None:
         """Build stack summary from traceback frames."""
-        current_tb = self.exc.__traceback__
-
         while current_tb:
             frame = current_tb.tb_frame
             code = frame.f_code

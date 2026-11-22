@@ -397,6 +397,30 @@ async def test_jupyter_kernel_msgs(hass, caplog, socket_enabled):
     assert reply["content"]["evalue"] == "name 'xyz' is not defined"
 
     #
+    # an uncaught StopIteration is reported as itself, in the reply and in the published error
+    #
+    await send(
+        sock["shell_port"],
+        "execute_request",
+        {"code": "x = 1\nraise StopIteration(5)"},
+        parent_header={},
+        identities={},
+    )
+    assert (await get_iopub_msg(sock, "status"))["content"]["execution_state"] == "busy"
+    await get_iopub_msg(sock, "execute_input")
+    error = await get_iopub_msg(sock, "error")
+    reply = deserialize_wire_msg(await sock["shell_port"].recv_multipart())
+    assert reply["header"]["msg_type"] == "execute_reply"
+    assert (await get_iopub_msg(sock, "status"))["content"]["execution_state"] == "idle"
+    for content in [reply["content"], error["content"]]:
+        assert [content["ename"], content["evalue"]] == ["StopIteration", "5"]
+        assert content["traceback"][-2:] == [
+            '  File "jupyter_0", line 2, in None\n    raise StopIteration(5)\n',
+            "StopIteration: 5\n",
+        ]
+        assert "RuntimeError" not in "".join(content["traceback"])
+
+    #
     # syntax error
     #
     reply = await shell_msg(sock, "execute_request", {"code": "1 + "}, execute=True)

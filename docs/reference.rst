@@ -2472,6 +2472,21 @@ it doesn't faithfully mimic Python.  Here are some areas where pyscript differs 
 - A context manager's ``__exit__`` (or ``__aexit__``) is called when a task is cancelled, but returning
   a true value doesn't suppress ``CancelledError``, ``KeyboardInterrupt`` or ``SystemExit`` the way it
   does in Python. This ensures pyscript tasks can always be stopped.
+- ``StopIteration`` can be caught with ``except`` (e.g., ``except StopIteration as exc``, then ``exc.value``)
+  and suppressed by a ``with`` statement (e.g., ``contextlib.suppress(StopIteration)``), as in Python, and
+  an uncaught one is reported as ``StopIteration``. In a generator expression element, it gives
+  ``RuntimeError("generator raised StopIteration")``, as in Python. What still differs from Python:
+
+  - in an ``except`` clause's type, its handler and a ``finally`` block, ``sys.exception()``,
+    ``sys.exc_info()`` and the ``__context__`` of a new exception are Python's
+    ``RuntimeError("coroutine raised StopIteration")``, not the ``StopIteration``; a bare ``raise`` and
+    ``raise exc`` still raise the ``StopIteration``.
+  - where Python gives that ``RuntimeError`` because a ``StopIteration`` left a native coroutine (also in
+    a task) or a pyscript ``async def``, ``except`` sees the ``StopIteration`` instead, as it does for a
+    ``RuntimeError`` with that message raised ``from`` a ``StopIteration``.
+  - native code that awaits a pyscript function that raises ``StopIteration`` gets that ``RuntimeError``.
+  - an exception raised ``from`` a ``StopIteration`` after the handler that caught it has finished is
+    reported without the ``StopIteration``'s script lines.
 - Generator expressions (e.g., ``any(x > 3 for x in values)``) work and are lazy, as in Python: each
   element is evaluated only when it's asked for, so ``any()`` stops at the first match. Since functions
   like ``sum()`` or ``any()`` ask for each element without waiting, an element can't wait for anything
