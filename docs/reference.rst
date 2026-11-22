@@ -569,8 +569,8 @@ that state variable, and they include its attributes too: the new value of an at
 ``value.attr`` and its old value is ``old_value.attr``. If the trigger occurs when the state
 variable is newly created, ``old_value`` will be ``None``, and if the trigger occurs when a state
 variable is deleted, ``value`` will be ``None``. An attribute that the state variable doesn't have
-raises ``AttributeError``. So code that has to cope with those cases can use ``getattr`` with a
-default:
+raises ``AttributeError``, and attributes can come and go (e.g., a light has no ``brightness``
+attribute while it's off). So using ``getattr`` with a default is recommended:
 
 .. code:: python
 
