@@ -2385,6 +2385,21 @@ it doesn't faithfully mimic Python.  Here are some areas where pyscript differs 
   they are async functions and Python will not be able to call them. The two workarounds are to
   use the ``@pyscript_compile`` decorator so the method is compiled to a native (non-async) Python
   function, or write your class in native Python and import it into ``pyscript``; see `Importing <#importing>`__.
+- ``__init__`` and ``__new__`` are the exceptions: pyscript calls them itself when your code creates an
+  instance, the way Python does. A class without ``__init__`` uses the first one along its parents,
+  ``super().__init__(...)``, ``super(Cls, self).__init__(...)`` and ``Base.__init__(self, ...)`` work, and so
+  does ``super()`` without arguments in methods (and in functions defined inside methods). Native base
+  classes, such as ``Exception``, ``dict``, ``str``, ``namedtuple``, ``logging.Handler`` and ``threading.Thread``,
+  get the constructor's arguments as they would in Python. What still differs from Python:
+
+  - an instance created by native Python code (e.g., ``collections.defaultdict(MyClass)``) doesn't run
+    a pyscript ``__init__``; only ``obj.__init__`` written out in pyscript finds it, not
+    ``getattr(obj, "__init__")``.
+  - ``super()`` without arguments doesn't work in ``@pyscript_compile`` functions or lambdas.
+  - a metaclass ``__call__`` written in pyscript doesn't work. A compiled metaclass ``__call__`` is called
+    without the constructor's arguments, and the pyscript ``__init__`` is then called with them, on every
+    call (so a singleton metaclass runs ``__init__`` again each time).
+  - a dataclass ``__post_init__`` written in pyscript isn't called; use ``@pyscript_compile`` for it.
 - The ``import`` function in ``pyscript`` fails to import certain complex packages. This is an open bug and
   it would be great if someone with some Python expertise could help fix it. In the meantime, the workaround
   is to import the module in a native Python file, and then import that shim module into pyscript.
