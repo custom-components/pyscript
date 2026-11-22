@@ -121,9 +121,9 @@ class StateTriggerDecorator(TriggerDecorator, ExpressionDecorator, AutoKwargsDec
         state_trig = []
 
         for trig in self.args:
-            trig = strip_trigger_expr(trig)
-            if STATE_RE.match(trig):
-                self.state_trig_ident_any.add(trig)
+            name = strip_trigger_expr(trig)
+            if STATE_RE.match(name):
+                self.state_trig_ident_any.add(name)
             else:
                 state_trig.append(trig)
 

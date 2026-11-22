@@ -293,12 +293,12 @@ class FakeAstEvalForExpression:
         self.name = name
         self.global_ctx = global_ctx
         self.local_name = local_name
-        self.parse_calls: list[tuple[str, str]] = []
+        self.parse_calls: list[str] = []
         self.__class__.instances.append(self)
 
-    def parse(self, expression: str, mode: str) -> None:
+    def parse_trigger_expr(self, expression: str) -> None:
         """Record parse invocations."""
-        self.parse_calls.append((expression, mode))
+        self.parse_calls.append(expression)
 
 
 class DummyEvalFunc:
@@ -561,7 +561,7 @@ def test_expression_decorator_create_expression_uses_manager_context():
     assert ast_eval.name == "file.hello.func expression_test"
     assert ast_eval.global_ctx is dm.ast_ctx.global_ctx
     assert ast_eval.local_name == dm.name
-    assert ast_eval.parse_calls == [("value > 1", "eval")]
+    assert ast_eval.parse_calls == ["value > 1"]
     install_ast_funcs.assert_called_once_with(ast_eval)
 
 
@@ -583,7 +583,7 @@ def test_expression_decorator_create_expression_formats_function_manager_name():
     assert ast_eval.name == "file.hello.func @expression_test()"
     assert ast_eval.global_ctx is manager.ast_ctx.global_ctx
     assert ast_eval.local_name == manager.name
-    assert ast_eval.parse_calls == [("value > 1", "eval")]
+    assert ast_eval.parse_calls == ["value > 1"]
     install_ast_funcs.assert_called_once_with(ast_eval)
 
 
