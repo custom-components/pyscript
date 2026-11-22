@@ -5772,3 +5772,724 @@ async def test_super_property_match_python(hass):
     await Function.waiter_sync()
     await Function.waiter_stop()
     await Function.reaper_stop()
+
+
+LAMBDA_TESTS = [
+    "def f(x, y=2):\n    return (lambda: x + y)()\nresult = f(3)",
+    "def f():\n    n = 5\n    g = lambda v: v * n\n    return [g(1), g(2)]\nresult = f()",
+    """
+def outer(a):
+    b = 10
+    def middle(c):
+        def inner(d):
+            return (lambda: (a, b, c, d))()
+        return inner(4)
+    return middle(3)
+result = outer(1)
+""",
+    """
+def f():
+    limit = 1
+    g = lambda v: v > limit
+    first = list(filter(g, [0, 1, 2, 3]))
+    limit = 2
+    return [first, list(filter(g, [0, 1, 2, 3]))]
+result = f()
+""",
+    "def make():\n    k = 1\n    g = lambda: k\n    k = 2\n    return g\nresult = make()()",
+    "def make(n):\n    return lambda v: v + n\na = make(1)\nb = make(100)\nresult = [a(1), b(1), a(2), make(5)(5)]",
+    """
+def f():
+    x = 1
+    def g():
+        return lambda: x
+    h = g()
+    x = 2
+    return h()
+result = f()
+""",
+    """
+def f(a):
+    def g():
+        a = 'shadow'
+        return lambda: a
+    return [g()(), (lambda: a)()]
+result = f('param')
+""",
+    """
+def f():
+    v = 'outer'
+    return [(lambda v: v)('param'), v, (lambda *a, **kw: (a, kw, v))(1, z=2), (lambda a: lambda b: (a, b, v))(1)(2)]
+result = f()
+""",
+    "x = 'global'\ndef f():\n    x = 'local'\n    return (lambda: x)()\nresult = [f(), (lambda: x)()]",
+    """
+x = 5
+def f():
+    x = 7
+    def g():
+        pass
+    return [(lambda v=x: v)(), (lambda *, v=x: v)(), (lambda a, b=x, *, c=x + 1: (a, b, c))(0)]
+result = f()
+""",
+    """
+def f():
+    fs = []
+    for i in range(3):
+        fs.append(lambda i=i: i)
+    return [h() for h in fs] + [(lambda a, b=2, *c, d, e=5, **f: 0).__kwdefaults__]
+result = f()
+""",
+    """
+def f(items, d, value):
+    return [
+        sorted(items, key=lambda i: d[i]),
+        max(items, key=lambda i: d[i]),
+        list(map(lambda i: i * value, items)),
+        list(filter(lambda v: v > value, items)),
+    ]
+result = f([3, 1, 2], {1: 30, 2: 10, 3: 20}, 1)
+""",
+    """
+def get_sorted_ids(id_list, data):
+    return sorted(id_list, key=lambda i: data[i]["order"])
+result = get_sorted_ids(["a", "b", "c"], {"a": {"order": 3}, "b": {"order": 1}, "c": {"order": 2}})
+""",
+    """
+def f():
+    x = 1
+    g = lambda: x
+    del x
+    try:
+        g()
+    except NameError as exc:
+        return f"{type(exc).__name__}: {exc}"
+result = f()
+""",
+    """
+def f():
+    g = lambda: x
+    try:
+        g()
+    except NameError as exc:
+        r = f"{type(exc).__name__}: {exc}"
+    x = 3
+    return [r, g()]
+result = f()
+""",
+    "G = 1\ndef f():\n    return lambda: G\ng = f()\nG = 2\nresult = g()",
+    """
+G = 1
+def f():
+    g = lambda: G
+    a = g()
+    global G
+    G = 2
+    return [a, g()]
+result = f()
+""",
+    """
+def f():
+    n = 0
+    g = lambda: n
+    def bump():
+        nonlocal n
+        n += 5
+        return [g(), (lambda: n)()]
+    return [bump(), n, g()]
+result = f()
+""",
+    """
+def f():
+    i = 10
+    s = sorted([i for i in range(3)], key=lambda v: -v) + [i * 2 for i in range(2)] + list({i for i in range(2)})
+    def g():
+        pass
+    t = list({i: i for i in range(2)})
+    return [s, t, i, (lambda: i)()]
+result = f()
+""",
+    "def f():\n    return [(lambda: i)() for i in range(3)]\nresult = f()",
+    "def f(rows, cols):\n    return [sorted(rows, key=lambda r: r[c]) for c in cols]\nresult = f([(1, 'b'), (2, 'a')], [0, 1])",
+    "def f():\n    x = [1, 2]\n    return [x for x in map(lambda v: v + len(x), x)]\nresult = f()",
+    "def f():\n    return [sum((lambda: j)() for j in range(4)), [h() for h in (lambda: j for j in range(3))]]\nresult = f()",
+    "def f(ts, data):\n    return list(list(filter(lambda v: v > t, data)) for t in ts)\nresult = f([0, 1], [0, 1, 2])",
+    "def f():\n    k = 3\n    return [(lambda: (y := 4))(), 'y' in locals(), (lambda: sum(x * k for x in range(3)))()]\nresult = f()",
+    """
+class Scale:
+    def __init__(self, n):
+        self.n = n
+    def apply(self, vals):
+        return list(map(lambda v: v * self.n, vals))
+result = Scale(3).apply([1, 2])
+""",
+    "def f():\n    import math\n    return (lambda v: math.sqrt(v))(16)\nresult = f()",
+    """
+def f():
+    try:
+        raise ValueError('boom')
+    except ValueError as exc:
+        return (lambda: str(exc))()
+result = f()
+""",
+    "z = 1\nresult = [(lambda: z)(), (lambda v=z: v)(), (lambda: z).__name__, type(lambda: z).__name__]",
+    "x = 'global'\ndef f():\n    x = 1\n    return eval('(lambda: x)()')\nresult = f()",
+    "i = 'global'\ndef f():\n    return [g() for g in [lambda: i for i in range(3)]]\nresult = f()",
+    "i = 'global'\ndef f():\n    return [g() for g in {i: lambda: i for i in range(3)}.values()]\nresult = f()",
+    "i = 'global'\ndef f():\n    return sorted(g() for g in {lambda: i for i in range(3)})\nresult = f()",
+    "i = 'global'\ndef f():\n    return [g() for g in list(lambda: i for i in range(3))]\nresult = f()",
+    """
+def f():
+    i = 'own'
+    fs = [lambda: (i, j) for i in range(2) for j in 'ab']
+    gs = list(lambda: i for i in range(3))
+    def inner():
+        return i
+    return fs, gs, i, inner(), (lambda: i)()
+fs, gs, own, inner, own_lambda = f()
+result = [[h() for h in fs], [h() for h in gs], own, inner, own_lambda]
+""",
+    """
+def f():
+    g = (lambda: i for i in range(3))
+    first = next(g)
+    a = first()
+    second = next(g)
+    return [a, first(), second()]
+result = f()
+""",
+    "result = [(lambda: lambda: 0)().__qualname__, (lambda: [x for x in (lambda: 1,)])()[0].__qualname__]",
+    """
+def f():
+    try:
+        raise ValueError("boom")
+    except ValueError as exc:
+        g = lambda: str(exc)
+    try:
+        g()
+    except NameError as err:
+        result = [type(err).__name__]
+    exc = "later"
+    return result + [g()]
+result = f()
+""",
+    """
+def f():
+    try:
+        raise ValueError("boom")
+    except ValueError as exc:
+        def g():
+            return str(exc)
+    exc = "later"
+    return g()
+result = f()
+""",
+    """
+def f():
+    try:
+        raise ValueError("boom")
+    except ValueError as exc:
+        del exc
+    return "ok"
+result = f()
+""",
+    "x = 99\ndef f():\n    x: int = 3\n    return (lambda: x)()\nresult = f()",
+    """
+x = 99
+def f(x):
+    def g():
+        return [(lambda: ([x for x in range(3)], x))(), (lambda: [v * 2 for v in [x for x in x]])()]
+    return g()
+result = f([1, 2])
+""",
+    """
+x = 99
+def f(x):
+    def g():
+        a = lambda: (x := 2)
+        b = lambda: [x for x in range(3)]
+        return [eval("x"), "x" in locals(), a(), b()]
+    return g()
+result = f(5)
+""",
+    """
+def f():
+    return [(lambda: 0).__defaults__, (lambda a=1: 0).__defaults__, (lambda *, k=1: 0).__defaults__]
+result = f() + [(lambda: 0).__defaults__, (lambda: 0).__kwdefaults__]
+""",
+    # super() with lambdas in methods; a lambda's native code can only call native methods
+    """
+class B(dict):
+    def f(self):
+        return "B" + str(len(self))
+class C(B):
+    def a(self):
+        return (lambda: super(C, self).get("k"))()
+    def b(self):
+        return sorted(["x", "k"], key=lambda key: super(C, self).get(key, 0))
+    def c(self):
+        return [(lambda: super(C, self).get(key, -1))() for key in ["k", "z"]]
+    def d(self):
+        return list(map(lambda self: super(C, self).get("k"), [self]))
+    def e(self, other):
+        get = lambda: super(C, other).get("k")
+        return get()
+    def g(self):
+        return [(lambda v=super().f(): v)(), (lambda v=super(C, self).f(): v)()]
+    def h(self):
+        def inner(me):
+            return [super().f(), (lambda: super(C, me).get("k"))()]
+        return inner(self)
+    def i(self):
+        return (lambda: super().f())()
+c = C(k=5)
+result = []
+for name, args in [["a", []], ["b", []], ["c", []], ["d", []], ["e", [C(k=7)]], ["g", []], ["h", []], ["i", []]]:
+    try:
+        result.append([name, getattr(c, name)(*args)])
+    except RuntimeError as exc:
+        result.append([name, str(exc)])
+""",
+    # super() in comprehensions and generator expressions in a method that shares its variables with a lambda
+    """
+class B:
+    def f(self):
+        return "B" + str(self.n)
+class C(B):
+    def __init__(self, n):
+        self.n = n
+    def a(self):
+        g = lambda: self
+        return [super().f() for _ in range(2)] + [super(C, self).f() for _ in range(1)]
+    def b(self):
+        g = lambda: self
+        return list(super(C, self).f() for _ in range(2)) + [super().f()]
+    def c(self):
+        g = lambda: self
+        return list(super().f() for _ in range(1))
+    def d(self):
+        g = lambda: self
+        return [{k: super().f() for k in range(2)}, [[super().f() for _ in range(1)] for _ in range(2)]]
+    def e(self):
+        self = C(2)
+        g = lambda: self
+        return super().f()
+    def h(self):
+        g = lambda: self
+        del self
+        return super()
+    def i(self):
+        def inner():
+            return super().f()
+        g = lambda: inner
+        return inner()
+c = C(1)
+result = []
+for name in "abcdehi":
+    try:
+        result.append([name, getattr(c, name)()])
+    except (TypeError, RuntimeError) as exc:
+        result.append([name, str(exc)])
+""",
+    # lambdas returned from a property getter, setter or deleter and from a classmethod, which see later changes
+    """
+class A:
+    n = 2
+    def __init__(self):
+        self._x = 3
+    @property
+    def x(self):
+        k = 10
+        f = lambda v: v * k + self._x
+        k = 20
+        return f
+    @x.setter
+    def x(self, v):
+        scale = v
+        self.saved = lambda: (scale * self._x, (lambda: scale + v)())
+        scale = v + 1
+    @x.deleter
+    def x(self):
+        me = self
+        self.on_del = lambda: me
+        me = "changed"
+    @classmethod
+    def make(cls, k):
+        g = lambda: (cls.n + k, cls.__name__, (lambda c=cls: c.n)())
+        k += 100
+        return g
+class B(A):
+    n = 50
+a = A()
+f = a.x
+r = [f(1)]
+a._x = 5
+r.append(f(1))
+a.x = 4
+r.append(a.saved())
+a._x = 6
+r.append(a.saved())
+del a.x
+r.append(a.on_del())
+g = A.make(1)
+A.n = 7
+result = r + [g(), B.make(2)(), A().make(3)(), B().make(4)()]
+""",
+    # lambdas made in comprehensions and generator expressions in a property and a classmethod, reusing loop names
+    """
+class A:
+    def __init__(self):
+        self._items = [1, 2, 3]
+        self._v = 4
+    @property
+    def x(self):
+        return self._v
+    @property
+    def fns(self):
+        i = "own"
+        fs = [lambda: i * 10 for i in self._items]
+        gs = list((lambda i=i: i) for i in range(2))
+        hs = [[lambda: (i, j) for j in range(2)] for i in range(2)]
+        ks = [[lambda: i for i in range(i, i + 2)] for i in range(2)]
+        d = {i: (lambda: i + self._v) for i in range(2)}
+        return [[f() for f in fs], [g() for g in gs], [[h() for h in row] for row in hs], [[k() for k in row] for row in ks], {k: v() for k, v in d.items()}, i]
+    @fns.setter
+    def fns(self, v):
+        x = 0
+        self.got = [lambda: x for x in range(v)]
+        self.gen = (lambda: x for x in range(v))
+        self.defaults = [(lambda v=self.x: (v, x))() for x in range(2)]
+        self.after = x
+    @classmethod
+    def build(cls, n):
+        named = [lambda: (cls, n) for cls in ["p", "q"]]
+        gen = list(lambda: cls for cls in range(2))
+        return [[f() for f in named], [f() for f in gen], cls.__name__, [(lambda: x + n)() for x in range(n)], sum(x for x in (lambda: range(n))())]
+a = A()
+r = a.fns
+a.fns = 3
+result = [r, [f() for f in a.got], [f() for f in a.gen], a.defaults, a.after, A.build(2)]
+""",
+    # a lambda used as a property getter or setter, using the variables of the function it's made in
+    """
+class A:
+    def __init__(self, v):
+        self.v = v
+    @classmethod
+    def add_scaled(cls, name, k):
+        setattr(cls, name, property(lambda self: (self.v * k, cls.__name__)))
+        k += 1
+def add_props(cls, k):
+    base = 10
+    cls.x = property(lambda self: self.v + k)
+    cls.y = property(lambda self: [self.v + base + i for i in range(2)], lambda self, val: setattr(self, "v", val - base))
+    base = 20
+    k += 1
+    return lambda: (k, base)
+def make_prop(scale):
+    return property(lambda self: self.v * scale)
+class B(A):
+    z = make_prop(3)
+    @property
+    def w(self):
+        return [self.v, self.x, self.z]
+seen = add_props(A, 10)
+A.add_scaled("s", 2)
+b = B(1)
+r = [b.x, b.y, b.z, b.w, b.s, seen(), type(A.x).__name__]
+b.y = 25
+result = r + [b.v, b.x, b.y, b.z, b.w, b.s]
+""",
+]
+
+
+#
+# comprehensions and generator expressions in functions, with and without lambdas or inner functions
+#
+COMPREHENSION_SCOPE_TESTS = [
+    "def f():\n    x = 7\n    return [x for x in (x for _ in range(2))]\nresult = f()",
+    "def f():\n    x = 7\n    g = (x for _ in range(2))\n    return [[x for x in g], x]\nresult = f()",
+    "def f():\n    x = 7\n    g = (x for _ in range(2))\n    return [x for x in [1] for y in g]\nresult = f()",
+    """
+def f():
+    out = []
+    for i in range(3):
+        g = (i * 10 for _ in range(1))
+        out.append([i for i in g])
+    return out
+result = f()
+""",
+    """
+def f():
+    saved = []
+    return list((saved.append(y + 100 for _ in range(1)) or [list(s) for s in saved[:-1]]) for y in range(3))
+result = f()
+""",
+    """
+def f():
+    y = "own"
+    saved = []
+    r = [(saved.append(y for _ in range(1)) or [list(s) for s in saved[:-1]]) for y in range(3)]
+    return r, y
+result = f()
+""",
+    """
+def f():
+    x = 3
+    try:
+        [x for x in (1 / (x - 3) for _ in range(1))]
+    except ZeroDivisionError:
+        pass
+    return [x, [x for x in (x for _ in range(1))]]
+result = f()
+""",
+    "def f(vals):\n    return sorted({k: [v for v in vals if v % k == 0] for k in (2, 3)}.items())\nresult = f(range(10))",
+    "def f():\n    x = 0\n    g = ((x := x + 1) for _ in range(3))\n    return [x for x in g]\nresult = f()",
+    "def f():\n    x = 0\n    g = ((x := x + 1) for _ in range(3))\n    return {x: x for x in g}\nresult = f()",
+    "def f():\n    x = 0\n    g = ((x := x + 1) for _ in range(3))\n    return sorted({x for x in g})\nresult = f()",
+]
+
+
+#
+# the same, but only in a function that shares its variables with an inner function or lambda;
+# otherwise a comprehension reading a generator expression that uses its loop variable's name
+# sees the comprehension's loop variable, as it did before
+#
+SHARED_COMPREHENSION_SCOPE_TESTS = [
+    "def f():\n    x = 7\n    return [{x: x for x in (x for _ in range(2))}, {x for x in (x + 1 for _ in range(2))}]\nresult = f()",
+    "def f():\n    x = 7\n    return [[x for x in (x + 1 for _ in range(3))], list(x for x in (x + 1 for _ in range(3)))]\nresult = f()",
+    """
+def f():
+    x = 1
+    g = (x * 10 for _ in range(3))
+    first = next(g)
+    x = 2
+    return [first, [x for x in g], x]
+result = f()
+""",
+    """
+def f():
+    x = 5
+    a = (x for _ in range(2))
+    b = (x + y for y in a)
+    return [[x for x in b], sum(x for x in (x for _ in range(3)))]
+result = f()
+""",
+    "def f():\n    x = 0\n    g = ((x := x + 1) for _ in range(3))\n    return [[x for x in g], x]\nresult = f()",
+    """
+def f():
+    x = 0
+    g = ((x := x + 1) for _ in range(3))
+    d = {x: x for x in g}
+    h = ((x := x + 1) for _ in range(2))
+    return [d, sorted({x for x in h}), x]
+result = f()
+""",
+    "def f():\n    x = 0\n    g = ((x := x + 1) for _ in range(3))\n    return [eval('[x for x in g]'), x]\nresult = f()",
+]
+
+
+async def run_tests_compared_with_python(hass, sources):
+    """Run each script in CPython and in pyscript, and check they give the same result."""
+    hass.data[DOMAIN] = {CONFIG_ENTRY: MockConfigEntry(domain=DOMAIN, data={CONF_ALLOW_ALL_IMPORTS: True})}
+    DecoratorRegistry.init(hass)
+    Function.init(hass)
+    State.init(hass)
+    State.register_functions()
+    TrigTime.init(hass)
+
+    for source in sources:
+        expected_ns = {}
+        exec(compile(source, "test", "exec"), expected_ns)  # pylint: disable=exec-used
+        global_ctx = GlobalContext("test", global_sym_table={}, manager=GlobalContextMgr)
+        ast = AstEval("test", global_ctx=global_ctx)
+        Function.install_ast_funcs(ast)
+        ast.parse(source)
+        await ast.eval()
+        assert global_ctx.global_sym_table["result"] == expected_ns["result"], source
+
+    await Function.waiter_sync()
+    await Function.waiter_stop()
+    await Function.reaper_stop()
+
+
+async def test_lambdas_match_python(hass):
+    """Test that a lambda reads the variables of the functions it's in, compared with CPython."""
+    await run_tests_compared_with_python(hass, LAMBDA_TESTS)
+
+
+def with_inner_function(source):
+    """Return the script with an inner function in f, so f shares its variables."""
+    lines = source.split("\n")
+    def_line = next(i for i, line in enumerate(lines) if line.startswith("def f("))
+    lines.insert(def_line + 1, "    def _inner():\n        pass")
+    return "\n".join(lines)
+
+
+async def test_comprehension_scopes_match_python(hass):
+    """Test comprehension and generator expression loop variables in functions, compared with CPython."""
+    sources = COMPREHENSION_SCOPE_TESTS + [
+        with_inner_function(source)
+        for source in COMPREHENSION_SCOPE_TESTS + SHARED_COMPREHENSION_SCOPE_TESTS
+    ]
+    await run_tests_compared_with_python(hass, sources)
+
+
+#
+# a := in a generator expression's element, run by a later comprehension whose loop variable has
+# the same name, in a function that shares its variables with an inner function or lambda
+#
+GENEXP_WALRUS_SCOPE_TESTS = [
+    # the name has no value yet, or is deleted and assigned again
+    "def f():\n    g = ((x := i) for i in range(3))\n    r = [x for x in g]\n    return r, x\nresult = f()",
+    """
+def f():
+    x = 0
+    del x
+    g = ((x := i * 2) for i in range(3))
+    r = [x for x in g]
+    return r, x
+result = f()
+""",
+    """
+def f():
+    x = 0
+    g = ((x := x + 1) for _ in range(2))
+    r1 = [x for x in g]
+    del x
+    h = ((x := 10 + i) for i in range(2))
+    r2 = [x for x in h]
+    return r1, r2, x
+result = f()
+""",
+    # a lambda reading the name, a lambda made in the element, and a := in a lambda's default
+    """
+def f():
+    x = 0
+    read = lambda: x
+    g = ((x := x + 1) for _ in range(3))
+    r = [(x, read()) for x in g]
+    return r, x, read()
+result = f()
+""",
+    """
+def f():
+    x = 0
+    g = ((x := x + 1, lambda: x)[1] for _ in range(3))
+    fs = [x for x in g]
+    return [h() for h in fs], x
+result = f()
+""",
+    """
+def f():
+    x = 0
+    g = ((lambda v=(x := x + 1): v)() for _ in range(3))
+    r = [x for x in g]
+    return r, x
+result = f()
+""",
+    # nested comprehensions and generator expressions that reuse the name
+    """
+def f():
+    x = 0
+    g = ((x := x + 1) + sum([x for x in range(2)]) for _ in range(3))
+    h = ((x := x + 1) * 10 + sum(x for x in range(2)) for _ in range(3))
+    return [x for x in g], [x for x in h], x
+result = f()
+""",
+    """
+def f():
+    x = 0
+    g = ([(x := x + 1) for _ in range(2)] for _ in range(2))
+    h = (list((x := x + 1) for _ in range(2)) for _ in range(2))
+    return [x for x in g], [x for x in h], x
+result = f()
+""",
+    """
+def f():
+    x = 0
+    g = ((x := x + 1) for _ in range(3))
+    r = [[x for x in g] for x in range(1)]
+    return r, x
+result = f()
+""",
+    # several elements: two loops, two generator expressions, and next() in a comprehension
+    """
+def f():
+    x = 0
+    g = ((x := x + i) for i in range(3) for j in range(2))
+    r = [x for x in g]
+    return r, x
+result = f()
+""",
+    """
+def f():
+    x = 0
+    a = ((x := x + 1) for _ in range(3))
+    b = ((x := x * 10) for _ in range(3))
+    r = [x for x in zip(a, b)]
+    return r, x
+result = f()
+""",
+    """
+def f():
+    x = 0
+    g = ((x := x + 1) for _ in range(3))
+    r = [next(g) + x for x in range(10, 12)]
+    return r, x
+result = f()
+""",
+    # an element that raises, after or before its :=
+    """
+def f():
+    x = 0
+    g = ((x := x + 1) / (2 - x) for _ in range(5))
+    try:
+        r = [x for x in g]
+    except ZeroDivisionError:
+        r = "raised"
+    h = ((1 / (4 - x)) + (x := x + 1) for _ in range(5))
+    try:
+        s = [x for x in h]
+    except ZeroDivisionError:
+        s = "raised"
+    return r, s, x
+result = f()
+""",
+    # an inner function that assigns or deletes the name with nonlocal, and a global name
+    """
+def f():
+    x = 0
+    def bump():
+        nonlocal x
+        x += 1
+        return x
+    r = [x for x in (bump() for _ in range(3))]
+    def drop():
+        nonlocal x
+        del x
+        return 0
+    s = [x for x in (drop() for _ in range(1))]
+    try:
+        return r, s, x
+    except NameError:
+        return r, s, "unbound"
+result = f()
+""",
+    """
+x = 100
+def f():
+    global x
+    g = ((x := x + 1) for _ in range(3))
+    r = [x for x in g]
+    return r, x
+result = f()
+""",
+]
+
+
+async def test_genexp_walrus_scopes_match_python(hass):
+    """Test := in a generator expression run by a comprehension reusing the name, compared with CPython."""
+    await run_tests_compared_with_python(
+        hass, [with_inner_function(source) for source in GENEXP_WALRUS_SCOPE_TESTS]
+    )

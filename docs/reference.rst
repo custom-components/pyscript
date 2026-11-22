@@ -1131,6 +1131,18 @@ For example:
 
 sets ``x`` to ``[1, 6, 11]``.
 
+A lambda can be passed to Python functions like ``sorted``, ``max``, ``map`` or ``filter``.
+In a pyscript function, a lambda can use the function's parameters and variables, and those of any
+function it's in. As in Python, it reads their current values each time it's called:
+
+.. code:: python
+
+   def sorted_ids(id_list, data):
+       return sorted(id_list, key=lambda i: data[i]["order"])
+
+   def above(values, limit):
+       return list(filter(lambda v: v > limit, values))
+
 One use for ``@pyscript_compile`` is to encapsulate functions that block (e.g., doing I/O), so they can
 be called from ``task.executor``. This might be a more convenient way to create native Python functions
 called by ``task.executor``, instead of moving them all to an external module or package outside
@@ -2468,11 +2480,15 @@ it doesn't faithfully mimic Python.  Here are some areas where pyscript differs 
   comprehension instead (e.g., ``any([x > 3 for x in values])``), which evaluates every element before
   the function is called. A generator expression can only be iterated in the main event loop (e.g.,
   not by a function run with ``task.executor()``). Its loop variables don't quite have their own scope:
-  a pyscript function called from an element that reads a module-level variable with the same name as
-  a loop variable sees the loop variable instead, and in a function that declares ``global x``,
-  ``(x for x in ...)`` overwrites the global ``x``; both also apply to list comprehensions. Also, a
-  generator expression created inside another one's element can't see the outer one's loop variables
-  if it's used after the outer one has moved on to its next element.
+  at module level, a pyscript function called from an element that reads a module-level variable with
+  the same name as a loop variable sees the loop variable instead, and in a function that declares
+  ``global x``, ``(x for x in ...)`` overwrites the global ``x``; both also apply to list comprehensions.
+  Also, a generator expression created in another one's element, or in a list comprehension, doesn't
+  see the outer one's loop variables if it's used when the outer one isn't running (e.g., after it has
+  finished); it sees the enclosing function's or module's variables with those names instead. And a
+  generator expression used by a comprehension sees the comprehension's loop variables instead of the
+  variables with those names where it was made, unless it was made in a function that has an inner
+  function or lambda.
 - Avoid using ``exit()`` calls in your scripts, as they can `crash <https://github.com/custom-components/pyscript/issues/811>`__ the whole Home Assistant.
 
 A handful of language features are not supported:
