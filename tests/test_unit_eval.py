@@ -4,9 +4,11 @@ import ast as ast_module
 import asyncio
 import contextlib
 from dataclasses import dataclass
+import gc
 import logging
 import sys
 from types import FunctionType, ModuleType
+import warnings
 
 import pytest
 from pytest_homeassistant.common import MockConfigEntry
@@ -4885,6 +4887,405 @@ async def test_class_init_super_match_python(hass, caplog):
             Function.install_ast_funcs(ast)
             ast.parse(source + "result\n")
             assert await ast.eval() == expected_ns["result"], source
+
+    await Function.waiter_sync()
+    await Function.waiter_stop()
+    await Function.reaper_stop()
+
+
+PROPERTY_CLASSMETHOD_SOURCES = [
+    "class A:\n    def __init__(self): self._x = 3\n    @property\n    def x(self): return self._x * 2\nresult = A().x",
+    "class A:\n    def __init__(self): self._x = 3\n    @property\n    def x(self): return self._x\n    @x.setter\n    def x(self, v): self._x = v + 1\na = A(); a.x = 10\nresult = a.x",
+    "class A:\n    n = 5\n    @classmethod\n    def make(cls, k): return cls.n + k\nresult = (A.make(1), A().make(2))",
+    "class A:\n    def __init__(self, v): self.v = v\n    @classmethod\n    def build(cls): return cls(7)\nresult = A.build().v",
+    "class A:\n    @staticmethod\n    def f(a, b): return a + b\nresult = (A.f(1, 2), A().f(3, 4))",
+    "class B:\n    @property\n    def x(self): return 1\nclass C(B): pass\nresult = C().x",
+    "class A:\n    def __init__(self): self._x = 1\n    @property\n    def x(self): return self._x\n    @x.setter\n    def x(self, v): self._x = v * 10\na = A(); a.x += 1\nresult = a._x",
+    "class A:\n    @property\n    def x(self): return 1\ntry:\n    A().x = 3\n    result = 'set'\nexcept AttributeError as e:\n    result = 'AttributeError'",
+    "class A:\n    @property\n    def x(self): return 1\nresult = type(A.x).__name__",
+    "class A:\n    def _get(self): return 4\n    x = property(_get)\nresult = A().x",
+    "class B:\n    @property\n    def x(self): return 1\nclass C(B):\n    @property\n    def x(self): return 2\nresult = (B().x, C().x)",
+    "class A:\n    @property\n    def x(self): return 'prop'\na = A()\na.__dict__['x'] = 'dict'\nresult = a.x",
+    "class A:\n    def __init__(self): self.v = 2\n    def dbl(self): return self.v * 2\n    @property\n    def x(self): return self.dbl() + 1\nresult = A().x",
+    "class A:\n    @property\n    def x(self): raise AttributeError('nope')\ntry:\n    A().x\n    result = 'ok'\nexcept AttributeError:\n    result = 'AttributeError'",
+    "class B:\n    @classmethod\n    def name(cls): return cls.__name__\nclass C(B): pass\nresult = (B.name(), C.name(), C().name())",
+    "class B:\n    @classmethod\n    def f(cls, a, *, k=0): return (cls.__name__, a, k)\nresult = B.f(1, k=2)",
+    "class A:\n    @pyscript_compile\n    def _g(self): return 5\n    x = property(_g)\nresult = A().x",
+    "class B:\n    def __init__(self): self._v = 0\n    @property\n    def v(self): return self._v\n    @v.setter\n    def v(self, x): self._v = x * 2\nclass A:\n    def __init__(self): self.b = B()\na = A(); a.b.v = 5; a.b.v += 1\nresult = (a.b.v, a.b._v)",
+    "class B:\n    @property\n    def v(self): return 7\nclass A:\n    @property\n    def b(self): return B()\nresult = A().b.v",
+    "class B:\n    def __init__(self): self._v = 0\n    @property\n    def v(self): return self._v\n    @v.setter\n    def v(self, x): self._v = x + 1\nclass C(B): pass\nc = C(); c.v, y = 3, 4\nresult = (c.v, y)",
+    "class M(type):\n    @property\n    def p(cls): return cls.__name__\nclass A(metaclass=M): pass\nresult = A.p",
+    "class A:\n    @pyscript_compile\n    def __getattribute__(self, key):\n        if key == 'x': return 42\n        return object.__getattribute__(self, key)\n    @property\n    def x(self): return 1\nresult = A().x",
+    "class A:\n    def __init__(self): object.__setattr__(self, 'log', [])\n    @pyscript_compile\n    def __setattr__(self, key, val):\n        self.log.append((key, val))\n    @property\n    def x(self): return 1\n    @x.setter\n    def x(self, v): raise ValueError('setter used')\na = A(); a.x = 7\nresult = a.log",
+    "class A:\n    @pyscript_compile\n    def __getattr__(self, key): return 42\n    @property\n    def x(self): raise AttributeError('missing')\nresult = A().x",
+    "class A:\n    @property\n    def x(self): raise AttributeError('missing')\ntry:\n    A().x\n    result = 'ok'\nexcept AttributeError as e:\n    result = str(e)",
+    "class P(property):\n    @pyscript_compile\n    def __get__(self, instance, owner=None): return 42\nclass A:\n    @P\n    def x(self): return 1\nresult = A().x",
+    "class P(property):\n    @pyscript_compile\n    def __set__(self, instance, value): instance.log = ('set', value)\nclass A:\n    @P\n    def x(self): return 1\n    @x.setter\n    def x(self, v): raise ValueError('setter used')\na = A(); a.x = 7\nresult = a.log",
+    "class A:\n    @staticmethod\n    def __getattr__(key): return 'static ' + key\n    @property\n    def x(self): raise AttributeError('missing')\nresult = A().x",
+    "class A:\n    @classmethod\n    def __getattr__(cls, key): return cls.__name__ + key\n    @property\n    def x(self): raise AttributeError('missing')\nresult = A().x",
+    "class A:\n    def __getattr__(self, key): return type(self).__name__ + key\n    @property\n    def x(self): raise AttributeError('missing')\nresult = A().x",
+    "class A:\n    @classmethod\n    def f(cls): return 1\n    def g(self): return self.f() + A.f() + type(self).f()\nresult = A().g()",
+]
+
+
+async def test_property_classmethod_match_python(hass):
+    """Test @property and @classmethod on pyscript functions, compared with CPython."""
+    hass.data[DOMAIN] = {CONFIG_ENTRY: MockConfigEntry(domain=DOMAIN, data={CONF_ALLOW_ALL_IMPORTS: True})}
+    DecoratorRegistry.init(hass)
+    Function.init(hass)
+    State.init(hass)
+    State.register_functions()
+    TrigTime.init(hass)
+
+    for source in PROPERTY_CLASSMETHOD_SOURCES:
+        expected_ns = {"pyscript_compile": lambda func: func}
+        exec(compile(source, "test", "exec"), expected_ns)  # pylint: disable=exec-used
+        global_ctx = GlobalContext("test", global_sym_table={}, manager=GlobalContextMgr)
+        ast = AstEval("test", global_ctx=global_ctx)
+        Function.install_ast_funcs(ast)
+        ast.parse(source + "\nresult\n")
+        assert await ast.eval() == expected_ns["result"], source
+
+    await Function.waiter_sync()
+    await Function.waiter_stop()
+    await Function.reaper_stop()
+
+
+PROPERTY_DELETER_SOURCES = [
+    # the deleter runs, with its side effects
+    """
+class A:
+    def __init__(self):
+        self._x = 1
+        self.log = []
+    @property
+    def x(self):
+        return self._x
+    @x.deleter
+    def x(self):
+        self.log.append("del")
+        del self._x
+a = A()
+del a.x
+result = (a.log, "_x" in a.__dict__)
+""",
+    # a deleter used inside a function, then the getter and setter still work
+    """
+class A:
+    def __init__(self):
+        self._x = 1
+    @property
+    def x(self):
+        return self._x
+    @x.setter
+    def x(self, v):
+        self._x = v
+    @x.deleter
+    def x(self):
+        self._x = None
+def f():
+    a = A()
+    del a.x
+    first = a.x
+    a.x = 5
+    return (first, a.x)
+result = f()
+""",
+    # a property with no deleter raises the same AttributeError as Python
+    """
+class A:
+    @property
+    def x(self):
+        return 1
+try:
+    del A().x
+    result = "deleted"
+except AttributeError as exc:
+    result = str(exc)
+""",
+    # property(fget, fset, fdel)
+    """
+class A:
+    def __init__(self):
+        self.log = []
+    def _get(self):
+        return 1
+    def _set(self, v):
+        self.log.append(("set", v))
+    def _del(self):
+        self.log.append("del")
+    x = property(_get, _set, _del)
+a = A()
+a.x = 2
+del a.x
+result = (a.x, a.log)
+""",
+    # a deleter inherited from a base class
+    """
+class B:
+    def __init__(self):
+        self.log = []
+    @property
+    def x(self):
+        return 1
+    @x.deleter
+    def x(self):
+        self.log.append(type(self).__name__)
+class C(B):
+    pass
+c = C()
+del c.x
+result = c.log
+""",
+    # a deleter that raises: the later targets aren't deleted
+    """
+class A:
+    @property
+    def x(self):
+        return 1
+    @x.deleter
+    def x(self):
+        raise ValueError("no delete")
+a = A()
+b = [1, 2]
+try:
+    del a.x, b[0]
+    result = "deleted"
+except ValueError as exc:
+    result = (str(exc), b)
+""",
+    # the targets are deleted in order
+    """
+log = []
+class A:
+    @property
+    def x(self):
+        return 1
+    @x.deleter
+    def x(self):
+        log.append(list(b))
+a = A()
+b = [1, 2, 3]
+del a.x, b[0]
+del b[0], a.x
+result = (log, b)
+""",
+    # a class with its own __delattr__ gets it called, not the deleter
+    """
+class A:
+    def __init__(self):
+        object.__setattr__(self, "log", [])
+    @pyscript_compile
+    def __delattr__(self, key):
+        self.log.append(key)
+    @property
+    def x(self):
+        return 1
+    @x.deleter
+    def x(self):
+        raise ValueError("deleter used")
+a = A()
+del a.x
+result = a.log
+""",
+    # a native descriptor with __delete__
+    """
+class D:
+    @pyscript_compile
+    def __get__(self, inst, owner=None):
+        return 1
+    @pyscript_compile
+    def __delete__(self, inst):
+        inst.log.append("delete")
+class A:
+    x = D()
+    def __init__(self):
+        self.log = []
+a = A()
+del a.x
+result = a.log
+""",
+    # a native property's deleter
+    """
+class A:
+    def __init__(self):
+        self.log = []
+    @pyscript_compile
+    def _get(self):
+        return 1
+    @pyscript_compile
+    def _del(self):
+        self.log.append("native del")
+    x = property(_get, None, _del)
+a = A()
+del a.x
+result = a.log
+""",
+    # a plain attribute, and one that doesn't exist
+    """
+class A:
+    pass
+a = A()
+a.y = 1
+del a.y
+result = ["y" in a.__dict__]
+try:
+    del a.y
+except AttributeError as exc:
+    result.append(str(exc))
+""",
+    # a deleter on a metaclass property
+    """
+class M(type):
+    @property
+    def p(cls):
+        return 1
+    @p.deleter
+    def p(cls):
+        cls.log.append("del " + cls.__name__)
+class A(metaclass=M):
+    log = []
+del A.p
+result = A.log
+""",
+]
+
+
+async def test_property_deleter_match_python(hass):
+    """Test del on a pyscript property deleter, compared with CPython."""
+    hass.data[DOMAIN] = {CONFIG_ENTRY: MockConfigEntry(domain=DOMAIN, data={CONF_ALLOW_ALL_IMPORTS: True})}
+    DecoratorRegistry.init(hass)
+    Function.init(hass)
+    State.init(hass)
+    State.register_functions()
+    TrigTime.init(hass)
+
+    for source in PROPERTY_DELETER_SOURCES:
+        expected_ns = {"pyscript_compile": lambda func: func}
+        exec(compile(source, "test", "exec"), expected_ns)  # pylint: disable=exec-used
+        global_ctx = GlobalContext("test", global_sym_table={}, manager=GlobalContextMgr)
+        ast = AstEval("test", global_ctx=global_ctx)
+        Function.install_ast_funcs(ast)
+        ast.parse(source + "result\n")
+        # a deleter that Python called itself would leave a coroutine that's never awaited
+        with warnings.catch_warnings(record=True) as caught:
+            warnings.simplefilter("always")
+            assert await ast.eval() == expected_ns["result"], source
+            gc.collect()
+        assert not [w for w in caught if "never awaited" in str(w.message)], source
+
+    await Function.waiter_sync()
+    await Function.waiter_stop()
+    await Function.reaper_stop()
+
+
+CLASSMETHOD_SUPER_SOURCES = [
+    # super() in a classmethod, called on the class and on an instance
+    """
+class B:
+    @classmethod
+    def make(cls):
+        return cls.__name__ + "-B"
+class C(B):
+    @classmethod
+    def make(cls):
+        return super().make() + "-C"
+result = (C.make(), C().make())
+""",
+    # a chain of three classes
+    """
+class A:
+    @classmethod
+    def make(cls, n):
+        return [("A", cls.__name__, n)]
+class B(A):
+    @classmethod
+    def make(cls, n):
+        return super().make(n + 1) + [("B", cls.__name__, n)]
+class C(B):
+    @classmethod
+    def make(cls, n):
+        return super().make(n + 1) + [("C", cls.__name__, n)]
+result = (C.make(0), B.make(0), C().make(5))
+""",
+    # super(C, cls) in a classmethod, and from a subclass
+    """
+class B:
+    @classmethod
+    def make(cls):
+        return cls.__name__
+class C(B):
+    @classmethod
+    def make(cls):
+        return "C:" + super(C, cls).make()
+class D(C):
+    pass
+result = (C.make(), D.make(), D().make())
+""",
+    # super(C, cls) in a chain of three classes
+    """
+class A:
+    @classmethod
+    def make(cls, k=0):
+        return ["A", cls.__name__, k]
+class B(A):
+    @classmethod
+    def make(cls, k=0):
+        return super(B, cls).make(k=k + 1) + ["B"]
+class C(B):
+    @classmethod
+    def make(cls, k=0):
+        return super(C, cls).make(k=k + 1) + ["C"]
+result = (C.make(), C().make(k=10))
+""",
+    # an alternate constructor that calls the base class's through super()
+    """
+class B:
+    def __init__(self, v):
+        self.v = v
+    @classmethod
+    def build(cls, v):
+        return cls(v)
+class C(B):
+    def __init__(self, v):
+        super().__init__(v * 2)
+    @classmethod
+    def build(cls, v):
+        return super().build(v + 1)
+c = C.build(1)
+result = (type(c).__name__, c.v)
+""",
+    # a class attribute through super() in a classmethod
+    """
+class B:
+    n = 1
+class C(B):
+    n = 2
+    @classmethod
+    def f(cls):
+        return (cls.n, super().n)
+result = (C.f(), C().f())
+""",
+]
+
+
+async def test_classmethod_super_match_python(hass):
+    """Test super() inside a classmethod, compared with CPython."""
+    hass.data[DOMAIN] = {CONFIG_ENTRY: MockConfigEntry(domain=DOMAIN, data={CONF_ALLOW_ALL_IMPORTS: True})}
+    DecoratorRegistry.init(hass)
+    Function.init(hass)
+    State.init(hass)
+    State.register_functions()
+    TrigTime.init(hass)
+
+    for source in CLASSMETHOD_SUPER_SOURCES:
+        expected_ns = {}
+        exec(compile(source, "test", "exec"), expected_ns)  # pylint: disable=exec-used
+        global_ctx = GlobalContext("test", global_sym_table={}, manager=GlobalContextMgr)
+        ast = AstEval("test", global_ctx=global_ctx)
+        Function.install_ast_funcs(ast)
+        ast.parse(source + "result\n")
+        assert await ast.eval() == expected_ns["result"], source
 
     await Function.waiter_sync()
     await Function.waiter_stop()
