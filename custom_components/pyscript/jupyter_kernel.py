@@ -363,7 +363,8 @@ class Kernel:
                 self.global_ctx.set_auto_start(True)
                 self.global_ctx.start()
             except Exception as exc:
-                traceback_mesg = EvalExceptionFormatter(exc).format()
+                formatter = EvalExceptionFormatter(exc)
+                traceback_mesg = formatter.format()
 
                 metadata = {
                     "dependencies_met": True,
@@ -374,8 +375,8 @@ class Kernel:
                 content = {
                     "execution_count": self.execution_count,
                     "status": "error",
-                    "ename": type(exc).__name__,  # Exception name, as a string
-                    "evalue": str(exc),  # Exception value, as a string
+                    "ename": type(formatter.exc).__name__,  # Exception name, as a string
+                    "evalue": str(formatter.exc),  # Exception value, as a string
                     "traceback": traceback_mesg,
                 }
                 _LOGGER.debug("Executing '%s' got exception: %s", code, content)

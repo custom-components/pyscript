@@ -5,6 +5,7 @@ import asyncio
 import contextlib
 from dataclasses import dataclass
 import gc
+import inspect
 import logging
 import sys
 from types import FunctionType, ModuleType
@@ -6493,3 +6494,1236 @@ async def test_genexp_walrus_scopes_match_python(hass):
     await run_tests_compared_with_python(
         hass, [with_inner_function(source) for source in GENEXP_WALRUS_SCOPE_TESTS]
     )
+
+
+# scripts compared with CPython; the first 44 came with the first version of this change
+STOP_ITERATION_TESTS = [
+    """
+it = iter([1])
+result = [next(it), next(it, "default")]
+try:
+    next(it)
+except StopIteration as exc:
+    result.append([type(exc).__name__, exc.args, exc.value])
+""",
+    """
+def func():
+    it = iter([])
+    try:
+        next(it)
+    except StopIteration:
+        return "caught"
+    return "not caught"
+result = func()
+""",
+    """
+result = []
+for exc_raised in [StopIteration, StopIteration(5), StopIteration(5, 6)]:
+    try:
+        raise exc_raised
+    except StopIteration as exc:
+        result.append([type(exc).__name__, exc.args, exc.value])
+""",
+    """
+result = []
+for value in [[], "x"]:
+    try:
+        int(next(iter(value)))
+    except (StopIteration, ValueError) as exc:
+        result.append(type(exc).__name__)
+    try:
+        int(next(iter(value)))
+    except (ValueError, StopIteration) as exc:
+        result.append(type(exc).__name__)
+""",
+    """
+try:
+    raise StopIteration(5)
+except Exception as exc:
+    result = [type(exc).__name__, isinstance(exc, StopIteration), exc.value, exc.__cause__, exc.__context__]
+""",
+    """
+result = []
+try:
+    try:
+        next(iter([]))
+    except RuntimeError:
+        result.append("RuntimeError")
+    except ValueError:
+        result.append("ValueError")
+except StopIteration as exc:
+    result.append(type(exc).__name__)
+""",
+    """
+result = []
+try:
+    try:
+        raise StopIteration("inner")
+    except StopIteration as exc:
+        result.append(exc.args)
+        raise
+except StopIteration as exc:
+    result.append(exc.args)
+""",
+    """
+result = []
+try:
+    try:
+        next(iter([]))
+    except StopIteration as exc:
+        inner = exc
+        raise exc
+except StopIteration as exc:
+    result.append(exc is inner)
+""",
+    """
+import contextlib
+class Ctx:
+    def __init__(self, suppress):
+        self.suppress = suppress
+    def __enter__(self):
+        return self
+    def __exit__(self, exc_type, exc, tb):
+        result.append([exc_type.__name__, type(exc).__name__, exc.args, tb is exc.__traceback__])
+        return self.suppress
+result = []
+with Ctx(True):
+    next(iter([]))
+result.append("suppressed")
+try:
+    with Ctx(False):
+        raise StopIteration(3)
+except StopIteration as exc:
+    result.append(["not suppressed", exc.value])
+with contextlib.suppress(StopIteration):
+    next(iter([]))
+result.append("contextlib.suppress")
+@contextlib.contextmanager
+@pyscript_compile
+def manager(suppress):
+    try:
+        yield
+    except StopIteration as exc:
+        result.append(["generator manager", exc.args])
+        if not suppress:
+            raise
+with manager(True):
+    raise StopIteration("x")
+try:
+    with manager(False):
+        raise StopIteration("y")
+except StopIteration as exc:
+    result.append(["not suppressed", exc.args])
+try:
+    with contextlib.nullcontext():
+        next(iter([]))
+except StopIteration:
+    result.append("nullcontext")
+""",
+    """
+class AsyncCtx:
+    async def __aenter__(self):
+        return self
+    async def __aexit__(self, exc_type, exc, tb):
+        result.append(["aexit", exc_type.__name__, exc.value])
+        return True
+result = []
+async with AsyncCtx():
+    raise StopIteration(4)
+result.append("after")
+""",
+    """
+def inner(value):
+    raise StopIteration(value)
+def middle(value):
+    return inner(value) + 1
+def outer():
+    try:
+        middle(7)
+    except StopIteration as exc:
+        return ["caught", exc.value]
+result = outer()
+try:
+    middle(8)
+except StopIteration as exc:
+    result.append(exc.value)
+""",
+    """
+class Countdown:
+    def __init__(self, n):
+        self.n = n
+    @pyscript_compile
+    def __iter__(self):
+        return self
+    @pyscript_compile
+    def __next__(self):
+        if self.n <= 0:
+            raise StopIteration
+        self.n -= 1
+        return self.n
+result = [x for x in Countdown(3)]
+for y in Countdown(2):
+    result.append(y)
+it = Countdown(1)
+result.append(next(it))
+try:
+    next(it)
+except StopIteration:
+    result.append("caught")
+""",
+    """
+class Countdown:
+    def __init__(self, n):
+        self.n = n
+    def next_value(self):
+        if self.n <= 0:
+            raise StopIteration(f"done at {self.n}")
+        self.n -= 1
+        return self.n
+it = Countdown(2)
+result = []
+while True:
+    try:
+        result.append(it.next_value())
+    except StopIteration as exc:
+        result.append(exc.value)
+        break
+""",
+    """
+result = []
+for x in iter([1, 2]):
+    result.append(x)
+result.append(list(x for x in iter([3, 4])))
+result.append(sum(x for x in []))
+g = (x for x in [])
+try:
+    next(g)
+except StopIteration as exc:
+    result.append(["exhausted", exc.args])
+""",
+    """
+result = []
+it = iter([])
+try:
+    list(next(it) for x in range(3))
+except StopIteration:
+    result.append("StopIteration")
+except RuntimeError as exc:
+    result.append([str(exc), type(exc.__cause__).__name__])
+try:
+    list(x for x in range(3) if next(it))
+except RuntimeError as exc:
+    result.append([str(exc), type(exc.__cause__).__name__])
+def raises(value):
+    raise StopIteration(value)
+try:
+    sum(raises(x) for x in range(3))
+except RuntimeError as exc:
+    result.append([str(exc), exc.__cause__.value])
+try:
+    next(raises(x) for x in range(3))
+except RuntimeError as exc:
+    result.append([str(exc), exc.__cause__.value])
+""",
+    """
+result = []
+try:
+    try:
+        next(iter([]))
+    except StopIteration as exc:
+        exc.__traceback__ = None
+        raise
+except Exception as exc:
+    result.append(type(exc).__name__)
+""",
+    """
+result = []
+try:
+    try:
+        next(iter([]))
+    finally:
+        import sys
+        sys.exception().__traceback__ = None
+except Exception as exc:
+    result.append(type(exc).__name__)
+""",
+    """
+class Payload:
+    @pyscript_compile
+    def __eq__(self, other):
+        raise ValueError('unexpected comparison')
+result = []
+try:
+    try:
+        raise RuntimeError(Payload())
+    except RuntimeError:
+        result.append('caught RuntimeError')
+except ValueError as exc:
+    result.append(str(exc))
+""",
+    """
+result = []
+class Payload:
+    @pyscript_compile
+    def __eq__(self, other):
+        result.append('comparison')
+        return False
+try:
+    raise RuntimeError(Payload())
+except RuntimeError:
+    result.append('caught')
+""",
+    """
+import functools
+@pyscript_compile
+def raises(value=None):
+    raise StopIteration(4)
+class Native:
+    @property
+    @pyscript_compile
+    def value(self):
+        raise StopIteration(4)
+result = []
+for mode in range(4):
+    try:
+        if mode == 0:
+            raises()
+        elif mode == 1:
+            functools.partial(raises)()
+        elif mode == 2:
+            sorted([2, 1], key=raises)
+        else:
+            Native().value
+    except Exception as exc:
+        result.append([type(exc).__name__, exc.args])
+""",
+    """
+@pyscript_compile
+def raises(x):
+    raise StopIteration(9)
+result = list(map(raises, [1, 2]))
+""",
+    """
+@pyscript_compile
+def reraise():
+    raise
+result = []
+try:
+    try:
+        next(iter([]))
+    except StopIteration:
+        reraise()
+except Exception as exc:
+    result.append(type(exc).__name__)
+""",
+    """
+result = []
+saved = None
+try:
+    next(iter([]))
+except StopIteration as exc:
+    saved = exc
+for x in range(3):
+    try:
+        raise saved
+    except StopIteration as exc:
+        result.append([exc is saved, exc.__context__, exc.__cause__])
+""",
+    """
+result = []
+try:
+    for x in [1, 2]:
+        next(iter([]))
+except StopIteration:
+    result.append('caught')
+""",
+    """
+result = []
+for mode in range(3):
+    try:
+        if mode == 0:
+            [next(iter([])) for x in [1]]
+        elif mode == 1:
+            {next(iter([])) for x in [1]}
+        else:
+            {x: next(iter([])) for x in [1]}
+    except Exception as exc:
+        result.append(type(exc).__name__)
+""",
+    """
+result = []
+try:
+    list(next(iter([])) for x in [1])
+except RuntimeError as exc:
+    result.append([type(exc.__context__).__name__, exc.__context__ is exc.__cause__, exc.__cause__.__context__])
+""",
+    """
+class Native:
+    @pyscript_compile
+    def __setitem__(self, key, value):
+        raise StopIteration(key)
+    @pyscript_compile
+    def __iter__(self):
+        raise StopIteration("iter")
+    @pyscript_compile
+    def __hash__(self):
+        raise StopIteration("hash")
+    def get_value(self):
+        return 0
+    @pyscript_compile
+    def set_value(self, value):
+        raise StopIteration(value)
+    value = property(get_value, set_value)
+def args(*values):
+    return values
+result = []
+for mode in range(7):
+    try:
+        if mode == 0:
+            Native()["key"] = 1
+        elif mode == 1:
+            Native().value = 2
+        elif mode == 2:
+            [*Native()]
+        elif mode == 3:
+            args(*Native())
+        elif mode == 4:
+            [x for x in Native()]
+        elif mode == 5:
+            {Native() for x in [1]}
+        else:
+            {Native(): x for x in [1]}
+    except Exception as exc:
+        result.append([type(exc).__name__, exc.args])
+""",
+    """
+class Native:
+    @pyscript_compile
+    def __add__(self, other):
+        raise StopIteration("add")
+try:
+    Native() + 1
+except StopIteration as exc:
+    result = ["caught", exc.args]
+except RuntimeError:
+    result = "wrong exception"
+""",
+    """
+class Native:
+    @pyscript_compile
+    def __eq__(self, other):
+        raise StopIteration("eq")
+try:
+    Native() == 1
+except StopIteration as exc:
+    result = ["caught", exc.args]
+except RuntimeError:
+    result = "wrong exception"
+""",
+    """
+class Native:
+    @pyscript_compile
+    def __bool__(self):
+        raise StopIteration("bool")
+try:
+    not Native()
+except StopIteration as exc:
+    result = ["caught", exc.args]
+except RuntimeError:
+    result = "wrong exception"
+""",
+    """
+class Native:
+    @pyscript_compile
+    def __neg__(self):
+        raise StopIteration("neg")
+try:
+    -Native()
+except StopIteration as exc:
+    result = ["caught", exc.args]
+except RuntimeError:
+    result = "wrong exception"
+""",
+    """
+class Native:
+    @pyscript_compile
+    def __contains__(self, item):
+        raise StopIteration("contains")
+try:
+    1 in Native()
+except StopIteration as exc:
+    result = ["caught", exc.args]
+except RuntimeError:
+    result = "wrong exception"
+""",
+    """
+class Namespace(dict):
+    @pyscript_compile
+    def __getitem__(self, key):
+        if key == "boom":
+            raise StopIteration("read " + key)
+        return dict.__getitem__(self, key)
+    @pyscript_compile
+    def __setitem__(self, key, value):
+        if key == "bang":
+            raise StopIteration("write " + key)
+        dict.__setitem__(self, key, value)
+class Meta(type):
+    @classmethod
+    @pyscript_compile
+    def __prepare__(mcs, name, bases):
+        return Namespace()
+result = []
+class C(metaclass=Meta):
+    boom = 1
+    try:
+        boom.real
+    except StopIteration as exc:
+        result.append(["read", exc.args])
+    try:
+        bang = 2
+    except StopIteration as exc:
+        result.append(["write", exc.args])
+""",
+    """
+result = []
+try:
+    eval("next(iter([]))")
+except StopIteration:
+    result.append("eval")
+try:
+    exec("raise StopIteration(3)")
+except StopIteration as exc:
+    result.append(["exec", exc.value])
+def func():
+    try:
+        exec("next(iter([]))")
+    except StopIteration:
+        return "in function"
+result.append(func())
+""",
+    """
+class Native:
+    @pyscript_compile
+    def __iter__(self):
+        raise StopIteration("iter")
+result = []
+try:
+    list(x for y in [1] for x in Native())
+except RuntimeError as exc:
+    result.append([str(exc), exc.__cause__.args])
+try:
+    for x in Native():
+        pass
+except StopIteration as exc:
+    result.append(["for", exc.args])
+""",
+    """
+@pyscript_compile
+def deco(func):
+    raise StopIteration("deco")
+result = []
+try:
+    @deco
+    @pyscript_compile
+    async def compiled_async():
+        pass
+except StopIteration as exc:
+    result.append(["async def", exc.args])
+try:
+    @deco
+    @pyscript_compile
+    def compiled():
+        pass
+except StopIteration as exc:
+    result.append(["def", exc.args])
+try:
+    @deco
+    def interpreted():
+        pass
+except StopIteration as exc:
+    result.append(["interpreted def", exc.args])
+""",
+    """
+class Thing:
+    def __init__(self, items):
+        self.first = next(iter(items))
+class Raises:
+    def __init__(self):
+        raise StopIteration(7)
+result = []
+for cls, args in [(Thing, [[]]), (Raises, [])]:
+    try:
+        cls(*args)
+    except StopIteration as exc:
+        result.append([cls.__name__, exc.args, exc.value])
+result.append(Thing([4]).first)
+""",
+    """
+class Base:
+    def __init__(self, value):
+        if value is None:
+            raise StopIteration("base")
+        self.value = value
+class Child(Base):
+    def __init__(self, value):
+        super().__init__(value)
+class Other(Base):
+    def __init__(self, value):
+        Base.__init__(self, value)
+class NativeBase:
+    @pyscript_compile
+    def __init__(self, value):
+        raise StopIteration("native base")
+class NativeChild(NativeBase):
+    def __init__(self, value):
+        super().__init__(value)
+result = []
+for cls in [Child, Other, NativeChild]:
+    try:
+        cls(None)
+    except StopIteration as exc:
+        result.append([cls.__name__, exc.args])
+result.append(Child(3).value)
+""",
+    """
+class Made:
+    def __new__(cls, ok):
+        if not ok:
+            raise StopIteration("new")
+        return object.__new__(cls)
+class NativeNew:
+    @pyscript_compile
+    def __new__(cls, ok):
+        raise StopIteration("native new")
+    def __init__(self, ok):
+        self.ok = ok
+result = []
+for cls in [Made, NativeNew]:
+    try:
+        cls(False)
+    except StopIteration as exc:
+        result.append([cls.__name__, exc.args])
+result.append(type(Made(True)).__name__)
+""",
+    """
+class MyStop(StopIteration):
+    pass
+class Mixed:
+    @property
+    @pyscript_compile
+    def native(self):
+        raise MyStop("native get")
+    @property
+    def value(self):
+        raise StopIteration("get")
+    @value.setter
+    def value(self, v):
+        raise MyStop(v)
+    @value.deleter
+    def value(self):
+        next(iter([]))
+    @classmethod
+    def make(cls, v):
+        raise MyStop(cls.__name__, v)
+obj = Mixed()
+result = []
+for mode in range(7):
+    try:
+        if mode == 0:
+            obj.native
+        elif mode == 1:
+            obj.value
+        elif mode == 2:
+            obj.value = 3
+        elif mode == 3:
+            del obj.value
+        elif mode == 4:
+            Mixed.make(4)
+        elif mode == 5:
+            obj.make(5)
+        else:
+            obj.value += 1
+    except StopIteration as exc:
+        result.append([mode, type(exc).__name__, exc.value, exc.args])
+""",
+    """
+class MyStop(StopIteration):
+    pass
+class Native:
+    def __init__(self):
+        self._x = 3
+    @property
+    def x(self):
+        return self._x
+    @x.setter
+    @pyscript_compile
+    def x(self, value):
+        if value > 5:
+            raise MyStop(value)
+        raise StopIteration(value)
+    @x.deleter
+    @pyscript_compile
+    def x(self):
+        raise StopIteration("del")
+obj = Native()
+result = []
+for mode in range(4):
+    try:
+        if mode == 0:
+            obj.x = 2
+        elif mode == 1:
+            obj.x += 1
+        elif mode == 2:
+            obj.x = 9
+        else:
+            del obj.x
+    except StopIteration as exc:
+        result.append([mode, type(exc).__name__, exc.value, exc.args])
+result.append(obj.x)
+""",
+    """
+class MyStop(StopIteration):
+    pass
+class Guarded:
+    @pyscript_compile
+    def __setattr__(self, name, value):
+        if name == "locked":
+            raise MyStop(name, value)
+        object.__setattr__(self, name, value)
+    @pyscript_compile
+    def __delattr__(self, name):
+        raise StopIteration("del " + name)
+obj = Guarded()
+obj.free = 1
+obj.free += 1
+result = [obj.free]
+for mode in range(2):
+    try:
+        if mode == 0:
+            obj.locked = 2
+        else:
+            del obj.free
+    except StopIteration as exc:
+        result.append([mode, type(exc).__name__, exc.value, exc.args])
+result.append(obj.free)
+""",
+    """
+class MyStop(StopIteration):
+    pass
+class Meta(type):
+    @pyscript_compile
+    def __setattr__(cls, name, value):
+        if name == "frozen":
+            raise MyStop(value)
+        type.__setattr__(cls, name, value)
+    @pyscript_compile
+    def __delattr__(cls, name):
+        raise StopIteration("del " + name)
+@pyscript_compile
+def get_level(cls):
+    return 1
+@pyscript_compile
+def set_level(cls, value):
+    raise StopIteration(value)
+@pyscript_compile
+def del_level(cls):
+    raise MyStop("del level")
+class MetaProp(type):
+    level = property(get_level, set_level, del_level)
+class C(metaclass=Meta):
+    pass
+class D(metaclass=MetaProp):
+    pass
+result = []
+for mode in range(5):
+    try:
+        if mode == 0:
+            C.frozen = 1
+        elif mode == 1:
+            del C.anything
+        elif mode == 2:
+            D.level = 5
+        elif mode == 3:
+            D.level += 1
+        else:
+            del D.level
+    except StopIteration as exc:
+        result.append([mode, type(exc).__name__, exc.value, exc.args])
+C.open = 2
+result.append([C.open, D.level])
+""",
+    """
+class MyStop(StopIteration):
+    pass
+class Fallback:
+    @property
+    def value(self):
+        raise AttributeError("value")
+    def __getattr__(self, name):
+        raise MyStop("fallback " + name)
+class NativeFallback:
+    @property
+    def value(self):
+        raise AttributeError("value")
+    @pyscript_compile
+    def __getattr__(self, name):
+        raise StopIteration("native fallback " + name)
+result = []
+for cls in [Fallback, NativeFallback]:
+    try:
+        cls().value
+    except StopIteration as exc:
+        result.append([cls.__name__, type(exc).__name__, exc.value, exc.args])
+""",
+    """
+class MyStop(StopIteration):
+    pass
+result = []
+try:
+    raise StopIteration(5)
+except BaseException as exc:
+    result.append([type(exc).__name__, exc.value])
+try:
+    next(iter([]))
+except:
+    result.append("bare except")
+try:
+    raise MyStop(1)
+except StopIteration as exc:
+    result.append([type(exc).__name__, exc.value])
+try:
+    try:
+        next(iter([]))
+    except RuntimeError:
+        result.append("RuntimeError")
+except StopIteration:
+    result.append("StopIteration")
+""",
+    """
+result = []
+for msg in ["coroutine raised StopIteration", "async generator raised StopIteration"]:
+    for cause in [None, ValueError("v"), StopIteration("s")]:
+        try:
+            if msg.startswith("coroutine") and isinstance(cause, StopIteration):
+                continue
+            raise RuntimeError(msg) from cause
+        except StopIteration:
+            result.append("StopIteration")
+        except RuntimeError as exc:
+            result.append([str(exc), type(exc.__cause__).__name__])
+""",
+    """
+@pyscript_compile
+def gen():
+    yield 1
+    raise StopIteration("gen")
+@pyscript_compile
+async def agen():
+    yield 1
+    raise StopIteration("agen")
+@pyscript_compile
+async def drain():
+    return [x async for x in agen()]
+result = []
+try:
+    list(gen())
+except RuntimeError as exc:
+    result.append([str(exc), exc.__cause__.args])
+try:
+    await drain()
+except StopIteration:
+    result.append("StopIteration")
+except RuntimeError as exc:
+    result.append([str(exc), exc.__cause__.args])
+""",
+    """
+class Truth:
+    @pyscript_compile
+    def __bool__(self):
+        raise StopIteration("bool")
+class Exits:
+    def __init__(self, mode):
+        self.mode = mode
+    def __enter__(self):
+        return self
+    def __exit__(self, *args):
+        if self.mode == "raise":
+            raise StopIteration("exit")
+        return Truth()
+result = []
+for mode in ["raise", "truth"]:
+    for fail in [False, True]:
+        try:
+            with Exits(mode):
+                if fail:
+                    raise ValueError("body")
+            result.append([mode, fail, "no error"])
+        except StopIteration as exc:
+            result.append([mode, fail, exc.args])
+""",
+    """
+class CustomStop(StopIteration):
+    @pyscript_compile
+    def with_traceback(self, tb):
+        raise ValueError("with_traceback called")
+    @property
+    @pyscript_compile
+    def __traceback__(self):
+        return "not the traceback"
+def boom():
+    raise CustomStop("needle")
+class Ctx:
+    def __enter__(self):
+        return self
+    def __exit__(self, exc_type, exc, tb):
+        result.append([exc_type.__name__, exc.args, type(tb).__name__])
+        return True
+result = []
+try:
+    list(boom() for x in [1])
+except RuntimeError as exc:
+    result.append([str(exc), type(exc.__cause__).__name__, exc.__cause__.args, exc.__context__ is exc.__cause__])
+with Ctx():
+    boom()
+""",
+]
+
+
+async def test_stop_iteration_matches_python(hass):
+    """Test that StopIteration can be caught and handled like in Python, compared with CPython itself."""
+    hass.data[DOMAIN] = {CONFIG_ENTRY: MockConfigEntry(domain=DOMAIN, data={CONF_ALLOW_ALL_IMPORTS: True})}
+    Function.init(hass)
+    State.init(hass)
+    State.register_functions()
+    TrigTime.init(hass)
+    DecoratorRegistry.init(hass)
+
+    for source in STOP_ITERATION_TESTS:
+        expected_ns = {"pyscript_compile": lambda func: func}
+        code = compile(source, "test", "exec", flags=ast_module.PyCF_ALLOW_TOP_LEVEL_AWAIT)
+        # code compiled with top level await runs as a coroutine function, like the asyncio REPL
+        if inspect.isawaitable(run := FunctionType(code, expected_ns)()):
+            await run
+        global_ctx = GlobalContext("test", global_sym_table={}, manager=GlobalContextMgr)
+        ast = AstEval("test", global_ctx=global_ctx)
+        Function.install_ast_funcs(ast)
+        ast.parse(source)
+        await ast.eval()
+        assert global_ctx.global_sym_table["result"] == expected_ns["result"], source
+
+    await Function.waiter_sync()
+    await Function.waiter_stop()
+    await Function.reaper_stop()
+
+
+# documented limits: what pyscript does where it differs from Python
+STOP_ITERATION_LIMITS = [
+    # in a handler, an except clause's type and a finally block, the exception being handled is
+    # Python's RuntimeError, which is also the context of a new exception; reraising still works
+    [
+        """
+import sys
+result = []
+try:
+    next(iter([]))
+except StopIteration as exc:
+    result.append([type(sys.exception()).__name__, sys.exc_info()[0].__name__, sys.exc_info()[1] is exc])
+    try:
+        int("x")
+    except ValueError as exc2:
+        result.append(type(exc2.__context__).__name__)
+def handler():
+    result.append(type(sys.exception()).__name__)
+    return StopIteration
+try:
+    next(iter([]))
+except handler():
+    result.append("caught")
+try:
+    try:
+        next(iter([]))
+    except type(sys.exception()):
+        result.append("inner")
+except StopIteration:
+    result.append("outer")
+try:
+    try:
+        next(iter([]))
+    except missing:
+        pass
+except NameError as exc:
+    result.append(type(exc.__context__).__name__)
+try:
+    try:
+        next(iter([]))
+    finally:
+        result.append(type(sys.exception()).__name__)
+except StopIteration:
+    result.append("caught")
+try:
+    try:
+        next(iter([]))
+    finally:
+        int("x")
+except ValueError as exc:
+    result.append(type(exc.__context__).__name__)
+try:
+    try:
+        next(iter([]))
+    except StopIteration:
+        raise StopIteration(6)
+except StopIteration as exc:
+    result.append([type(exc.__context__).__name__, exc.value])
+try:
+    try:
+        next(iter([]))
+    except StopIteration:
+        raise
+except StopIteration:
+    result.append("raise")
+try:
+    try:
+        next(iter([]))
+    except StopIteration as exc:
+        raise exc
+except StopIteration:
+    result.append("raise exc")
+""",
+        [
+            ["RuntimeError", "RuntimeError", False],
+            "RuntimeError",
+            "RuntimeError",
+            "caught",
+            "outer",
+            "RuntimeError",
+            "RuntimeError",
+            "caught",
+            "RuntimeError",
+            ["RuntimeError", 6],
+            "raise",
+            "raise exc",
+        ],
+    ],
+    # where Python itself gives RuntimeError("coroutine raised StopIteration") because a
+    # StopIteration left a native coroutine, a native task or a pyscript async def, pyscript
+    # catches the StopIteration it replaced, as it does for a script's own RuntimeError like that
+    [
+        """
+import asyncio
+@pyscript_compile
+async def native():
+    raise StopIteration(1)
+@pyscript_compile
+async def in_task():
+    return await asyncio.create_task(native())
+@pyscript_compile
+def run_native():
+    native().send(None)
+@pyscript_compile
+async def reraise():
+    raise
+async def interpreted():
+    raise StopIteration(4)
+result = []
+for mode in range(6):
+    try:
+        if mode == 0:
+            await native()
+        elif mode == 1:
+            await in_task()
+        elif mode == 2:
+            run_native()
+        elif mode == 3:
+            await interpreted()
+        elif mode == 4:
+            try:
+                next(iter([]))
+            except StopIteration:
+                await reraise()
+        else:
+            try:
+                next(iter([]))
+            except StopIteration as exc:
+                raise RuntimeError("coroutine raised StopIteration") from exc
+    except Exception as exc:
+        result.append([mode, type(exc).__name__, exc.args])
+""",
+        [
+            [0, "StopIteration", (1,)],
+            [1, "StopIteration", (1,)],
+            [2, "StopIteration", (1,)],
+            [3, "StopIteration", (4,)],
+            [4, "StopIteration", ()],
+            [5, "StopIteration", ()],
+        ],
+    ],
+    # native code that awaits a pyscript function gets Python's RuntimeError
+    [
+        """
+def raises(value):
+    raise StopIteration(value)
+@pyscript_compile
+async def native(func):
+    try:
+        await func(2)
+    except RuntimeError as exc:
+        return [str(exc), exc.__cause__.value]
+result = await native(raises)
+""",
+        ["coroutine raised StopIteration", 2],
+    ],
+]
+
+
+async def test_stop_iteration_limits(hass):
+    """Test what pyscript does where its StopIteration handling differs from Python."""
+    hass.data[DOMAIN] = {CONFIG_ENTRY: MockConfigEntry(domain=DOMAIN, data={CONF_ALLOW_ALL_IMPORTS: True})}
+    Function.init(hass)
+    State.init(hass)
+    State.register_functions()
+    TrigTime.init(hass)
+    DecoratorRegistry.init(hass)
+
+    for source, expected in STOP_ITERATION_LIMITS:
+        global_ctx = GlobalContext("test", global_sym_table={}, manager=GlobalContextMgr)
+        ast = AstEval("test", global_ctx=global_ctx)
+        Function.install_ast_funcs(ast)
+        ast.parse(source)
+        await ast.eval()
+        assert global_ctx.global_sym_table["result"] == expected, source
+
+    await Function.waiter_sync()
+    await Function.waiter_stop()
+    await Function.reaper_stop()
+
+
+STOP_ITERATION_UNCAUGHT_TESTS = [
+    ["x = 1\nnext(iter([]))\n", 'File "test", line 2, in None\n    next(iter([]))\n', "StopIteration\n"],
+    [
+        "def func(value):\n    raise StopIteration(value)\n\nfunc(5)\n",
+        'File "test", line 2, in func\n    raise StopIteration(value)\n',
+        "StopIteration: 5\n",
+    ],
+    [
+        "try:\n    next(iter([]))\nexcept StopIteration:\n    raise\n",
+        'File "test", line 2, in None\n    next(iter([]))\n',
+        "StopIteration\n",
+    ],
+    # these make an exception chain that loops back to the StopIteration
+    [
+        "try:\n    next(iter([]))\nexcept StopIteration as exc:\n    raise exc\n",
+        'File "test", line 4, in None\n    raise exc\n',
+        "StopIteration\n",
+    ],
+    [
+        "def func():\n    try:\n        raise StopIteration(3)\n    except StopIteration as exc:\n"
+        "        try:\n            raise exc\n        except StopIteration as exc2:\n            raise exc2\n\nfunc()\n",
+        'File "test", line 8, in func\n    raise exc2\n',
+        "StopIteration: 3\n",
+    ],
+    # from a native function
+    [
+        "@pyscript_compile\ndef native(value):\n    raise StopIteration(value)\n\nnative(4)\n",
+        'File "test", line 5, in None\n    native(4)\n',
+        '  File "test", line 3, in native\nStopIteration: 4\n',
+    ],
+]
+
+
+async def test_stop_iteration_uncaught_report(hass, caplog):
+    """Test that an uncaught StopIteration is reported as itself, with the script line that raised it."""
+    hass.data[DOMAIN] = {CONFIG_ENTRY: MockConfigEntry(domain=DOMAIN, data={CONF_ALLOW_ALL_IMPORTS: False})}
+    Function.init(hass)
+    State.init(hass)
+    State.register_functions()
+    TrigTime.init(hass)
+
+    global_ctx = GlobalContext("test", global_sym_table={}, manager=GlobalContextMgr)
+    ast = AstEval("test", global_ctx=global_ctx)
+    Function.install_ast_funcs(ast)
+    for source, frame, message in STOP_ITERATION_UNCAUGHT_TESTS:
+        ast.parse(source)
+        # Python only lets a StopIteration out of our async code inside a RuntimeError
+        with pytest.raises(RuntimeError, match="coroutine raised StopIteration") as excinfo:
+            await ast.eval()
+        formatter = EvalExceptionFormatter(excinfo.value)
+        formatted = "".join(formatter.format())
+        assert isinstance(formatter.exc, StopIteration), source
+        assert frame in formatted, formatted
+        assert formatted.endswith(message), formatted
+        assert "RuntimeError" not in formatted, formatted
+
+    # an exception raised while handling it has the StopIteration as its context
+    ast.parse("try:\n    next(iter([]))\nexcept StopIteration:\n    raise ValueError('bad')\n")
+    with pytest.raises(ValueError, match="bad") as excinfo:
+        await ast.eval()
+    formatted = "".join(EvalExceptionFormatter(excinfo.value).format())
+    assert formatted.startswith('  File "test", line 2, in None\n    next(iter([]))\n'), formatted
+    assert "StopIteration\n\nDuring handling of the above exception" in formatted, formatted
+    assert "RuntimeError" not in formatted, formatted
+
+    # or as its cause, with the line that raised it
+    ast.parse(
+        "try:\n    raise StopIteration(1)\nexcept StopIteration as exc:\n    raise ValueError('bad') from exc\n"
+    )
+    with pytest.raises(ValueError, match="bad") as excinfo:
+        await ast.eval()
+    formatted = "".join(EvalExceptionFormatter(excinfo.value).format())
+    assert formatted.startswith(
+        '  File "test", line 2, in None\n    raise StopIteration(1)\nStopIteration: 1\n\n'
+    )
+    assert "The above exception was the direct cause" in formatted, formatted
+    assert "RuntimeError" not in formatted, formatted
+
+    # also when another exception was handled in between
+    ast.parse(
+        "try:\n    raise StopIteration('needle')\nexcept StopIteration as exc:\n    try:\n"
+        "        raise ValueError('inner')\n    except ValueError:\n        raise TypeError('outer') from exc\n"
+    )
+    with pytest.raises(TypeError, match="outer") as excinfo:
+        await ast.eval()
+    formatted = "".join(EvalExceptionFormatter(excinfo.value).format())
+    assert formatted.startswith(
+        "  File \"test\", line 2, in None\n    raise StopIteration('needle')\nStopIteration: needle\n\n"
+    )
+    assert "RuntimeError" not in formatted, formatted
+
+    # but not after the handler has finished, a documented limit
+    ast.parse(
+        "try:\n    raise StopIteration('needle')\nexcept StopIteration as exc:\n    saved = exc\n"
+        "raise ValueError('later') from saved\n"
+    )
+    with pytest.raises(ValueError, match="later") as excinfo:
+        await ast.eval()
+    formatted = "".join(EvalExceptionFormatter(excinfo.value).format())
+    assert formatted.startswith("StopIteration: needle\n\nThe above exception was the direct cause"), (
+        formatted
+    )
+
+    # in a generator expression it becomes a RuntimeError, as in Python, with the script lines
+    ast.parse("def boom():\n    raise StopIteration('needle')\n\nlist(boom() for x in [1])\n")
+    with pytest.raises(RuntimeError, match="generator raised StopIteration") as excinfo:
+        await ast.eval()
+    formatted = "".join(EvalExceptionFormatter(excinfo.value).format())
+    assert (
+        "  File \"test\", line 2, in boom\n    raise StopIteration('needle')\nStopIteration: needle\n\n"
+        in formatted
+    )
+    assert "StopIteration: needle\n\nThe above exception was the direct cause" in formatted, formatted
+    assert formatted.endswith("RuntimeError: generator raised StopIteration\n"), formatted
+
+    # the error that task.create() logs
+    caplog.clear()
+    ast.parse("def func(value):\n    raise StopIteration(value)\n\nresult = await task.create(func, 6)\n")
+    await ast.eval()
+    assert global_ctx.global_sym_table["result"] is None
+    assert (
+        'File "test.func", line 2, in func\n    raise StopIteration(value)\nStopIteration: 6\n'
+        in caplog.text
+    )
+    assert "RuntimeError" not in caplog.text
+
+    await Function.waiter_sync()
+    await Function.waiter_stop()
+    await Function.reaper_stop()
