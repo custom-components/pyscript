@@ -4888,7 +4888,25 @@ async def test_class_init_super_match_python(hass, caplog):
             Function.install_ast_funcs(ast)
             ast.parse(source + "result\n")
             assert await ast.eval() == expected_ns["result"], source
+    await Function.waiter_sync()
+    await Function.waiter_stop()
+    await Function.reaper_stop()
 
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("source", [" x = 1", "\n  x = 1\n", "if True:\nx = 1"])
+async def test_script_indentation_stays_strict(hass, source):
+    """Only trigger expressions are stripped: script code keeps Python's indentation rules."""
+    hass.data[DOMAIN] = {CONFIG_ENTRY: MockConfigEntry(domain=DOMAIN, data={CONF_ALLOW_ALL_IMPORTS: False})}
+    Function.init(hass)
+    with pytest.raises(IndentationError) as cpython_exc:
+        ast_module.parse(source)
+    ast = AstEval("test", global_ctx=GlobalContext("test", global_sym_table={}, manager=GlobalContextMgr))
+    with pytest.raises(IndentationError) as exc:
+        ast.parse(source)
+    assert exc.value.msg == cpython_exc.value.msg
+    with pytest.raises(IndentationError):
+        ast.parse(" 1 + 1", mode="eval")
     await Function.waiter_sync()
     await Function.waiter_stop()
     await Function.reaper_stop()
