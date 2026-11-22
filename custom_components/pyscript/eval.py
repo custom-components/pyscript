@@ -321,6 +321,44 @@ def pyscript_property(obj, attr, hook):
     return None
 
 
+# a super object forwards attribute reads to the classes it searches, and a metaclass can
+# intercept a class's, so these read the built-in members directly, as Python does
+SUPER_SELF = super.__dict__["__self__"].__get__
+SUPER_SELF_CLASS = super.__dict__["__self_class__"].__get__
+SUPER_THISCLASS = super.__dict__["__thisclass__"].__get__
+TYPE_MRO = type.__dict__["__mro__"].__get__
+TYPE_DICT = type.__dict__["__dict__"].__get__
+
+
+def super_property(sup, attr):
+    """
+    Return the property whose getter Python would call for sup.attr, otherwise None.
+
+    Like Python, this searches the mro of sup.__self_class__ after sup.__thisclass__, and
+    stops at the first class that has attr. Python's super doesn't use the class's own
+    __getattribute__ or __getattr__, never searches for __class__, and returns the property
+    itself rather than calling its getter when sup.__self__ is sup.__self_class__, as for
+    super(C, cls) on a class.
+    """
+    self_class = SUPER_SELF_CLASS(sup)
+    if self_class is None or SUPER_SELF(sup) is self_class or attr == "__class__":
+        return None
+    mro = TYPE_MRO(self_class)
+    thisclass = SUPER_THISCLASS(sup)
+    for start, klass in enumerate(mro):
+        if klass is thisclass:
+            break
+    else:
+        # __thisclass__ is no longer in the mro (e.g. __bases__ changed); Python raises its own error
+        return None
+    for klass in mro[start + 1 :]:
+        klass_dict = TYPE_DICT(klass)
+        if attr in klass_dict:
+            value = klass_dict[attr]
+            return value if type(value) is property else None  # pylint: disable=unidiomatic-typecheck
+    return None
+
+
 class EvalName:
     """Identifier that hasn't yet been resolved."""
 
@@ -1696,6 +1734,12 @@ class AstEval:
             return EvalAttrSet(val, arg.attr)
         if arg.attr == "__init__" and (init_func := self.init_attr(val)) is not None:
             return init_func
+        if type(val) is super:  # pylint: disable=unidiomatic-typecheck
+            prop = super_property(val, arg.attr)
+            # check the getter's real type, since isinstance() would read a native getter's __class__
+            if prop is not None and issubclass(type(prop.fget), (EvalFunc, EvalFuncVar)):
+                # as in Python, an AttributeError from the getter isn't passed to __getattr__
+                return await prop.fget.call(self, SUPER_SELF(val))
         prop = pyscript_property(val, arg.attr, "__getattribute__")
         if prop is not None and is_pyscript_func(prop.fget):
             try:

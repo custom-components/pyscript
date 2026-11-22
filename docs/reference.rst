@@ -2449,10 +2449,14 @@ A handful of language features are not supported:
   ``getattr(obj, "prop")`` returns a coroutine instead of the value (so ``hasattr(obj, "prop")`` is
   ``True``), and ``setattr()`` and ``delattr()`` return ``None`` without running the setter or deleter
   (Python then warns that a coroutine was never awaited). So in pyscript, use ``obj.prop``,
-  ``obj.prop = value`` and ``del obj.prop``. Several things still don't work: ``functools.cached_property``,
-  ``super().prop``, a pyscript getter, setter or deleter on a subclass of ``property``, and a pyscript
-  getter, setter or deleter in a class that overrides ``__getattribute__``, ``__setattr__`` or
-  ``__delattr__`` respectively.
+  ``obj.prop = value`` and ``del obj.prop``. ``super().prop`` and ``super(Cls, self).prop`` call a parent
+  class's getter, so a subclass's property can extend its parent's. As in Python, ``super().prop = value``
+  and ``del super().prop`` raise ``AttributeError``; ``super(Cls, type(self)).prop.fset(self, value)``
+  calls a parent class's setter. Several things still don't work: ``functools.cached_property``, a
+  pyscript getter, setter or deleter on a subclass of ``property`` (also through ``super()``), and a
+  pyscript getter, setter or deleter in a class that overrides ``__getattribute__``, ``__setattr__`` or
+  ``__delattr__`` respectively. Reading a property through ``super()`` isn't affected by a class's own
+  ``__getattribute__``, since ``super()`` doesn't use it, as in Python.
 
 The typical work-around for places where pyscript falls short is to move that code into a native Python module,
 and then import that module into pyscript.  Pyscript can call Python modules and packages, so you could
