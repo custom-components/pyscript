@@ -561,8 +561,9 @@ inside brackets, so it needs no brackets of its own, and any of its lines can en
 An expression over several lines can't rely on those brackets for anything else: a bare generator
 expression (forgetting the ``any()`` around ``x == 1 for x in ...``), a bare tuple that needs them
 for its line break, an empty expression, or a bare ``:=`` or ``yield`` gives a ``SyntaxError``.
-Inside brackets of your own they work as they do in Python. The same goes for ``@state_active``, ``task.wait_until`` and the
-expressions of ``@event_trigger``, ``@mqtt_trigger``, ``@webhook_trigger`` and ``@webhook_handler``.
+Inside brackets of your own they work as they do in Python. The same goes for ``@state_active``,
+``task.wait_until`` and the expressions of ``@event_trigger``, ``@mqtt_trigger``, ``@webhook_trigger``
+and ``@webhook_handler``.
 
 Note that if a state variable and attributes are set to the same value, HASS doesn't generate a
 state change event, so the ``@state_trigger`` condition will not be checked. It is only evaluated
