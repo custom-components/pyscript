@@ -345,4 +345,5 @@ class FunctionDecoratorManager(DecoratorManager):
         )
 
         task = Function.create_task(self._call(data), ast_ctx=action_ast_ctx)
+        data.call_task = task
         Function.task_done_callback_ctx(task, action_ast_ctx)

@@ -6,6 +6,7 @@ import json
 import pytest
 
 from custom_components.pyscript.const import CONF_LEGACY_DECORATORS, DOMAIN
+from custom_components.pyscript.decorators.task import TaskUniqueDecorator
 from homeassistant.components import webhook
 from homeassistant.helpers.json import json_bytes
 from homeassistant.util.aiohttp import MockRequest
@@ -352,6 +353,59 @@ def webhook_slow(**_):
     assert response.status == 504
     # the webhook id can be secret, so the warning names the function instead
     assert "webhook_handler file.hello.webhook_slow timed out after 0.05s" in caplog.text
+
+
+@pytest.mark.asyncio
+async def test_webhook_handler_timeout_keeps_function_running(pyscript, hass):
+    """After a 504 timeout the function is not cancelled and keeps running in the background."""
+    await pyscript.start("""
+@webhook_handler("slow_done", timeout=0.05)
+def webhook_slow_done(**_):
+    task.wait_until(event_trigger="release_slow_done")
+    pyscript.done = "finished"
+""")
+    response = await webhook.async_handle_webhook(hass, "slow_done", _request())
+    assert response.status == 504
+    hass.bus.async_fire("release_slow_done")
+    await pyscript.wait_done("finished")
+
+
+@pytest.mark.asyncio
+async def test_webhook_handler_client_disconnect_keeps_function_running(pyscript, hass):
+    """A cancelled request (the client went away) doesn't cancel the running function."""
+    await pyscript.start("""
+@webhook_handler("gone", timeout=5)
+def webhook_gone(**_):
+    pyscript.done = "started"
+    task.sleep(0.1)
+    pyscript.done = "finished"
+""")
+    request = hass.async_create_task(webhook.async_handle_webhook(hass, "gone", _request()))
+    await pyscript.wait_done("started")
+    request.cancel()
+    with pytest.raises(asyncio.CancelledError):
+        await request
+    await pyscript.wait_done("finished", timeout=1)
+
+
+@pytest.mark.asyncio
+async def test_webhook_handler_call_handler_error(pyscript, hass, monkeypatch):
+    """A call handler that raises gives a 500 right away instead of waiting for the timeout."""
+
+    async def failing_handle_call(self, data):
+        raise RuntimeError("handler failed")
+
+    monkeypatch.setattr(TaskUniqueDecorator, "handle_call", failing_handle_call)
+    await pyscript.start("""
+@webhook_handler("handler_error", timeout=5)
+@task_unique("webhook_handler_error")
+def webhook_handler_error(**_):
+    pyscript.done = "ran"
+""")
+    response = await asyncio.wait_for(
+        webhook.async_handle_webhook(hass, "handler_error", _request()), timeout=1
+    )
+    assert response.status == 500
 
 
 @pytest.mark.asyncio
