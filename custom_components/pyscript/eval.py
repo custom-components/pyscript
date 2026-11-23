@@ -109,6 +109,7 @@ GENEXP_SCOPE_ATTRS = (
     "sym_table_stack",
     "curr_func",
     "genexp_iter",
+    "genexp_id",
     "code_str",
     "code_list",
     "class_sym_table",
@@ -314,11 +315,13 @@ def strip_qualname_prefix(code, prefix):
 class EvalLocalVar:
     """Wrapper for local variable symtable entry."""
 
-    def __init__(self, name, **kwargs):
-        """Initialize value of local symbol."""
+    __slots__ = ("cell", "name")
+
+    def __init__(self, name, *value):
+        """Initialize local symbol, with the optional value; without one, it's undefined."""
         self.name = name
         # the value is kept in a Python cell, so a lambda compiled to native code can share it
-        self.cell = CellType(kwargs["value"]) if "value" in kwargs else CellType()
+        self.cell = CellType(*value)
 
     def get(self):
         """Get value of local symbol."""
@@ -362,6 +365,17 @@ class EvalLocalVar:
     def __repr__(self):
         """Generate string with address and value."""
         return f"EvalLocalVar @{hex(id(self))} = {self.get() if self.is_defined() else 'undefined'}"
+
+
+class EvalLoopVar(EvalLocalVar):
+    """A comprehension's or generator expression's own loop variable."""
+
+    __slots__ = ("genexp_id",)
+
+    def __init__(self, name, genexp_id):
+        """Initialize loop variable, local to the generator expression with genexp_id (or None)."""
+        super().__init__(name)
+        self.genexp_id = genexp_id
 
 
 def is_pyscript_func(func):
@@ -524,7 +538,6 @@ class EvalFunc:
         self.code_str = code_str
         self.trigger = []
         self.trigger_service = set()
-        self.has_closure = False
         self.async_func = async_func
 
     def get_name(self):
@@ -838,7 +851,6 @@ class EvalFunc:
         var_names = set(args)
         self.local_names = set(args)
         for stmt in self.func_def.body:
-            self.has_closure = self.has_closure or await self.check_for_closure(stmt)
             var_names = var_names.union(
                 await ast_ctx.get_names(
                     stmt,
@@ -856,8 +868,8 @@ class EvalFunc:
                 continue
 
             if var_name in self.local_names and var_name not in nonlocal_names:
-                if self.has_closure:
-                    self.local_sym_table[var_name] = EvalLocalVar(var_name)
+                # our own variable, which gets a new EvalLocalVar for each call
+                self.local_sym_table[var_name] = None
                 continue
 
             if var_name in nonlocal_names:
@@ -951,8 +963,8 @@ class EvalFunc:
             raise TypeError(f"{self.name}() called with too many positional arguments")
         for name, value in self.local_sym_table.items():
             if name in sym_table:
-                sym_table[name] = EvalLocalVar(name, value=sym_table[name])
-            elif value.is_defined():
+                sym_table[name] = EvalLocalVar(name, sym_table[name])
+            elif value is not None and value.is_defined():
                 sym_table[name] = value
             else:
                 sym_table[name] = EvalLocalVar(name)
@@ -977,8 +989,8 @@ class EvalFunc:
         code_str, code_list = ast_ctx.code_str, ast_ctx.code_list
         ast_ctx.code_str, ast_ctx.code_list = self.code_str, self.code_list
         prev_func = ast_ctx.curr_func
-        prev_genexp_iter = ast_ctx.genexp_iter
-        ast_ctx.genexp_iter = None
+        prev_genexp = ast_ctx.genexp_iter, ast_ctx.genexp_id
+        ast_ctx.genexp_iter = ast_ctx.genexp_id = None
         save_user_locals = ast_ctx.user_locals
         ast_ctx.user_locals = {}
         ast_ctx.curr_func = self
@@ -992,7 +1004,7 @@ class EvalFunc:
             return None
         finally:
             ast_ctx.curr_func = prev_func
-            ast_ctx.genexp_iter = prev_genexp_iter
+            ast_ctx.genexp_iter, ast_ctx.genexp_id = prev_genexp
             ast_ctx.user_locals = save_user_locals
             ast_ctx.code_str, ast_ctx.code_list = code_str, code_list
             if prev_sym_table is not None:
@@ -1004,18 +1016,6 @@ class EvalFunc:
                 ) = prev_sym_table
             else:
                 ast_ctx.sym_table = ast_ctx.sym_table_stack.pop()
-
-    async def check_for_closure(self, arg):
-        """Recursively check ast tree arg and return True if there is an inner function, class or lambda."""
-        if isinstance(arg, (ast.FunctionDef, ast.ClassDef, ast.AsyncFunctionDef)):
-            return True
-        if isinstance(arg, ast.Lambda) and lambda_body_names(arg) - lambda_param_names(arg):
-            # the lambda might read our variables, so they need to be shared with it
-            return True
-        for child in ast.iter_child_nodes(arg):
-            if await self.check_for_closure(child):
-                return True
-        return False
 
 
 class EvalFuncVar:
@@ -1130,6 +1130,7 @@ class AstEval:
         self.user_locals: SymTable = {}
         self.curr_func: EvalFunc | None = None
         self.genexp_iter = None  # the outermost iterator of the generator expression being evaluated
+        self.genexp_id = None  # an object that identifies that generator expression
         self.filename = name
         self.code_str: str | None = None
         self.code_list: list[str] | None = None
@@ -1813,6 +1814,11 @@ class AstEval:
         """Execute type hint assignment statement and track __annotations__."""
         if isinstance(arg.target, ast.Name):
             annotations = self.sym_table.setdefault("__annotations__", {})
+            if isinstance(annotations, EvalLocalVar):
+                # a function's own __annotations__ variable
+                if not annotations.is_defined():
+                    annotations.set({})
+                annotations = annotations.get()
             if arg.annotation:
                 try:
                     annotations[arg.target.id] = await self.aeval(arg.annotation)
@@ -1944,15 +1950,26 @@ class AstEval:
             # now check in our current symbol table, and then some other places
             #
             if arg.id in self.sym_table:
-                if isinstance(self.sym_table[arg.id], EvalLocalVar):
-                    if (
-                        self.curr_func
-                        and arg.id in self.curr_func.local_names
-                        and not self.sym_table[arg.id].is_defined()
-                    ):
+                val = self.sym_table[arg.id]
+                if isinstance(val, EvalLocalVar):
+                    try:
+                        return val.cell.cell_contents
+                    except ValueError:
+                        pass
+                    # in a generator expression, the function's variables and an enclosing generator
+                    # expression's loop variables are free variables, so an empty one gives NameError
+                    if isinstance(val, EvalLoopVar):
+                        is_local = val.genexp_id is self.genexp_id
+                    else:
+                        is_local = (
+                            self.curr_func
+                            and self.genexp_id is None
+                            and arg.id in self.curr_func.local_names
+                        )
+                    if is_local:
                         raise UnboundLocalError(f"local variable '{arg.id}' referenced before assignment")
-                    return self.sym_table[arg.id].get()
-                return self.sym_table[arg.id]
+                    return val.get()
+                return val
             if arg.id in self.local_sym_table:
                 return self.local_sym_table[arg.id]
             if arg.id in self.global_sym_table:
@@ -2150,16 +2167,16 @@ class AstEval:
         return lvars, {var: self.sym_table[var] for var in lvars if var in self.sym_table}
 
     def shares_locals(self):
-        """Return whether we're in a function that shares its variables with inner functions or lambdas."""
-        return self.in_local_scope() and self.curr_func is not None and self.curr_func.has_closure
+        """Return whether we're running a function, whose variables inner functions and lambdas can share."""
+        return self.in_local_scope() and self.curr_func is not None
 
-    def new_loop_vars(self, var_names):
+    def new_loop_vars(self, var_names, genexp_id):
         """Return new local variables for a comprehension's loop vars, which a lambda in it can share."""
         if not self.shares_locals():
             return {}
         # loop variables bound by a global declaration stay global
         return {
-            var_name: EvalLocalVar(var_name)
+            var_name: EvalLoopVar(var_name, genexp_id)
             for var_name in var_names
             if var_name.isidentifier() and not self.binds_global(var_name)
         }
@@ -2171,12 +2188,12 @@ class AstEval:
         prev_loop_scopes = self.loop_scopes
         if self.shares_locals():
             #
-            # in a function that shares its variables, the loop variables are new locals, so the
-            # function's own variables with these names aren't changed; a generator expression
-            # made before this comprehension sees the bindings they replace (see genexp_loop)
+            # in a function, the loop variables are new locals, so the function's own variables
+            # with these names aren't changed; a generator expression made before this
+            # comprehension sees the bindings they replace (see genexp_loop)
             #
             self.loop_scopes = (*prev_loop_scopes, loop_scope)
-            self.sym_table.update(self.new_loop_vars(var_names))
+            self.sym_table.update(self.new_loop_vars(var_names, self.genexp_id))
         return loop_scope, prev_loop_scopes
 
     async def loopvar_scope_exit(self, loop_scope, prev_loop_scopes):
@@ -2406,11 +2423,13 @@ class AstEval:
         # as in Python, the outermost iterable is evaluated right away
         iters = [iter(await self.aeval(arg.generators[0].iter))]
         loop_vars, _ = await self.loopvar_scope_save(arg.generators)
-        gen_vars = self.new_loop_vars(loop_vars)
+        genexp_id = object()
+        gen_vars = self.new_loop_vars(loop_vars, genexp_id)
         gen_scope = LoopScope(self.sym_table, loop_vars) if self.shares_locals() else None
         scope = {attr: getattr(self, attr) for attr in GENEXP_SCOPE_ATTRS}
         scope["sym_table_stack"] = self.sym_table_stack.copy()
         scope["genexp_iter"] = iters[0]  # what Python passes to the generator as its first argument
+        scope["genexp_id"] = genexp_id
         gen = self.genexp_loop(arg, iters, loop_vars, gen_vars, gen_scope, scope, asyncio.get_running_loop())
         gen.__name__ = gen.__qualname__ = "<genexpr>"
         return gen
@@ -2511,7 +2530,7 @@ class AstEval:
             raise RuntimeError("super(): empty __class__ cell")
         first_arg = self.sym_table.get(func_args[0].arg, EvalLocalVar(func_args[0].arg))
         if isinstance(first_arg, EvalLocalVar):
-            # a method that defines a function keeps its local variables in EvalLocalVars
+            # a method keeps its local variables in EvalLocalVars
             if not first_arg.is_defined():
                 raise RuntimeError("super(): arg[0] deleted")
             first_arg = first_arg.get()
@@ -2691,10 +2710,6 @@ class AstEval:
                         for name in await self.get_target_names(item.optional_vars):
                             local_names.add(name)
                             names.add(name)
-            elif cls_name in {"ListComp", "DictComp", "SetComp"}:
-                target_vars, _ = await self.loopvar_scope_save(arg.generators)
-                for name in target_vars:
-                    local_names.add(name)
             elif cls_name in {"Import", "ImportFrom"}:
                 # imported names are local too, so nested functions can share their binding
                 for alias in arg.names:

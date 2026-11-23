@@ -2519,10 +2519,9 @@ it doesn't faithfully mimic Python.  Here are some areas where pyscript differs 
   ``global x``, ``(x for x in ...)`` overwrites the global ``x``; both also apply to list comprehensions.
   Also, a generator expression created in another one's element, or in a list comprehension, doesn't
   see the outer one's loop variables if it's used when the outer one isn't running (e.g., after it has
-  finished); it sees the enclosing function's or module's variables with those names instead. And a
-  generator expression used by a comprehension sees the comprehension's loop variables instead of the
-  variables with those names where it was made, unless it was made in a function that has an inner
-  function or lambda.
+  finished); it sees the enclosing function's or module's variables with those names instead. And at
+  module level and in a class body, a generator expression used by a comprehension sees the
+  comprehension's loop variables instead of the variables with those names where it was made.
 - Avoid using ``exit()`` calls in your scripts, as they can `crash <https://github.com/custom-components/pyscript/issues/811>`__ the whole Home Assistant.
 
 A handful of language features are not supported:

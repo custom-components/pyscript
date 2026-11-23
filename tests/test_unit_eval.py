@@ -2351,7 +2351,13 @@ def func():
     return func2()
 func()
 """,
-        ED(NameError, "name 'x' is not defined", lineno=4, col_offset=12, end_col_offset=13),
+        ED(
+            UnboundLocalError,
+            "local variable 'x' referenced before assignment",
+            lineno=4,
+            col_offset=12,
+            end_col_offset=13,
+        ),
     ],
     [
         """
@@ -6223,7 +6229,7 @@ result = r + [b.v, b.x, b.y, b.z, b.w, b.s]
 
 
 #
-# comprehensions and generator expressions in functions, with and without lambdas or inner functions
+# comprehensions and generator expressions in functions, each run as written and with an inner function
 #
 COMPREHENSION_SCOPE_TESTS = [
     "def f():\n    x = 7\n    return [x for x in (x for _ in range(2))]\nresult = f()",
@@ -6266,15 +6272,6 @@ result = f()
     "def f():\n    x = 0\n    g = ((x := x + 1) for _ in range(3))\n    return [x for x in g]\nresult = f()",
     "def f():\n    x = 0\n    g = ((x := x + 1) for _ in range(3))\n    return {x: x for x in g}\nresult = f()",
     "def f():\n    x = 0\n    g = ((x := x + 1) for _ in range(3))\n    return sorted({x for x in g})\nresult = f()",
-]
-
-
-#
-# the same, but only in a function that shares its variables with an inner function or lambda;
-# otherwise a comprehension reading a generator expression that uses its loop variable's name
-# sees the comprehension's loop variable, as it did before
-#
-SHARED_COMPREHENSION_SCOPE_TESTS = [
     "def f():\n    x = 7\n    return [{x: x for x in (x for _ in range(2))}, {x for x in (x + 1 for _ in range(2))}]\nresult = f()",
     "def f():\n    x = 7\n    return [[x for x in (x + 1 for _ in range(3))], list(x for x in (x + 1 for _ in range(3)))]\nresult = f()",
     """
@@ -6348,15 +6345,14 @@ def with_inner_function(source):
 async def test_comprehension_scopes_match_python(hass):
     """Test comprehension and generator expression loop variables in functions, compared with CPython."""
     sources = COMPREHENSION_SCOPE_TESTS + [
-        with_inner_function(source)
-        for source in COMPREHENSION_SCOPE_TESTS + SHARED_COMPREHENSION_SCOPE_TESTS
+        with_inner_function(source) for source in COMPREHENSION_SCOPE_TESTS
     ]
     await run_tests_compared_with_python(hass, sources)
 
 
 #
 # a := in a generator expression's element, run by a later comprehension whose loop variable has
-# the same name, in a function that shares its variables with an inner function or lambda
+# the same name, in a function; each is run as written and with an inner function
 #
 GENEXP_WALRUS_SCOPE_TESTS = [
     # the name has no value yet, or is deleted and assigned again
@@ -6509,9 +6505,225 @@ result = f()
 
 async def test_genexp_walrus_scopes_match_python(hass):
     """Test := in a generator expression run by a comprehension reusing the name, compared with CPython."""
-    await run_tests_compared_with_python(
-        hass, [with_inner_function(source) for source in GENEXP_WALRUS_SCOPE_TESTS]
-    )
+    sources = GENEXP_WALRUS_SCOPE_TESTS + [
+        with_inner_function(source) for source in GENEXP_WALRUS_SCOPE_TESTS
+    ]
+    await run_tests_compared_with_python(hass, sources)
+
+
+#
+# a function's variables, compared with CPython: generator expressions run by a comprehension
+# reusing a name, a variable read before it has a value, directly, as a free variable or as a
+# generator expression's own loop variable,
+# comprehension loop variables that have the name of a built-in or global, __annotations__, and
+# exec() with its own locals
+#
+FUNCTION_LOCALS_TESTS = [
+    """
+def f():
+    x = 0
+    g = ((x := x + 1) for _ in range(3))
+    r = [x for x in g]
+    return r, x
+result = f()
+""",
+    """
+def f():
+    g = ((x := i) for i in range(3))
+    r = [x for x in g]
+    return x
+result = f()
+""",
+    """
+def f():
+    x = 0
+    g = ((x := x + 1) + sum([x for x in range(2)]) for _ in range(3))
+    return [x for x in g]
+result = f()
+""",
+    """
+def f():
+    x = 0
+    g = ((x := x + 1) for _ in range(3))
+    return [next(g) + x for x in range(10, 12)]
+result = f()
+""",
+    """
+def f():
+    x = 0
+    g = ((1 / (2 - x)) + (x := x + 1) for _ in range(5))
+    try:
+        return [x for x in g]
+    except ZeroDivisionError as exc:
+        return type(exc).__name__, x
+result = f()
+""",
+    """
+def f():
+    try:
+        y = x
+        x = 1
+    except NameError as exc:
+        return type(exc).__name__
+    return y
+result = f()
+""",
+    """
+def f():
+    try:
+        n = len("ab")
+        len = 5
+    except NameError as exc:
+        return type(exc).__name__
+    return n, len
+result = f()
+""",
+    # the function's variable is a free variable in a generator expression, lambda or inner function,
+    # so reading it there when it has no value gives NameError, not UnboundLocalError
+    """
+def f():
+    x = 1
+    g = (x for _ in range(1))
+    del x
+    try:
+        return next(g)
+    except NameError as exc:
+        return type(exc).__name__
+result = f()
+""",
+    """
+def f():
+    out = []
+    for g in [(x for _ in range(1)), (1 for _ in range(1) if x), (1 for _ in range(1) for _ in x)]:
+        try:
+            out.append(next(g))
+        except NameError as exc:
+            out.append(type(exc).__name__)
+    x = [1]
+    return out
+result = f()
+""",
+    """
+def f():
+    x = 1
+    read = lambda: x
+    def inner():
+        return x
+    del x
+    out = []
+    for func in (read, inner):
+        try:
+            out.append(func())
+        except NameError as exc:
+            out.append(type(exc).__name__)
+    try:
+        out.append([x for _ in range(1)])
+    except NameError as exc:
+        out.append(type(exc).__name__)
+    return out
+result = f()
+""",
+    # a generator expression's or comprehension's own loop variable is local to it, so reading it
+    # before it's assigned gives UnboundLocalError; an enclosing one's is a free variable
+    """
+def f():
+    x = [1, 2]
+    out = []
+    for g in [
+        (x for _ in [0] for x in x),
+        (x for _ in [0] if x for x in [1]),
+        ([x for _ in [0] for x in x] for _ in [0]),
+        (list(y for _ in [0] for y in y) for y in [[1]]),
+        (b for a in [0] for _ in (b for _ in [0]) for b in [1]),
+    ]:
+        try:
+            out.append(next(g))
+        except NameError as exc:
+            out.append(type(exc).__name__)
+    try:
+        out.append([0 for a in [0] for _ in (y for _ in [0]) for y in [1]])
+    except NameError as exc:
+        out.append(type(exc).__name__)
+    return out
+result = f()
+""",
+    # the same with an inner generator expression that uses the outer one's iterator
+    """
+def f():
+    it = iter([0, 1, 2])
+    g = (b for a in it for _ in (b for _ in it) for b in [1])
+    try:
+        return next(g)
+    except NameError as exc:
+        return type(exc).__name__
+result = f()
+""",
+    # a comprehension's loop variable isn't the function's, so it doesn't hide a built-in or global
+    """
+def f():
+    before = len([1])
+    r = [len for len in range(2)]
+    return before, r, len([1, 2])
+result = f()
+""",
+    """
+def f():
+    before = len([1])
+    r = {len for len in range(2)}
+    return before, sorted(r), len([1, 2])
+result = f()
+""",
+    """
+def f():
+    before = len([1])
+    r = {len: len * 2 for len in range(2)}
+    return before, r, len([1, 2])
+result = f()
+""",
+    """
+def f():
+    before = len([1])
+    r = list(len for len in range(2))
+    return before, r, len([1, 2])
+result = f()
+""",
+    """
+x = 99
+def f():
+    r = [x for x in range(2)], {x for x in range(2)}, {x: 0 for x in range(2)}, list(x for x in range(2))
+    return r, x
+result = f()
+""",
+    # a function's own __annotations__
+    """
+def f():
+    __annotations__ = {}
+    x: int = 1
+    return x
+result = f()
+""",
+    """
+def f():
+    __annotations__: dict = {}
+    return __annotations__
+result = f()
+""",
+    """
+def f():
+    ns = {"x": 0}
+    exec("g = ((x := x + 1) for _ in range(3)); r = [x for x in g]", {"x": 0}, ns)
+    return ns["r"], ns["x"]
+ns = {"x": 0}
+exec("g = ((x := x + 1) for _ in range(3)); r = [x for x in g]", {"x": 0}, ns)
+result = f(), ns["r"], ns["x"]
+""",
+]
+
+
+async def test_function_locals_match_python(hass):
+    """Test that every function's variables behave as in CPython, with and without an inner function."""
+    sources = FUNCTION_LOCALS_TESTS + [with_inner_function(source) for source in FUNCTION_LOCALS_TESTS]
+    await run_tests_compared_with_python(hass, sources)
 
 
 # scripts compared with CPython; the first 44 came with the first version of this change
