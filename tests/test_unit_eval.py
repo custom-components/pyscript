@@ -6717,6 +6717,50 @@ ns = {"x": 0}
 exec("g = ((x := x + 1) for _ in range(3)); r = [x for x in g]", {"x": 0}, ns)
 result = f(), ns["r"], ns["x"]
 """,
+    # a function called from a generator expression reads its own local before it has a value
+    """
+def h():
+    try:
+        y = z
+        z = 1
+    except NameError as e:
+        return type(e).__name__
+def f():
+    return list(h() for _ in range(1))
+result = f()
+""",
+    # a function called from a generator expression's element doesn't change what the rest of the
+    # element sees: a variable of the function with no value yet is still a free variable
+    """
+def g():
+    return 1
+def f():
+    try:
+        return list((g(), z) for _ in range(1))
+    except NameError as e:
+        return type(e).__name__
+    z = 1
+result = f()
+""",
+    # a zero-argument super() in a function called from a generator expression uses that function's
+    # own first argument, and one in the generator expression's element, after a call, uses the iterator
+    """
+class A:
+    def m(self):
+        return 1
+class B(A):
+    def m(self):
+        return super().m()
+    def n(self):
+        try:
+            return list((self.m(), super().m()) for _ in range(1))
+        except TypeError as e:
+            return type(e).__name__
+def f():
+    b = B()
+    return list(b.m() for _ in range(1)), b.n()
+result = f()
+""",
 ]
 
 
