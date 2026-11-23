@@ -5,6 +5,7 @@ import pathlib
 from unittest.mock import patch
 
 import pytest
+import voluptuous as vol
 
 from custom_components.pyscript.const import DOMAIN
 from custom_components.pyscript.decorator import FunctionDecoratorManager
@@ -53,6 +54,21 @@ def func_simple_doc_string(param2=None, param3=None):
     pass
 
 @service
+def func_param_kinds(param1, /, param2, trigger_type, *, param3=None, param4, context=None):
+    pass
+
+@service
+def func_typed(flag: bool = True, count: int = 3, ratio: float | None = None, name: Optional[str] = "x",
+               items: list[int] = None, data: dict = None, other: set = None, *, req: int):
+    pass
+
+SECRET = "s3cr3t"
+
+@service
+def func_defaults(token=SECRET, name="x", scale=1.5, offset=-5, items=[1]):
+    pass
+
+@service
 def func_yaml_doc_string(param2=None, param3=None):
     \"\"\"yaml
 description: This is func_yaml_doc_string.
@@ -81,12 +97,41 @@ fields:
         descriptions = (await async_get_all_descriptions(hass))[DOMAIN]
 
     assert descriptions["func_no_doc_string"]["description"] == "pyscript function func_no_doc_string()"
-    assert descriptions["func_no_doc_string"]["fields"] == {"param1": {"description": "argument param1"}}
+    assert descriptions["func_no_doc_string"]["fields"] == {"param1": {}}
 
     assert descriptions["func_simple_doc_string"]["description"] == "This is func2_simple_doc_string."
     assert descriptions["func_simple_doc_string"]["fields"] == {
-        "param2": {"description": "argument param2"},
-        "param3": {"description": "argument param3"},
+        "param2": {},
+        "param3": {},
+    }
+
+    # positional-only parameters can't be passed in service data, keyword-only ones can;
+    # the arguments a service call adds itself aren't fields
+    assert descriptions["func_param_kinds"]["fields"] == {
+        "param2": {"required": True},
+        "param3": {},
+        "param4": {"required": True},
+    }
+
+    # a simple type annotation gives the field a fitting UI input; a simple default value is shown too
+    assert descriptions["func_typed"]["fields"] == {
+        "flag": {"default": True, "selector": {"boolean": {}}},
+        "count": {"default": 3, "selector": {"number": {}}},
+        "ratio": {"selector": {"number": {"mode": "box", "step": "any"}}},
+        "name": {"default": "x", "selector": {"text": {}}},
+        "items": {"selector": {"object": {}}},
+        "data": {"selector": {"object": {}}},
+        "other": {},
+        "req": {"required": True, "selector": {"number": {}}},
+    }
+
+    # only a constant default is published, never a computed one (eg: a secret from the config)
+    assert descriptions["func_defaults"]["fields"] == {
+        "token": {},
+        "name": {"default": "x"},
+        "scale": {"default": 1.5},
+        "offset": {"default": -5},
+        "items": {},
     }
 
     assert descriptions["func_yaml_doc_string"]["description"] == "This is func_yaml_doc_string."
@@ -123,6 +168,8 @@ def func2(**kwargs):
 
 @service
 def call_service(domain=None, name=None, **kwargs):
+    # trigger_type isn't service data; the called service sets its own
+    del kwargs["trigger_type"]
     if domain == "pyscript" and name == "func1":
         task.sleep(0)
         pyscript.func1(**kwargs)
@@ -194,6 +241,43 @@ def func5():
         TypeError,
         match="function 'func5' defined in file.hello: decorator @service argument 1 should be a string",
     )
+
+
+@pytest.mark.asyncio
+async def test_service_undeclared_data_fails_call(pyscript, hass):
+    """Undeclared or missing data fails the call before the function runs, as with other HA services."""
+    await pyscript.start("""
+@service
+def set_level(level=None):
+    pyscript.done = level
+
+@service
+def any_data(**kwargs):
+    pyscript.done = kwargs["lvl"]
+
+@service
+def needs_level(level, *, unit, trigger_type, context, **kwargs):
+    pyscript.done = [level, unit, trigger_type, type(context).__name__]
+""")
+
+    # the fixture fails on an unconsumed pyscript.done if a function ran
+    with pytest.raises(vol.Invalid, match="not a valid option"):
+        await hass.services.async_call("pyscript", "set_level", {"lvl": 5}, blocking=True)
+    await hass.services.async_call("pyscript", "any_data", {"lvl": 5}, blocking=True)
+    await pyscript.wait_done(5)
+
+    # parameters without a default are required, except the ones the call adds itself; with **kwargs too
+    with pytest.raises(vol.Invalid, match="required key not provided at 'level'"):
+        await hass.services.async_call("pyscript", "needs_level", {"unit": "%"}, blocking=True)
+    with pytest.raises(vol.Invalid, match="required key not provided at 'unit'"):
+        await hass.services.async_call("pyscript", "needs_level", {"level": 5}, blocking=True)
+    await hass.services.async_call("pyscript", "needs_level", {"level": 5, "unit": "%"}, blocking=True)
+    await pyscript.wait_done([5, "%", "service", "Context"])
+
+    # the arguments the call adds itself aren't service data
+    for name in ("trigger_type", "context"):
+        with pytest.raises(vol.Invalid, match="not a valid option"):
+            await hass.services.async_call("pyscript", "set_level", {name: "x"}, blocking=True)
 
 
 @pytest.mark.asyncio

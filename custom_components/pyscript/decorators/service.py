@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import ast
 from collections import OrderedDict
+import copy
 import io
 import logging
 
@@ -21,6 +22,51 @@ from ..decorator_abc import DispatchData
 from .base import RequestResponseDecorator
 
 _LOGGER = logging.getLogger(__name__)
+
+# the UI input for a parameter annotated with a simple type
+_ANNOTATION_SELECTORS = {
+    "bool": {"boolean": {}},
+    "int": {"number": {}},
+    "float": {"number": {"mode": "box", "step": "any"}},
+    "str": {"text": {}},
+    "dict": {"object": {}},
+    "list": {"object": {}},
+}
+
+
+def _annotation_selector(annotation: ast.expr | None) -> dict | None:
+    """Return the selector for a parameter's type annotation, or None if there's no fitting one."""
+    match annotation:
+        case (
+            ast.BinOp(op=ast.BitOr(), left=inner, right=ast.Constant(value=None))
+            | ast.BinOp(op=ast.BitOr(), left=ast.Constant(value=None), right=inner)
+        ):
+            return _annotation_selector(inner)
+        case ast.Subscript(value=ast.Name(id="Optional") | ast.Attribute(attr="Optional"), slice=inner):
+            return _annotation_selector(inner)
+        case ast.Subscript(value=inner):
+            # a parameterized type, eg: list[int]
+            return _annotation_selector(inner)
+        case ast.Name(id=name) if name in _ANNOTATION_SELECTORS:
+            return copy.deepcopy(_ANNOTATION_SELECTORS[name])
+    return None
+
+
+def _constant_default(default: ast.expr) -> bool | int | float | str | None:
+    """
+    Return a default value written as a constant in the signature, or None.
+
+    The description is published to every client, so a computed default (eg: a secret from
+    the config) must not end up in it.
+    """
+    match default:
+        case ast.Constant(value=bool() | int() | float() | str() as value):
+            return value
+        case ast.UnaryOp(op=ast.USub(), operand=ast.Constant(value=int() | float() as value)) if (
+            not isinstance(value, bool)
+        ):
+            return -value
+    return None
 
 
 def service_validator(args: list[str]) -> list[str]:
@@ -55,6 +101,7 @@ class ServiceDecorator(RequestResponseDecorator):
     # @service is only applied to functions
     dm: FunctionDecoratorManager
     description: dict
+    data_schema: vol.Schema
 
     async def validate(self) -> None:
         """Validate the arguments."""
@@ -74,6 +121,24 @@ class ServiceDecorator(RequestResponseDecorator):
             )
 
         ast_funcdef = self.dm.eval_func.func_def
+        args = ast_funcdef.args
+        # the default value expressions; they belong to the last positional parameters,
+        # positional-only ones included
+        positional = args.posonlyargs + args.args
+        with_default = positional[len(positional) - len(args.defaults) :]
+        defaults = {arg.arg: default for arg, default in zip(with_default, args.defaults, strict=True)}
+        defaults |= {
+            arg.arg: default
+            for arg, default in zip(args.kwonlyargs, args.kw_defaults, strict=True)
+            if default is not None
+        }
+        # the arguments a service call passes to the function besides the service data
+        call_added = ("trigger_type", "context")
+        # the parameters the caller fills: positional-only ones can't be passed by name,
+        # and the ones a service call adds itself are set even when not passed
+        params = [arg.arg for arg in args.args + args.kwonlyargs if arg.arg not in call_added]
+        required = {name for name in params if name not in defaults}
+
         desc = ast.get_docstring(ast_funcdef)
         if desc is None or desc == "":
             desc = f"pyscript function {ast_funcdef.name}()"
@@ -92,10 +157,24 @@ class ServiceDecorator(RequestResponseDecorator):
                 )
                 raise exc
         else:
+            annotations = {arg.arg: arg.annotation for arg in args.args + args.kwonlyargs}
             fields = OrderedDict()
-            for arg in ast_funcdef.args.posonlyargs + ast_funcdef.args.args:
-                fields[arg.arg] = OrderedDict(description=f"argument {arg.arg}")
+            for name in params:
+                field = fields[name] = OrderedDict()
+                if name in required:
+                    field["required"] = True
+                elif (default := _constant_default(defaults[name])) is not None:
+                    field["default"] = default
+                if selector := _annotation_selector(annotations[name]):
+                    field["selector"] = selector
             self.description = {"description": desc, "fields": fields}
+
+        # Like other integrations' services, Home Assistant checks the service data against this
+        # schema before the call, so a typo in a field name or a missing argument fails the call
+        self.data_schema = vol.Schema(
+            {(vol.Required if name in required else vol.Optional)(name): object for name in params},
+            extra=vol.ALLOW_EXTRA if args.kwarg else vol.PREVENT_EXTRA,
+        )
 
     async def _service_callback(self, call: ServiceCall) -> ServiceResponse:
         _LOGGER.info("Service callback: %s", call.service)
@@ -135,6 +214,7 @@ class ServiceDecorator(RequestResponseDecorator):
             name,
             self._service_callback,
             self.kwargs.get("supports_response"),
+            self.data_schema,
         )
         async_set_service_schema(Function.hass, domain, name, self.description)
 
