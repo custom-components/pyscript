@@ -6,18 +6,19 @@ import ast
 from collections import OrderedDict
 import io
 import logging
-import typing
 
 import voluptuous as vol
 import yaml
 
 from homeassistant.const import SERVICE_RELOAD
-from homeassistant.core import ServiceCall, SupportsResponse
+from homeassistant.core import ServiceCall, ServiceResponse, SupportsResponse
+from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers.service import async_set_service_schema
 
-from .. import DOMAIN, SERVICE_JUPYTER_KERNEL_START, AstEval, Function, State
+from .. import DOMAIN, SERVICE_JUPYTER_KERNEL_START, Function, State
 from ..decorator import FunctionDecoratorManager
-from ..decorator_abc import Decorator
+from ..decorator_abc import DispatchData
+from .base import RequestResponseDecorator
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -37,8 +38,13 @@ def service_validator(args: list[str]) -> list[str]:
     return [domain, name]
 
 
-class ServiceDecorator(Decorator):
-    """Implementation for @service."""
+class ServiceDecorator(RequestResponseDecorator):
+    """
+    Implementation for @service.
+
+    A service call is an explicit call, not a trigger: it starts the call directly, so trigger
+    handlers (@state_active, @time_active) don't apply, while call handlers (@task_unique) do.
+    """
 
     name = "service"
     args_schema = vol.Schema(vol.All(vol.Length(max=1), service_validator))
@@ -46,6 +52,8 @@ class ServiceDecorator(Decorator):
         {vol.Optional("supports_response", default=SupportsResponse.NONE): vol.Coerce(SupportsResponse)}
     )
 
+    # @service is only applied to functions
+    dm: FunctionDecoratorManager
     description: dict
 
     async def validate(self) -> None:
@@ -65,7 +73,7 @@ class ServiceDecorator(Decorator):
                 f"@service conflicts with builtin service"
             )
 
-        ast_funcdef = typing.cast(FunctionDecoratorManager, self.dm).eval_func.func_def
+        ast_funcdef = self.dm.eval_func.func_def
         desc = ast.get_docstring(ast_funcdef)
         if desc is None or desc == "":
             desc = f"pyscript function {ast_funcdef.name}()"
@@ -89,31 +97,32 @@ class ServiceDecorator(Decorator):
                 fields[arg.arg] = OrderedDict(description=f"argument {arg.arg}")
             self.description = {"description": desc, "fields": fields}
 
-    async def _service_callback(self, call: ServiceCall) -> None:
+    async def _service_callback(self, call: ServiceCall) -> ServiceResponse:
         _LOGGER.info("Service callback: %s", call.service)
 
-        # use a new AstEval context so it can run    fully independently
-        # of other instances (except for global_ctx which is common)
-        global_ctx = self.dm.eval_func.global_ctx
-        ast_ctx = AstEval(self.dm.name, global_ctx)
-        Function.install_ast_funcs(ast_ctx)
         func_args = {
             "trigger_type": "service",
             "context": call.context,
         }
         func_args.update(call.data)
 
-        async def do_service_call(func, ast_ctx, data):
-            try:
-                _LOGGER.debug("Service call start: %s", func.name)
-                return await func.call(ast_ctx, **data)
-            except Exception as exc:
-                await self.dm.handle_exception(exc)
-                return None
+        result = await self.handle_request(func_args)
+        if call.return_response and result is None:
+            # like HA scripts: a call that was skipped or returned nothing gives an empty response
+            return {}
+        return result
 
-        task = Function.create_task(do_service_call(self.dm.eval_func, ast_ctx, func_args))
-        await task
-        return task.result()
+    async def dispatch_request(self, data: DispatchData) -> None:
+        """Start the call directly: a service call is an explicit call, not a trigger."""
+        await self.dm.start_call(data)
+
+    async def handle_call_exception(self, data: DispatchData, exc: Exception) -> None:
+        """Fail the service call when the function raised; the manager still logs the exception."""
+        if not isinstance(exc, HomeAssistantError):
+            error = HomeAssistantError(f"{self.dm.name}() raised {type(exc).__name__}: {exc}")
+            error.__cause__ = exc
+            exc = error
+        self.respond(data, exc=exc)
 
     async def start(self) -> None:
         """Register the service."""

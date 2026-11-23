@@ -1237,8 +1237,16 @@ default), ``"only"``, or ``"optional"``, depending on whether the service provid
 provides a response, or sometimes provides a response.  Services responses were added in HASS 2023.7.
 The service response is a dictionary returned by the function.
 
-Other trigger decorators like ``@state_active`` and ``@time_active`` don't affect the service.
-Those still allow state, time or other triggers to be specified in addition.
+A service call is an explicit call, not a trigger: ``@state_active`` and ``@time_active`` don't
+apply to it, so the service still runs the function when they would skip its other triggers.
+``@task_unique`` does apply, and other triggers like ``@state_trigger`` or ``@time_trigger`` can be
+added to the same function. If ``@task_unique(kill_me=True)`` finds the task already running, the
+function is not called. A call that is cancelled by a newer call with the same ``@task_unique`` name
+doesn't complete either. In these cases, and whenever the function returns ``None``, a caller that
+requested a response gets an empty dictionary, as with Home Assistant scripts. If the function
+raises an exception, the service call fails with a ``HomeAssistantError`` (shown in the UI and
+stopping a calling automation or script), and the exception is also logged by pyscript. Like
+triggers, each service call fires a ``pyscript_running`` event, which is shown in the logbook.
 
 The function is called with keyword parameters set to the service call parameters, plus
 ``trigger_type`` is set to ``"service"``. The function definition should specify all the

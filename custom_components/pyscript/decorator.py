@@ -314,7 +314,7 @@ class FunctionDecoratorManager(DecoratorManager):
             await self.safe_await(result_handler_dec.handle_call_result(data, result))
 
     async def dispatch(self, data: DispatchData) -> None:
-        """Handle a trigger dispatch: run guards, create a context, and invoke the function."""
+        """Handle a trigger dispatch: run the trigger handlers, then start the call."""
         _LOGGER.debug("Dispatching for %s: %s", self.name, data)
 
         decorators = self.get_decorators(TriggerHandlerDecorator)
@@ -325,6 +325,10 @@ class FunctionDecoratorManager(DecoratorManager):
                     await self.safe_await(result_handler_dec.handle_call_canceled(data))
                 return
 
+        await self.start_call(data)
+
+    async def start_call(self, data: DispatchData) -> None:
+        """Create a context and invoke the function; an explicit call starts here, without the trigger handlers."""
         action_ast_ctx = AstEval(
             f"{self.eval_func.global_ctx_name}.{self.eval_func.name}", self.eval_func.global_ctx
         )
