@@ -1553,6 +1553,35 @@ kw = dict(func=1, func_name=2, ast_ctx=3, self=4)
     ],
     [
         """
+def echo(**kwargs):
+    return kwargs
+
+t = task.create(echo, func=1, func_name=2, new_ast_ctx=3)
+task.wait({t})
+t.result()
+""",
+        {"func": 1, "func_name": 2, "new_ast_ctx": 3},
+    ],
+    ["task.executor(dict, func=1)", {"func": 1}],
+    [
+        """
+called = []
+
+def record(**kwargs):
+    called.append(kwargs)
+
+def slow():
+    task.sleep(0.01)
+
+t = task.create(slow)
+task.add_done_callback(t, record, task=1, callback=2, ast_ctx=3)
+task.wait({t})
+called
+""",
+        [{"task": 1, "callback": 2, "ast_ctx": 3}],
+    ],
+    [
+        """
 def foo(x=30, *args, y = 123, **kwargs):
     return [x, y, args, kwargs]
 [foo(a = 10, b = 3), foo(40, 7, 8, 9, a = 10, y = 3), foo(x=42)]

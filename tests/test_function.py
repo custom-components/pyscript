@@ -1470,6 +1470,29 @@ async def test_service_call_params(hass):
 
 
 @pytest.mark.asyncio
+async def test_service_call_and_event_fire_data_keys(hass):
+    """Service data and event data can use the names of the call's own parameters."""
+    # these keywords go into **kwargs on purpose
+    # pylint: disable=kwarg-superseded-by-positional-arg
+    Function.init(hass)
+    with (
+        patch.object(ServiceRegistry, "async_call") as call,
+        patch.object(ServiceRegistry, "supports_response", return_value="none"),
+    ):
+        await Function.service_call("test", "test", domain="d", name="n")
+        assert call.call_args[0] == ("test", "test", {"domain": "d", "name": "n"})
+
+    events = []
+    hass.bus.async_listen("test_event", events.append)
+    await Function.event_fire("test_event", event_type="x")
+    await hass.async_block_till_done()
+    assert [event.data for event in events] == [{"event_type": "x"}]
+
+    await Function.waiter_stop()
+    await Function.reaper_stop()
+
+
+@pytest.mark.asyncio
 async def test_service_call_blocking(hass, caplog):
     """Test that service calls with blocking=True actually block."""
     notify_q = asyncio.Queue(0)

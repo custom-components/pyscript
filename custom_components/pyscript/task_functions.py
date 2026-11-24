@@ -25,10 +25,10 @@ class TaskFunctions:
     def user_task_create_factory(cls, ast_ctx):
         """Return wrapper to call to astFunction with the ast context."""
 
-        async def user_task_create(func, *args, **kwargs):
+        async def user_task_create(func, /, *args, **kwargs):
             """Implement task.create()."""
 
-            async def func_call(func, func_name, new_ast_ctx, *args, **kwargs):
+            async def func_call(func, func_name, new_ast_ctx, /, *args, **kwargs):
                 """Call user function inside task.create()."""
                 try:
                     return await new_ast_ctx.call_func(func, func_name, *args, **kwargs)
@@ -55,7 +55,7 @@ class TaskFunctions:
         return user_task_create
 
     @classmethod
-    async def user_task_add_done_callback(cls, task, callback, *args, **kwargs):
+    async def user_task_add_done_callback(cls, task, callback, /, *args, **kwargs):
         """Implement task.add_done_callback()."""
         ast_ctx = None
         if type(callback) is EvalFuncVar:
@@ -63,7 +63,7 @@ class TaskFunctions:
         Function.task_add_done_callback(task, ast_ctx, callback, *args, **kwargs)
 
     @classmethod
-    async def user_task_executor(cls, func, *args, **kwargs):
+    async def user_task_executor(cls, func, /, *args, **kwargs):
         """Implement task.executor()."""
         if inspect.iscoroutinefunction(func) or not callable(func):
             raise TypeError(f"function {func} is not callable by task.executor")
