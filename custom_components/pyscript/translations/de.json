@@ -6,8 +6,7 @@
         "description": "Wenn Sie einen Eintrag angelegt haben, können Sie sich die Doku ansehen, um zu lernen wie Sie Scripts und Funktionen erstellen können.",
         "data": {
           "allow_all_imports": "Alle Importe erlauben?",
-          "hass_is_global": "Home Assistant als globale Variable verwenden?",
-          "legacy_decorators": "Legacy-Decorators verwenden?"
+          "hass_is_global": "Home Assistant als globale Variable verwenden?"
         }
       }
     },
@@ -23,8 +22,7 @@
         "title": "Pyscript configuration aktualisieren",
         "data": {
           "allow_all_imports": "Alle Importe erlauben??",
-          "hass_is_global": "Home Assistant als globale Variable verwenden?",
-          "legacy_decorators": "Legacy-Decorators verwenden?"
+          "hass_is_global": "Home Assistant als globale Variable verwenden?"
         }
       },
       "no_ui_configuration_allowed": {

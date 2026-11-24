@@ -13,9 +13,8 @@ from homeassistant.config_entries import ConfigEntry
 from .const import CONF_HASS_IS_GLOBAL, CONFIG_ENTRY, DOMAIN, FOLDER, LOGGER_PATH
 from .decorator import DecoratorRegistry, FunctionDecoratorManager
 from .decorator_abc import Decorator, DecoratorManagerStatus
-from .eval import AstEval, EvalFunc, EvalFuncVar, SymTable
+from .eval import AstEval, EvalFuncVar, SymTable
 from .function import Function
-from .trigger import TrigInfo
 
 _LOGGER = logging.getLogger(LOGGER_PATH + ".global_ctx")
 
@@ -36,8 +35,6 @@ class GlobalContext:
         """Initialize GlobalContext."""
         self.name: str = name
         self.global_sym_table: SymTable = global_sym_table if global_sym_table else {}
-        self.triggers: set[EvalFunc] = set()
-        self.triggers_delay_start: set[EvalFunc] = set()
         self.dms: set[FunctionDecoratorManager] = set()
         self.dms_delay_start: set[FunctionDecoratorManager] = set()
         self.logger: logging.Logger = logging.getLogger(LOGGER_PATH + "." + name)
@@ -61,14 +58,6 @@ class GlobalContext:
         if app_config:
             self.global_sym_table["pyscript.app_config"] = app_config.copy()
 
-    def trigger_register(self, func: EvalFunc) -> bool:
-        """Register a trigger function; return True if start now."""
-        self.triggers.add(func)
-        if self.auto_start:
-            return True
-        self.triggers_delay_start.add(func)
-        return False
-
     async def get_decorator_by_expr(self, ast_ctx: AstEval, dec: ast.expr) -> Decorator | None:
         """Return decorator instance from an AST decorator expression."""
         return await DecoratorRegistry.get_decorator_by_expr(ast_ctx, dec)
@@ -89,31 +78,18 @@ class GlobalContext:
             else:
                 self.dms_delay_start.add(dm)
 
-    def trigger_unregister(self, func: EvalFunc) -> None:
-        """Unregister a trigger function."""
-        self.triggers.discard(func)
-        self.triggers_delay_start.discard(func)
-
     def set_auto_start(self, auto_start: bool) -> None:
         """Set the auto-start flag."""
         self.auto_start = auto_start
 
     def start(self) -> None:
         """Start any unstarted triggers."""
-        for func in self.triggers_delay_start:
-            func.trigger_start()
-        self.triggers_delay_start = set()
-
         for dm in self.dms_delay_start:
             Function.hass.async_create_task(dm.safe_await(dm.start()))
         self.dms_delay_start = set()
 
     def stop(self) -> None:
         """Stop all triggers and auto_start."""
-        for func in self.triggers:
-            func.trigger_stop()
-        self.triggers = set()
-        self.triggers_delay_start = set()
         for dm in self.dms:
             Function.hass.async_create_task(dm.safe_await(dm.stop()))
         self.dms = set()
@@ -151,10 +127,6 @@ class GlobalContext:
     def get_imports(self) -> set[str]:
         """Return the imports."""
         return self.imports
-
-    def get_trig_info(self, name: str, trig_args: dict[str, Any]) -> TrigInfo:
-        """Return a new trigger info instance with the given args."""
-        return TrigInfo(name, trig_args, self)
 
     def relative_import_name(self, target: str) -> str:
         """Return the relative import name of a pyscript folder path, from this file's folder."""

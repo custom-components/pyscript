@@ -12,9 +12,9 @@ import pytest
 from pytest_homeassistant.common import mock_restore_cache
 
 import custom_components.pyscript as pyscript_component
-from custom_components.pyscript import restore_state, trigger
+from custom_components.pyscript import decorator_abc, restore_state
 from custom_components.pyscript.const import DOMAIN
-from custom_components.pyscript.event import Event
+from custom_components.pyscript.decorators.timing import TrigTime
 from custom_components.pyscript.function import Function
 from custom_components.pyscript.global_ctx import GlobalContextMgr
 from custom_components.pyscript.state import State
@@ -35,7 +35,7 @@ async def setup_script(hass, notify_q, now, source, script_name="/hello.py"):
         patch("custom_components.pyscript.os_path_isdir", return_value=True),
         patch("custom_components.pyscript.glob.iglob", return_value=scripts),
         patch("custom_components.pyscript.global_ctx.open", mock_open(read_data=source)),
-        patch("custom_components.pyscript.trigger.dt_now", return_value=now),
+        patch("custom_components.pyscript.decorator_abc.dt_now", return_value=now),
         patch("custom_components.pyscript.open", mock_open(read_data=source)),
         patch("homeassistant.config.load_yaml_config_file", return_value={}),
         patch("custom_components.pyscript.watchdog_start", return_value=None),
@@ -52,7 +52,7 @@ async def setup_script(hass, notify_q, now, source, script_name="/hello.py"):
     # I'm not sure how to run the mock all the time, so just force the dt_now()
     # trigger function to return the fixed time, now.
     #
-    trigger.__dict__["dt_now"] = lambda: now
+    decorator_abc.__dict__["dt_now"] = lambda: now
 
     if notify_q:
 
@@ -372,7 +372,7 @@ def func5(var_name=None, value=None):
             patch("custom_components.pyscript.glob.iglob", return_value=scripts),
             patch("custom_components.pyscript.global_ctx.open", mock_open(read_data=next_source)),
             patch("custom_components.pyscript.open", mock_open(read_data=next_source)),
-            patch("custom_components.pyscript.trigger.dt_now", return_value=now),
+            patch("custom_components.pyscript.decorator_abc.dt_now", return_value=now),
             patch("homeassistant.config.load_yaml_config_file", return_value={}),
             patch("custom_components.pyscript.os.path.getmtime", return_value=1000),
             patch("custom_components.pyscript.global_ctx.os.path.getmtime", return_value=1000),
@@ -408,12 +408,9 @@ async def test_misc_errors(hass, caplog):
     Function()
     GlobalContextMgr()
     State()
-    Event()
-    Event.notify_del("not_in_notify_list", None)
-    trigger.TrigTime()
+    TrigTime()
 
     assert "Function class is not meant to be instantiated" in caplog.text
     assert "GlobalContextMgr class is not meant to be instantiated" in caplog.text
     assert "State class is not meant to be instantiated" in caplog.text
-    assert "Event class is not meant to be instantiated" in caplog.text
     assert "TrigTime class is not meant to be instantiated" in caplog.text

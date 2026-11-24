@@ -4,12 +4,12 @@ import logging
 from unittest.mock import patch
 
 import pytest
+from pytest_homeassistant.common import MockConfigEntry
 
-from custom_components.pyscript import PYSCRIPT_SCHEMA
+from custom_components.pyscript import PYSCRIPT_SCHEMA, async_migrate_entry
 from custom_components.pyscript.const import (
     CONF_ALLOW_ALL_IMPORTS,
     CONF_HASS_IS_GLOBAL,
-    CONF_LEGACY_DECORATORS,
     DOMAIN,
 )
 from homeassistant import data_entry_flow
@@ -39,10 +39,8 @@ async def test_user_flow_minimum_fields(hass, pyscript_bypass_setup):
     assert result["type"] == data_entry_flow.FlowResultType.CREATE_ENTRY
     assert CONF_ALLOW_ALL_IMPORTS in result["data"]
     assert CONF_HASS_IS_GLOBAL in result["data"]
-    assert CONF_LEGACY_DECORATORS in result["data"]
     assert not result["data"][CONF_ALLOW_ALL_IMPORTS]
     assert not result["data"][CONF_HASS_IS_GLOBAL]
-    assert not result["data"][CONF_LEGACY_DECORATORS]
 
 
 @pytest.mark.asyncio
@@ -59,7 +57,6 @@ async def test_user_flow_all_fields(hass, pyscript_bypass_setup):
         user_input={
             CONF_ALLOW_ALL_IMPORTS: True,
             CONF_HASS_IS_GLOBAL: True,
-            CONF_LEGACY_DECORATORS: True,
         },
     )
 
@@ -67,7 +64,6 @@ async def test_user_flow_all_fields(hass, pyscript_bypass_setup):
     assert CONF_ALLOW_ALL_IMPORTS in result["data"]
     assert result["data"][CONF_ALLOW_ALL_IMPORTS]
     assert result["data"][CONF_HASS_IS_GLOBAL]
-    assert result["data"][CONF_LEGACY_DECORATORS]
 
 
 @pytest.mark.asyncio
@@ -79,7 +75,6 @@ async def test_user_already_configured(hass, pyscript_bypass_setup):
         data={
             CONF_ALLOW_ALL_IMPORTS: True,
             CONF_HASS_IS_GLOBAL: True,
-            CONF_LEGACY_DECORATORS: False,
         },
     )
 
@@ -91,7 +86,6 @@ async def test_user_already_configured(hass, pyscript_bypass_setup):
         data={
             CONF_ALLOW_ALL_IMPORTS: True,
             CONF_HASS_IS_GLOBAL: True,
-            CONF_LEGACY_DECORATORS: False,
         },
     )
 
@@ -124,7 +118,6 @@ async def test_import_flow_update_allow_all_imports(hass, pyscript_bypass_setup)
         data={
             CONF_ALLOW_ALL_IMPORTS: True,
             CONF_HASS_IS_GLOBAL: True,
-            CONF_LEGACY_DECORATORS: True,
         },
     )
 
@@ -191,7 +184,6 @@ async def test_import_flow_update_user(hass, pyscript_bypass_setup):
             {
                 CONF_ALLOW_ALL_IMPORTS: True,
                 CONF_HASS_IS_GLOBAL: True,
-                CONF_LEGACY_DECORATORS: True,
             }
         ),
     )
@@ -208,7 +200,6 @@ async def test_import_flow_update_user(hass, pyscript_bypass_setup):
     assert hass.config_entries.async_entries(DOMAIN)[0].data == {
         CONF_ALLOW_ALL_IMPORTS: True,
         CONF_HASS_IS_GLOBAL: True,
-        CONF_LEGACY_DECORATORS: True,
         "apps": {"test_app": {"param": 1}},
     }
 
@@ -223,7 +214,6 @@ async def test_import_flow_update_import(hass, pyscript_bypass_setup):
             {
                 CONF_ALLOW_ALL_IMPORTS: True,
                 CONF_HASS_IS_GLOBAL: True,
-                CONF_LEGACY_DECORATORS: True,
             }
         ),
     )
@@ -250,7 +240,6 @@ async def test_options_flow_import(hass, pyscript_bypass_setup):
             {
                 CONF_ALLOW_ALL_IMPORTS: True,
                 CONF_HASS_IS_GLOBAL: True,
-                CONF_LEGACY_DECORATORS: True,
             }
         ),
     )
@@ -279,7 +268,6 @@ async def test_options_flow_user_change(hass, pyscript_bypass_setup):
             {
                 CONF_ALLOW_ALL_IMPORTS: True,
                 CONF_HASS_IS_GLOBAL: True,
-                CONF_LEGACY_DECORATORS: True,
             }
         ),
     )
@@ -297,7 +285,6 @@ async def test_options_flow_user_change(hass, pyscript_bypass_setup):
         user_input={
             CONF_ALLOW_ALL_IMPORTS: False,
             CONF_HASS_IS_GLOBAL: False,
-            CONF_LEGACY_DECORATORS: False,
         },
     )
     await hass.async_block_till_done()
@@ -307,7 +294,6 @@ async def test_options_flow_user_change(hass, pyscript_bypass_setup):
 
     assert entry.data[CONF_ALLOW_ALL_IMPORTS] is False
     assert entry.data[CONF_HASS_IS_GLOBAL] is False
-    assert entry.data[CONF_LEGACY_DECORATORS] is False
 
 
 @pytest.mark.asyncio
@@ -320,7 +306,6 @@ async def test_options_flow_user_no_change(hass, pyscript_bypass_setup):
             {
                 CONF_ALLOW_ALL_IMPORTS: True,
                 CONF_HASS_IS_GLOBAL: True,
-                CONF_LEGACY_DECORATORS: True,
             }
         ),
     )
@@ -338,7 +323,6 @@ async def test_options_flow_user_no_change(hass, pyscript_bypass_setup):
         user_input={
             CONF_ALLOW_ALL_IMPORTS: True,
             CONF_HASS_IS_GLOBAL: True,
-            CONF_LEGACY_DECORATORS: True,
         },
     )
 
@@ -365,7 +349,6 @@ async def test_config_entry_reload(hass):
                 {
                     CONF_ALLOW_ALL_IMPORTS: True,
                     CONF_HASS_IS_GLOBAL: True,
-                    CONF_LEGACY_DECORATORS: True,
                 }
             ),
         )
@@ -376,3 +359,32 @@ async def test_config_entry_reload(hass):
         await hass.config_entries.async_reload(entry.entry_id)
         await hass.async_block_till_done()
         assert listeners == hass.bus.async_listeners()
+
+
+def test_schema_legacy_decorators_removed(caplog):
+    """The removed legacy_decorators option is dropped from the config and reported."""
+    config = PYSCRIPT_SCHEMA({CONF_ALLOW_ALL_IMPORTS: True, "legacy_decorators": True})
+
+    assert "legacy_decorators" not in config
+    assert config[CONF_ALLOW_ALL_IMPORTS]
+    assert "The 'legacy_decorators' option has been removed" in caplog.text
+
+
+@pytest.mark.asyncio
+async def test_migrate_entry_drops_legacy_decorators(hass):
+    """Migrating a 1.1 entry drops the removed legacy_decorators option and keeps the rest."""
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        version=1,
+        minor_version=1,
+        data={CONF_ALLOW_ALL_IMPORTS: True, "legacy_decorators": True},
+    )
+    entry.add_to_hass(hass)
+
+    assert await async_migrate_entry(hass, entry)
+    assert entry.data == {CONF_ALLOW_ALL_IMPORTS: True}
+    assert entry.minor_version == 2
+
+    entry = MockConfigEntry(domain=DOMAIN, version=2, minor_version=1, data={})
+    entry.add_to_hass(hass)
+    assert not await async_migrate_entry(hass, entry)

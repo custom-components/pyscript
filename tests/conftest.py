@@ -12,7 +12,7 @@ from unittest.mock import patch
 from mock_open import MockOpen
 import pytest
 
-from custom_components.pyscript import trigger
+from custom_components.pyscript import decorator_abc
 from custom_components.pyscript.const import DOMAIN, FOLDER
 from custom_components.pyscript.eval import AstEval
 from custom_components.pyscript.function import Function
@@ -120,7 +120,7 @@ class PyscriptFixture:
             patch("custom_components.pyscript.glob.iglob") as mock_glob,
             patch("custom_components.pyscript.global_ctx.open", mock_open),
             patch("custom_components.pyscript.open", mock_open),
-            patch("custom_components.pyscript.trigger.dt_now", return_value=first_value),
+            patch("custom_components.pyscript.decorator_abc.dt_now", return_value=first_value),
             patch("homeassistant.config.load_yaml_config_file", return_value=yaml_config),
             patch("custom_components.pyscript.watchdog_start", return_value=None),
             patch("custom_components.pyscript.os.path.getmtime", return_value=1000),
@@ -137,7 +137,7 @@ class PyscriptFixture:
                 return now.pop(0) if len(now) > 1 else now[0]
             return now
 
-        trigger.__dict__["dt_now"] = return_next_time
+        decorator_abc.__dict__["dt_now"] = return_next_time
 
         async def state_changed(event):
             entity_id = event.data["entity_id"]

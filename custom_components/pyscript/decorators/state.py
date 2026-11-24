@@ -11,18 +11,83 @@ from homeassistant.helpers import config_validation as cv
 
 from ..decorator import WaitUntilDecoratorManager
 from ..decorator_abc import DecoratorManagerStatus, DispatchData, TriggerDecorator, TriggerHandlerDecorator
-from ..state import State
-from ..trigger import (
-    any_trigger_exprs,
-    ident_any_values_changed,
-    ident_values_changed,
-    strip_trigger_expr,
-)
+from ..state import STATE_VIRTUAL_ATTRS, State
 from .base import AutoKwargsDecorator, ExpressionDecorator
 
 STATE_RE = re.compile(r"\w+\.\w+(\.((\w+)|\*))?$")
 
 _LOGGER = logging.getLogger(__name__)
+
+
+def strip_trigger_expr(expr):
+    """Strip surrounding whitespace from a trigger expression (non-strings are returned as is)."""
+    return expr.strip(" \t\r\n") if isinstance(expr, str) else expr
+
+
+def any_trigger_exprs(exprs):
+    """
+    Join trigger expressions into one any([...]) expression.
+
+    Each expression is stripped and goes on its own lines, so a trailing # comment can't swallow
+    the separator or the closing bracket that follow it.
+    """
+    return "any([" + "\n,\n".join(strip_trigger_expr(expr) for expr in exprs) + "\n])"
+
+
+def ident_any_values_changed(func_args, ident):
+    """Check for any changes to state or attributes on ident vars."""
+    var_name = func_args.get("var_name", None)
+
+    if var_name is None:
+        return False
+    value = func_args["value"]
+    old_value = func_args["old_value"]
+
+    for check_var in ident:
+        if check_var == var_name and old_value != value:
+            return True
+
+        if check_var.startswith(f"{var_name}."):
+            var_pieces = check_var.split(".")
+            if len(var_pieces) == 3 and f"{var_pieces[0]}.{var_pieces[1]}" == var_name:
+                if var_pieces[2] == "*":
+                    # catch all has been requested, check all attributes for change
+                    all_attrs = set()
+                    if value is not None:
+                        all_attrs |= set(value.__dict__.keys())
+                    if old_value is not None:
+                        all_attrs |= set(old_value.__dict__.keys())
+                    for attr in all_attrs - STATE_VIRTUAL_ATTRS:
+                        if getattr(value, attr, None) != getattr(old_value, attr, None):
+                            return True
+                elif getattr(value, var_pieces[2], None) != getattr(old_value, var_pieces[2], None):
+                    return True
+
+    return False
+
+
+def ident_values_changed(func_args, ident):
+    """Check for changes to state or attributes on ident vars."""
+    var_name = func_args.get("var_name", None)
+
+    if var_name is None:
+        return False
+    value = func_args["value"]
+    old_value = func_args["old_value"]
+
+    for check_var in ident:
+        var_pieces = check_var.split(".")
+        if len(var_pieces) < 2 or len(var_pieces) > 3:
+            continue
+        var_root = f"{var_pieces[0]}.{var_pieces[1]}"
+        if var_root == var_name and (len(var_pieces) == 2 or var_pieces[2] == "old"):
+            if value != old_value:
+                return True
+        elif len(var_pieces) == 3 and var_root == var_name:
+            if getattr(value, var_pieces[2], None) != getattr(old_value, var_pieces[2], None):
+                return True
+
+    return False
 
 
 class StateActiveDecorator(TriggerHandlerDecorator, ExpressionDecorator):

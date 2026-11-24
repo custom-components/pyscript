@@ -112,8 +112,9 @@ class Function:
         )
 
         #
-        # start a task which is a reaper for canceled tasks, since some # functions
-        # like TrigInfo.stop() can't be async (it's called from a __del__ method)
+        # start a task which is a reaper for canceled tasks, since some callers
+        # can't await the task they cancel, eg: task.cancel() and task.unique()
+        # can cancel the task they run in
         #
         async def task_reaper(reaper_q):
             while True:
@@ -209,7 +210,7 @@ class Function:
         await asyncio.sleep(float(duration))
 
     @classmethod
-    async def event_fire(cls, event_type, **kwargs):
+    async def event_fire(cls, event_type, /, **kwargs):
         """Implement event.fire()."""
         curr_task = asyncio.current_task()
         if "context" in kwargs and isinstance(kwargs["context"], Context):
@@ -320,7 +321,7 @@ class Function:
         return cls.hass.services.has_service(domain, name)
 
     @classmethod
-    async def service_call(cls, domain, name, **kwargs):
+    async def service_call(cls, domain, name, /, **kwargs):
         """Implement service.call()."""
         curr_task = asyncio.current_task()
         hass_args = {}
@@ -504,7 +505,7 @@ class Function:
             cls.task2cb[task] = {"ctx": ast_ctx, "cb": {}}
 
     @classmethod
-    def task_add_done_callback(cls, task, ast_ctx, callback, *args, **kwargs):
+    def task_add_done_callback(cls, task, ast_ctx, callback, /, *args, **kwargs):
         """Add a done callback to the given task."""
         if ast_ctx is None:
             ast_ctx = cls.task2cb[task]["ctx"]

@@ -7,7 +7,7 @@ from unittest.mock import mock_open, patch
 
 import pytest
 
-from custom_components.pyscript import trigger
+from custom_components.pyscript import decorator_abc
 from custom_components.pyscript.const import DOMAIN
 from custom_components.pyscript.function import Function
 from homeassistant.const import EVENT_HOMEASSISTANT_STARTED, EVENT_STATE_CHANGED
@@ -27,7 +27,7 @@ async def setup_script(hass, notify_q, now, source):
         patch("custom_components.pyscript.glob.iglob", return_value=scripts),
         patch("custom_components.pyscript.global_ctx.open", mock_open(read_data=source)),
         patch("custom_components.pyscript.open", mock_open(read_data=source)),
-        patch("custom_components.pyscript.trigger.dt_now", return_value=now),
+        patch("custom_components.pyscript.decorator_abc.dt_now", return_value=now),
         patch("homeassistant.config.load_yaml_config_file", return_value={}),
         patch("custom_components.pyscript.watchdog_start", return_value=None),
         patch("custom_components.pyscript.os.path.getmtime", return_value=1000),
@@ -43,7 +43,7 @@ async def setup_script(hass, notify_q, now, source):
     # I'm not sure how to run the mock all the time, so just force the dt_now()
     # trigger function to return the fixed time, now.
     #
-    trigger.__dict__["dt_now"] = lambda: now
+    decorator_abc.__dict__["dt_now"] = lambda: now
 
     if notify_q:
 

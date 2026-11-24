@@ -9,7 +9,7 @@ from unittest.mock import MagicMock, Mock, patch
 from mock_open import MockOpen
 import pytest
 
-from custom_components.pyscript import trigger
+from custom_components.pyscript import decorator_abc
 from custom_components.pyscript.const import CONF_ALLOW_ALL_IMPORTS, CONF_HASS_IS_GLOBAL, DOMAIN, FOLDER
 from custom_components.pyscript.function import Function
 from homeassistant.const import EVENT_HOMEASSISTANT_STARTED, EVENT_STATE_CHANGED
@@ -133,7 +133,7 @@ async def setup_script(hass, notify_q, notify_q2, now, source, config=None):
         patch("custom_components.pyscript.os.path.isdir", return_value=True),
         patch("custom_components.pyscript.glob.iglob") as mock_glob,
         patch("custom_components.pyscript.global_ctx.open", mock_open),
-        patch("custom_components.pyscript.trigger.dt_now", return_value=now),
+        patch("custom_components.pyscript.decorator_abc.dt_now", return_value=now),
         patch("custom_components.pyscript.open", mock_open),
         patch("homeassistant.config.load_yaml_config_file", return_value=config),
         patch(
@@ -160,7 +160,7 @@ async def setup_script(hass, notify_q, notify_q2, now, source, config=None):
             return now[0]
         return now
 
-    trigger.__dict__["dt_now"] = return_next_time
+    decorator_abc.__dict__["dt_now"] = return_next_time
 
     if notify_q or notify_q2:
 
@@ -1465,6 +1465,29 @@ async def test_service_call_params(hass):
         assert call.call_args[1] == {"context": Context(id="test"), "blocking": False}
 
     # Stop all tasks to avoid conflicts with other tests
+    await Function.waiter_stop()
+    await Function.reaper_stop()
+
+
+@pytest.mark.asyncio
+async def test_service_call_and_event_fire_data_keys(hass):
+    """Service data and event data can use the names of the call's own parameters."""
+    # these keywords go into **kwargs on purpose
+    # pylint: disable=kwarg-superseded-by-positional-arg
+    Function.init(hass)
+    with (
+        patch.object(ServiceRegistry, "async_call") as call,
+        patch.object(ServiceRegistry, "supports_response", return_value="none"),
+    ):
+        await Function.service_call("test", "test", domain="d", name="n")
+        assert call.call_args[0] == ("test", "test", {"domain": "d", "name": "n"})
+
+    events = []
+    hass.bus.async_listen("test_event", events.append)
+    await Function.event_fire("test_event", event_type="x")
+    await hass.async_block_till_done()
+    assert [event.data for event in events] == [{"event_type": "x"}]
+
     await Function.waiter_stop()
     await Function.reaper_stop()
 

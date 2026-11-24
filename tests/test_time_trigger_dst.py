@@ -7,12 +7,11 @@ from types import SimpleNamespace
 
 import pytest
 
-from custom_components.pyscript import trigger
+from custom_components.pyscript import decorator_abc
 from custom_components.pyscript.decorator_abc import DecoratorManagerStatus
 from custom_components.pyscript.decorators import timing
-from custom_components.pyscript.decorators.timing import TimeTriggerDecorator
+from custom_components.pyscript.decorators.timing import TimeTriggerDecorator, TrigTime
 from custom_components.pyscript.function import Function
-from custom_components.pyscript.trigger import TrigTime
 from homeassistant.util import dt as dt_util
 
 
@@ -40,7 +39,7 @@ async def run_time_trigger(
     monkeypatch: pytest.MonkeyPatch, clock: FakeClock, spec: str, count: int
 ) -> list[dt.datetime]:
     """Run a time trigger's cycle and return the UTC time of each of its first count dispatches."""
-    monkeypatch.setattr(trigger, "dt_now", clock.now)
+    monkeypatch.setattr(decorator_abc, "dt_now", clock.now)
     monkeypatch.setattr(timing, "dt_now", clock.now)
     monkeypatch.setattr(timing, "dt_utcnow", clock.utcnow)
     monkeypatch.setattr(

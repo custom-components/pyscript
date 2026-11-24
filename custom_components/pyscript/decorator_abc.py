@@ -6,6 +6,7 @@ from abc import ABC, abstractmethod
 import asyncio
 from collections.abc import Awaitable
 from dataclasses import dataclass, field
+import datetime as dt
 from enum import StrEnum
 import logging
 from typing import Any, ClassVar, final
@@ -14,16 +15,14 @@ import voluptuous as vol
 
 from homeassistant.core import Context, HomeAssistant
 
-from . import trigger
 from .eval import AstEval
 
 _LOGGER = logging.getLogger(__name__)
 
 
 def dt_now():
-    """Return current time."""
-    # For test compatibility. The tests patch this function
-    return trigger.dt_now()
+    """Return current time; tests patch this function."""
+    return dt.datetime.now()
 
 
 class DecoratorManagerStatus(StrEnum):

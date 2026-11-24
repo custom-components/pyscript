@@ -10,10 +10,11 @@ import pytest
 from pytest_homeassistant.common import MockConfigEntry
 
 from custom_components.pyscript.const import CONF_ALLOW_ALL_IMPORTS, CONFIG_ENTRY, DOMAIN
+from custom_components.pyscript.decorators.state import strip_trigger_expr
+from custom_components.pyscript.decorators.timing import TrigTime
 from custom_components.pyscript.eval import AstEval
 from custom_components.pyscript.function import Function
 from custom_components.pyscript.global_ctx import GlobalContext, GlobalContextMgr
-from custom_components.pyscript.trigger import TrigTime, strip_trigger_expr
 
 parseDateTimeTests = [
     ["2019/9/12 13:45", 0, dt(2019, 9, 12, 13, 45, 0, 0)],

@@ -5,14 +5,11 @@ from __future__ import annotations
 import ast
 import asyncio
 import logging
-import os
 from typing import Any, ClassVar
 import weakref
 
-from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import Context, HomeAssistant
 
-from .const import CONF_LEGACY_DECORATORS
 from .decorator_abc import (
     CallHandlerDecorator,
     CallResultHandlerDecorator,
@@ -53,20 +50,10 @@ class DecoratorRegistry:
     hass: ClassVar[HomeAssistant]
 
     @classmethod
-    def init(cls, hass: HomeAssistant, config_entry: ConfigEntry = None) -> None:
+    def init(cls, hass: HomeAssistant) -> None:
         """Initialize the decorator registry."""
         cls.hass = hass
         cls._decorators = {}
-        disabled = False
-        if config_entry is not None and config_entry.data.get(CONF_LEGACY_DECORATORS, False):
-            disabled = True
-        elif "PYTEST_CURRENT_TEST" in os.environ and "NODM" in os.environ:
-            disabled = True
-
-        if disabled:
-            _LOGGER.warning("Using legacy decorators")
-            return
-
         DecoratorManager.hass = hass
 
         Function.register_ast({"task.wait_until": DecoratorRegistry.wait_until_factory})
