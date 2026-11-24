@@ -58,6 +58,7 @@ from .mqtt import Mqtt
 from .requirements import install_requirements
 from .state import State, StateVal
 from .stubs.generator import StubsGenerator
+from .task_functions import TaskFunctions
 from .trigger import TrigTime
 from .webhook import Webhook
 
@@ -302,6 +303,7 @@ async def async_setup_entry(hass: HomeAssistant, config_entry: ConfigEntry) -> b
     State.init(hass)
     Webhook.init(hass)
     State.register_functions()
+    TaskFunctions.register_functions()
     GlobalContextMgr.init()
     DecoratorRegistry.init(hass, config_entry)
 

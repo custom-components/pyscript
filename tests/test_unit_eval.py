@@ -20,6 +20,7 @@ from custom_components.pyscript.eval import AstEval, EvalExceptionFormatter
 from custom_components.pyscript.function import Function
 from custom_components.pyscript.global_ctx import GlobalContext, GlobalContextMgr
 from custom_components.pyscript.state import State
+from custom_components.pyscript.task_functions import TaskFunctions
 from custom_components.pyscript.trigger import TrigTime
 
 evalTests = [
@@ -2113,6 +2114,7 @@ async def test_eval(hass):
     Function.init(hass)
     State.init(hass)
     State.register_functions()
+    TaskFunctions.register_functions()
     TrigTime.init(hass)
     DecoratorRegistry.init(hass)
 
@@ -2496,6 +2498,7 @@ async def test_eval_exceptions(hass):
     Function.init(hass)
     State.init(hass)
     State.register_functions()
+    TaskFunctions.register_functions()
     TrigTime.init(hass)
 
     for test_data in evalTestsExceptions:
@@ -4340,6 +4343,7 @@ async def test_generator_expression_errors(hass):
     Function.init(hass)
     State.init(hass)
     State.register_functions()
+    TaskFunctions.register_functions()
     TrigTime.init(hass)
 
     global_ctx = GlobalContext("test", global_sym_table={}, manager=GlobalContextMgr)
@@ -7930,6 +7934,7 @@ async def test_stop_iteration_uncaught_report(hass, caplog):
     Function.init(hass)
     State.init(hass)
     State.register_functions()
+    TaskFunctions.register_functions()
     TrigTime.init(hass)
 
     global_ctx = GlobalContext("test", global_sym_table={}, manager=GlobalContextMgr)
