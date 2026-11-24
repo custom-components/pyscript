@@ -901,7 +901,7 @@ class EvalFunc:
             args.append(arg.arg)
         return args
 
-    async def call(self, ast_ctx, *args, **kwargs):
+    async def call(self, ast_ctx, /, *args, **kwargs):
         """Call the function with the given context and arguments."""
         sym_table = {}
         if args is None:
@@ -1053,7 +1053,7 @@ class EvalFuncVar:
         """Return the EvalFunc function."""
         return self.func
 
-    async def call(self, ast_ctx, *args, **kwargs):
+    async def call(self, ast_ctx, /, *args, **kwargs):
         """Call the EvalFunc function."""
         return await self.func.call(ast_ctx, *args, **kwargs)
 
@@ -1087,7 +1087,7 @@ class EvalFuncVar:
         if self.func:
             self.func.trigger_stop()
 
-    async def __call__(self, *args, **kwargs):
+    async def __call__(self, /, *args, **kwargs):
         """Call the EvalFunc function using our saved ast ctx."""
         return await self.func.call(self.ast_ctx, *args, **kwargs)
 
@@ -1105,11 +1105,11 @@ class EvalFuncVarClassInst(EvalFuncVar):
         self.ast_ctx = ast_ctx
         self.class_inst = class_inst
 
-    async def call(self, ast_ctx, *args, **kwargs):
+    async def call(self, ast_ctx, /, *args, **kwargs):
         """Call the EvalFunc function."""
         return await self.func.call(ast_ctx, self.class_inst, *args, **kwargs)
 
-    async def __call__(self, *args, **kwargs):
+    async def __call__(self, /, *args, **kwargs):
         """Call the function using our saved ast ctx and class instance."""
         return await self.func.call(self.ast_ctx, self.class_inst, *args, **kwargs)
 
@@ -2536,7 +2536,7 @@ class AstEval:
             first_arg = first_arg.get()
         return func.class_cell[0], first_arg
 
-    async def call_func(self, func, func_name, *args, **kwargs):
+    async def call_func(self, func, func_name, /, *args, **kwargs):
         """Call a function with the given arguments."""
         if func_name is None:
             try:

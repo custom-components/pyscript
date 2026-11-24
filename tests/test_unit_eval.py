@@ -1532,6 +1532,25 @@ inner_class.method1()
 """,
         1234,
     ],
+    ["def echo(func): return func\necho(func=42)", 42],
+    [
+        """
+class Echo:
+    def method(instance, **kwargs):
+        return kwargs
+
+@pyscript_compile
+async def invoke(callback, kwargs):
+    return await callback(**kwargs)
+
+def echo(**kwargs):
+    return kwargs
+
+kw = dict(func=1, func_name=2, ast_ctx=3, self=4)
+[echo(**kw), Echo().method(**kw), invoke(echo, kw), invoke(Echo().method, kw)]
+""",
+        [{"func": 1, "func_name": 2, "ast_ctx": 3, "self": 4}] * 4,
+    ],
     [
         """
 def foo(x=30, *args, y = 123, **kwargs):
