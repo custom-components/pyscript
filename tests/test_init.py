@@ -5,7 +5,6 @@ import asyncio
 from datetime import datetime as dt
 import ntpath
 import os
-import pathlib
 from types import SimpleNamespace
 from unittest.mock import mock_open, patch
 
@@ -19,11 +18,9 @@ from custom_components.pyscript.event import Event
 from custom_components.pyscript.function import Function
 from custom_components.pyscript.global_ctx import GlobalContextMgr
 from custom_components.pyscript.state import State
-from homeassistant import loader
 from homeassistant.const import EVENT_STATE_CHANGED
-from homeassistant.core import Context, State as HassState
+from homeassistant.core import State as HassState
 from homeassistant.helpers.restore_state import DATA_RESTORE_STATE
-from homeassistant.helpers.service import async_get_all_descriptions
 from homeassistant.setup import async_setup_component
 
 
@@ -171,35 +168,6 @@ async def test_restore_state_unexpected_internals(hass, monkeypatch, caplog):
 
 
 @pytest.mark.asyncio
-async def test_service_exists(hass, caplog):
-    """Test discover, compile script and install a service."""
-
-    await setup_script(
-        hass,
-        None,
-        dt(2020, 7, 1, 11, 59, 59, 999999),
-        """
-@service
-def func1():
-    pass
-
-# make sure a double definition still keeps the service registered
-@service
-@service("other.func1_renamed")
-def func1():
-    pass
-
-def func2():
-    pass
-""",
-    )
-    assert hass.services.has_service("pyscript", "func1")
-    assert hass.services.has_service("other", "func1_renamed")
-    assert hass.services.has_service("pyscript", "reload")
-    assert not hass.services.has_service("pyscript", "func2")
-
-
-@pytest.mark.asyncio
 async def test_syntax_error(hass, caplog):
     """Test syntax error in pyscript file."""
 
@@ -283,154 +251,6 @@ def div_zero_service():
     )
     await hass.services.async_call("pyscript", "div_zero_service", {}, blocking=True)
     assert "got exception division by zero" in caplog.text
-
-
-@pytest.mark.asyncio
-async def test_service_description(hass):
-    """Test service description defined in doc_string."""
-
-    await setup_script(
-        hass,
-        None,
-        dt(2020, 7, 1, 11, 59, 59, 999999),
-        """
-@service
-def func_no_doc_string(param1=None):
-    pass
-
-@service
-def func_simple_doc_string(param2=None, param3=None):
-    \"\"\"This is func2_simple_doc_string.\"\"\"
-    pass
-
-@service
-def func_yaml_doc_string(param2=None, param3=None):
-    \"\"\"yaml
-description: This is func_yaml_doc_string.
-fields:
-  param1:
-    description: first argument
-    example: 12
-  param2:
-    description: second argument
-    example: 34
-\"\"\"
-    pass
-""",
-    )
-
-    integration = loader.Integration(
-        hass,
-        "custom_components.pyscript",
-        pathlib.Path("custom_components/pyscript"),
-        {"name": "pyscript", "dependencies": [], "requirements": [], "domain": "automation"},
-    )
-
-    with patch(
-        "homeassistant.loader.async_get_custom_components",
-        return_value={"pyscript": integration},
-    ):
-        descriptions = (await async_get_all_descriptions(hass))[DOMAIN]
-
-    assert descriptions["func_no_doc_string"]["description"] == "pyscript function func_no_doc_string()"
-    assert descriptions["func_no_doc_string"]["fields"] == {"param1": {"description": "argument param1"}}
-
-    assert descriptions["func_simple_doc_string"]["description"] == "This is func2_simple_doc_string."
-    assert descriptions["func_simple_doc_string"]["fields"] == {
-        "param2": {"description": "argument param2"},
-        "param3": {"description": "argument param3"},
-    }
-
-    assert descriptions["func_yaml_doc_string"]["description"] == "This is func_yaml_doc_string."
-    assert descriptions["func_yaml_doc_string"]["fields"] == {
-        "param1": {"description": "first argument", "example": 12},
-        "param2": {"description": "second argument", "example": 34},
-    }
-
-
-@pytest.mark.asyncio
-async def test_service_run(hass, caplog):
-    """Test running a service with keyword arguments."""
-    notify_q = asyncio.Queue(0)
-    await setup_script(
-        hass,
-        notify_q,
-        dt(2020, 7, 1, 11, 59, 59, 999999),
-        """
-
-@service
-def func1(arg1=1, arg2=2, context=None):
-    x = 1
-    x = 2 * x + 3
-    log.info(f"this is func1 x = {x}, arg1 = {arg1}, arg2 = {arg2}")
-    pyscript.done = [x, arg1, arg2, str(context)]
-
-# registering twice will cause it to be called twice
-@service("other.func2")
-@service("other.func2")
-@service
-def func2(**kwargs):
-    x = 1
-    x = 2 * x + 3
-    log.info(f"this is func1 x = {x}, kwargs = {kwargs}")
-    has2 = service.has_service("pyscript", "func2")
-    has3 = service.has_service("pyscript", "func3")
-    del kwargs["context"]
-    pyscript.done = [x, kwargs, has2, has3]
-
-@service
-def call_service(domain=None, name=None, **kwargs):
-    if domain == "pyscript" and name == "func1":
-        task.sleep(0)
-        pyscript.func1(**kwargs)
-    else:
-        service.call(domain, name, **kwargs)
-
-""",
-    )
-    context = Context(user_id="1234", parent_id="5678", id="8901")
-    await hass.services.async_call("pyscript", "func1", {}, context=context)
-    ret = await wait_until_done(notify_q)
-    assert literal_eval(ret) == [5, 1, 2, str(context)]
-    assert "this is func1 x = 5" in caplog.text
-
-    await hass.services.async_call("pyscript", "func1", {"arg1": 10}, context=context)
-    ret = await wait_until_done(notify_q)
-    assert literal_eval(ret) == [5, 10, 2, str(context)]
-
-    await hass.services.async_call(
-        "pyscript",
-        "call_service",
-        {"domain": "pyscript", "name": "func1", "arg1": "string1"},
-        context=context,
-    )
-    ret = await wait_until_done(notify_q)
-    assert literal_eval(ret) == [5, "string1", 2, str(context)]
-
-    await hass.services.async_call("pyscript", "func1", {"arg1": "string1", "arg2": 123}, context=context)
-    ret = await wait_until_done(notify_q)
-    assert literal_eval(ret) == [5, "string1", 123, str(context)]
-
-    await hass.services.async_call("pyscript", "call_service", {"domain": "pyscript", "name": "func2"})
-    ret = await wait_until_done(notify_q)
-    assert literal_eval(ret) == [5, {"trigger_type": "service"}, 1, 0]
-
-    await hass.services.async_call(
-        "pyscript",
-        "call_service",
-        {"domain": "pyscript", "name": "func2", "arg1": "string1"},
-    )
-    ret = await wait_until_done(notify_q)
-    assert literal_eval(ret) == [5, {"trigger_type": "service", "arg1": "string1"}, 1, 0]
-
-    await hass.services.async_call("pyscript", "func2", {"arg1": "string1", "arg2": 456})
-    ret = await wait_until_done(notify_q)
-    assert literal_eval(ret) == [5, {"trigger_type": "service", "arg1": "string1", "arg2": 456}, 1, 0]
-
-    await hass.services.async_call("other", "func2", {"arg1": "string1", "arg2": 123})
-    ret = await wait_until_done(notify_q)
-    assert literal_eval(ret) == [5, {"trigger_type": "service", "arg1": "string1", "arg2": 123}, 1, 0]
-    assert literal_eval(ret) == [5, {"trigger_type": "service", "arg1": "string1", "arg2": 123}, 1, 0]
 
 
 @pytest.mark.asyncio

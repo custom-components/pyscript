@@ -1237,17 +1237,62 @@ default), ``"only"``, or ``"optional"``, depending on whether the service provid
 provides a response, or sometimes provides a response.  Services responses were added in HASS 2023.7.
 The service response is a dictionary returned by the function.
 
-Other trigger decorators like ``@state_active`` and ``@time_active`` don't affect the service.
-Those still allow state, time or other triggers to be specified in addition.
+A service call is an explicit call, not a trigger: ``@state_active`` and ``@time_active`` don't
+apply to it, so the service still runs the function when they would skip its other triggers.
+``@task_unique`` does apply, and other triggers like ``@state_trigger`` or ``@time_trigger`` can be
+added to the same function. If ``@task_unique(kill_me=True)`` finds the task already running, the
+function is not called. A call that is cancelled by a newer call with the same ``@task_unique`` name
+doesn't complete either. In these cases, and whenever the function returns ``None``, a caller that
+requested a response gets an empty dictionary, as with Home Assistant scripts. If the function
+raises an exception, the service call fails with a ``HomeAssistantError`` (shown in the UI and
+stopping a calling automation or script), and the exception is also logged by pyscript. Like
+triggers, each service call is shown in the logbook.
 
 The function is called with keyword parameters set to the service call parameters, plus
-``trigger_type`` is set to ``"service"``. The function definition should specify all the
-expected keyword arguments to match the service call parameters, or use the ``**kwargs``
-argument declaration to capture all the keyword arguments.
+``trigger_type`` is set to ``"service"``. As with other Home Assistant services, a call with a
+parameter the function doesn't declare, or without a parameter that has no default value, fails
+before the function runs, so a typo in a parameter name isn't silently ignored. Use the
+``**kwargs`` argument declaration to accept any parameters.
 
 The ``doc_string`` (the string immediately after the function declaration) is used as the service
-description that appears is in the Services tab of the Developer Tools page. The function argument
-names are used as the service parameter names, but there is no description.
+description that appears is in the Services tab of the Developer Tools page. Unless it's a ``yaml``
+description (see below), the service fields are generated from the function's signature:
+
+- each parameter that can be passed by name is a field; positional-only parameters aren't, and
+  neither are ``trigger_type`` and ``context``, which the service call sets itself
+- a parameter without a default value is required
+- a ``bool``, number or string constant default value is shown as the field's default; a computed
+  one isn't, so it's never published
+- a type annotation chooses the field's input in the UI:
+
+  ===================== ==========================
+  Annotation            Input
+  ===================== ==========================
+  ``bool``              toggle
+  ``int``               integer box
+  ``float``             number box (any decimal)
+  ``str``               text
+  ``list``, ``dict``    YAML object
+  ===================== ==========================
+
+  ``X | None`` and ``Optional[X]`` give the input of ``X``, ``list[int]`` gives the input of
+  ``list``; other annotations give no particular input. An annotation only chooses the input:
+  whether a field is required depends only on the default value.
+
+For example:
+
+.. code:: python
+
+   @service
+   def set_brightness(entity_id: str, level: int = 50, transition: float | None = None, *, notify: bool = False):
+       """Set the brightness of a light."""
+
+has a required text field ``entity_id``, an integer box ``level`` with 50 as its default, a number
+box ``transition`` and a toggle ``notify``, off by default.
+
+This is handy for simple services. The generated fields have no description, though; for field
+descriptions and examples, other inputs (eg: a list of options or an entity picker) or a target,
+use a ``yaml`` description instead.
 
 Alternatively, if the ``doc_string`` starts with ``yaml``, the rest of the string is used as a
 ``yaml`` service description. Here's the first example above, with a more detailed ``doc_string``

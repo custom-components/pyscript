@@ -27,10 +27,16 @@ from custom_components.pyscript.decorator_abc import (
     DecoratorManager,
     DecoratorManagerStatus,
     DispatchData,
+    TriggerDecorator,
     TriggerHandlerDecorator,
 )
 import custom_components.pyscript.decorators.base as decorators_base_module
-from custom_components.pyscript.decorators.base import AutoKwargsDecorator, ExpressionDecorator
+from custom_components.pyscript.decorators.base import (
+    _RESPONSE_FUTURE,
+    AutoKwargsDecorator,
+    ExpressionDecorator,
+    RequestResponseDecorator,
+)
 from custom_components.pyscript.function import Function
 import custom_components.pyscript.global_ctx as global_ctx_module
 from custom_components.pyscript.global_ctx import GlobalContext
@@ -328,7 +334,7 @@ class DummyEvalFuncVar:
 class DummyCallAstCtx:
     """Minimal action AstEval stub for manager call tests."""
 
-    def __init__(self, result: object = None, exc: Exception | None = None) -> None:
+    def __init__(self, result: object = None, exc: BaseException | None = None) -> None:
         """Initialize the dummy action context."""
         self.result = result
         self.exc = exc
@@ -780,6 +786,30 @@ async def test_function_decorator_manager_exception_calls_handle_call_exception(
 
 
 @pytest.mark.asyncio
+async def test_function_decorator_manager_task_cancelled(hass):
+    """A call cancelled while running (e.g. by @task_unique) resolves result handlers and stays cancelled."""
+    DecoratorManager.hass = hass
+    ast_ctx = DummyAstCtx()
+    manager = FunctionDecoratorManager(ast_ctx, DummyEvalFuncVar())
+    result_handler = make_full_recording_result_handler()
+    manager.add(result_handler)
+    call_ast_ctx = DummyCallAstCtx(exc=asyncio.CancelledError())
+
+    with pytest.raises(asyncio.CancelledError):
+        await call_function_manager(
+            manager,
+            make_dispatch_data(
+                {"arg1": 1}, call_ast_ctx=call_ast_ctx, hass_context=Context(id="call-parent")
+            ),
+        )
+
+    assert result_handler.canceled_calls == 1
+    assert not result_handler.results
+    assert not result_handler.exceptions
+    assert not ast_ctx.logged_exceptions
+
+
+@pytest.mark.asyncio
 async def test_function_decorator_manager_cancel_calls_handle_call_canceled(hass):
     """On CallHandler veto, result handlers should receive handle_call_canceled (not handle_call_result)."""
     DecoratorManager.hass = hass
@@ -1098,3 +1128,41 @@ def test_decorator_registry_init_legacy_mode_skips_new_registry(hass, caplog, mo
     assert "Using legacy decorators" in caplog.text
     register_ast.assert_not_called()
     assert not get_registry_decorators()
+
+
+class ResultTrigger(TriggerDecorator, RequestResponseDecorator):
+    """Minimal trigger with RequestResponseDecorator for unit tests."""
+
+    name = "result_trigger"
+
+    async def dispatch_request(self, data: DispatchData) -> None:
+        """Start the call through the trigger handlers."""
+        await self.dispatch(data)
+
+
+@pytest.mark.asyncio
+async def test_request_response_decorator_responds_only_to_own_pending_requests(hass):
+    """respond() answers only this decorator's requests, and only while the caller is still waiting."""
+    own, other = ResultTrigger([], {}), ResultTrigger([], {})
+
+    def make_call(trigger: RequestResponseDecorator) -> tuple[DispatchData, asyncio.Future]:
+        future = hass.loop.create_future()
+        data = DispatchData({}, trigger=trigger, trigger_context={_RESPONSE_FUTURE: future})
+        return data, future
+
+    data, future = make_call(other)
+    own.respond(data, "ignored")
+    assert not future.done()
+
+    data, future = make_call(own)
+    await own.handle_call_result(data, "first")
+    own.respond(data, "second")
+    assert future.result() == "first"
+
+    data, future = make_call(own)
+    await own.handle_call_canceled(data)
+    assert future.result() is None
+
+    data, future = make_call(own)
+    own.respond(data, exc=RuntimeError("boom"))
+    assert isinstance(future.exception(), RuntimeError)

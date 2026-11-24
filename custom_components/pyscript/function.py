@@ -469,7 +469,7 @@ class Function:
 
     @classmethod
     def service_register(
-        cls, global_ctx_name, domain, service, callback, supports_response=SupportsResponse.NONE
+        cls, global_ctx_name, domain, service, callback, supports_response=SupportsResponse.NONE, schema=None
     ):
         """Register a new service callback."""
         key = f"{domain}.{service}"
@@ -482,7 +482,9 @@ class Function:
                 f"{global_ctx_name}: can't register service {key}; already defined in {cls.service2global_ctx[key]}"
             )
         cls.service_cnt[key] += 1
-        cls.hass.services.async_register(domain, service, callback, supports_response=supports_response)
+        cls.hass.services.async_register(
+            domain, service, callback, schema=schema, supports_response=supports_response
+        )
 
     @classmethod
     def service_remove(cls, global_ctx_name, domain, service):

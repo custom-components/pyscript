@@ -6,6 +6,7 @@ import json
 import pytest
 
 from custom_components.pyscript.const import CONF_LEGACY_DECORATORS, DOMAIN
+from custom_components.pyscript.decorators.task import TaskUniqueDecorator
 from homeassistant.components import webhook
 from homeassistant.helpers.json import json_bytes
 from homeassistant.util.aiohttp import MockRequest
@@ -355,6 +356,59 @@ def webhook_slow(**_):
 
 
 @pytest.mark.asyncio
+async def test_webhook_handler_timeout_keeps_function_running(pyscript, hass):
+    """After a 504 timeout the function is not cancelled and keeps running in the background."""
+    await pyscript.start("""
+@webhook_handler("slow_done", timeout=0.05)
+def webhook_slow_done(**_):
+    task.wait_until(event_trigger="release_slow_done")
+    pyscript.done = "finished"
+""")
+    response = await webhook.async_handle_webhook(hass, "slow_done", _request())
+    assert response.status == 504
+    hass.bus.async_fire("release_slow_done")
+    await pyscript.wait_done("finished")
+
+
+@pytest.mark.asyncio
+async def test_webhook_handler_client_disconnect_keeps_function_running(pyscript, hass):
+    """A cancelled request (the client went away) doesn't cancel the running function."""
+    await pyscript.start("""
+@webhook_handler("gone", timeout=5)
+def webhook_gone(**_):
+    pyscript.done = "started"
+    task.sleep(0.1)
+    pyscript.done = "finished"
+""")
+    request = hass.async_create_task(webhook.async_handle_webhook(hass, "gone", _request()))
+    await pyscript.wait_done("started")
+    request.cancel()
+    with pytest.raises(asyncio.CancelledError):
+        await request
+    await pyscript.wait_done("finished", timeout=1)
+
+
+@pytest.mark.asyncio
+async def test_webhook_handler_call_handler_error(pyscript, hass, monkeypatch):
+    """A call handler that raises gives a 500 right away instead of waiting for the timeout."""
+
+    async def failing_handle_call(self, data):
+        raise RuntimeError("handler failed")
+
+    monkeypatch.setattr(TaskUniqueDecorator, "handle_call", failing_handle_call)
+    await pyscript.start("""
+@webhook_handler("handler_error", timeout=5)
+@task_unique("webhook_handler_error")
+def webhook_handler_error(**_):
+    pyscript.done = "ran"
+""")
+    response = await asyncio.wait_for(
+        webhook.async_handle_webhook(hass, "handler_error", _request()), timeout=1
+    )
+    assert response.status == 500
+
+
+@pytest.mark.asyncio
 async def test_webhook_handler_expression_rejects(pyscript, hass):
     """A str_expr that evaluates falsy -> 403 Forbidden, function is not invoked."""
     await pyscript.start("""
@@ -456,3 +510,31 @@ def webhook_lines_handler(payload, **_):
             hass, "lines_handler", _request(body=body, headers={"Content-Type": "application/json"})
         )
         assert response.status == status
+
+
+@pytest.mark.asyncio
+async def test_webhook_handler_cancelled_by_task_unique(pyscript, hass):
+    """A request whose call is cancelled by a newer @task_unique call gets 503 right away, not a timeout."""
+    await pyscript.start("""
+@webhook_handler("restart_hook", timeout=5)
+@task_unique("restart_hook")
+def handler(payload):
+    pyscript.done = ["started", payload["n"]]
+    if payload["n"] == 1:
+        task.sleep(10)  # still running when the second request cancels it
+    return {"n": payload["n"]}
+""")
+
+    def request(n: int) -> MockRequest:
+        return _request(body=json.dumps({"n": n}).encode(), headers={"Content-Type": "application/json"})
+
+    first = hass.async_create_task(webhook.async_handle_webhook(hass, "restart_hook", request(1)))
+    await pyscript.wait_done(["started", 1])
+
+    second = await webhook.async_handle_webhook(hass, "restart_hook", request(2))
+    await pyscript.wait_done(["started", 2])
+    assert second.status == 200
+    assert json.loads(second.text) == {"n": 2}
+
+    first_response = await asyncio.wait_for(first, timeout=1)
+    assert first_response.status == 503

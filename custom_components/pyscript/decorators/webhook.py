@@ -19,12 +19,10 @@ from homeassistant.core import HomeAssistant
 from homeassistant.helpers import config_validation as cv
 from homeassistant.helpers.json import json_dumps
 
-from ..decorator_abc import CallResultHandlerDecorator, DispatchData, TriggerDecorator
-from .base import AutoKwargsDecorator, ExpressionDecorator
+from ..decorator_abc import DispatchData, TriggerDecorator
+from .base import AutoKwargsDecorator, ExpressionDecorator, RequestResponseDecorator
 
 _LOGGER = logging.getLogger(__name__)
-
-_WEBHOOK_RESULT_FUTURE = "webhook_result_future"
 
 
 class _WebhookDecoratorBase(TriggerDecorator, ExpressionDecorator, AutoKwargsDecorator, ABC):
@@ -150,7 +148,7 @@ class WebhookTriggerDecorator(_WebhookDecoratorBase):
         self._remove_trigger(self)
 
 
-class WebhookHandlerDecorator(_WebhookDecoratorBase, CallResultHandlerDecorator):
+class WebhookHandlerDecorator(_WebhookDecoratorBase, RequestResponseDecorator):
     """
     Implementation for @webhook_handler.
 
@@ -203,12 +201,11 @@ class WebhookHandlerDecorator(_WebhookDecoratorBase, CallResultHandlerDecorator)
         if self.has_expression() and not await self.check_expression_vars(func_args):
             return Response(status=HTTPStatus.FORBIDDEN)
 
-        future = self.dm.hass.loop.create_future()
-        data = DispatchData(func_args, trigger_context={_WEBHOOK_RESULT_FUTURE: future})
-        await self.dispatch(data)
-
         try:
-            result = await asyncio.wait_for(future, timeout=self.timeout)
+            # like Home Assistant's REST API, a dropped connection doesn't cancel the function
+            result = await asyncio.shield(
+                self.dm.hass.async_create_task(self.handle_request(func_args, timeout=self.timeout))
+            )
         except TimeoutError:
             _LOGGER.warning(
                 "webhook_handler %s timed out after %ss",
@@ -223,29 +220,17 @@ class WebhookHandlerDecorator(_WebhookDecoratorBase, CallResultHandlerDecorator)
             await self.dm.handle_exception(exc)
             return Response(status=HTTPStatus.INTERNAL_SERVER_ERROR)
 
-    async def handle_call_result(self, data: DispatchData, result: Any) -> None:
-        """Forward the function result to the awaiting webhook request."""
-        if data.trigger is not self:
-            return
-        self._resolve_future(data, result)
+    async def dispatch_request(self, data: DispatchData) -> None:
+        """Start the call like any trigger, through the trigger handlers."""
+        await self.dispatch(data)
 
     async def handle_call_exception(self, data: DispatchData, exc: Exception) -> None:
         """Return a 500 response when the user function raised."""
-        if data.trigger is not self:
-            return
-        self._resolve_future(data, Response(status=HTTPStatus.INTERNAL_SERVER_ERROR))
+        self.respond(data, Response(status=HTTPStatus.INTERNAL_SERVER_ERROR))
 
     async def handle_call_canceled(self, data: DispatchData) -> None:
         """Return a 503 response when the call was canceled by a guard (e.g. @task_unique, @state_active)."""
-        if data.trigger is not self:
-            return
-        self._resolve_future(data, Response(status=HTTPStatus.SERVICE_UNAVAILABLE))
-
-    @staticmethod
-    def _resolve_future(data: DispatchData, result: Any) -> None:
-        future = data.trigger_context.get(_WEBHOOK_RESULT_FUTURE)
-        if future is not None and not future.done():
-            future.set_result(result)
+        self.respond(data, Response(status=HTTPStatus.SERVICE_UNAVAILABLE))
 
     async def start(self):
         """Start the webhook handler."""
