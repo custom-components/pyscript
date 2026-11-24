@@ -1255,7 +1255,7 @@ before the function runs, so a typo in a parameter name isn't silently ignored. 
 ``**kwargs`` argument declaration to accept any parameters.
 
 The ``doc_string`` (the string immediately after the function declaration) is used as the service
-description that appears is in the Services tab of the Developer Tools page. Unless it's a ``yaml``
+description that appears in the Actions tab of the Developer Tools page. Unless it's a ``yaml``
 description (see below), the service fields are generated from the function's signature:
 
 - each parameter that can be passed by name is a field; positional-only parameters aren't, and
