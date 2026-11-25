@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import asyncio
 from collections.abc import Callable
 import logging
 from typing import TYPE_CHECKING, Any
@@ -12,16 +11,13 @@ import voluptuous as vol
 from homeassistant.core import CALLBACK_TYPE
 from homeassistant.helpers import config_validation as cv
 
-from ..decorator_abc import CallResultHandlerDecorator, DispatchData, TriggerDecorator
-from .base import AutoKwargsDecorator
+from ..decorator_abc import DispatchData, TriggerDecorator
+from .base import AutoKwargsDecorator, RequestResponseDecorator
 
 if TYPE_CHECKING:
     from homeassistant.components.conversation import ConversationInput, RecognizeResult
 
 _LOGGER = logging.getLogger(__name__)
-
-_SENTENCE_RESULT_FUTURE = "sentence_result_future"
-
 
 Validator = Callable[[list[str]], list[str]]
 
@@ -42,7 +38,7 @@ def _import_validators() -> list[Validator] | None:
         conversation_trigger.has_no_punctuation,
     ]
 
-    # is_valid_setence only available after HA 2026.7
+    # is_valid_sentence is available in HA 2026.7 and later.
     if is_valid_sentence := getattr(conversation_trigger, "is_valid_sentence", None):
         validators.append(is_valid_sentence)
 
@@ -61,12 +57,12 @@ def _flatten_sentence_args(args: list[Any]) -> list[Any]:
     return [sentence for arg in args for sentence in cv.ensure_list(arg)]
 
 
-class SentenceTriggerDecorator(TriggerDecorator, AutoKwargsDecorator, CallResultHandlerDecorator):
+class SentenceTriggerDecorator(TriggerDecorator, AutoKwargsDecorator, RequestResponseDecorator):
     """
     Implementation for @sentence_trigger.
 
     Registers sentences with HA's conversation agent manager.  The decorated
-    function's return value (if not None) becomes the spoken response.
+    function's string return value becomes the spoken response.
     """
 
     name = "sentence_trigger"
@@ -80,19 +76,20 @@ class SentenceTriggerDecorator(TriggerDecorator, AutoKwargsDecorator, CallResult
     )
     kwargs_schema = vol.Schema(
         {
-            vol.Optional("timeout", default=10.0): vol.All(vol.Coerce(float), vol.Range(min=0)),
+            vol.Optional("timeout", default=3.0): vol.All(
+                vol.Coerce(float), vol.Range(min=0, min_included=False)
+            ),
         }
     )
 
     sentences: list[str]
     timeout: float
-    _unregister: CALLBACK_TYPE | None
+    _unregister: CALLBACK_TYPE | None = None
 
     async def validate(self):
         """Validate the sentence trigger configuration."""
         await super().validate()
         self.sentences = self.args
-        self._unregister = None
 
     async def _trigger_callback(self, user_input: ConversationInput, result: RecognizeResult) -> str | None:
         """Handle a matched sentence from the conversation agent."""
@@ -108,18 +105,14 @@ class SentenceTriggerDecorator(TriggerDecorator, AutoKwargsDecorator, CallResult
         func_args: dict[str, Any] = {
             "trigger_type": "sentence",
             "sentence": user_input.text,
-            "slots": {n: d["value"] for n, d in details.items()},
             "details": details,
             "device_id": user_input.device_id,
             "satellite_id": user_input.satellite_id,
         }
-
-        future = self.dm.hass.loop.create_future()
-        data = DispatchData(func_args, trigger_context={_SENTENCE_RESULT_FUTURE: future})
-        await self.dispatch(data)
+        func_args.update({n: d["value"] for n, d in details.items()})
 
         try:
-            response = await asyncio.wait_for(future, timeout=self.timeout)
+            response = await self.handle_request(func_args, timeout=self.timeout)
         except TimeoutError:
             _LOGGER.warning(
                 "sentence_trigger %s timed out after %ss",
@@ -128,36 +121,27 @@ class SentenceTriggerDecorator(TriggerDecorator, AutoKwargsDecorator, CallResult
             )
             return None
 
-        return str(response) if response is not None else None
+        if response is None or isinstance(response, str):
+            return response
+        _LOGGER.warning(
+            "sentence_trigger %s returned unsupported type %s", self.dm.name, type(response).__name__
+        )
+        return None
 
-    async def handle_call_result(self, data: DispatchData, result: Any) -> None:
-        """Forward the function return value as the spoken response."""
-        if data.trigger is not self:
-            return
-        self._resolve_future(data, result)
-
-    @staticmethod
-    def _resolve_future(data: DispatchData, result: Any) -> None:
-        future = data.trigger_context.get(_SENTENCE_RESULT_FUTURE)
-        if future is not None and not future.done():
-            future.set_result(result)
+    async def dispatch_request(self, data: DispatchData) -> None:
+        """Start the call through the trigger handlers."""
+        await self.dispatch(data)
 
     async def start(self):
         """Register sentences with the conversation agent manager."""
         await super().start()
-        try:
-            from homeassistant.components.conversation.agent_manager import get_agent_manager
+        from homeassistant.components.conversation.agent_manager import get_agent_manager
 
-            mgr = get_agent_manager(self.dm.hass)
-            self._unregister = mgr.register_trigger(
-                sentences=self.sentences,
-                trigger_callback=self._trigger_callback,
-            )
-        except Exception as err:
-            _LOGGER.warning(
-                "sentence_trigger %s failed to register; conversations unavailable: %s", self.dm.name, err
-            )
-            return
+        mgr = get_agent_manager(self.dm.hass)
+        self._unregister = mgr.register_trigger(
+            sentences=self.sentences,
+            trigger_callback=self._trigger_callback,
+        )
         _LOGGER.debug("sentence_trigger %s registered sentences: %s", self.dm.name, self.sentences)
 
     async def stop(self):

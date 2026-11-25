@@ -1017,11 +1017,13 @@ For full control over the response, return an ``aiohttp.web.Response``:
 
 .. code:: python
 
-    @sentence_trigger(*sentences, timeout=10.0, kwargs=None)
+    @sentence_trigger(*sentences, timeout=3.0, kwargs=None)
 
-``@sentence_trigger`` registers one or more sentence templates with Home Assistant's conversation agent. When a spoken (or typed) sentence matches a template, the decorated function is called. If the function returns a non-``None`` value, it becomes the spoken response.
+``@sentence_trigger`` registers one or more sentence templates with Home Assistant's conversation agent. When a spoken (or typed) sentence matches a template, the decorated function is called. If the function returns a string, it becomes the spoken response.
 
-Sentence templates use `hassil <https://github.com/home-assistant/hassil>`__ wildcard syntax. Wrap slot names in curly braces to capture them: ``"turn on {name} in the {area}"``. The matched slot values are passed to the function via the ``slots`` and ``details`` kwargs.
+Sentence templates use `hassil <https://github.com/home-assistant/hassil>`__ wildcard syntax. Wrap slot names in curly braces to capture them: ``"turn on {name} in the {area}"``. The matched slot values are passed as named function arguments, such as ``name`` and ``area``. The ``details`` dictionary is also available for full match information.
+
+Functions can omit arguments they do not need, or use ``**kwargs`` to receive all arguments. Only matched slots are passed: for optional slots or multiple triggers with different slots, give the corresponding function parameters defaults. Missing slots are not automatically set to ``None``.
 
 Arguments:
 
@@ -1029,7 +1031,7 @@ Arguments:
   One or more sentence template strings or lists of templates. Each template is registered independently with the conversation agent.
 
 ``timeout``
-  Seconds to wait for the function to return before giving up on a spoken response. Defaults to ``10.0``. If the function does not finish in time, the spoken response will be the default "Done" (the function continues running in the background).
+  Positive number of seconds to wait for the function to return before giving up on a spoken response. Defaults to ``3.0``; zero is invalid. If the function does not finish in time, the spoken response will be the default "Done" (the function continues running in the background).
 
 ``kwargs``
   Optional dict of additional keyword arguments merged into each call.
@@ -1041,7 +1043,8 @@ When the trigger fires, these keyword arguments are passed to the function:
    kwargs = {
        "trigger_type": "sentence",
        "sentence": "turn on lights in the kitchen",
-       "slots": {"name": "lights", "area": "kitchen"},
+       "name": "lights",
+       "area": "kitchen",
        "details": {
            "name": {"name": "name", "text": "lights", "value": "lights"},
            "area": {"name": "area", "text": "kitchen", "value": "kitchen"},
@@ -1051,24 +1054,27 @@ When the trigger fires, these keyword arguments are passed to the function:
    }
 
 - ``sentence`` is the raw spoken text.
-- ``slots`` is a flat ``dict[str, Any]`` of slot name to matched value for quick access.
 - ``details`` contains the full hassil match information per slot (name, raw text, resolved value).
 - ``device_id`` is the HA device registry ID of the physical voice hardware that captured the command. Use it for hardware-level identity.
 - ``satellite_id`` is the ``entity_id`` of the ``assist_satellite`` entity representing the voice satellite. Use it to resolve area context (the satellite entity carries area assignment and pipeline config).
+
+Matched slots take precedence over the standard arguments if their names collide. Explicit ``kwargs`` take precedence over both.
 
 The function's return value becomes the spoken response:
 
 - Return a ``str`` to have it spoken back.
 - Return ``None`` (or omit a return statement) for default response of "Done".
+- Other return types log a warning and use the default response of "Done".
+- Exceptions and calls skipped or canceled by another decorator also use the default response.
 
 Examples:
 
 .. code:: python
 
   @sentence_trigger("turn on {name} in the {area}")
-  def voice_on(sentence, slots):
-      service.call("light", "turn_on", entity_id=f"light.{slots['name']}")
-      return f"Turned on {slots['name']} in the {slots['area']}"
+  def voice_on(sentence, name, area):
+      service.call("light", "turn_on", entity_id=f"light.{name}")
+      return f"Turned on {name} in the {area}"
 
   @sentence_trigger("what time is it", "tell me the time")
   def voice_time():
@@ -1076,10 +1082,15 @@ Examples:
       return f"It is {datetime.now().strftime('%I:%M %p')}"
 
   @sentence_trigger("set {name} to {level}")
-  def voice_set(slots, device_id, satellite_id):
+  def voice_set(name, level, device_id, satellite_id):
       # Use satellite_id to determine which area the command came from
       log.info(f"Command from satellite {satellite_id} (device {device_id})")
-      input_number.set_value(entity_id=f"input_number.{slots['name']}", value=int(slots['level']))
+      input_number.set_value(entity_id=f"input_number.{name}", value=int(level))
+
+  @sentence_trigger("hello {name} [in the {area}]")
+  @sentence_trigger("hello")
+  def voice_hello(name=None, area=None):
+      return f"Hello {name or 'there'}"
 
 NOTE: The `Conversation Integration <https://www.home-assistant.io/integrations/conversation/>`__ must be set up for ``@sentence_trigger`` to work.
 
