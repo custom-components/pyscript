@@ -238,7 +238,8 @@ class Function:
             if name in cls.unique_name2task:
                 task = cls.unique_name2task[name]
                 if kill_me:
-                    if task != curr_task:
+                    # outside a function (e.g., in a script preamble) kill_me does nothing
+                    if task != curr_task and curr_task in cls.our_tasks:
                         #
                         # it seems we can't cancel ourselves, so we
                         # tell the reaper task to cancel us
