@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-from collections.abc import Callable
 import logging
 from typing import TYPE_CHECKING, Any
 
@@ -10,6 +9,7 @@ import voluptuous as vol
 
 from homeassistant.core import CALLBACK_TYPE
 from homeassistant.helpers import config_validation as cv
+from homeassistant.helpers.importlib import async_import_module
 
 from ..decorator_abc import DispatchData, TriggerDecorator
 from .base import AutoKwargsDecorator, RequestResponseDecorator
@@ -18,38 +18,6 @@ if TYPE_CHECKING:
     from homeassistant.components.conversation import ConversationInput, RecognizeResult
 
 _LOGGER = logging.getLogger(__name__)
-
-Validator = Callable[[list[str]], list[str]]
-
-
-def _import_validators() -> list[Validator] | None:
-    """
-    Import the sentence validators supported by HA.
-
-    Delay imports to avoid breaking installs that haven't added the conversation component yet.
-    """
-    try:
-        from homeassistant.components.conversation import trigger as conversation_trigger
-    except ImportError:
-        return None
-
-    validators = [
-        conversation_trigger.has_one_non_empty_item,
-        conversation_trigger.has_no_punctuation,
-    ]
-
-    # is_valid_sentence is available in HA 2026.7 and later.
-    if is_valid_sentence := getattr(conversation_trigger, "is_valid_sentence", None):
-        validators.append(is_valid_sentence)
-
-    return validators
-
-
-def _validate_sentences(sentences: list[str]) -> list[str]:
-    """Run HA's sentence validators when the conversation component is available."""
-    if validators := _import_validators():
-        return vol.All(*validators)(sentences)
-    return sentences
 
 
 def _flatten_sentence_args(args: list[Any]) -> list[Any]:
@@ -71,7 +39,6 @@ class SentenceTriggerDecorator(TriggerDecorator, AutoKwargsDecorator, RequestRes
             _flatten_sentence_args,
             [cv.string],
             vol.Length(min=1, msg="at least one sentence is required"),
-            _validate_sentences,
         )
     )
     kwargs_schema = vol.Schema(
@@ -88,6 +55,22 @@ class SentenceTriggerDecorator(TriggerDecorator, AutoKwargsDecorator, RequestRes
 
     async def validate(self):
         """Validate the sentence trigger configuration."""
+        try:
+            conversation_trigger = await async_import_module(
+                self.dm.hass, "homeassistant.components.conversation.trigger"
+            )
+        except ImportError:
+            # Conversation dependencies might not be installed yet.
+            pass
+        else:
+            validators = [
+                conversation_trigger.has_one_non_empty_item,
+                conversation_trigger.has_no_punctuation,
+            ]
+            # is_valid_sentence is available in HA 2026.7 and later.
+            if is_valid_sentence := getattr(conversation_trigger, "is_valid_sentence", None):
+                validators.append(is_valid_sentence)
+            self.args_schema = vol.Schema(vol.All(self.args_schema, *validators))
         await super().validate()
         self.sentences = self.args
 
@@ -104,6 +87,7 @@ class SentenceTriggerDecorator(TriggerDecorator, AutoKwargsDecorator, RequestRes
 
         func_args: dict[str, Any] = {
             "trigger_type": "sentence",
+            "context": user_input.context,
             "sentence": user_input.text,
             "details": details,
             "device_id": user_input.device_id,
@@ -135,9 +119,10 @@ class SentenceTriggerDecorator(TriggerDecorator, AutoKwargsDecorator, RequestRes
     async def start(self):
         """Register sentences with the conversation agent manager."""
         await super().start()
-        from homeassistant.components.conversation.agent_manager import get_agent_manager
-
-        mgr = get_agent_manager(self.dm.hass)
+        agent_manager = await async_import_module(
+            self.dm.hass, "homeassistant.components.conversation.agent_manager"
+        )
+        mgr = agent_manager.get_agent_manager(self.dm.hass)
         self._unregister = mgr.register_trigger(
             sentences=self.sentences,
             trigger_callback=self._trigger_callback,

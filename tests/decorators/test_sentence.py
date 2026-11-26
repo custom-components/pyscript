@@ -4,13 +4,14 @@ import asyncio
 from dataclasses import dataclass, field
 import logging
 from typing import Any
-from unittest.mock import patch
+from unittest.mock import call, patch
 
 import pytest
 
 from custom_components.pyscript.decorator_abc import DecoratorManagerStatus
 from custom_components.pyscript.decorators import sentence as sentence_decorator
 from homeassistant.components.conversation import trigger as conversation_trigger
+from homeassistant.core import Context
 
 
 @dataclass
@@ -35,6 +36,7 @@ class MockConversationInput:
     text: str = ""
     device_id: str | None = None
     satellite_id: str | None = None
+    context: Context = field(default_factory=Context)
 
 
 class MockAgentManager:
@@ -296,17 +298,88 @@ def voice_old_ha():
 
 
 @pytest.mark.asyncio
-async def test_sentence_trigger_without_conversation_validation(pyscript, agent_manager, monkeypatch):
-    """Missing conversation dependencies do not prevent pyscript from loading."""
-    monkeypatch.setattr(sentence_decorator, "_import_validators", lambda: None)
+async def test_sentence_trigger_async_imports(pyscript, agent_manager):
+    """Conversation validators and registration are imported through HA's async helper."""
+    with patch.object(
+        sentence_decorator, "async_import_module", wraps=sentence_decorator.async_import_module
+    ) as import_module:
+        await pyscript.start("""
+@sentence_trigger("hello")
+def voice_hello():
+    pass
+""")
 
-    await pyscript.start("""
+    assert import_module.await_args_list == [
+        call(pyscript.hass, "homeassistant.components.conversation.trigger"),
+        call(pyscript.hass, "homeassistant.components.conversation.agent_manager"),
+    ]
+    assert len(agent_manager.triggers) == 1
+
+
+@pytest.mark.asyncio
+async def test_sentence_trigger_without_conversation_validation(pyscript, agent_manager):
+    """Missing conversation dependencies do not prevent pyscript from loading."""
+    async_import_module = sentence_decorator.async_import_module
+
+    async def import_without_validators(hass, module):
+        if module == "homeassistant.components.conversation.trigger":
+            raise ImportError("conversation dependencies unavailable")
+        return await async_import_module(hass, module)
+
+    with patch.object(sentence_decorator, "async_import_module", side_effect=import_without_validators):
+        await pyscript.start("""
 @sentence_trigger("hello?")
 def voice_without_conversation():
     pass
 """)
 
     assert agent_manager.triggers[0]["sentences"] == ["hello?"]
+
+
+@pytest.mark.parametrize(
+    ("module", "error_type"),
+    [
+        ("homeassistant.components.conversation.trigger", RuntimeError),
+        ("homeassistant.components.conversation.agent_manager", ImportError),
+    ],
+)
+@pytest.mark.asyncio
+async def test_sentence_trigger_import_failure(pyscript, agent_manager, module, error_type):
+    """Unexpected validator errors and registration import failures are reported."""
+    async_import_module = sentence_decorator.async_import_module
+
+    async def fail_import(hass, module_name):
+        if module_name == module:
+            raise error_type("conversation import failed")
+        return await async_import_module(hass, module_name)
+
+    with patch.object(sentence_decorator, "async_import_module", side_effect=fail_import):
+        await pyscript.start("""
+@sentence_trigger("hello")
+def voice_hello():
+    pass
+""")
+    await pyscript.wait_exception(error_type, match="conversation import failed")
+    assert not agent_manager.triggers
+
+
+@pytest.mark.asyncio
+async def test_sentence_trigger_context(pyscript, agent_manager):
+    """The function receives the conversation context and actions use a child context."""
+    await pyscript.start("""
+@sentence_trigger("hello")
+def voice_hello(context):
+    pyscript.done = context.id
+""")
+    context = Context()
+    await agent_manager.triggers[0]["callback"](
+        MockConversationInput(text="hello", context=context), MockRecognizeResult()
+    )
+
+    await pyscript.wait_done(context.id)
+    action_context = pyscript.hass.states.get("pyscript.done").context
+    assert action_context.id != context.id
+    assert action_context.parent_id == context.id
 
 
 @pytest.mark.asyncio

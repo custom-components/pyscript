@@ -206,6 +206,7 @@ def sentence_trigger(
     Trigger kwargs:
         - Each matched slot is passed as a named argument.
         - ``trigger_type`` = ``"sentence"``
+        - ``context``: HA context of the conversation; actions use a child context
         - ``sentence``: the raw spoken text
         - ``details``: full hassil match info per slot (name, text, value)
         - ``device_id``: HA device registry id of the voice hardware (or None)
