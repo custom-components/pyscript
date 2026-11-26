@@ -4,14 +4,18 @@ from __future__ import annotations
 
 import json
 import logging
+from typing import TYPE_CHECKING
 
 import voluptuous as vol
 
-from homeassistant.components import mqtt
 from homeassistant.core import CALLBACK_TYPE
+from homeassistant.helpers.importlib import async_import_module
 
 from ..decorator_abc import DispatchData, TriggerDecorator
 from .base import AutoKwargsDecorator, ExpressionDecorator
+
+if TYPE_CHECKING:
+    from homeassistant.components import mqtt
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -54,6 +58,7 @@ class MQTTTriggerDecorator(TriggerDecorator, ExpressionDecorator, AutoKwargsDeco
         """Start the MQTT trigger."""
         await super().start()
         topic = self.args[0]
+        mqtt = await async_import_module(self.dm.hass, "homeassistant.components.mqtt")
         self.remove_listener_callback = await mqtt.async_subscribe(
             self.dm.hass,
             topic,
