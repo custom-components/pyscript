@@ -275,7 +275,13 @@ async def watchdog_start(
     observer = watchdog.observers.Observer()
     if observer is not None:
         # don't run watchdog when we are testing (Observer() patches to None)
-        hass.data[DOMAIN][WATCHDOG_TASK] = Function.create_task(task_watchdog(watchdog_q))
+        #
+        # not a Function task: scripts reloaded by this task run their preamble in it,
+        # and task.unique() there must not let a user function cancel this task
+        #
+        hass.data[DOMAIN][WATCHDOG_TASK] = hass.async_create_background_task(
+            task_watchdog(watchdog_q), "pyscript watchdog"
+        )
 
         await hass.async_add_executor_job(WatchDogHandler, watchdog_q, observer, pyscript_folder)
         _LOGGER.debug("watchdog started job and task folder=%s", pyscript_folder)

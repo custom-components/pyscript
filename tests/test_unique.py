@@ -3,9 +3,10 @@
 from ast import literal_eval
 import asyncio
 from datetime import datetime as dt
-from unittest.mock import mock_open, patch
+from unittest.mock import MagicMock, mock_open, patch
 
 import pytest
+from watchdog.events import FileModifiedEvent
 
 from custom_components.pyscript import decorator_abc
 from custom_components.pyscript.const import DOMAIN
@@ -304,3 +305,89 @@ def func6():
     seq_num += 1
     await hass.services.async_call("pyscript", "service_cleanup", {})
     assert literal_eval(await wait_until_done(notify_q)) == [seq_num]
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("kill_me", [False, True])
+async def test_task_unique_preamble_reload(hass, kill_me):
+    """Test task.unique() in a preamble doesn't stop automatic reload (#928)."""
+    source = f"""
+task.unique("demo", kill_me={kill_me})
+
+loads = int(state.get("pyscript.loads")) + 1 if state.exist("pyscript.loads") else 1
+pyscript.loads = loads
+pyscript.done = ["loaded", loads]
+runs = 0
+
+@service
+def demo():
+    global runs
+
+    task.unique("demo")
+    runs += 1
+    pyscript.done = ["running", loads, runs]
+    task.wait_until(event_trigger="demo_stop")
+"""
+    script = "/some/config/dir/pyscripts/hello.py"
+    mtime = [1000]
+    handlers = []
+    observer = MagicMock()
+    observer.schedule.side_effect = lambda handler, path, recursive: handlers.append(handler)
+    notify_q = asyncio.Queue(0)
+
+    async def state_changed(event):
+        if event.data["entity_id"] == "pyscript.done":
+            await notify_q.put(literal_eval(event.data["new_state"].state))
+
+    hass.bus.async_listen(EVENT_STATE_CHANGED, state_changed)
+
+    async def save():
+        """Simulate the script file being saved, which the watchdog task reloads."""
+        mtime[0] += 1
+        handlers[0].on_modified(FileModifiedEvent(script))
+
+    Function.hass = None
+    with (
+        patch("custom_components.pyscript.os.path.isdir", return_value=True),
+        patch("custom_components.pyscript.glob.iglob", return_value=[script]),
+        patch("custom_components.pyscript.global_ctx.open", mock_open(read_data=source)),
+        patch("custom_components.pyscript.open", mock_open(read_data=source)),
+        patch("homeassistant.config.load_yaml_config_file", return_value={}),
+        patch("custom_components.pyscript.watchdog.observers.Observer", return_value=observer),
+        patch("custom_components.pyscript.os.path.getmtime", side_effect=lambda path: mtime[0]),
+        patch("custom_components.pyscript.global_ctx.os.path.getmtime", side_effect=lambda path: mtime[0]),
+        patch("custom_components.pyscript.install_requirements", return_value=None),
+    ):
+        assert await async_setup_component(hass, "pyscript", {DOMAIN: {}})
+        hass.bus.async_fire(EVENT_HOMEASSISTANT_STARTED)
+        assert await wait_until_done(notify_q) == ["loaded", 1]
+        assert len(handlers) == 1
+
+        # the save's reload runs the preamble in the watchdog task
+        await save()
+        assert await wait_until_done(notify_q) == ["loaded", 2]
+
+        # demo() takes the name; this used to cancel the watchdog task
+        await hass.services.async_call("pyscript", "demo", {})
+        assert await wait_until_done(notify_q) == ["running", 2, 1]
+
+        await save()
+        assert await wait_until_done(notify_q) == ["loaded", 3]
+
+        # with demo() running, a reload by the service call completes too;
+        # with kill_me=True it used to cancel the reload partway
+        await hass.services.async_call("pyscript", "demo", {})
+        assert await wait_until_done(notify_q) == ["running", 3, 1]
+        mtime[0] += 1
+        await hass.services.async_call("pyscript", "reload", {}, blocking=True)
+        assert await wait_until_done(notify_q) == ["loaded", 4]
+
+        await save()
+        assert await wait_until_done(notify_q) == ["loaded", 5]
+
+        hass.bus.async_fire("demo_stop")
+        await hass.async_block_till_done()
+
+    # Stop all tasks to avoid conflicts with other tests
+    await Function.waiter_stop()
+    await Function.reaper_stop()
