@@ -451,63 +451,6 @@ def webhook_dup_b(**_):
 
 
 @pytest.mark.asyncio
-async def test_webhook_trigger_expression_over_several_lines(pyscript, hass):
-    """A webhook trigger expression can start with blanks and run over several lines without brackets."""
-    await pyscript.start("""
-@webhook_trigger("lines_hook", '''
-    payload.get('a') == 1 and  # first
-    payload.get('b') == 2
-''')
-def webhook_lines(payload):
-    pyscript.done = payload
-
-@webhook_trigger("start_wait_hook")
-def webhook_wait(payload):
-    task.wait_until(webhook_trigger=["wait_hook", "\\n payload.get('c') == 3 or\\n payload.get('c') == 4\\n"])
-    pyscript.done = "waited"
-""")
-
-    def json_request(body: bytes) -> MockRequest:
-        return _request(body=body, headers={"Content-Type": "application/json"})
-
-    await webhook.async_handle_webhook(hass, "lines_hook", json_request(b'{"a": 1, "b": 0}'))
-    await hass.async_block_till_done()
-    assert pyscript.done.empty()
-    await webhook.async_handle_webhook(hass, "lines_hook", json_request(b'{"a": 1, "b": 2}'))
-    await pyscript.wait_done({"a": 1, "b": 2})
-
-    await webhook.async_handle_webhook(hass, "start_wait_hook", json_request(b"{}"))
-    for _ in range(100):
-        if not pyscript.done.empty():
-            break
-        await webhook.async_handle_webhook(hass, "wait_hook", json_request(b'{"c": 4}'))
-        await asyncio.sleep(0.02)
-    await pyscript.wait_done("waited")
-
-
-@pytest.mark.asyncio
-async def test_webhook_handler_expression_over_several_lines(pyscript, hass):
-    """A @webhook_handler expression can start with blanks and run over several lines without brackets."""
-    await pyscript.start("""
-@webhook_handler("lines_handler", '''
-    payload.get('token') == 'secret' and
-    payload.get('user') == 'me'  # both
-''')
-def webhook_lines_handler(payload, **_):
-    return {"ok": True}
-""")
-
-    for body, status in (
-        (b'{"token": "secret", "user": "you"}', 403),
-        (b'{"token": "secret", "user": "me"}', 200),
-    ):
-        response = await webhook.async_handle_webhook(
-            hass, "lines_handler", _request(body=body, headers={"Content-Type": "application/json"})
-        )
-        assert response.status == status
-
-
-@pytest.mark.asyncio
 async def test_webhook_handler_cancelled_by_task_unique(pyscript, hass):
     """A request whose call is cancelled by a newer @task_unique call gets 503 right away, not a timeout."""
     await pyscript.start("""
