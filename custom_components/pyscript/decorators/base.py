@@ -16,9 +16,9 @@ from ..eval import AstEval, Function
 _LOGGER = logging.getLogger(__name__)
 
 
-def strip_trigger_expr(expr):
-    """Strip surrounding whitespace from a trigger expression (non-strings are returned as is)."""
-    return expr.strip(" \t\r\n") if isinstance(expr, str) else expr
+def strip_trigger_expr(expr: str) -> str:
+    """Strip surrounding whitespace from a trigger expression."""
+    return expr.strip(" \t\r\n")
 
 
 class AutoKwargsDecorator(Decorator, ABC):

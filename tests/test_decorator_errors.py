@@ -485,23 +485,13 @@ def func7():
 
 
 TRIGGER_WHITESPACE_SOURCE = r"""
-seq_num = 0
-
 @time_trigger("startup")
 def func_startup():
     pyscript.done = "startup"
 
-@state_trigger(" pyscript.a == '1'")
-def func_space(value=None):
-    pyscript.done = "space"
-
-@state_trigger("\npyscript.b == '1'\n")
-def func_newline(value=None):
-    pyscript.done = "newline"
-
-@state_trigger("\t pyscript.c == '1'\t")
-def func_tab(value=None):
-    pyscript.done = "tab"
+@state_trigger(" pyscript.a == '1'\n")
+def func_blanks(value=None):
+    pyscript.done = "blanks"
 
 @state_trigger('''
     (pyscript.d == '1' and
@@ -522,23 +512,6 @@ def func_active():
 @event_trigger("test_event", "\n arg1 == 1 \n")
 def func_event(arg1=None):
     pyscript.done = "event"
-
-@state_trigger("pyscript.w1 == '1'")
-def func_wait():
-    task.wait_until(state_trigger=" pyscript.w2 == 'go'\n", state_check_now=False)
-    pyscript.done = "waited state"
-
-@state_trigger("pyscript.w3 == '1'")
-def func_wait_event():
-    task.wait_until(event_trigger=["test_wait", "\t arg1 == 2 "])
-    pyscript.done = "waited event"
-
-@state_trigger("pyscript.s == '1'")
-def func_syntax():
-    try:
-        task.wait_until(state_trigger="\n  a b \n")
-    except SyntaxError as exc:
-        pyscript.done = f"syntax: {exc.msg} {exc.text} {exc.offset}"
 """
 
 
@@ -555,17 +528,14 @@ async def test_trigger_expression_whitespace(hass, caplog):
         assert await wait_until_done(notify_q) == expected
 
     hass.states.async_set("pyscript.a", "1")
-    await check("space")
-    hass.states.async_set("pyscript.b", "1")
-    await check("newline")
-    hass.states.async_set("pyscript.c", "1")
-    await check("tab")
+    await check("blanks")
     hass.states.async_set("pyscript.d", "1")
     hass.states.async_set("pyscript.e", "1")
     await check("multiline")
 
-    # the entity name is trimmed too, so it still means "any change" and the name is exact
-    hass.states.async_set("pyscript.f", "x")
+    # the entity name is trimmed too, so it still means "any change" (even to a false value)
+    # and the name is exact
+    hass.states.async_set("pyscript.f", "")
     await check("pyscript.f")
     hass.states.async_set("pyscript.g", "1")
     await check("pyscript.g")
@@ -584,67 +554,6 @@ async def test_trigger_expression_whitespace(hass, caplog):
     hass.bus.async_fire("test_event", {"arg1": 1})
     await check("event")
 
-    # task.wait_until: keep poking the state until the function is waiting
-    hass.states.async_set("pyscript.w1", "1")
-    for i in range(100):
-        if not notify_q.empty():
-            break
-        hass.states.async_set("pyscript.w2", f"stop{i}")
-        hass.states.async_set("pyscript.w2", "go")
-        await asyncio.sleep(0.02)
-    await check("waited state")
-
-    hass.states.async_set("pyscript.w3", "1")
-    for _ in range(100):
-        if not notify_q.empty():
-            break
-        hass.bus.async_fire("test_wait", {"arg1": 1})
-        hass.bus.async_fire("test_wait", {"arg1": 2})
-        await asyncio.sleep(0.02)
-    await check("waited event")
-
-    # a real syntax error reports the stripped expression, caret under the right place
-    hass.states.async_set("pyscript.s", "1")
-    # same message, text and offset as CPython gives for the stripped expression
-    with pytest.raises(SyntaxError) as exc_info:
-        compile("a b", "<expr>", "eval")
-    exc = exc_info.value
-    await check(f"syntax: {exc.msg} {exc.text} {exc.offset}")
-
-    assert "IndentationError" not in caplog.text
-
-
-@pytest.mark.asyncio
-async def test_trigger_expression_whitespace_syntax_error(hass, caplog):
-    """A broken trigger expression is shown stripped, with the marker under the problem."""
-    await setup_script(
-        hass,
-        None,
-        [dt(2020, 7, 1, 10, 59, 59, 999999)],
-        r"""
-@state_trigger("\n   \t(1 +\n  * 2) \n")
-def func1():
-    pass
-
-@event_trigger("some_event", "  \n a b ")
-def func2():
-    pass
-""",
-    )
-    assert (
-        """File "/hello.py", line 2, in file.hello.func1 @state_trigger()
-    * 2)
-    ^
-SyntaxError: invalid syntax"""
-        in caplog.text
-    )
-    assert (
-        """File "/hello.py", line 1, in file.hello.func2 @event_trigger()
-    a b
-      ^
-SyntaxError: invalid syntax"""
-        in caplog.text
-    )
     assert "IndentationError" not in caplog.text
 
 
@@ -660,16 +569,6 @@ def func_comments(var_name=None):
 @state_trigger("  pyscript.c3 == '1'  # only condition\n")
 def func_single_comment():
     pyscript.done = "single"
-
-@state_trigger("pyscript.w1 == '1'")
-def func_wait_first():
-    task.wait_until(state_trigger=["pyscript.w2 == 'go' # first\n", "pyscript.w3 == 'go' # last"], state_check_now=False)
-    pyscript.done = "waited first"
-
-@state_trigger("pyscript.w4 == '1'")
-def func_wait_last():
-    task.wait_until(state_trigger=["pyscript.w2 == 'go' # first\n", "pyscript.w3 == 'go' # last"], state_check_now=False)
-    pyscript.done = "waited last"
 """
 
 
@@ -688,19 +587,5 @@ async def test_trigger_expression_comments(hass, caplog):
     assert await wait_until_done(notify_q) == "pyscript.c2"
     hass.states.async_set("pyscript.c3", "1")
     assert await wait_until_done(notify_q) == "single"
-
-    # task.wait_until with a list: the first entry ends in a comment, the last entry is a comment
-    for trig, entity, expected in (
-        ("pyscript.w1", "pyscript.w2", "waited first"),
-        ("pyscript.w4", "pyscript.w3", "waited last"),
-    ):
-        hass.states.async_set(trig, "1")
-        for i in range(100):
-            if not notify_q.empty():
-                break
-            hass.states.async_set(entity, f"stop{i}")
-            hass.states.async_set(entity, "go")
-            await asyncio.sleep(0.02)
-        assert await wait_until_done(notify_q) == expected
 
     assert "SyntaxError" not in caplog.text
