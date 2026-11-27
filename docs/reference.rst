@@ -1221,6 +1221,51 @@ matches any of the positive arguments, and none of the negative arguments.
    def show_temperature(value):
        log.info(f"temperature is now {value}")
 
+Logbook and recorder
+^^^^^^^^^^^^^^^^^^^^
+
+Each time a trigger or a service call runs a function, pyscript fires a ``pyscript_running`` event,
+which the logbook shows as, for example, ``file_hello_motion has been triggered by state change
+binary_sensor.motion == on``. A call from other pyscript code doesn't fire it, and neither does a
+trigger that ``@state_active``, ``@time_active`` or ``@task_unique(kill_me=True)`` stops.
+
+The event data looks like this:
+
+.. code:: python
+
+   {
+       "name": "file_hello_motion",
+       "entity_id": "pyscript.file_hello_motion",
+       "func_args": {"trigger_type": "state", "var_name": "binary_sensor.motion", "value": "on"},
+   }
+
+``name`` is the function's full name with each ``.`` replaced by ``_``: ``file_hello_motion`` for
+``motion()`` in ``hello.py``, or ``apps_my_app_motion`` for an app. ``entity_id`` is ``pyscript.``
+followed by ``name``. It lets the logbook attach the event to that ID, but there is no entity or
+state behind it. ``func_args`` keeps only ``trigger_type`` and, when they are set, ``event_type``,
+``var_name``, ``value`` and ``trigger_time``.
+
+Home Assistant's recorder stores these events. Its ``exclude`` filter also applies to an event's
+``entity_id``, so frequent ones can be left out of the database:
+
+.. code:: yaml
+
+   recorder:
+     exclude:
+       entities:
+         # one function: collect_entity() in mqtt_summary.py
+         - pyscript.file_mqtt_summary_collect_entity
+       entity_globs:
+         # every function in mqtt_summary.py
+         - pyscript.file_mqtt_summary_*
+       event_types:
+         # every pyscript function
+         - pyscript_running
+
+Use only the lines you need. A run that is excluded isn't shown in the logbook history either. A
+``pyscript.`` state variable whose name matches an exclusion is excluded too, so choose globs with
+care.
+
 Other Function Decorators
 -------------------------
 
@@ -1346,7 +1391,7 @@ doesn't complete either. In these cases, and whenever the function returns ``Non
 requested a response gets an empty dictionary, as with Home Assistant scripts. If the function
 raises an exception, the service call fails with a ``HomeAssistantError`` (shown in the UI and
 stopping a calling automation or script), and the exception is also logged by pyscript. Like
-triggers, each service call is shown in the logbook.
+triggers, each service call is shown in the logbook (see `Logbook and recorder`_).
 
 The function is called with keyword parameters set to the service call parameters, plus
 ``trigger_type`` is set to ``"service"``. As with other Home Assistant services, a call with a
