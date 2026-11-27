@@ -55,22 +55,17 @@ class SentenceTriggerDecorator(TriggerDecorator, AutoKwargsDecorator, RequestRes
 
     async def validate(self):
         """Validate the sentence trigger configuration."""
-        try:
-            conversation_trigger = await async_import_module(
-                self.dm.hass, "homeassistant.components.conversation.trigger"
-            )
-        except ImportError:
-            # Conversation dependencies might not be installed yet.
-            pass
-        else:
-            validators = [
-                conversation_trigger.has_one_non_empty_item,
-                conversation_trigger.has_no_punctuation,
-            ]
-            # is_valid_sentence is available in HA 2026.7 and later.
-            if is_valid_sentence := getattr(conversation_trigger, "is_valid_sentence", None):
-                validators.append(is_valid_sentence)
-            self.args_schema = vol.Schema(vol.All(self.args_schema, *validators))
+        conversation_trigger = await async_import_module(
+            self.dm.hass, "homeassistant.components.conversation.trigger"
+        )
+        validators = [
+            conversation_trigger.has_one_non_empty_item,
+            conversation_trigger.has_no_punctuation,
+        ]
+        # is_valid_sentence is available in HA 2026.7 and later.
+        if is_valid_sentence := getattr(conversation_trigger, "is_valid_sentence", None):
+            validators.append(is_valid_sentence)
+        self.args_schema = vol.Schema(vol.All(self.args_schema, *validators))
         await super().validate()
         self.sentences = self.args
 

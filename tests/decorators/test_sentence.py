@@ -316,36 +316,17 @@ def voice_hello():
     assert len(agent_manager.triggers) == 1
 
 
-@pytest.mark.asyncio
-async def test_sentence_trigger_without_conversation_validation(pyscript, agent_manager):
-    """Missing conversation dependencies do not prevent pyscript from loading."""
-    async_import_module = sentence_decorator.async_import_module
-
-    async def import_without_validators(hass, module):
-        if module == "homeassistant.components.conversation.trigger":
-            raise ImportError("conversation dependencies unavailable")
-        return await async_import_module(hass, module)
-
-    with patch.object(sentence_decorator, "async_import_module", side_effect=import_without_validators):
-        await pyscript.start("""
-@sentence_trigger("hello?")
-def voice_without_conversation():
-    pass
-""")
-
-    assert agent_manager.triggers[0]["sentences"] == ["hello?"]
-
-
 @pytest.mark.parametrize(
     ("module", "error_type"),
     [
+        ("homeassistant.components.conversation.trigger", ImportError),
         ("homeassistant.components.conversation.trigger", RuntimeError),
         ("homeassistant.components.conversation.agent_manager", ImportError),
     ],
 )
 @pytest.mark.asyncio
 async def test_sentence_trigger_import_failure(pyscript, agent_manager, module, error_type):
-    """Unexpected validator errors and registration import failures are reported."""
+    """Validator and registration import failures are reported without proceeding further."""
     async_import_module = sentence_decorator.async_import_module
 
     async def fail_import(hass, module_name):
@@ -353,7 +334,7 @@ async def test_sentence_trigger_import_failure(pyscript, agent_manager, module, 
             raise error_type("conversation import failed")
         return await async_import_module(hass, module_name)
 
-    with patch.object(sentence_decorator, "async_import_module", side_effect=fail_import):
+    with patch.object(sentence_decorator, "async_import_module", side_effect=fail_import) as import_module:
         await pyscript.start("""
 @sentence_trigger("hello")
 def voice_hello():
@@ -361,6 +342,8 @@ def voice_hello():
 """)
     await pyscript.wait_exception(error_type, match="conversation import failed")
     assert not agent_manager.triggers
+    if module == "homeassistant.components.conversation.trigger":
+        import_module.assert_awaited_once_with(pyscript.hass, module)
 
 
 @pytest.mark.asyncio
