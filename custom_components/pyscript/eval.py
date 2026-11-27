@@ -2500,88 +2500,6 @@ class AstEval:
             self.code_list = []
         self.ast = ast.parse(self.code_str, filename=self.filename, mode=mode)
 
-    def parse_trigger_expr(self, expr: str) -> None:
-        r"""
-        Parse a trigger expression.
-
-        Blanks around it are stripped. If it still has a line break, it is parsed unstripped as
-        "(" + expr + "\n)", so it needs no brackets of its own and keeps its line numbers; positions
-        on its first line move back by the added "(". Nothing that is valid only because of the
-        added brackets is accepted; what parsed before (stripped) still parses as before.
-        """
-        stripped = expr.strip(" \t\r\n") if isinstance(expr, str) else expr
-        if not isinstance(stripped, str) or ("\n" not in stripped and "\r" not in stripped):
-            self.parse(stripped, mode="eval")
-            return
-        self.ast = None
-        self.code_str = expr
-        # Python reads "\r\n" and "\r" as "\n"; joining with "\n" keeps the added ")" on a line of its own
-        self.code_list = expr.replace("\r\n", "\n").replace("\r", "\n").split("\n")
-        source = "\n".join(self.code_list)
-        try:
-            tree = ast.parse("(" + source + "\n)", filename=self.filename, mode="eval")
-        except SyntaxError as exc:
-            raise self._trigger_syntax_error(
-                exc.msg, exc.lineno, exc.offset, exc.end_lineno, exc.end_offset
-            ) from None
-        top, msg = tree.body, None
-        if (top.lineno, top.col_offset) == (1, 0):
-            # Python's parser says it starts at the added "(", so it needs that bracket
-            if isinstance(top, ast.Tuple):
-                msg = "tuple must be inside brackets" if top.elts else "expression is empty"
-            elif isinstance(top, ast.GeneratorExp):
-                msg = "generator expression must be inside brackets"
-            else:
-                msg = "unmatched ')'"
-        elif isinstance(top, (ast.NamedExpr, ast.Yield, ast.YieldFrom)):
-            # a bare ":=" or yield is an error as a keyword value, a bracketed one isn't
-            try:
-                ast.parse("f(value=" + source + "\n)", mode="eval")
-            except SyntaxError:
-                msg = ("':='" if isinstance(top, ast.NamedExpr) else "'yield'") + " must be inside brackets"
-        if msg:
-            try:
-                ast.parse(stripped, mode="eval")
-            except SyntaxError:
-                # point at the first part of it that the user wrote
-                starts = [
-                    (node.lineno, node.col_offset) for node in ast.walk(top) if hasattr(node, "lineno")
-                ]
-                lineno, col = min((start for start in starts if start != (1, 0)), default=(1, 1))
-                raise self._trigger_syntax_error(msg, lineno, col + 1) from None
-            # valid without the added brackets, like "a, b" then a "# comment" line: parse it as before
-            self.parse(stripped, mode="eval")
-            return
-        for node in ast.walk(tree):
-            if getattr(node, "lineno", None) == 1:
-                node.col_offset -= 1
-            if getattr(node, "end_lineno", None) == 1:
-                node.end_col_offset -= 1
-        self.ast = tree
-
-    def _trigger_syntax_error(
-        self,
-        msg: str,
-        lineno: int | None,
-        offset: int | None,
-        end_lineno: int | None = None,
-        end_offset: int | None = None,
-    ) -> SyntaxError:
-        r"""Return a SyntaxError, its position in "(" + expr + "\n)" moved onto the expression as written."""
-
-        def move(lineno: int, offset: int) -> tuple[int, int]:
-            if lineno > len(self.code_list):
-                # on the added ")": point at the end of the last line that isn't blank
-                lineno = max((idx for idx, line in enumerate(self.code_list, 1) if line.strip()), default=1)
-                return lineno, len(self.code_list[lineno - 1].rstrip())
-            return lineno, max(offset - (lineno == 1), 1)
-
-        start = move(lineno or 1, offset or 1)
-        end = move(end_lineno, end_offset or 1) if end_lineno else start
-        if end <= start:
-            end = (start[0], start[1] + 1)
-        return SyntaxError(msg, (self.filename, start[0], start[1], self.code_list[start[0] - 1], *end))
-
     def log_exception(self, exc: Exception) -> None:
         """Log eval exception."""
         try:
@@ -2766,10 +2684,7 @@ class EvalExceptionFormatter:
                         self.current_filename = eval_func.global_ctx.get_file_path()
                 elif code.co_qualname == AstEval.call_func.__qualname__ and self.current_func is None:
                     self.current_func = frame.f_locals.get("func_name", None)
-                elif code.co_qualname in (
-                    AstEval.parse.__qualname__,
-                    AstEval.parse_trigger_expr.__qualname__,
-                ) and isinstance(self.exc, SyntaxError):
+                elif code.co_qualname == AstEval.parse.__qualname__ and isinstance(self.exc, SyntaxError):
                     ctx = frame.f_locals.get("self")
                     self.current_code_list = ctx.code_list
                     self.current_filename = ctx.global_ctx.get_file_path() or ctx.filename

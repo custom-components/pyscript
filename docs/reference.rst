@@ -539,24 +539,8 @@ The trigger can include arguments with any mixture of string expressions (that a
 when any of the underlying state variables change) and string state variable or attribute
 names (that trigger whenever that variable or attribute changes).
 
-A trigger expression may start or end with spaces, tabs or new lines, which are ignored. An
-expression written over several lines, for example in a triple-quoted string, is read as if it were
-inside brackets, so it needs no brackets of its own, and any of its lines can end with a
-``# comment``:
-
-.. code:: python
-
-   @state_trigger("""
-       binary_sensor.motion == 'off' and  # nobody there
-       light.porch == 'on'
-   """)
-
-An expression over several lines can't rely on those brackets for anything else: a bare generator
-expression (forgetting the ``any()`` around ``x == 1 for x in ...``), a bare tuple that needs them
-for its line break, an empty expression, or a bare ``:=`` or ``yield`` gives a ``SyntaxError``.
-Inside brackets of your own they work as they do in Python. The same goes for ``@state_active``,
-``task.wait_until`` and the expressions of ``@event_trigger``, ``@mqtt_trigger``, ``@webhook_trigger``
-and ``@webhook_handler``.
+A trigger expression may start or end with spaces, tabs or new lines, which are ignored. See
+`Multi-line trigger expressions`_ for ways to write a long one.
 
 Note that if a state variable and attributes are set to the same value, HASS doesn't generate a
 state change event, so the ``@state_trigger`` condition will not be checked. It is only evaluated
@@ -650,6 +634,47 @@ be ``None`` the first time the state variable is set (since it has no prior valu
 ``str_expr`` is being evaluated because a different state variable changed (only the state variable
 change that caused ``str_expr`` to be evaluated gets its prior value in ``.old``; any other ``.old``
 variables will be ``None`` for that evaluation).
+
+Multi-line trigger expressions
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+A long trigger expression can be split over several lines. It follows Python's rules, so use one of
+these forms:
+
+- **Brackets in a triple-quoted string.** Inside the brackets the lines can be indented freely and
+  end with a ``# comment``:
+
+  .. code:: python
+
+     @state_trigger("""(
+         binary_sensor.motion == 'off' and  # nobody there
+         light.porch == 'on'
+     )""")
+
+- **Adjacent strings.** Python joins string literals that follow each other, f-strings included, so
+  the expression can be written one condition per line. Each piece after the first needs a space at
+  its start:
+
+  .. code:: python
+
+     @state_trigger(
+         f"{room_sensor} in ['unoccupied', 'dormant']"
+         " and binary_sensor.motion == 'off'"
+         " and light.porch == 'on'"
+     )
+
+- **Named parts.** Conditions used by several triggers can be kept in variables and combined with
+  an f-string:
+
+  .. code:: python
+
+     NOBODY_THERE = "binary_sensor.motion == 'off'"
+     PORCH_ON = "light.porch == 'on'"
+
+     @state_trigger(f"{NOBODY_THERE} and {PORCH_ON}")
+
+Several arguments to ``@state_trigger`` don't split one condition: the trigger runs when any of
+them is true.
 
 @time_trigger
 ^^^^^^^^^^^^^

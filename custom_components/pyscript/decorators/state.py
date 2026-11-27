@@ -12,26 +12,21 @@ from homeassistant.helpers import config_validation as cv
 from ..decorator import WaitUntilDecoratorManager
 from ..decorator_abc import DecoratorManagerStatus, DispatchData, TriggerDecorator, TriggerHandlerDecorator
 from ..state import STATE_VIRTUAL_ATTRS, State
-from .base import AutoKwargsDecorator, ExpressionDecorator
+from .base import AutoKwargsDecorator, ExpressionDecorator, strip_trigger_expr
 
 STATE_RE = re.compile(r"\w+\.\w+(\.((\w+)|\*))?$")
 
 _LOGGER = logging.getLogger(__name__)
 
 
-def strip_trigger_expr(expr):
-    """Strip surrounding whitespace from a trigger expression (non-strings are returned as is)."""
-    return expr.strip(" \t\r\n") if isinstance(expr, str) else expr
-
-
 def any_trigger_exprs(exprs):
     """
     Join trigger expressions into one any([...]) expression.
 
-    Each expression is stripped and goes on its own lines, so a trailing # comment can't swallow
-    the separator or the closing bracket that follow it.
+    Each expression goes on its own lines, so a trailing # comment can't swallow the separator
+    or the closing bracket that follow it.
     """
-    return "any([" + "\n,\n".join(strip_trigger_expr(expr) for expr in exprs) + "\n])"
+    return "any([" + "\n,\n".join(exprs) + "\n])"
 
 
 def ident_any_values_changed(func_args, ident):
@@ -186,9 +181,9 @@ class StateTriggerDecorator(TriggerDecorator, ExpressionDecorator, AutoKwargsDec
         state_trig = []
 
         for trig in self.args:
-            name = strip_trigger_expr(trig)
-            if STATE_RE.match(name):
-                self.state_trig_ident_any.add(name)
+            trig = strip_trigger_expr(trig)
+            if STATE_RE.match(trig):
+                self.state_trig_ident_any.add(trig)
             else:
                 state_trig.append(trig)
 

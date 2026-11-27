@@ -16,6 +16,11 @@ from ..eval import AstEval, Function
 _LOGGER = logging.getLogger(__name__)
 
 
+def strip_trigger_expr(expr: str) -> str:
+    """Strip surrounding whitespace from a trigger expression."""
+    return expr.strip(" \t\r\n")
+
+
 class AutoKwargsDecorator(Decorator, ABC):
     """Mixin that copies validated kwargs into instance attributes based on annotations."""
 
@@ -57,7 +62,7 @@ class ExpressionDecorator(Decorator, ABC):
             self.dm.name + " " + dec_name, self.dm.ast_ctx.global_ctx, self.dm.name
         )
         Function.install_ast_funcs(self._ast_expression)
-        self._ast_expression.parse_trigger_expr(expression)
+        self._ast_expression.parse(strip_trigger_expr(expression), mode="eval")
 
     def has_expression(self) -> bool:
         """Return True if expression was created."""
