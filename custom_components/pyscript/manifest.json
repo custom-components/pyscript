@@ -1,7 +1,7 @@
 {
   "domain": "pyscript",
   "name": "Pyscript Python scripting",
-  "after_dependencies": ["mqtt"],
+  "after_dependencies": ["conversation", "mqtt"],
   "codeowners": [
     "@craigbarratt"
   ],

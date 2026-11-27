@@ -187,6 +187,38 @@ def webhook_handler(
     ...
 
 
+def sentence_trigger(
+    *sentences: str | list[str],
+    timeout: float = 3.0,
+    kwargs: dict | None = None,
+) -> Callable[..., Any]:
+    """Trigger when a spoken sentence matches the given template(s).
+
+    Uses Home Assistant's conversation agent to match sentences with hassil
+    wildcard syntax (e.g. ``{slot_name}``). A string return value becomes the
+    spoken response. None gives the default "Done"; other types warn and use "Done".
+
+    Args:
+        sentences: One or more sentence templates or lists of templates using hassil ``{slot}`` wildcards.
+        timeout: Positive seconds to wait for the function to return (default 3.0; zero is invalid).
+        kwargs: Extra keyword arguments merged into each invocation.
+
+    Trigger kwargs:
+        - Each matched slot is passed as a named argument.
+        - ``trigger_type`` = ``"sentence"``
+        - ``context``: HA context of the conversation; actions use a child context
+        - ``sentence``: the raw spoken text
+        - ``details``: full hassil match info per slot (name, text, value)
+        - ``device_id``: HA device registry id of the voice hardware (or None)
+        - ``satellite_id``: entity_id of the assist_satellite entity (or None)
+
+    Unused arguments may be omitted or captured with **kwargs. Missing slots are
+    not passed; give optional parameters defaults, e.g. name=None, area=None.
+    Slots override standard arguments on collision; explicit kwargs override both.
+    """
+    ...
+
+
 def pyscript_compile() -> Callable[..., Any]:
     """Compile the wrapped function into native (synchronous) Python.
 

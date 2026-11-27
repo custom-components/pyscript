@@ -1,5 +1,8 @@
 coverage==7.13.5
 croniter==6.0.0
+gazetteer-matcher==1.1.0
+hassil==3.12.1
+home-assistant-intents==2026.10.27
 watchdog==6.0.0
 mock-open==1.4.0
 mypy==1.10.1
